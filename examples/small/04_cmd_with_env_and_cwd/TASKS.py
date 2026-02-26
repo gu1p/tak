@@ -7,6 +7,7 @@ SPEC = module_spec(
     task(
       "env_cmd",
       steps=[
+        cmd("mkdir", "-p", "out"),
         cmd(
           "sh", "-c", "echo \"$TAK_ENV_MARKER\" > marker.txt",
           cwd="out",
