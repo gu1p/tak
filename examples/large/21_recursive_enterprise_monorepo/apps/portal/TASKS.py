@@ -7,7 +7,7 @@ SPEC = module_spec(
     task(
       "release",
       deps=["//platform/auth:test", "//platform/billing:test"],
-      steps=[cmd("sh", "-c", "echo portal-release >> out/enterprise.log")]
+      steps=[cmd("sh", "-c", "mkdir -p out && echo portal-release >> out/enterprise.log")]
     )
   ]
 )

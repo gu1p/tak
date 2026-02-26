@@ -4,8 +4,8 @@
 
 SPEC = module_spec(
   tasks=[
-    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "echo py-build >> out/polyglot.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "echo py-test >> out/polyglot.log")]),
+    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "mkdir -p out && echo py-build >> out/polyglot.log")]),
+    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo py-test >> out/polyglot.log")]),
     task("release", deps=[":test", "//services/rust:test", "//services/js:test"], steps=[script("scripts/release.sh", interpreter="sh")]),
   ]
 )

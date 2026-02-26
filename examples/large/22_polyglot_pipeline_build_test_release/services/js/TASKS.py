@@ -4,8 +4,8 @@
 
 SPEC = module_spec(
   tasks=[
-    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "echo js-build >> out/polyglot.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "echo js-test >> out/polyglot.log")]),
+    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "mkdir -p out && echo js-build >> out/polyglot.log")]),
+    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo js-test >> out/polyglot.log")]),
   ]
 )
 SPEC

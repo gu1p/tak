@@ -3,6 +3,6 @@
 # Scenario: multi package monorepo
 
 SPEC = module_spec(
-  tasks=[task("build", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "echo api-build >> out/monorepo.log")])]
+  tasks=[task("build", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "mkdir -p out && echo api-build >> out/monorepo.log")])]
 )
 SPEC

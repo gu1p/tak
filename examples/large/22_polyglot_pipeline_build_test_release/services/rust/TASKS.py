@@ -4,8 +4,8 @@
 
 SPEC = module_spec(
   tasks=[
-    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "echo rust-build >> out/polyglot.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "echo rust-test >> out/polyglot.log")]),
+    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "mkdir -p out && echo rust-build >> out/polyglot.log")]),
+    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo rust-test >> out/polyglot.log")]),
   ]
 )
 SPEC

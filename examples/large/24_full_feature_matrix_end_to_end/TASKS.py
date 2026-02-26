@@ -23,7 +23,7 @@ SPEC = module_spec(
     task(
       "seed_flaky",
       deps=[":bootstrap"],
-      steps=[cmd("sh", "-c", "if [ -f out/full_seen ]; then echo seed-ok >> out/full_matrix.log; exit 0; else touch out/full_seen; exit 44; fi")]
+      steps=[cmd("sh", "-c", "mkdir -p out && if [ -f out/full_seen ]; then echo seed-ok >> out/full_matrix.log; exit 0; else touch out/full_seen; exit 44; fi")]
     ),
   ]
 )

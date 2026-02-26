@@ -5,7 +5,7 @@
 SPEC = module_spec(
   tasks=[
     task("build", steps=[cmd("sh", "-c", "mkdir -p out && echo build >> out/chain.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "echo test >> out/chain.log")])
+    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo test >> out/chain.log")])
   ]
 )
 SPEC

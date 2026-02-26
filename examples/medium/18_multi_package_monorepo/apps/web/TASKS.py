@@ -7,7 +7,7 @@ SPEC = module_spec(
     task(
       "all",
       deps=["//apps/api:build", "//libs/common:lint"],
-      steps=[cmd("sh", "-c", "echo web-all >> out/monorepo.log")]
+      steps=[cmd("sh", "-c", "mkdir -p out && echo web-all >> out/monorepo.log")]
     )
   ]
 )

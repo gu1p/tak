@@ -3,6 +3,6 @@
 # Scenario: multi package monorepo
 
 SPEC = module_spec(
-  tasks=[task("lint", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "echo common-lint >> out/monorepo.log")])]
+  tasks=[task("lint", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "mkdir -p out && echo common-lint >> out/monorepo.log")])]
 )
 SPEC

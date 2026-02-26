@@ -4,8 +4,8 @@
 
 SPEC = module_spec(
   tasks=[
-    task("build", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "echo auth-build >> out/enterprise.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "echo auth-test >> out/enterprise.log")]),
+    task("build", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "mkdir -p out && echo auth-build >> out/enterprise.log")]),
+    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo auth-test >> out/enterprise.log")]),
   ]
 )
 SPEC

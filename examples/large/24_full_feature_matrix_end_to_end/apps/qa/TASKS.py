@@ -18,7 +18,7 @@ SPEC = module_spec(
         need("worktree_gate", 1, scope=WORKTREE),
       ],
       queue=queue_use("qa_priority", scope=MACHINE, slots=1, priority=10),
-      steps=[cmd("sh", "-c", "echo qa-validate >> out/full_matrix.log")]
+      steps=[cmd("sh", "-c", "mkdir -p out && echo qa-validate >> out/full_matrix.log")]
     ),
     task(
       "release",

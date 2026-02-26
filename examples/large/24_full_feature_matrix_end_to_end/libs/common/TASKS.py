@@ -4,7 +4,7 @@
 
 SPEC = module_spec(
   tasks=[
-    task("lint", deps=["//:seed_flaky"], steps=[cmd("sh", "-c", "echo common-lint >> out/full_matrix.log")])
+    task("lint", deps=["//:seed_flaky"], steps=[cmd("sh", "-c", "mkdir -p out && echo common-lint >> out/full_matrix.log")])
   ]
 )
 SPEC
