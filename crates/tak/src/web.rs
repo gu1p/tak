@@ -105,10 +105,7 @@ pub async fn serve_graph_ui(spec: &WorkspaceSpec, target: Option<&TaskLabel>) ->
 }
 
 fn should_auto_open_browser() -> bool {
-    should_auto_open_browser_for(
-        cfg!(debug_assertions),
-        env_flag_set("TAK_NO_BROWSER_OPEN"),
-    )
+    should_auto_open_browser_for(cfg!(debug_assertions), env_flag_set("TAK_NO_BROWSER_OPEN"))
 }
 
 fn should_auto_open_browser_for(debug_assertions: bool, disable_open: bool) -> bool {

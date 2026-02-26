@@ -97,8 +97,7 @@ pub async fn run_tasks(
         })
         .collect::<Result<_>>()?;
 
-    let order =
-        tak_core::planner::topo_sort(&dep_map).context("failed to order task execution")?;
+    let order = tak_core::planner::topo_sort(&dep_map).context("failed to order task execution")?;
     let mut summary = RunSummary::default();
     let lease_context = LeaseContext::from_options(options);
 
