@@ -69,6 +69,50 @@ tak graph //apps/web:test_ui --format dot
 tak run //apps/web:test_ui
 ```
 
+## Installation
+
+Install the latest release for your platform:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-tak.sh | bash
+```
+
+Install behavior:
+
+- downloads the newest release asset for macOS/Linux (`x86_64` + `aarch64`)
+- installs `tak` and `takd` to `~/.local/bin` by default
+- supports overrides:
+  - `TAK_VERSION` to pin a release tag
+  - `TAK_INSTALL_DIR` to change install destination
+  - `TAK_REPO` to install from a different repository
+  - `GH_TOKEN` or `GITHUB_TOKEN` for private repository access
+
+Current repository visibility is private while polishing; unauthenticated curl installs will work once the repository is public.
+
+## CI/CD and Releases
+
+- CI workflow (`.github/workflows/ci.yml`) runs on PRs and pushes to `main`:
+  - formatting (`cargo fmt --check`)
+  - linting (`cargo clippy -- -D warnings`)
+  - tests (`cargo test --workspace`)
+  - doctests (`cargo test --workspace --doc`)
+  - docs policy contract (`cargo test -p tak --test doctest_contract`)
+  - coverage gate (`cargo llvm-cov --fail-under-lines 90`)
+- Release workflow (`.github/workflows/release.yml`) runs after successful CI on `main`:
+  - auto-generates SemVer tags (`vX.Y.Z`)
+  - builds `tak` and `takd` for:
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-musl`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+  - creates/updates GitHub Releases with binaries and `.sha256` checksums
+
+## Versioning
+
+- `tak --version` is wired to `TAK_VERSION` at build time.
+- Release builds inject the value from the generated Git tag (`vX.Y.Z` -> `X.Y.Z`).
+- Local developer builds fall back to the crate package version.
+
 ## Examples
 
 - Full matrix in [`examples/catalog.toml`](examples/catalog.toml)

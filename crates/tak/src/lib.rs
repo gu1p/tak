@@ -21,6 +21,7 @@ pub mod web;
 #[derive(Debug, Parser)]
 #[command(name = "tak")]
 #[command(about = "Tak task orchestrator")]
+#[command(version = env!("TAK_VERSION"))]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
