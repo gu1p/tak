@@ -1,0 +1,191 @@
+[[example]]
+name = "small/01_hello_single_task"
+run_target = "//:hello"
+explain_target = "//:hello"
+expect_success = true
+requires_daemon = false
+check_files = ["out/hello.txt"]
+
+[[example]]
+name = "small/02_two_step_dep_chain"
+run_target = "//:test"
+explain_target = "//:test"
+expect_success = true
+requires_daemon = false
+check_files = ["out/chain.log"]
+
+[[example]]
+name = "small/03_relative_vs_absolute_labels"
+run_target = "//apps/web:test"
+explain_target = "//apps/web:test"
+expect_success = true
+requires_daemon = false
+check_files = ["out/labels.log"]
+
+[[example]]
+name = "small/04_cmd_with_env_and_cwd"
+run_target = "//:env_cmd"
+explain_target = "//:env_cmd"
+expect_success = true
+requires_daemon = false
+check_files = ["out/marker.txt"]
+
+[[example]]
+name = "small/05_script_step_with_interpreter"
+run_target = "//:script_gen"
+explain_target = "//:script_gen"
+expect_success = true
+requires_daemon = false
+check_files = ["out/script.txt"]
+
+[[example]]
+name = "small/06_defaults_inheritance"
+run_target = "//:apply_defaults"
+explain_target = "//:apply_defaults"
+expect_success = true
+requires_daemon = false
+check_files = ["out/defaults.txt"]
+
+[[example]]
+name = "small/07_exclude_patterns"
+run_target = "//:main"
+explain_target = "//:main"
+expect_success = true
+requires_daemon = false
+check_files = ["out/exclude.txt"]
+
+[[example]]
+name = "small/08_retry_fixed_fail_once"
+run_target = "//:flaky_fixed"
+explain_target = "//:flaky_fixed"
+expect_success = true
+requires_daemon = false
+check_files = ["out/retry_fixed.txt"]
+
+[[example]]
+name = "small/09_retry_exp_jitter_match_exit"
+run_target = "//:flaky_jitter"
+explain_target = "//:flaky_jitter"
+expect_success = true
+requires_daemon = false
+check_files = ["out/retry_jitter.txt"]
+
+[[example]]
+name = "small/10_timeout_failure"
+run_target = "//:slow_timeout"
+explain_target = "//:slow_timeout"
+expect_success = false
+requires_daemon = false
+check_files = []
+
+[[example]]
+name = "medium/11_machine_lock_shared_ui"
+run_target = "//:ui_test"
+explain_target = "//:ui_test"
+expect_success = true
+requires_daemon = true
+check_files = ["out/ui_lock.txt"]
+
+[[example]]
+name = "medium/12_resource_cpu_ram_pool"
+run_target = "//:heavy"
+explain_target = "//:heavy"
+expect_success = true
+requires_daemon = true
+check_files = ["out/resources.txt"]
+
+[[example]]
+name = "medium/13_queue_fifo_behavior"
+run_target = "//:queued_fifo"
+explain_target = "//:queued_fifo"
+expect_success = true
+requires_daemon = true
+check_files = ["out/queue_fifo.txt"]
+
+[[example]]
+name = "medium/14_queue_priority_behavior"
+run_target = "//:queued_priority"
+explain_target = "//:queued_priority"
+expect_success = true
+requires_daemon = true
+check_files = ["out/queue_priority.txt"]
+
+[[example]]
+name = "medium/15_rate_limit_start_tokens"
+run_target = "//:rate_limited"
+explain_target = "//:rate_limited"
+expect_success = true
+requires_daemon = true
+check_files = ["out/rate_limit.txt"]
+
+[[example]]
+name = "medium/16_process_cap_guard"
+run_target = "//:process_guarded"
+explain_target = "//:process_guarded"
+expect_success = true
+requires_daemon = true
+check_files = ["out/process_cap.txt"]
+
+[[example]]
+name = "medium/17_scope_user_project_worktree_mix"
+run_target = "//:scoped_task"
+explain_target = "//:scoped_task"
+expect_success = true
+requires_daemon = true
+check_files = ["out/scopes.txt"]
+
+[[example]]
+name = "medium/18_multi_package_monorepo"
+run_target = "//apps/web:all"
+explain_target = "//apps/web:all"
+expect_success = true
+requires_daemon = false
+check_files = ["out/monorepo.log"]
+
+[[example]]
+name = "medium/19_parallel_independent_targets"
+run_target = "//:aggregate"
+explain_target = "//:aggregate"
+expect_success = true
+requires_daemon = false
+check_files = ["out/parallel.log"]
+
+[[example]]
+name = "medium/20_failure_no_retry_unmatched_exit"
+run_target = "//:failing"
+explain_target = "//:failing"
+expect_success = false
+requires_daemon = false
+check_files = []
+
+[[example]]
+name = "large/21_recursive_enterprise_monorepo"
+run_target = "//apps/portal:release"
+explain_target = "//apps/portal:release"
+expect_success = true
+requires_daemon = false
+check_files = ["out/enterprise.log"]
+
+[[example]]
+name = "large/22_polyglot_pipeline_build_test_release"
+run_target = "//services/python:release"
+explain_target = "//services/python:release"
+expect_success = true
+requires_daemon = false
+check_files = ["out/polyglot_release.txt"]
+
+[[example]]
+name = "large/23_contention_heavy_daemon_coordination"
+run_target = "//:orchestrate"
+explain_target = "//:orchestrate"
+expect_success = true
+requires_daemon = true
+check_files = ["out/contention.log"]
+
+[[example]]
+name = "large/24_full_feature_matrix_end_to_end"
+run_target = "//apps/qa:release"
+explain_target = "//apps/qa:release"
+expect_success = true
+requires_daemon = true
+check_files = ["out/full_matrix_release.txt"]

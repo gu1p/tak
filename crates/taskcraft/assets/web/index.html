@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Taskcraft Graph</title>
+    <link rel="stylesheet" href="/vendor/vis-network.min.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Taskcraft Graph</h1>
+      <p id="summary">Loading graph...</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel network-panel">
+        <div id="network" aria-label="Task graph visualization"></div>
+      </section>
+
+      <aside class="panel details-panel">
+        <h2>Selection</h2>
+        <pre id="selection">Click a node to inspect task details.</pre>
+
+        <h2>Legend</h2>
+        <ul>
+          <li>Node: task label</li>
+          <li>Edge: dependency -> dependent</li>
+        </ul>
+      </aside>
+    </main>
+
+    <script src="/vendor/vis-network.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

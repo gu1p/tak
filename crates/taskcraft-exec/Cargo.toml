@@ -1,0 +1,15 @@
+[package]
+name = "taskcraft-exec"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+taskcraft-core = { path = "../taskcraft-core" }
+serde_json.workspace = true
+uuid.workspace = true
+taskcraftd = { path = "../taskcraftd" }
+
+[dev-dependencies]
+tempfile.workspace = true
