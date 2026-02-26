@@ -8,9 +8,9 @@ SPEC = module_spec(
       "env_cmd",
       steps=[
         cmd(
-          "sh", "-c", "echo \"$TASKCRAFT_ENV_MARKER\" > marker.txt",
+          "sh", "-c", "echo \"$TAK_ENV_MARKER\" > marker.txt",
           cwd="out",
-          env={"TASKCRAFT_ENV_MARKER": "ENV_OK"}
+          env={"TAK_ENV_MARKER": "ENV_OK"}
         )
       ]
     )

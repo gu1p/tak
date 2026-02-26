@@ -2605,19 +2605,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tap"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
-
-[[package]]
-name = "target-lexicon"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
-
-[[package]]
-name = "taskcraft"
+name = "tak"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -2627,10 +2615,10 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
- "taskcraft-core",
- "taskcraft-exec",
- "taskcraft-loader",
- "taskcraftd",
+ "tak-core",
+ "tak-exec",
+ "tak-loader",
+ "takd",
  "tempfile",
  "tokio",
  "toml",
@@ -2639,7 +2627,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "taskcraft-core"
+name = "tak-core"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -2648,20 +2636,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "taskcraft-exec"
+name = "tak-exec"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde_json",
- "taskcraft-core",
- "taskcraftd",
+ "tak-core",
+ "takd",
  "tempfile",
  "tokio",
  "uuid",
 ]
 
 [[package]]
-name = "taskcraft-loader"
+name = "tak-loader"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -2672,25 +2660,37 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "taskcraft-core",
+ "tak-core",
  "tempfile",
  "thiserror 2.0.18",
  "toml",
 ]
 
 [[package]]
-name = "taskcraftd"
+name = "takd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "rusqlite",
  "serde",
  "serde_json",
- "taskcraft-core",
+ "tak-core",
  "tempfile",
  "tokio",
  "uuid",
 ]
+
+[[package]]
+name = "tap"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "target-lexicon"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 
 [[package]]
 name = "tempfile"

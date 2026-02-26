@@ -1,6 +1,6 @@
-# Taskcraft
+# Tak
 
-Taskcraft is a local task orchestrator for recursive monorepos. It loads distributed `TASKS.py` definitions, resolves them into one validated dependency graph, executes targets in dependency order, and optionally coordinates shared machine resources through `taskcraftd`.
+Tak is a local task orchestrator for recursive monorepos. It loads distributed `TASKS.py` definitions, resolves them into one validated dependency graph, executes targets in dependency order, and optionally coordinates shared machine resources through `takd`.
 
 ## What Problem It Solves
 
@@ -21,59 +21,59 @@ Taskcraft is a local task orchestrator for recursive monorepos. It loads distrib
 
 ## Crate Map
 
-- `crates/taskcraft-core`: canonical model types, labels, DAG planner
-- `crates/taskcraft-loader`: `TASKS.py` discovery/evaluation/merge
-- `crates/taskcraft-exec`: runtime executor and lease-client integration
-- `crates/taskcraftd`: unix-socket daemon + lease manager + sqlite persistence
-- `crates/taskcraft`: CLI surface, output contracts, dispatch
+- `crates/tak-core`: canonical model types, labels, DAG planner
+- `crates/tak-loader`: `TASKS.py` discovery/evaluation/merge
+- `crates/tak-exec`: runtime executor and lease-client integration
+- `crates/takd`: unix-socket daemon + lease manager + sqlite persistence
+- `crates/tak`: CLI surface, output contracts, dispatch
 
 ## CLI Quick Reference
 
-- `taskcraft list`
+- `tak list`
   - answers: "what tasks exist?"
   - output: one fully-qualified label per line
-- `taskcraft explain <label>`
+- `tak explain <label>`
   - answers: "what does this task depend on / contain?"
   - output: label, deps, steps, needs, timeout, retry attempts
-- `taskcraft graph [label] --format dot`
+- `tak graph [label] --format dot`
   - answers: "what graph should be visualized?"
   - output: DOT graph
-- `taskcraft web [label]`
+- `tak web [label]`
   - answers: "show me this graph interactively in a browser"
   - output: local URL + embedded web graph server until `Ctrl+C`
-- `taskcraft run <label...>`
+- `tak run <label...>`
   - answers: "did execution succeed and how many attempts were needed?"
   - output: one status line per executed task
-- `taskcraft status`
+- `tak status`
   - answers: "what is daemon lease pressure right now?"
   - output: active leases, pending requests, limiter usage rows
-- `taskcraft daemon start|status`
+- `tak daemon start|status`
   - answers: "start daemon" / "is daemon responsive"
 
-For full command contracts, see [`crates/taskcraft/ARCHITECTURE.md`](crates/taskcraft/ARCHITECTURE.md).
+For full command contracts, see [`crates/tak/ARCHITECTURE.md`](crates/tak/ARCHITECTURE.md).
 
 ## Quickstart
 
 1. Start daemon in a separate terminal:
 
 ```bash
-taskcraft daemon start
+tak daemon start
 ```
 
 2. In a workspace, inspect and run targets:
 
 ```bash
-taskcraft list
-taskcraft explain //apps/web:test_ui
-taskcraft graph //apps/web:test_ui --format dot
-taskcraft run //apps/web:test_ui
+tak list
+tak explain //apps/web:test_ui
+tak graph //apps/web:test_ui --format dot
+tak run //apps/web:test_ui
 ```
 
 ## Examples
 
 - Full matrix in [`examples/catalog.toml`](examples/catalog.toml)
 - Human index in [`examples/README.md`](examples/README.md)
-- Contract test runs every entry: `crates/taskcraft/tests/examples_matrix_contract.rs`
+- Contract test runs every entry: `crates/tak/tests/examples_matrix_contract.rs`
 
 ## Quality Gates
 
@@ -92,8 +92,8 @@ make check
 ## Documentation Map
 
 - System overview: [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- Core internals: [`crates/taskcraft-core/ARCHITECTURE.md`](crates/taskcraft-core/ARCHITECTURE.md)
-- Loader internals: [`crates/taskcraft-loader/ARCHITECTURE.md`](crates/taskcraft-loader/ARCHITECTURE.md)
-- Executor internals: [`crates/taskcraft-exec/ARCHITECTURE.md`](crates/taskcraft-exec/ARCHITECTURE.md)
-- Daemon internals: [`crates/taskcraftd/ARCHITECTURE.md`](crates/taskcraftd/ARCHITECTURE.md)
-- CLI contracts: [`crates/taskcraft/ARCHITECTURE.md`](crates/taskcraft/ARCHITECTURE.md)
+- Core internals: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)
+- Loader internals: [`crates/tak-loader/ARCHITECTURE.md`](crates/tak-loader/ARCHITECTURE.md)
+- Executor internals: [`crates/tak-exec/ARCHITECTURE.md`](crates/tak-exec/ARCHITECTURE.md)
+- Daemon internals: [`crates/takd/ARCHITECTURE.md`](crates/takd/ARCHITECTURE.md)
+- CLI contracts: [`crates/tak/ARCHITECTURE.md`](crates/tak/ARCHITECTURE.md)

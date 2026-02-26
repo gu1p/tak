@@ -1,4 +1,4 @@
-# PLAN.md — Taskcraft: Multi‑User Task Orchestrator (Rust) with Monty‑Evaluated `TASKS.py`
+# PLAN.md — Tak: Multi‑User Task Orchestrator (Rust) with Monty‑Evaluated `TASKS.py`
 
 > **What this is**: a build/task *orchestrator* (not a build system) that runs your existing tooling (`cargo`, `pnpm`, `uv`, scripts, etc.) but coordinates **who can run what, when**, across **many users** and **many worktrees/clones** on the **same machine**.
 
@@ -41,13 +41,13 @@
 ## 2) Architecture
 
 ### Components
-1. **CLI (`taskcraft`)**
+1. **CLI (`tak`)**
    - discovers + loads tasks from the repo
    - builds DAG
    - schedules runnable nodes locally (deps-aware)
    - requests leases from daemon before executing a task
 
-2. **Daemon (`taskcraftd`)**
+2. **Daemon (`takd`)**
    - machine-wide coordinator (single decision point)
    - maintains limiter state + queues + leases
    - does **atomic multi-limiter acquisition** (deadlock avoidance)
@@ -74,7 +74,7 @@ That is much simpler with a machine-wide daemon than with ad-hoc lockfiles.
 
 ### Root detection
 Workspace root (priority order):
-1. `taskcraft.toml` marker
+1. `tak.toml` marker
 2. Git root (`.git`)
 3. fallback: current directory (warn)
 
@@ -116,7 +116,7 @@ Each `TASKS.py` must evaluate to a single dict:
 **Hard rule**: `TASKS.py` is **definition only**. No host access.
 
 ### How the DSL is provided
-You do **not** `import taskcraft` from `TASKS.py`. Instead, the engine prepends a **prelude** string that defines the DSL functions/constants.
+You do **not** `import tak` from `TASKS.py`. Instead, the engine prepends a **prelude** string that defines the DSL functions/constants.
 
 Example load flow per file:
 
@@ -230,7 +230,7 @@ Leases are time-bound:
 For `scope="project"` you need a stable project key across clones/worktrees.
 
 ### Rule
-- If `taskcraft.toml` contains `project_id = "..."`, use it.
+- If `tak.toml` contains `project_id = "..."`, use it.
 - Else attempt to derive:
   - hash of git remote origin URL + repo name (best effort)
 - Strongly recommend explicit `project_id` to avoid surprises.
@@ -287,24 +287,24 @@ For `scope="project"` you need a stable project key across clones/worktrees.
 
 ## 9) Rust crate layout (recommended)
 
-- `crates/taskcraft-core`
+- `crates/tak-core`
   - data model (serde types)
   - label parsing/resolution
   - validation
 
-- `crates/taskcraft-loader`
+- `crates/tak-loader`
   - discovery walker (gitignore aware)
   - monty evaluation + type checking
   - merge module specs into workspace spec
 
-- `crates/taskcraft-exec`
+- `crates/tak-exec`
   - task runner (spawn processes, logs, retries)
   - client for daemon protocol
 
-- `crates/taskcraftd`
+- `crates/takd`
   - daemon server, limiter bookkeeping, lease/queue management
 
-- `crates/taskcraft` (binary)
+- `crates/tak` (binary)
   - CLI UX + wiring
 
 ---
@@ -317,7 +317,7 @@ For `scope="project"` you need a stable project key across clones/worktrees.
 ### 10.1 Common types: labels, scopes, limiter refs
 
 ```rust
-// crates/taskcraft-core/src/model.rs
+// crates/tak-core/src/model.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -634,7 +634,7 @@ Minimal flow:
 use monty_type_checking::{SourceFile, type_check};
 
 let src = SourceFile::new(&code, "TASKS.py");
-let stubs = SourceFile::new(DSL_STUBS, "taskcraft_dsl.pyi");
+let stubs = SourceFile::new(DSL_STUBS, "tak_dsl.pyi");
 
 match type_check(&src, Some(&stubs))? {
     None => {} // ok
@@ -690,7 +690,7 @@ Then `serde_json::from_value::<ModuleSpec>(json_value)`.
 ### 11.5 Caching compiled runs
 Monty supports serializing compiled runs (`MontyRun::dump/load`) for speed:
 - cache by file content hash (and Monty version)
-- in `.taskcraft/cache/` or global cache
+- in `.tak/cache/` or global cache
 
 ---
 
@@ -721,7 +721,7 @@ After all modules loaded:
 
 ## 13) Execution pipeline (client)
 
-1. Choose targets: `taskcraft run //apps/web:test_ui`
+1. Choose targets: `tak run //apps/web:test_ui`
 2. Expand dependencies (DAG)
 3. Maintain a local ready queue of runnable tasks (deps satisfied)
 4. For each runnable task:
@@ -767,12 +767,12 @@ Token bucket per limiter key:
 
 ## 15) CLI UX (minimum)
 
-- `taskcraft list`
-- `taskcraft explain <label>`
-- `taskcraft graph <label>` (DOT/JSON)
-- `taskcraft run <label...> [-j N] [--keep-going]`
-- `taskcraft status` (who holds locks, what’s waiting)
-- `taskcraft daemon start|status` (or integrate with systemd)
+- `tak list`
+- `tak explain <label>`
+- `tak graph <label>` (DOT/JSON)
+- `tak run <label...> [-j N] [--keep-going]`
+- `tak status` (who holds locks, what’s waiting)
+- `tak daemon start|status` (or integrate with systemd)
 
 ---
 

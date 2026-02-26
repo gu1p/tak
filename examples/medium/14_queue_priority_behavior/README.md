@@ -11,10 +11,10 @@ Medium tier: combines multiple runtime and modeling features.
 - command trio contract: `list`, `explain`, `graph`, `run`
 
 ## Runbook
-1. `taskcraft list`
-2. `taskcraft explain //:queued_priority`
-3. `taskcraft graph //:queued_priority --format dot`
-4. `taskcraft run //:queued_priority`
+1. `tak list`
+2. `tak explain //:queued_priority`
+3. `tak graph //:queued_priority --format dot`
+4. `tak run //:queued_priority`
 
 ## Expected Command Answers
 - `list`: includes fully-qualified labels relevant to this scenario.
@@ -27,6 +27,6 @@ Medium tier: combines multiple runtime and modeling features.
 - Required output files on successful run: `out/queue_priority.txt`
 
 ## File Layout
-- `taskcraft.toml`: project identity for this workspace.
+- `tak.toml`: project identity for this workspace.
 - `TASKS.py`: root definitions used by loader.
 - Nested `TASKS.py` and scripts (if present): recursive modules and step assets.

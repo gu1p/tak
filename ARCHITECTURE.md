@@ -1,23 +1,23 @@
-# Taskcraft Architecture
+# Tak Architecture
 
 ## System Boundaries
 
-Taskcraft has five runtime boundaries:
+Tak has five runtime boundaries:
 
-1. CLI boundary (`taskcraft`): user intent, command dispatch, text output contracts.
-2. Loader boundary (`taskcraft-loader`): recursive module discovery and graph materialization.
-3. Core boundary (`taskcraft-core`): shared domain model + label + DAG logic.
-4. Executor boundary (`taskcraft-exec`): ordered runtime execution and retry/timeout behavior.
-5. Daemon boundary (`taskcraftd`): lease coordination and persistence.
+1. CLI boundary (`tak`): user intent, command dispatch, text output contracts.
+2. Loader boundary (`tak-loader`): recursive module discovery and graph materialization.
+3. Core boundary (`tak-core`): shared domain model + label + DAG logic.
+4. Executor boundary (`tak-exec`): ordered runtime execution and retry/timeout behavior.
+5. Daemon boundary (`takd`): lease coordination and persistence.
 
 ## Component Diagram
 
 ```mermaid
 flowchart LR
-    CLI[taskcraft CLI] --> Loader[taskcraft-loader]
-    Loader --> Core[taskcraft-core]
-    CLI --> Exec[taskcraft-exec]
-    Exec -->|Acquire/Renew/Release| Daemon[taskcraftd]
+    CLI[tak CLI] --> Loader[tak-loader]
+    Loader --> Core[tak-core]
+    CLI --> Exec[tak-exec]
+    Exec -->|Acquire/Renew/Release| Daemon[takd]
     Daemon --> SQLite[(active_leases + lease_history)]
 ```
 
@@ -87,17 +87,17 @@ Recovery behavior:
 
 ## Operational Contracts
 
-- Human entrypoint: `taskcraft`
-- Daemon entrypoint: `taskcraft daemon start`
+- Human entrypoint: `tak`
+- Daemon entrypoint: `tak daemon start`
 - Default check gate: `make check`
 - Docs contract gate:
   - `cargo test --workspace --doc`
-  - `cargo test -p taskcraft --test doctest_contract`
+  - `cargo test -p tak --test doctest_contract`
 
 ## Navigation
 
-- CLI contract details: [`crates/taskcraft/ARCHITECTURE.md`](crates/taskcraft/ARCHITECTURE.md)
-- Core model + algorithms: [`crates/taskcraft-core/ARCHITECTURE.md`](crates/taskcraft-core/ARCHITECTURE.md)
-- Loader pipeline: [`crates/taskcraft-loader/ARCHITECTURE.md`](crates/taskcraft-loader/ARCHITECTURE.md)
-- Execution semantics: [`crates/taskcraft-exec/ARCHITECTURE.md`](crates/taskcraft-exec/ARCHITECTURE.md)
-- Daemon/persistence protocol: [`crates/taskcraftd/ARCHITECTURE.md`](crates/taskcraftd/ARCHITECTURE.md)
+- CLI contract details: [`crates/tak/ARCHITECTURE.md`](crates/tak/ARCHITECTURE.md)
+- Core model + algorithms: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)
+- Loader pipeline: [`crates/tak-loader/ARCHITECTURE.md`](crates/tak-loader/ARCHITECTURE.md)
+- Execution semantics: [`crates/tak-exec/ARCHITECTURE.md`](crates/tak-exec/ARCHITECTURE.md)
+- Daemon/persistence protocol: [`crates/takd/ARCHITECTURE.md`](crates/takd/ARCHITECTURE.md)

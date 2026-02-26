@@ -13,4 +13,4 @@ test:
 
 docs-check:
 	cargo test --workspace --doc
-	cargo test -p taskcraft --test doctest_contract
+	cargo test -p tak --test doctest_contract

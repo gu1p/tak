@@ -11,10 +11,10 @@ Small tier: focused behavior with minimal topology.
 - command trio contract: `list`, `explain`, `graph`, `run`
 
 ## Runbook
-1. `taskcraft list`
-2. `taskcraft explain //apps/web:test`
-3. `taskcraft graph //apps/web:test --format dot`
-4. `taskcraft run //apps/web:test`
+1. `tak list`
+2. `tak explain //apps/web:test`
+3. `tak graph //apps/web:test --format dot`
+4. `tak run //apps/web:test`
 
 ## Expected Command Answers
 - `list`: includes fully-qualified labels relevant to this scenario.
@@ -27,6 +27,6 @@ Small tier: focused behavior with minimal topology.
 - Required output files on successful run: `out/labels.log`
 
 ## File Layout
-- `taskcraft.toml`: project identity for this workspace.
+- `tak.toml`: project identity for this workspace.
 - `TASKS.py`: root definitions used by loader.
 - Nested `TASKS.py` and scripts (if present): recursive modules and step assets.

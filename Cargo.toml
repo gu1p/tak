@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/taskcraft-core",
-  "crates/taskcraft-loader",
-  "crates/taskcraft-exec",
-  "crates/taskcraftd",
-  "crates/taskcraft",
+  "crates/tak-core",
+  "crates/tak-loader",
+  "crates/tak-exec",
+  "crates/takd",
+  "crates/tak",
 ]
 
 [workspace.package]

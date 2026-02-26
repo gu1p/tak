@@ -120,7 +120,7 @@ If a bug is found:
 - `fn main` wrappers are excluded from this strict requirement.
 - CI/local enforcement:
   - `cargo test --workspace --doc`
-  - `cargo test -p taskcraft --test doctest_contract`
+  - `cargo test -p tak --test doctest_contract`
 
 ---
 

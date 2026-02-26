@@ -1,17 +1,17 @@
-# Taskcraft Examples Matrix
+# Tak Examples Matrix
 
-This directory is a contract-backed examples catalog for Taskcraft features and failure modes.
+This directory is a contract-backed examples catalog for Tak features and failure modes.
 
 Source of truth:
 
 - machine-readable catalog: [`catalog.toml`](catalog.toml)
-- executable validation: `crates/taskcraft/tests/examples_matrix_contract.rs`
+- executable validation: `crates/tak/tests/examples_matrix_contract.rs`
 
 ## How to Read an Example
 
 Each example folder contains:
 
-- `taskcraft.toml`: project identity
+- `tak.toml`: project identity
 - root `TASKS.py`: local module definitions
 - optional nested `TASKS.py`: recursive packages
 - optional scripts consumed by task steps
@@ -22,17 +22,17 @@ Each example folder contains:
 For any example:
 
 ```bash
-taskcraft list
-taskcraft explain <target>
-taskcraft graph <target> --format dot
-taskcraft web <target>
-taskcraft run <target>
+tak list
+tak explain <target>
+tak graph <target> --format dot
+tak web <target>
+tak run <target>
 ```
 
 If example requires daemon-backed `needs`:
 
 ```bash
-taskcraft daemon start
+tak daemon start
 ```
 
 ## Coverage Matrix
@@ -59,7 +59,7 @@ Feature areas covered:
 Each `[[example]]` entry defines:
 
 - `name`: relative folder under `examples/`
-- `run_target`: target used for `taskcraft run`
+- `run_target`: target used for `tak run`
 - `explain_target`: target used for explain/graph checks
 - `expect_success`: expected run exit outcome
 - `requires_daemon`: whether daemon is required
@@ -70,7 +70,7 @@ Each `[[example]]` entry defines:
 Run only examples contract:
 
 ```bash
-cargo test -p taskcraft --test examples_matrix_contract
+cargo test -p tak --test examples_matrix_contract
 ```
 
 Run full project gate:

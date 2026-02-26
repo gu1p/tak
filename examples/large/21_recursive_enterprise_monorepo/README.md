@@ -11,10 +11,10 @@ Large tier: recursive topology and realistic multi-package flow.
 - command trio contract: `list`, `explain`, `graph`, `run`
 
 ## Runbook
-1. `taskcraft list`
-2. `taskcraft explain //apps/portal:release`
-3. `taskcraft graph //apps/portal:release --format dot`
-4. `taskcraft run //apps/portal:release`
+1. `tak list`
+2. `tak explain //apps/portal:release`
+3. `tak graph //apps/portal:release --format dot`
+4. `tak run //apps/portal:release`
 
 ## Expected Command Answers
 - `list`: includes fully-qualified labels relevant to this scenario.
@@ -27,6 +27,6 @@ Large tier: recursive topology and realistic multi-package flow.
 - Required output files on successful run: `out/enterprise.log`
 
 ## File Layout
-- `taskcraft.toml`: project identity for this workspace.
+- `tak.toml`: project identity for this workspace.
 - `TASKS.py`: root definitions used by loader.
 - Nested `TASKS.py` and scripts (if present): recursive modules and step assets.

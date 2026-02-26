@@ -1,0 +1,25 @@
+[package]
+name = "tak"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tak-core = { path = "../tak-core" }
+tak-exec = { path = "../tak-exec" }
+tak-loader = { path = "../tak-loader" }
+takd = { path = "../takd" }
+tokio.workspace = true
+uuid.workspace = true
+webbrowser.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+serde.workspace = true
+toml.workspace = true

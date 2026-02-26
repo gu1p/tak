@@ -1,0 +1,15 @@
+[package]
+name = "tak-exec"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+tak-core = { path = "../tak-core" }
+serde_json.workspace = true
+uuid.workspace = true
+takd = { path = "../takd" }
+
+[dev-dependencies]
+tempfile.workspace = true
