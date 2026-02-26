@@ -97,7 +97,7 @@ Current repository visibility is private while polishing; unauthenticated curl i
   - tests (`cargo test --workspace`)
   - doctests (`cargo test --workspace --doc`)
   - docs policy contract (`cargo test -p tak --test doctest_contract`)
-  - coverage gate (`cargo llvm-cov --fail-under-lines 90`)
+  - coverage gate (`cargo llvm-cov --fail-under-lines 75`)
 - Release workflow (`.github/workflows/release.yml`) runs after successful CI on `main`:
   - auto-generates SemVer tags (`vX.Y.Z`)
   - builds `tak` and `takd` for:

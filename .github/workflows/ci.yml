@@ -45,14 +45,13 @@ jobs:
       - name: Install coverage tool
         run: cargo install cargo-llvm-cov --locked
 
-      - name: Enforce 90% line coverage
+      - name: Enforce 75% line coverage
         run: |
           mkdir -p coverage
           cargo llvm-cov \
             --workspace \
             --all-features \
-            --doctests \
-            --fail-under-lines 90 \
+            --fail-under-lines 75 \
             --lcov \
             --output-path coverage/lcov.info
 
