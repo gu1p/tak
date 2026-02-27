@@ -1242,6 +1242,10 @@ fn is_auth_submit_failure(err: &anyhow::Error) -> bool {
     format!("{err:#}").contains("auth failed")
 }
 
+fn is_auth_configuration_failure(err: &anyhow::Error) -> bool {
+    format!("{err:#}").contains("service auth token")
+}
+
 fn is_container_lifecycle_failure(err: &anyhow::Error) -> bool {
     format!("{err:#}").contains("container lifecycle")
 }
@@ -1354,7 +1358,12 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<Remo
 
     let (status, body) = match capabilities {
         Ok(response) => response,
-        Err(_) => return Ok(RemoteProtocolMode::LegacyReachability),
+        Err(err) => {
+            if is_auth_configuration_failure(&err) {
+                return Err(err);
+            }
+            return Ok(RemoteProtocolMode::LegacyReachability);
+        }
     };
 
     if status == 401 || status == 403 {
@@ -1398,7 +1407,12 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<Remo
     .await;
     let (status_code, status_body) = match status_response {
         Ok(response) => response,
-        Err(_) => return Ok(RemoteProtocolMode::LegacyReachability),
+        Err(err) => {
+            if is_auth_configuration_failure(&err) {
+                return Err(err);
+            }
+            return Ok(RemoteProtocolMode::LegacyReachability);
+        }
     };
     if status_code == 401 || status_code == 403 {
         bail!(

@@ -1369,6 +1369,95 @@ async fn remote_only_single_auth_failure_during_capabilities_returns_infra_error
     );
 }
 
+async fn assert_service_token_redaction_on_invalid_header_value(
+    transport_kind: RemoteTransportKind,
+    token_env: &'static str,
+) {
+    let _env_lock = env_var_lock().await;
+    let secret = "super-secret-token";
+    let _token_guard = ScopedEnvVar::set(token_env, format!("{secret}\ninvalid"));
+    let temp = tempfile::tempdir().expect("tempdir");
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
+    let label = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "service_token_redaction".to_string(),
+    };
+    let task = ResolvedTask {
+        label: label.clone(),
+        doc: String::new(),
+        deps: Vec::new(),
+        steps: vec![StepDef::Cmd {
+            argv: vec!["sh".to_string(), "-c".to_string(), "exit 0".to_string()],
+            cwd: None,
+            env: BTreeMap::new(),
+        }],
+        needs: Vec::<NeedDef>::new(),
+        queue: Option::<QueueUseDef>::None,
+        retry: RetryDef::default(),
+        timeout_s: None,
+        context: CurrentStateSpec::default(),
+        execution: TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(RemoteSpec {
+            id: "remote-redaction".to_string(),
+            endpoint: Some(remote.endpoint()),
+            transport_kind,
+            service_auth_env: Some(token_env.to_string()),
+            runtime: None,
+        })),
+        tags: Vec::new(),
+    };
+
+    let mut tasks = BTreeMap::new();
+    tasks.insert(label.clone(), task);
+    let spec = WorkspaceSpec {
+        project_id: "project-test".to_string(),
+        root: temp.path().to_path_buf(),
+        tasks,
+        limiters: HashMap::<LimiterKey, tak_core::model::LimiterDef>::new(),
+        queues: HashMap::<LimiterKey, QueueDef>::new(),
+    };
+
+    let err = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
+        .await
+        .expect_err("invalid service auth token value should fail");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("contains invalid characters"),
+        "error should classify invalid header-safe service token values: {message}"
+    );
+    assert!(
+        message.contains(token_env),
+        "error should identify token env key without leaking value: {message}"
+    );
+    assert!(
+        !message.contains(secret),
+        "error should redact service token value for all transports: {message}"
+    );
+}
+
+/// Verifies direct transport errors redact raw service token values from diagnostics.
+#[tokio::test]
+async fn direct_transport_service_token_errors_are_redacted() {
+    assert_service_token_redaction_on_invalid_header_value(
+        RemoteTransportKind::DirectHttps,
+        "TAK_TEST_DIRECT_SERVICE_TOKEN",
+    )
+    .await;
+}
+
+/// Verifies Tor transport errors redact raw service token values from diagnostics.
+#[tokio::test]
+async fn tor_transport_service_token_errors_are_redacted() {
+    assert_service_token_redaction_on_invalid_header_value(
+        RemoteTransportKind::Tor,
+        "TAK_TEST_TOR_SERVICE_TOKEN",
+    )
+    .await;
+}
+
 /// Verifies ordered remote fallback advances when first node rejects submit with auth failure.
 #[tokio::test]
 async fn remote_only_list_falls_back_when_first_node_auth_rejects_submit() {
