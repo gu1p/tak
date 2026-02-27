@@ -3,7 +3,8 @@
 use rusqlite::Connection;
 use tak_core::model::Scope;
 use takd::{
-    AcquireLeaseRequest, AcquireLeaseResponse, ClientInfo, LeaseManager, NeedRequest, TaskInfo,
+    AcquireLeaseRequest, AcquireLeaseResponse, ClientInfo, LeaseManager, NeedRequest,
+    SubmitAttemptStore, SubmitRegistration, TaskInfo,
 };
 
 /// Builds an acquire request fixture for persistence-focused tests.
@@ -92,4 +93,89 @@ fn sqlite_store_persists_active_leases_and_history() {
             .expect("release history count");
         assert_eq!(release_count, 1);
     }
+}
+
+fn created_submit_key(registration: SubmitRegistration) -> String {
+    match registration {
+        SubmitRegistration::Created { idempotency_key } => idempotency_key,
+        SubmitRegistration::Attached { idempotency_key } => {
+            panic!("expected first submit to create a new attempt, attached to {idempotency_key}")
+        }
+    }
+}
+
+/// Verifies duplicate submits with the same `(task_run_id, attempt)` attach to existing execution.
+#[test]
+fn sqlite_submit_idempotency_duplicate_attach_reuses_existing_attempt_state() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let db_path = temp.path().join("takd.sqlite");
+    let store = SubmitAttemptStore::with_db_path(db_path).expect("submit attempt store");
+    let mut remote_execution_counter = 0_u32;
+
+    let first_key = created_submit_key(
+        store
+            .register_submit("task-run-123", Some(1), "remote-a")
+            .expect("first submit should create attempt"),
+    );
+    remote_execution_counter += 1;
+    store
+        .append_event(
+            &first_key,
+            1,
+            r#"{"kind":"TASK_LOG_CHUNK","chunk":"hello"}"#,
+        )
+        .expect("persist first event");
+    store
+        .set_result_payload(&first_key, r#"{"success":true,"exit_code":0}"#)
+        .expect("persist terminal result");
+
+    let duplicate = store
+        .register_submit("task-run-123", Some(1), "remote-a")
+        .expect("duplicate submit should attach");
+    let duplicate_key = match duplicate {
+        SubmitRegistration::Attached { idempotency_key } => idempotency_key,
+        SubmitRegistration::Created { .. } => {
+            panic!("duplicate submit must attach to existing remote attempt");
+        }
+    };
+
+    assert_eq!(first_key, duplicate_key);
+    assert_eq!(
+        remote_execution_counter, 1,
+        "duplicate submit should not trigger a second remote execution"
+    );
+
+    let events = store.events(&first_key).expect("load persisted events");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].seq, 1);
+    assert_eq!(
+        events[0].payload_json,
+        r#"{"kind":"TASK_LOG_CHUNK","chunk":"hello"}"#
+    );
+
+    let result = store
+        .result_payload(&first_key)
+        .expect("load persisted result payload");
+    assert_eq!(result.as_deref(), Some(r#"{"success":true,"exit_code":0}"#));
+}
+
+/// Verifies attempt increments produce new idempotency scope for the same task run id.
+#[test]
+fn sqlite_submit_idempotency_attempt_increment_creates_new_execution_scope() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let db_path = temp.path().join("takd.sqlite");
+    let store = SubmitAttemptStore::with_db_path(db_path).expect("submit attempt store");
+
+    let first_attempt_key = created_submit_key(
+        store
+            .register_submit("task-run-123", Some(1), "remote-a")
+            .expect("attempt one should create"),
+    );
+    let second_attempt_key = created_submit_key(
+        store
+            .register_submit("task-run-123", Some(2), "remote-a")
+            .expect("attempt two should create a distinct execution scope"),
+    );
+
+    assert_ne!(first_attempt_key, second_attempt_key);
 }

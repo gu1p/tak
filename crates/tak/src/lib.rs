@@ -161,12 +161,19 @@ pub async fn run_cli() -> Result<()> {
 
             for (label, result) in summary.results {
                 println!(
-                    "{label}: {} (attempts={}, exit_code={})",
+                    "{label}: {} (attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={})",
                     if result.success { "ok" } else { "failed" },
                     result.attempts,
                     result
                         .exit_code
-                        .map_or_else(|| "none".to_string(), |code| code.to_string())
+                        .map_or_else(|| "none".to_string(), |code| code.to_string()),
+                    result.placement_mode.as_str(),
+                    result.remote_node_id.as_deref().unwrap_or("none"),
+                    result.remote_transport_kind.as_deref().unwrap_or("none"),
+                    result.decision_reason.as_deref().unwrap_or("none"),
+                    result.context_manifest_hash.as_deref().unwrap_or("none"),
+                    result.remote_runtime_kind.as_deref().unwrap_or("none"),
+                    result.remote_runtime_engine.as_deref().unwrap_or("none")
                 );
             }
         }

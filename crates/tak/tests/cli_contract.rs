@@ -2,9 +2,9 @@
 
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::process::{Command as StdCommand, Stdio};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use assert_cmd::assert::OutputAssertExt;
@@ -36,6 +36,371 @@ fn strip_ansi(input: &str) -> String {
         result.push(ch);
     }
     result
+}
+
+/// Extracts one key field value from a `tak run` summary line for a specific task label.
+fn extract_summary_field(summary: &str, label: &str, field: &str) -> Option<String> {
+    let marker = format!("{field}=");
+    let prefix = format!("{label}:");
+    let line = summary
+        .lines()
+        .find(|line| line.trim_start().starts_with(&prefix))?;
+    let start = line.find(&marker)? + marker.len();
+    let tail = &line[start..];
+    let end = tail.find([',', ')']).unwrap_or(tail.len());
+    Some(tail[..end].trim().to_string())
+}
+
+fn prepend_path(prefix_dir: &std::path::Path) -> String {
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    if current_path.is_empty() {
+        prefix_dir.display().to_string()
+    } else {
+        format!("{}:{current_path}", prefix_dir.display())
+    }
+}
+
+#[cfg(unix)]
+fn write_fake_engine_binary(
+    bin_dir: &std::path::Path,
+    binary_name: &str,
+    exit_code: i32,
+    probe_log_path: &std::path::Path,
+) {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::create_dir_all(bin_dir).expect("mkdir fake engine bin dir");
+    let binary_path = bin_dir.join(binary_name);
+    let script = format!(
+        "#!/bin/sh\necho {name} >> \"{log}\"\nexit {code}\n",
+        name = binary_name,
+        log = probe_log_path.display(),
+        code = exit_code
+    );
+    fs::write(&binary_path, script).expect("write fake engine binary");
+    let mut perms = fs::metadata(&binary_path)
+        .expect("stat fake engine binary")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&binary_path, perms).expect("chmod fake engine binary");
+}
+
+#[cfg(not(unix))]
+fn write_fake_engine_binary(
+    _bin_dir: &std::path::Path,
+    _binary_name: &str,
+    _exit_code: i32,
+    _probe_log_path: &std::path::Path,
+) {
+    panic!("fake engine binary helper currently supports unix only");
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FakeRemoteProtocolConfig {
+    preflight_compatible: bool,
+    result_success: bool,
+    result_exit_code: i32,
+}
+
+struct FakeRemoteProtocolServer {
+    port: u16,
+    calls: Arc<Mutex<Vec<String>>>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl FakeRemoteProtocolServer {
+    fn spawn(config: FakeRemoteProtocolConfig) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake protocol remote");
+        let port = listener.local_addr().expect("fake protocol addr").port();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let calls_for_thread = Arc::clone(&calls);
+
+        let handle = std::thread::spawn(move || {
+            loop {
+                let (mut stream, _) = listener.accept().expect("accept fake protocol request");
+                let request_line = read_http_request_line(&mut stream);
+                let path = request_line
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or("/")
+                    .to_string();
+
+                let response = if path == "/__shutdown" {
+                    Some((
+                        "200 OK",
+                        r#"{"shutdown":true}"#.to_string(),
+                        Some("shutdown"),
+                    ))
+                } else if path.starts_with("/v1/preflight") {
+                    Some((
+                        "200 OK",
+                        format!(r#"{{"compatible":{}}}"#, config.preflight_compatible),
+                        Some("preflight"),
+                    ))
+                } else if path.starts_with("/v1/submit") {
+                    Some(("200 OK", r#"{"accepted":true}"#.to_string(), Some("submit")))
+                } else if path.starts_with("/v1/events") {
+                    Some(("200 OK", r#"{"events":[]}"#.to_string(), Some("events")))
+                } else if path.starts_with("/v1/result") {
+                    Some((
+                        "200 OK",
+                        format!(
+                            r#"{{"success":{},"exit_code":{}}}"#,
+                            config.result_success, config.result_exit_code
+                        ),
+                        Some("result"),
+                    ))
+                } else {
+                    Some((
+                        "404 Not Found",
+                        r#"{"error":"not found"}"#.to_string(),
+                        None,
+                    ))
+                };
+
+                if let Some((status, body, marker)) = response {
+                    if let Some(marker) = marker {
+                        calls_for_thread
+                            .lock()
+                            .expect("lock protocol calls")
+                            .push(marker.to_string());
+                    }
+                    write_http_json_response(&mut stream, status, &body);
+                    if path == "/__shutdown" {
+                        break;
+                    }
+                }
+            }
+        });
+
+        Self {
+            port,
+            calls,
+            handle: Some(handle),
+        }
+    }
+
+    fn endpoint(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+
+    fn call_order(&self) -> Vec<String> {
+        self.calls.lock().expect("lock protocol calls").clone()
+    }
+}
+
+impl Drop for FakeRemoteProtocolServer {
+    fn drop(&mut self) {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", self.port)) {
+            let _ = stream.write_all(
+                b"GET /__shutdown HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+            );
+        }
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+struct FakeRemoteResumableEventsServer {
+    port: u16,
+    calls: Arc<Mutex<Vec<String>>>,
+    after_seq_calls: Arc<Mutex<Vec<u64>>>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl FakeRemoteResumableEventsServer {
+    fn spawn() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake resumable remote");
+        let port = listener.local_addr().expect("fake resumable addr").port();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let after_seq_calls = Arc::new(Mutex::new(Vec::new()));
+        let calls_for_thread = Arc::clone(&calls);
+        let after_seq_for_thread = Arc::clone(&after_seq_calls);
+
+        let handle = std::thread::spawn(move || {
+            let mut events_request_count = 0_usize;
+
+            loop {
+                let (mut stream, _) = listener.accept().expect("accept fake resumable request");
+                let request_line = read_http_request_line(&mut stream);
+                let path = request_line
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or("/")
+                    .to_string();
+
+                if path == "/__shutdown" {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"shutdown":true}"#);
+                    break;
+                }
+
+                if path.starts_with("/v1/preflight") {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock resumable protocol calls")
+                        .push("preflight".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"compatible":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/submit") {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock resumable protocol calls")
+                        .push("submit".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"accepted":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/events") {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock resumable protocol calls")
+                        .push("events".to_string());
+
+                    let after_seq = extract_query_u64(&path, "after_seq").unwrap_or(0);
+                    after_seq_for_thread
+                        .lock()
+                        .expect("lock after_seq calls")
+                        .push(after_seq);
+
+                    events_request_count += 1;
+                    match events_request_count {
+                        1 => {
+                            write_http_json_response(
+                                &mut stream,
+                                "200 OK",
+                                r#"{"events":[{"seq":1,"kind":"TASK_LOG_CHUNK"},{"seq":2,"kind":"TASK_LOG_CHUNK"}],"done":false}"#,
+                            );
+                        }
+                        2 => {
+                            // Simulate mid-stream disconnect before a response payload is sent.
+                            let _ = stream.shutdown(std::net::Shutdown::Both);
+                        }
+                        3 => {
+                            write_http_json_response(
+                                &mut stream,
+                                "200 OK",
+                                r#"{"events":[{"seq":2,"kind":"TASK_LOG_CHUNK"},{"seq":1,"kind":"TASK_LOG_CHUNK"}],"done":false}"#,
+                            );
+                        }
+                        4 => {
+                            write_http_json_response(
+                                &mut stream,
+                                "200 OK",
+                                r#"{"events":[{"seq":3,"kind":"TASK_LOG_CHUNK"}],"done":true}"#,
+                            );
+                        }
+                        _ => {
+                            write_http_json_response(
+                                &mut stream,
+                                "200 OK",
+                                r#"{"events":[],"done":true}"#,
+                            );
+                        }
+                    }
+                    continue;
+                }
+
+                if path.starts_with("/v1/result") {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock resumable protocol calls")
+                        .push("result".to_string());
+                    write_http_json_response(
+                        &mut stream,
+                        "200 OK",
+                        r#"{"success":true,"exit_code":0}"#,
+                    );
+                    continue;
+                }
+
+                write_http_json_response(&mut stream, "404 Not Found", r#"{"error":"not found"}"#);
+            }
+        });
+
+        Self {
+            port,
+            calls,
+            after_seq_calls,
+            handle: Some(handle),
+        }
+    }
+
+    fn endpoint(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+
+    fn call_order(&self) -> Vec<String> {
+        self.calls
+            .lock()
+            .expect("lock resumable protocol calls")
+            .clone()
+    }
+
+    fn after_seq_calls(&self) -> Vec<u64> {
+        self.after_seq_calls
+            .lock()
+            .expect("lock after_seq calls")
+            .clone()
+    }
+}
+
+impl Drop for FakeRemoteResumableEventsServer {
+    fn drop(&mut self) {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", self.port)) {
+            let _ = stream.write_all(
+                b"GET /__shutdown HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+            );
+        }
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn extract_query_u64(path: &str, key: &str) -> Option<u64> {
+    let query = path.split_once('?')?.1;
+    query.split('&').find_map(|pair| {
+        let (name, value) = pair.split_once('=')?;
+        if name == key {
+            value.parse::<u64>().ok()
+        } else {
+            None
+        }
+    })
+}
+
+fn read_http_request_line(stream: &mut TcpStream) -> String {
+    let mut request_bytes = Vec::new();
+    let mut chunk = [0_u8; 512];
+    loop {
+        let read = stream.read(&mut chunk).expect("read request bytes");
+        if read == 0 {
+            break;
+        }
+        request_bytes.extend_from_slice(&chunk[..read]);
+        if request_bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+            break;
+        }
+    }
+
+    String::from_utf8_lossy(&request_bytes)
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn write_http_json_response(stream: &mut TcpStream, status: &str, body: &str) {
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream
+        .write_all(response.as_bytes())
+        .expect("write fake protocol response");
 }
 
 /// Verifies `tak list` prints canonical labels and bracketed dependencies.
@@ -180,6 +545,1420 @@ SPEC
 
     let output = fs::read_to_string(log_file).expect("log should exist");
     assert_eq!(output.lines().collect::<Vec<_>>(), vec!["build", "test"]);
+}
+
+/// Verifies `LocalOnly(Local)` tasks run locally and report local placement metadata.
+#[test]
+fn run_local_only_execution_reports_local_placement_and_ignores_unused_remote_defs() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+LOCAL = Local(id="dev-local", max_parallel_tasks=2)
+UNUSED_REMOTE = Remote(id="unreachable-remote", endpoint="http://127.0.0.1:9")
+
+SPEC = module_spec(tasks=[
+  task(
+    "local_only",
+    steps=[cmd("sh", "-c", "echo local_only >> {log}")],
+    execution=LocalOnly(LOCAL),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:local_only"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=local"),
+        "run output should include local placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=none"),
+        "run output should include explicit empty remote node marker: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("local log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["local_only"]
+    );
+}
+
+/// Verifies strict pinned `RemoteOnly(Remote)` succeeds on a healthy endpoint and reports node placement.
+#[test]
+fn run_remote_only_single_healthy_endpoint_reports_remote_placement() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-primary", endpoint="http://127.0.0.1:{port}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_only",
+    steps=[cmd("sh", "-c", "echo remote_only >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            port = remote_port,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_only"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-primary"),
+        "run output should include selected strict remote node marker: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["remote_only"]
+    );
+}
+
+/// Verifies strict pinned `RemoteOnly(Remote)` fails as infra error when node is unavailable.
+#[test]
+fn run_remote_only_single_unavailable_endpoint_fails_without_local_fallback() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-down", endpoint="http://127.0.0.1:9")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_only_down",
+    steps=[cmd("sh", "-c", "echo should_not_run >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_only_down"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        !output.status.success(),
+        "run should fail when strict remote node is unavailable"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("infra error"),
+        "stderr should report infra-class failure: {stderr}"
+    );
+    assert!(
+        stderr.contains("unavailable at"),
+        "stderr should include explicit remote availability reason: {stderr}"
+    );
+    assert!(
+        stderr.contains("remote-down"),
+        "stderr should include strict remote node id: {stderr}"
+    );
+    assert!(
+        !stderr.contains("no reachable remote fallback candidates"),
+        "strict pin failure should not use ordered-fallback error path: {stderr}"
+    );
+
+    assert!(
+        !log_file.exists(),
+        "task should not run locally when strict remote node is unavailable"
+    );
+}
+
+/// Verifies `RemoteOnly([Remote...])` falls back in listed order and succeeds on the first reachable node.
+#[test]
+fn run_remote_only_list_falls_back_in_order_to_first_reachable_node() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let second_listener = TcpListener::bind("127.0.0.1:0").expect("bind second fake remote");
+    let second_port = second_listener
+        .local_addr()
+        .expect("second listener addr")
+        .port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE_A = Remote(id="remote-a", endpoint="http://127.0.0.1:9")
+REMOTE_B = Remote(id="remote-b", endpoint="http://127.0.0.1:{second_port}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_list",
+    steps=[cmd("sh", "-c", "echo remote_list >> {log}")],
+    execution=RemoteOnly([REMOTE_A, REMOTE_B]),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_list"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed with fallback candidate\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-b"),
+        "run output should include first reachable node id from ordered list: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["remote_list"]
+    );
+}
+
+/// Verifies `RemoteOnly([Remote...])` does not probe later candidates after the first reachable node.
+#[test]
+fn run_remote_only_list_stops_after_first_reachable_node() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let first_listener = TcpListener::bind("127.0.0.1:0").expect("bind first fake remote");
+    let first_port = first_listener
+        .local_addr()
+        .expect("first listener addr")
+        .port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE_A = Remote(id="remote-a", endpoint="http://127.0.0.1:{first_port}")
+REMOTE_B = Remote(id="remote-b", endpoint="::invalid::endpoint::")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_list_first_wins",
+    steps=[cmd("sh", "-c", "echo remote_list_first_wins >> {log}")],
+    execution=RemoteOnly([REMOTE_A, REMOTE_B]),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_list_first_wins"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run should succeed on first reachable node without touching later invalid candidates\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("remote_node=remote-a"),
+        "run output should report first candidate node id: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["remote_list_first_wins"]
+    );
+}
+
+/// Verifies `RemoteOnly([Remote...])` fails with infra error when no candidate endpoint is reachable.
+#[test]
+fn run_remote_only_list_all_unavailable_returns_infra_error_without_local_fallback() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE_A = Remote(id="remote-a", endpoint="http://127.0.0.1:9")
+REMOTE_B = Remote(id="remote-b", endpoint="http://127.0.0.1:10")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_list_down",
+    steps=[cmd("sh", "-c", "echo should_not_run >> {log}")],
+    execution=RemoteOnly([REMOTE_A, REMOTE_B]),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_list_down"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        !output.status.success(),
+        "run should fail when all ordered remote candidates are unavailable"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("infra error"),
+        "stderr should report infra-class failure: {stderr}"
+    );
+    assert!(
+        stderr.contains("remote-a"),
+        "stderr should include first remote node id: {stderr}"
+    );
+    assert!(
+        stderr.contains("remote-b"),
+        "stderr should include second remote node id: {stderr}"
+    );
+
+    assert!(
+        !log_file.exists(),
+        "task should not run locally when all remote fallback candidates are unavailable"
+    );
+}
+
+/// Verifies `ByCustomPolicy(policy_fn)` only exposes V1 policy context fields and reports reason.
+#[test]
+fn run_by_custom_policy_local_decision_uses_v1_context_surface_and_reports_reason() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+POLICY_CONTEXT = PolicyContext(
+  task_side_effecting=True,
+  local_cpu_percent=11.0,
+  remotes={{}},
+  remote_any_reachable=False,
+)
+
+def choose_runtime(ctx):
+    _ = ctx["task"]["side_effecting"]
+    _ = ctx["local"]["cpu_percent"]
+    _ = ctx["remote_any_reachable"]
+    _ = policy_remote(ctx, "missing-node")
+
+    has_extra = "forbidden_extra_field" in ctx
+
+    if has_extra:
+        return Decision_local(reason="unexpected_context_surface")
+    return Decision_local(reason=REASON_SIDE_EFFECTING_TASK)
+
+SPEC = module_spec(tasks=[
+  task(
+    "policy_local",
+    steps=[cmd("sh", "-c", "echo policy_local >> {log}")],
+    execution=ByCustomPolicy(choose_runtime),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:policy_local"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=local"),
+        "run output should include local placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=none"),
+        "run output should include explicit empty remote node marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("reason=SIDE_EFFECTING_TASK"),
+        "run output should include policy decision reason: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["policy_local"]
+    );
+}
+
+/// Verifies strict `Decision.remote` policy output is surfaced with node + reason and remains stable across retries.
+#[test]
+fn run_by_custom_policy_remote_decision_reports_node_reason_and_stays_stable_for_retries() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let retry_marker = temp.path().join("retry.marker");
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+POLICY_CALLS = 0
+POLICY_CONTEXT = PolicyContext(
+  task_side_effecting=False,
+  local_cpu_percent=95.0,
+  remotes={{
+    "remote-primary": RemoteRuntimeView(
+      endpoint="http://127.0.0.1:{port}",
+      healthy=True,
+      queue_eta_s=1.0,
+    )
+  }},
+  remote_any_reachable=True,
+)
+
+def choose_runtime(ctx):
+    global POLICY_CALLS
+    POLICY_CALLS += 1
+    if POLICY_CALLS > 1:
+        return Decision_local(reason="policy_mutated")
+
+    remote = policy_remote(ctx, "remote-primary")
+    if (
+      ctx["local"]["cpu_percent"] >= 85
+      and remote
+      and remote["healthy"]
+      and remote["queue_eta_s"] < 20
+    ):
+        return Decision_remote("remote-primary", reason=REASON_LOCAL_CPU_HIGH_ARM_IDLE)
+    return Decision_local(reason=REASON_DEFAULT_LOCAL_POLICY)
+
+SPEC = module_spec(tasks=[
+  task(
+    "policy_remote_retry",
+    retry=retry(attempts=2, on_exit=[42], backoff=fixed(0)),
+    steps=[cmd("sh", "-c", "if [ -f {marker} ]; then echo policy_remote_retry >> {log}; exit 0; else touch {marker}; exit 42; fi")],
+    execution=ByCustomPolicy(choose_runtime),
+  )
+])
+SPEC
+"#,
+            port = remote_port,
+            marker = retry_marker.display(),
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:policy_remote_retry"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("attempts=2"),
+        "run output should show retry count: {stdout}"
+    );
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-primary"),
+        "run output should include selected remote node marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("reason=LOCAL_CPU_HIGH_ARM_IDLE"),
+        "run output should include stable policy reason marker: {stdout}"
+    );
+    assert!(
+        !stdout.contains("reason=policy_mutated"),
+        "policy decision should not mutate during retries: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["policy_remote_retry"]
+    );
+}
+
+/// Verifies policy can choose local with explicit unreachable-remote reason.
+#[test]
+fn run_by_custom_policy_remote_any_unreachable_chooses_local_with_reason() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+POLICY_CONTEXT = PolicyContext(
+  task_side_effecting=False,
+  local_cpu_percent=93.0,
+  remotes={{}},
+  remote_any_reachable=False,
+)
+
+def choose_runtime(ctx):
+    if not ctx["remote_any_reachable"]:
+        return Decision_local(reason=REASON_NO_REMOTE_REACHABLE)
+    return Decision_remote_any(["remote-a"], reason=REASON_LOCAL_CPU_HIGH)
+
+SPEC = module_spec(tasks=[
+  task(
+    "policy_remote_any_down",
+    steps=[cmd("sh", "-c", "echo policy_remote_any_down >> {log}")],
+    execution=ByCustomPolicy(choose_runtime),
+  )
+])
+SPEC
+"#,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:policy_remote_any_down"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=local"),
+        "run output should include local placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=none"),
+        "run output should include explicit empty remote node marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("reason=NO_REMOTE_REACHABLE"),
+        "run output should include no-remote reason marker: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["policy_remote_any_down"]
+    );
+}
+
+/// Verifies named `ByCustomPolicy("...")` evaluates at runtime (no precompiled static decision).
+#[test]
+fn run_by_custom_policy_named_function_executes_runtime_policy_and_reports_reason() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-primary", endpoint="http://127.0.0.1:{port}")
+POLICY_CONTEXT = PolicyContext(
+  task_side_effecting=False,
+  local_cpu_percent=91.0,
+  remotes={{
+    "remote-primary": RemoteRuntimeView(
+      endpoint="http://127.0.0.1:{port}",
+      healthy=True,
+      queue_eta_s=1.0,
+    )
+  }},
+  remote_any_reachable=True,
+)
+
+def choose_runtime(ctx):
+    if ctx["local"]["cpu_percent"] >= 85:
+        return Decision_remote("remote-primary", reason=REASON_LOCAL_CPU_HIGH_ARM_IDLE)
+    return Decision_local(reason=REASON_DEFAULT_LOCAL_POLICY)
+
+SPEC = module_spec(tasks=[
+  task(
+    "policy_runtime_named",
+    steps=[cmd("sh", "-c", "echo should_not_run_locally")],
+    execution=ByCustomPolicy("choose_runtime"),
+  )
+])
+SPEC
+"#,
+            port = remote_port
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:policy_runtime_named"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-primary"),
+        "run output should include selected remote node marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("reason=LOCAL_CPU_HIGH_ARM_IDLE"),
+        "run output should include runtime policy reason marker: {stdout}"
+    );
+}
+
+/// Verifies `CurrentState` transfer boundary ordering is deterministic (`roots -> ignored -> include`).
+#[test]
+fn run_remote_only_current_state_boundary_is_deterministic() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let list_a = temp.path().join("manifest-a.txt");
+    let list_b = temp.path().join("manifest-b.txt");
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    let project_dir = temp.path().join("apps/web/project");
+    let ignored_dir = project_dir.join("ignored");
+    fs::create_dir_all(&ignored_dir).expect("mkdir ignored dir");
+    fs::create_dir_all(temp.path().join("apps/web/outside")).expect("mkdir outside dir");
+    fs::write(project_dir.join("keep.txt"), "keep\n").expect("write keep");
+    fs::write(ignored_dir.join("drop.txt"), "drop\n").expect("write drop");
+    fs::write(ignored_dir.join("reinclude.txt"), "reinclude\n").expect("write reinclude");
+    fs::write(
+        temp.path().join("apps/web/outside/should_not_transfer.txt"),
+        "outside\n",
+    )
+    .expect("write outside");
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-primary", endpoint="http://127.0.0.1:{port}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "context_a",
+    steps=[cmd("sh", "-c", "find . -type f | LC_ALL=C sort > {list_a}")],
+    context=CurrentState(
+      roots=[path("//apps/web/project")],
+      ignored=[path("//apps/web/project/ignored"), path("//apps/web/project/ignored")],
+      include=[
+        path("//apps/web/project/ignored/reinclude.txt"),
+        path("//apps/web/outside/should_not_transfer.txt"),
+      ],
+    ),
+    execution=RemoteOnly(REMOTE),
+  ),
+  task(
+    "context_b",
+    steps=[cmd("sh", "-c", "find . -type f | LC_ALL=C sort > {list_b}")],
+    context=CurrentState(
+      roots=[path("//apps/web/./project")],
+      ignored=[path("//apps/web/project/ignored")],
+      include=[path("//apps/web/project/ignored/reinclude.txt"), path("//apps/web/project/ignored/reinclude.txt")],
+    ),
+    execution=RemoteOnly(REMOTE),
+  ),
+])
+SPEC
+"#,
+            port = remote_port,
+            list_a = list_a.display(),
+            list_b = list_b.display(),
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:context_a", "apps/web:context_b"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let listed_a = fs::read_to_string(&list_a).expect("manifest A output should exist");
+    let listed_b = fs::read_to_string(&list_b).expect("manifest B output should exist");
+    assert_eq!(
+        listed_a.lines().collect::<Vec<_>>(),
+        listed_b.lines().collect::<Vec<_>>(),
+        "equivalent CurrentState declarations should produce identical payload file lists"
+    );
+    assert!(
+        listed_a.contains("./apps/web/project/keep.txt"),
+        "root file should be transferred: {listed_a}"
+    );
+    assert!(
+        listed_a.contains("./apps/web/project/ignored/reinclude.txt"),
+        "include should re-include file from ignored subtree: {listed_a}"
+    );
+    assert!(
+        !listed_a.contains("./apps/web/project/ignored/drop.txt"),
+        "ignored file should stay excluded unless explicitly re-included: {listed_a}"
+    );
+    assert!(
+        !listed_a.contains("./apps/web/outside/should_not_transfer.txt"),
+        "include outside selected roots must not be re-included: {listed_a}"
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    let hash_a = extract_summary_field(&stdout, "apps/web:context_a", "context_hash")
+        .expect("context_a summary should include context hash");
+    let hash_b = extract_summary_field(&stdout, "apps/web:context_b", "context_hash")
+        .expect("context_b summary should include context hash");
+    assert_eq!(
+        hash_a, hash_b,
+        "semantically equivalent boundaries should produce stable ContextManifest hashes"
+    );
+}
+
+/// Verifies remote protocol handshake order is `preflight -> submit -> events -> result`.
+#[test]
+fn run_remote_only_handshake_follows_preflight_submit_events_result_order() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-handshake", endpoint="{endpoint}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_handshake_ok",
+    steps=[cmd("sh", "-c", "echo remote_handshake_ok >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            endpoint = remote.endpoint(),
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_handshake_ok"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-handshake"),
+        "run output should include selected remote node marker: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["remote_handshake_ok"]
+    );
+    assert_eq!(
+        remote.call_order(),
+        vec!["preflight", "submit", "events", "result"],
+        "remote protocol order should follow preflight->submit->events->result"
+    );
+}
+
+/// Verifies preflight capability mismatch fails as infra error before submit.
+#[test]
+fn run_remote_only_handshake_preflight_mismatch_blocks_submit() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: false,
+        result_success: true,
+        result_exit_code: 0,
+    });
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-mismatch", endpoint="{endpoint}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_preflight_mismatch",
+    steps=[cmd("sh", "-c", "echo should_not_run >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            endpoint = remote.endpoint(),
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_preflight_mismatch"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        !output.status.success(),
+        "run should fail on preflight capability mismatch"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("infra error"),
+        "stderr should include infra error classification: {stderr}"
+    );
+    assert!(
+        !log_file.exists(),
+        "task should not run when preflight capability check fails"
+    );
+    assert_eq!(
+        remote.call_order(),
+        vec!["preflight"],
+        "preflight mismatch should block submit/events/result"
+    );
+}
+
+/// Verifies terminal task status follows the remote result envelope after successful submit/events.
+#[test]
+fn run_remote_only_handshake_result_envelope_controls_terminal_status() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: false,
+        result_exit_code: 42,
+    });
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-result", endpoint="{endpoint}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_result_failure",
+    steps=[cmd("sh", "-c", "echo remote_result_failure >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            endpoint = remote.endpoint(),
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_result_failure"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        !output.status.success(),
+        "run should fail when remote result envelope reports failure"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("task apps/web:remote_result_failure failed"),
+        "stderr should report terminal task failure from result envelope: {stderr}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should still exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["remote_result_failure"]
+    );
+    assert_eq!(
+        remote.call_order(),
+        vec!["preflight", "submit", "events", "result"],
+        "result should be fetched even when events stream has no log chunks"
+    );
+}
+
+/// Verifies event stream resume uses `after_seq` checkpointing and ignores replayed older sequence values.
+#[test]
+fn run_remote_only_handshake_events_resume_uses_after_seq_without_duplicate_regression() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let remote = FakeRemoteResumableEventsServer::spawn();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-resume", endpoint="{endpoint}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_resume_ok",
+    steps=[cmd("sh", "-c", "echo remote_resume_ok >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            endpoint = remote.endpoint(),
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_resume_ok"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed after resumable events flow\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-resume"),
+        "run output should include selected remote node marker: {stdout}"
+    );
+
+    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert_eq!(
+        execution_log.lines().collect::<Vec<_>>(),
+        vec!["remote_resume_ok"],
+        "task output should remain correct after resumable event streaming"
+    );
+    assert_eq!(
+        remote.after_seq_calls(),
+        vec![0, 2, 2, 2],
+        "events reconnect should resume from last checkpoint and ignore replayed older sequence values"
+    );
+    assert_eq!(
+        remote.call_order(),
+        vec![
+            "preflight",
+            "submit",
+            "events",
+            "events",
+            "events",
+            "events",
+            "result"
+        ],
+        "events should retry and resume before terminal result fetch"
+    );
+}
+
+/// Verifies strict remote container runtime selects Docker first and reports runtime placement fields.
+#[test]
+fn run_remote_only_container_runtime_uses_docker_and_reports_runtime_metadata() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let marker_file = temp.path().join("runtime-marker.log");
+    let probe_log = temp.path().join("engine-probe.log");
+    let fake_bin_dir = temp.path().join("fake-bin");
+    write_fake_engine_binary(&fake_bin_dir, "docker", 0, &probe_log);
+    write_fake_engine_binary(&fake_bin_dir, "podman", 0, &probe_log);
+
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(
+  id="remote-container-docker",
+  endpoint="http://127.0.0.1:{port}",
+  runtime=ContainerRuntime(image="tak/test:v1"),
+)
+
+SPEC = module_spec(tasks=[
+  task(
+    "container_runtime_docker",
+    steps=[cmd("/bin/sh", "-c", "echo runtime=$TAK_REMOTE_RUNTIME engine=$TAK_REMOTE_ENGINE image=$TAK_REMOTE_CONTAINER_IMAGE >> {marker}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            port = remote_port,
+            marker = marker_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .env("PATH", prepend_path(&fake_bin_dir))
+        .env("TAK_TEST_HOST_PLATFORM", "other")
+        .args(["run", "apps/web:container_runtime_docker"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let runtime_marker =
+        fs::read_to_string(&marker_file).expect("runtime marker log should be created");
+    assert!(
+        runtime_marker.contains("runtime=containerized"),
+        "task should observe containerized runtime marker: {runtime_marker}"
+    );
+    assert!(
+        runtime_marker.contains("engine=docker"),
+        "task should observe selected docker engine marker: {runtime_marker}"
+    );
+    assert!(
+        runtime_marker.contains("image=tak/test:v1"),
+        "task should observe configured container image marker: {runtime_marker}"
+    );
+
+    let probe_lines = fs::read_to_string(&probe_log).expect("probe log should exist");
+    assert_eq!(
+        probe_lines.lines().collect::<Vec<_>>(),
+        vec!["docker"],
+        "docker probe should short-circuit without probing podman"
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-container-docker"),
+        "run output should include selected remote node marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("runtime=containerized"),
+        "run output should include runtime kind placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("runtime_engine=docker"),
+        "run output should include selected engine placement marker: {stdout}"
+    );
+}
+
+/// Verifies macOS container runtime engine fallback order is Docker first then Podman.
+#[test]
+fn run_remote_only_container_runtime_falls_back_to_podman_on_macos() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let marker_file = temp.path().join("runtime-marker.log");
+    let probe_log = temp.path().join("engine-probe.log");
+    let fake_bin_dir = temp.path().join("fake-bin");
+    write_fake_engine_binary(&fake_bin_dir, "docker", 1, &probe_log);
+    write_fake_engine_binary(&fake_bin_dir, "podman", 0, &probe_log);
+
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(
+  id="remote-container-podman",
+  endpoint="http://127.0.0.1:{port}",
+  runtime=ContainerRuntime(image="tak/test:v1"),
+)
+
+SPEC = module_spec(tasks=[
+  task(
+    "container_runtime_podman",
+    steps=[cmd("/bin/sh", "-c", "echo runtime=$TAK_REMOTE_RUNTIME engine=$TAK_REMOTE_ENGINE >> {marker}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            port = remote_port,
+            marker = marker_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .env("PATH", prepend_path(&fake_bin_dir))
+        .env("TAK_TEST_HOST_PLATFORM", "macos")
+        .args(["run", "apps/web:container_runtime_podman"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed via podman fallback\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let probe_lines = fs::read_to_string(&probe_log).expect("probe log should exist");
+    assert_eq!(
+        probe_lines.lines().collect::<Vec<_>>(),
+        vec!["docker", "podman"],
+        "macos fallback should probe docker first, then podman"
+    );
+
+    let runtime_marker =
+        fs::read_to_string(&marker_file).expect("runtime marker log should be created");
+    assert!(
+        runtime_marker.contains("runtime=containerized"),
+        "task should observe containerized runtime marker: {runtime_marker}"
+    );
+    assert!(
+        runtime_marker.contains("engine=podman"),
+        "task should observe selected podman engine marker: {runtime_marker}"
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("runtime=containerized"),
+        "run output should include runtime kind placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("runtime_engine=podman"),
+        "run output should include podman engine placement marker: {stdout}"
+    );
+}
+
+/// Verifies strict pinned remote container runtime failures surface infra errors with no local fallback.
+#[test]
+fn run_remote_only_container_runtime_unavailable_is_infra_error_without_local_fallback() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let marker_file = temp.path().join("should-not-run.log");
+    let probe_log = temp.path().join("engine-probe.log");
+    let fake_bin_dir = temp.path().join("fake-bin");
+    write_fake_engine_binary(&fake_bin_dir, "docker", 1, &probe_log);
+
+    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
+    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(
+  id="remote-container-down",
+  endpoint="http://127.0.0.1:{port}",
+  runtime=ContainerRuntime(image="tak/test:v1"),
+)
+
+SPEC = module_spec(tasks=[
+  task(
+    "container_runtime_unavailable",
+    steps=[cmd("/bin/sh", "-c", "echo should_not_run >> {marker}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            port = remote_port,
+            marker = marker_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .env("PATH", fake_bin_dir.display().to_string())
+        .env("TAK_TEST_HOST_PLATFORM", "other")
+        .args(["run", "apps/web:container_runtime_unavailable"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        !output.status.success(),
+        "run should fail when strict remote container engine is unavailable"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("infra error"),
+        "stderr should classify runtime failure as infra error: {stderr}"
+    );
+    assert!(
+        stderr.contains("remote-container-down"),
+        "stderr should include strict remote node id: {stderr}"
+    );
+    assert!(
+        stderr.contains("no container engine available"),
+        "stderr should include explicit engine availability reason: {stderr}"
+    );
+    assert!(
+        stderr.contains("attempted probes: docker"),
+        "stderr should include attempted engine probe order: {stderr}"
+    );
+    assert!(
+        !marker_file.exists(),
+        "task must not run locally when strict remote container runtime cannot start"
+    );
+}
+
+/// Verifies remote-focused BDD scenarios use a local multi-node cluster shape and deterministic engine policy.
+#[test]
+fn run_remote_multinode_containerized_gate_is_local_only_and_deterministic() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let execution_log = temp.path().join("run.log");
+    let probe_log = temp.path().join("engine-probe.log");
+    let fake_bin_dir = temp.path().join("fake-bin");
+    write_fake_engine_binary(&fake_bin_dir, "docker", 1, &probe_log);
+    write_fake_engine_binary(&fake_bin_dir, "podman", 0, &probe_log);
+
+    let strict_remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
+    let preflight_mismatch_remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: false,
+        result_success: true,
+        result_exit_code: 0,
+    });
+    let fallback_remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
+
+    let strict_endpoint = strict_remote.endpoint();
+    let mismatch_endpoint = preflight_mismatch_remote.endpoint();
+    let fallback_endpoint = fallback_remote.endpoint();
+
+    for endpoint in [&strict_endpoint, &mismatch_endpoint, &fallback_endpoint] {
+        assert!(
+            endpoint.starts_with("http://127.0.0.1:"),
+            "remote cluster fixtures must stay loopback-local and offline: {endpoint}"
+        );
+    }
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE_STRICT = Remote(
+  id="remote-strict",
+  endpoint="{strict_endpoint}",
+  runtime=ContainerRuntime(image="tak/test:v1"),
+)
+REMOTE_MISMATCH = Remote(
+  id="remote-mismatch",
+  endpoint="{mismatch_endpoint}",
+  runtime=ContainerRuntime(image="tak/test:v1"),
+)
+REMOTE_FALLBACK = Remote(
+  id="remote-fallback",
+  endpoint="{fallback_endpoint}",
+  runtime=ContainerRuntime(image="tak/test:v1"),
+)
+
+SPEC = module_spec(tasks=[
+  task(
+    "strict_first",
+    steps=[cmd("sh", "-c", "echo strict_first >> {log}")],
+    execution=RemoteOnly(REMOTE_STRICT),
+  ),
+  task(
+    "fallback_second",
+    deps=[":strict_first"],
+    steps=[cmd("sh", "-c", "echo fallback_second >> {log}")],
+    execution=RemoteOnly([REMOTE_MISMATCH, REMOTE_FALLBACK]),
+  ),
+])
+SPEC
+"#,
+            strict_endpoint = strict_endpoint,
+            mismatch_endpoint = mismatch_endpoint,
+            fallback_endpoint = fallback_endpoint,
+            log = execution_log.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .env("PATH", prepend_path(&fake_bin_dir))
+        .env("TAK_TEST_HOST_PLATFORM", "macos")
+        .args(["run", "apps/web:fallback_second"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "run must succeed with local multi-node remote fixtures\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert_eq!(
+        extract_summary_field(&stdout, "apps/web:strict_first", "placement").as_deref(),
+        Some("remote"),
+        "strict task should retain remote placement summary"
+    );
+    assert_eq!(
+        extract_summary_field(&stdout, "apps/web:strict_first", "remote_node").as_deref(),
+        Some("remote-strict"),
+        "strict task should target the configured strict node"
+    );
+    assert_eq!(
+        extract_summary_field(&stdout, "apps/web:strict_first", "runtime_engine").as_deref(),
+        Some("podman"),
+        "strict task should honor docker-first then podman fallback on macOS"
+    );
+
+    assert_eq!(
+        extract_summary_field(&stdout, "apps/web:fallback_second", "placement").as_deref(),
+        Some("remote"),
+        "fallback task should retain remote placement summary"
+    );
+    assert_eq!(
+        extract_summary_field(&stdout, "apps/web:fallback_second", "remote_node").as_deref(),
+        Some("remote-fallback"),
+        "fallback task should advance to the second remote node after mismatch"
+    );
+    assert_eq!(
+        extract_summary_field(&stdout, "apps/web:fallback_second", "runtime_engine").as_deref(),
+        Some("podman"),
+        "fallback task should preserve deterministic engine fallback policy"
+    );
+
+    let execution_lines = fs::read_to_string(&execution_log).expect("execution log");
+    assert_eq!(
+        execution_lines.lines().collect::<Vec<_>>(),
+        vec!["strict_first", "fallback_second"]
+    );
+
+    let probe_lines = fs::read_to_string(&probe_log).expect("probe log");
+    assert_eq!(
+        probe_lines.lines().collect::<Vec<_>>(),
+        vec!["docker", "podman", "docker", "podman"],
+        "both remote executions should apply docker-first and podman fallback deterministically"
+    );
+
+    assert_eq!(
+        strict_remote.call_order(),
+        vec!["preflight", "submit", "events", "result"],
+        "strict node should complete full handshake flow"
+    );
+    assert_eq!(
+        preflight_mismatch_remote.call_order(),
+        vec!["preflight"],
+        "ordered fallback should exercise the first candidate before advancing"
+    );
+    assert_eq!(
+        fallback_remote.call_order(),
+        vec!["preflight", "submit", "events", "result"],
+        "fallback node should complete full handshake after ordered selection"
+    );
 }
 
 /// Verifies daemon-backed runs acquire and release leases for tasks with `needs`.

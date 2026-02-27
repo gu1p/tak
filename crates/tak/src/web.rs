@@ -264,7 +264,7 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
     use std::path::PathBuf;
 
-    use tak_core::model::{ResolvedTask, RetryDef, TaskLabel};
+    use tak_core::model::{CurrentStateSpec, ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel};
 
     use super::*;
 
@@ -285,6 +285,8 @@ mod tests {
             queue: None,
             retry: RetryDef::default(),
             timeout_s: None,
+            context: CurrentStateSpec::default(),
+            execution: TaskExecutionSpec::default(),
             tags: Vec::new(),
         }
     }

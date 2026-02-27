@@ -10,6 +10,8 @@ tak-core = { path = "../tak-core" }
 serde_json.workspace = true
 uuid.workspace = true
 takd = { path = "../takd" }
+tak-loader = { path = "../tak-loader" }
+tempfile.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

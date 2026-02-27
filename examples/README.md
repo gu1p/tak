@@ -11,7 +11,7 @@ Source of truth:
 
 Each example folder contains:
 
-- `tak.toml`: project identity
+- `TASKS.py` (root): project identity (`module_spec(project_id=...)`)
 - root `TASKS.py`: local module definitions
 - optional nested `TASKS.py`: recursive packages
 - optional scripts consumed by task steps

@@ -27,6 +27,6 @@ Small tier: focused behavior with minimal topology.
 - Required output files on successful run: `out/labels.log`
 
 ## File Layout
-- `tak.toml`: project identity for this workspace.
+- `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
 - `TASKS.py`: root definitions used by loader.
 - Nested `TASKS.py` and scripts (if present): recursive modules and step assets.

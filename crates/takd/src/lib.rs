@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, ErrorCode, params};
 use serde::{Deserialize, Serialize};
 use tak_core::model::Scope;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -128,6 +128,202 @@ pub struct LimiterUsage {
     pub scope_key: Option<String>,
     pub used: f64,
     pub capacity: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContainerEngine {
+    Docker,
+    Podman,
+}
+
+impl ContainerEngine {
+    #[must_use]
+    fn as_name(self) -> &'static str {
+        match self {
+            Self::Docker => "docker",
+            Self::Podman => "podman",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostPlatform {
+    MacOs,
+    Other,
+}
+
+impl HostPlatform {
+    #[must_use]
+    pub fn current() -> Self {
+        if cfg!(target_os = "macos") {
+            Self::MacOs
+        } else {
+            Self::Other
+        }
+    }
+}
+
+pub trait ContainerEngineProbe {
+    fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArtiSettings {
+    pub socks5_addr: String,
+    pub data_dir: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TorTransportConfig {
+    pub onion_endpoint: String,
+    pub service_auth_token: String,
+    pub arti: ArtiSettings,
+}
+
+/// Validates Tor transport configuration before any transport/client creation.
+///
+/// ```rust
+/// # use takd::{ArtiSettings, TorTransportConfig, validate_tor_transport_config};
+/// let config = TorTransportConfig {
+///     onion_endpoint: "http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion".to_string(),
+///     service_auth_token: "service-token-123".to_string(),
+///     arti: ArtiSettings {
+///         socks5_addr: "127.0.0.1:9150".to_string(),
+///         data_dir: "/tmp/tak/arti".to_string(),
+///     },
+/// };
+/// validate_tor_transport_config(&config)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn validate_tor_transport_config(config: &TorTransportConfig) -> Result<()> {
+    ensure_present("onion endpoint", &config.onion_endpoint)?;
+    if !is_valid_onion_endpoint(&config.onion_endpoint) {
+        bail!("tor onion endpoint must target a .onion host");
+    }
+
+    ensure_present("service auth token", &config.service_auth_token)?;
+    if config.service_auth_token.chars().any(char::is_whitespace) {
+        bail!("tor service auth token contains invalid characters");
+    }
+
+    ensure_present("arti socks5 address", &config.arti.socks5_addr)?;
+    ensure_present("arti data directory", &config.arti.data_dir)?;
+    Ok(())
+}
+
+/// Validates and canonicalizes Tor transport configuration values.
+///
+/// ```rust
+/// # use takd::{ArtiSettings, TorTransportConfig, normalize_tor_transport_config};
+/// let normalized = normalize_tor_transport_config(TorTransportConfig {
+///     onion_endpoint: "  http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion  ".to_string(),
+///     service_auth_token: " service-token-123 ".to_string(),
+///     arti: ArtiSettings {
+///         socks5_addr: " 127.0.0.1:9150 ".to_string(),
+///         data_dir: " /tmp/tak/arti ".to_string(),
+///     },
+/// })?;
+/// assert_eq!(normalized.arti.socks5_addr, "127.0.0.1:9150");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn normalize_tor_transport_config(config: TorTransportConfig) -> Result<TorTransportConfig> {
+    let normalized = TorTransportConfig {
+        onion_endpoint: config.onion_endpoint.trim().to_string(),
+        service_auth_token: config.service_auth_token.trim().to_string(),
+        arti: ArtiSettings {
+            socks5_addr: config.arti.socks5_addr.trim().to_string(),
+            data_dir: config.arti.data_dir.trim().to_string(),
+        },
+    };
+    validate_tor_transport_config(&normalized)?;
+    Ok(normalized)
+}
+
+/// Resolves container engine deterministically: Docker first, then Podman on macOS only.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on host engine availability and is compile-checked only.
+/// # use takd::{ContainerEngine, ContainerEngineProbe, HostPlatform, select_container_engine_with_probe};
+/// # struct Probe;
+/// # impl ContainerEngineProbe for Probe {
+/// #     fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String> {
+/// #         match engine {
+/// #             ContainerEngine::Docker => Ok(()),
+/// #             ContainerEngine::Podman => Err("podman unavailable".to_string()),
+/// #         }
+/// #     }
+/// # }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut probe = Probe;
+/// let selected = select_container_engine_with_probe(HostPlatform::MacOs, &mut probe)?;
+/// assert_eq!(selected, ContainerEngine::Docker);
+/// # Ok(())
+/// # }
+/// ```
+pub fn select_container_engine_with_probe(
+    platform: HostPlatform,
+    probe: &mut impl ContainerEngineProbe,
+) -> Result<ContainerEngine> {
+    if probe.probe(ContainerEngine::Docker).is_ok() {
+        return Ok(ContainerEngine::Docker);
+    }
+
+    let mut attempted = vec![ContainerEngine::Docker.as_name()];
+    if matches!(platform, HostPlatform::MacOs) {
+        if probe.probe(ContainerEngine::Podman).is_ok() {
+            return Ok(ContainerEngine::Podman);
+        }
+        attempted.push(ContainerEngine::Podman.as_name());
+    }
+
+    bail!(
+        "no container engine available; attempted probes: {}",
+        attempted.join(", ")
+    );
+}
+
+/// Resolves container engine using the current host platform.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on host engine availability and is compile-checked only.
+/// # use takd::{ContainerEngine, ContainerEngineProbe, select_container_engine};
+/// # struct Probe;
+/// # impl ContainerEngineProbe for Probe {
+/// #     fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String> {
+/// #         match engine {
+/// #             ContainerEngine::Docker => Ok(()),
+/// #             ContainerEngine::Podman => Err("podman unavailable".to_string()),
+/// #         }
+/// #     }
+/// # }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut probe = Probe;
+/// let selected = select_container_engine(&mut probe)?;
+/// assert_eq!(selected, ContainerEngine::Docker);
+/// # Ok(())
+/// # }
+/// ```
+pub fn select_container_engine(probe: &mut impl ContainerEngineProbe) -> Result<ContainerEngine> {
+    select_container_engine_with_probe(HostPlatform::current(), probe)
+}
+
+fn ensure_present(field: &str, value: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        bail!("tor {field} is required");
+    }
+    Ok(())
+}
+
+fn is_valid_onion_endpoint(endpoint: &str) -> bool {
+    let endpoint = endpoint.trim();
+    let without_scheme = endpoint
+        .strip_prefix("http://")
+        .or_else(|| endpoint.strip_prefix("https://"))
+        .unwrap_or(endpoint);
+    let host_port = without_scheme.split('/').next().unwrap_or_default();
+    let host = host_port.split(':').next().unwrap_or_default();
+    host.ends_with(".onion")
 }
 
 #[derive(Debug, Clone)]
@@ -963,6 +1159,311 @@ pub fn ensure_valid_request(request: &AcquireLeaseRequest) -> Result<()> {
         bail!("at least one need must be provided");
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SubmitRegistration {
+    Created { idempotency_key: String },
+    Attached { idempotency_key: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubmitEventRecord {
+    pub seq: u64,
+    pub payload_json: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SubmitAttemptStore {
+    db_path: PathBuf,
+}
+
+impl SubmitAttemptStore {
+    /// Creates a SQLite-backed submit idempotency store and ensures schema is present.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn with_db_path(db_path: PathBuf) -> Result<Self> {
+        let store = Self { db_path };
+        store.ensure_schema()?;
+        Ok(store)
+    }
+
+    /// Registers a submit attempt by `(task_run_id, attempt)` and returns whether it was created or attached.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn register_submit(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+        selected_node_id: &str,
+    ) -> Result<SubmitRegistration> {
+        let selected_node_id = selected_node_id.trim();
+        if selected_node_id.is_empty() {
+            bail!("selected_node_id is required");
+        }
+
+        let idempotency_key = build_submit_idempotency_key(task_run_id, attempt)?;
+        let conn = self.open_connection()?;
+        let inserted = conn.execute(
+            "
+            INSERT INTO submit_attempts (
+                idempotency_key, task_run_id, attempt, selected_node_id, created_at_ms
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            ",
+            params![
+                idempotency_key,
+                task_run_id.trim(),
+                attempt.expect("validated by build_submit_idempotency_key"),
+                selected_node_id,
+                unix_epoch_ms(),
+            ],
+        );
+
+        match inserted {
+            Ok(_) => Ok(SubmitRegistration::Created { idempotency_key }),
+            Err(err) if is_submit_unique_violation(&err) => {
+                if !self.has_submit_attempt(&conn, &idempotency_key)? {
+                    bail!(
+                        "submit idempotency key {} reported duplicate but no row was found",
+                        idempotency_key
+                    );
+                }
+                Ok(SubmitRegistration::Attached { idempotency_key })
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Persists one idempotent event for an existing submit attempt.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn append_event(&self, idempotency_key: &str, seq: u64, payload_json: &str) -> Result<()> {
+        let key = idempotency_key.trim();
+        if key.is_empty() {
+            bail!("idempotency_key is required");
+        }
+        if payload_json.trim().is_empty() {
+            bail!("event payload_json is required");
+        }
+        let conn = self.open_connection()?;
+        self.ensure_submit_attempt_exists(&conn, key)?;
+        conn.execute(
+            "
+            INSERT OR IGNORE INTO submit_events (idempotency_key, seq, payload_json)
+            VALUES (?1, ?2, ?3)
+            ",
+            params![key, seq, payload_json],
+        )?;
+        Ok(())
+    }
+
+    /// Persists terminal result payload for an existing submit attempt.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn set_result_payload(&self, idempotency_key: &str, payload_json: &str) -> Result<()> {
+        let key = idempotency_key.trim();
+        if key.is_empty() {
+            bail!("idempotency_key is required");
+        }
+        if payload_json.trim().is_empty() {
+            bail!("result payload_json is required");
+        }
+        let conn = self.open_connection()?;
+        self.ensure_submit_attempt_exists(&conn, key)?;
+        conn.execute(
+            "
+            INSERT INTO submit_results (idempotency_key, payload_json)
+            VALUES (?1, ?2)
+            ON CONFLICT(idempotency_key) DO UPDATE SET payload_json=excluded.payload_json
+            ",
+            params![key, payload_json],
+        )?;
+        Ok(())
+    }
+
+    /// Loads persisted submit events in ascending sequence order.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn events(&self, idempotency_key: &str) -> Result<Vec<SubmitEventRecord>> {
+        let key = idempotency_key.trim();
+        if key.is_empty() {
+            bail!("idempotency_key is required");
+        }
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT seq, payload_json
+            FROM submit_events
+            WHERE idempotency_key = ?1
+            ORDER BY seq ASC
+            ",
+        )?;
+        let rows = stmt.query_map(params![key], |row| {
+            let seq = row.get::<_, u64>(0)?;
+            let payload_json = row.get::<_, String>(1)?;
+            Ok(SubmitEventRecord { seq, payload_json })
+        })?;
+        let mut events = Vec::new();
+        for row in rows {
+            events.push(row?);
+        }
+        Ok(events)
+    }
+
+    /// Loads the persisted terminal result payload, if any.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn result_payload(&self, idempotency_key: &str) -> Result<Option<String>> {
+        let key = idempotency_key.trim();
+        if key.is_empty() {
+            bail!("idempotency_key is required");
+        }
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT payload_json
+            FROM submit_results
+            WHERE idempotency_key = ?1
+            ",
+        )?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            let payload = row.get::<_, String>(0)?;
+            Ok(Some(payload))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn open_connection(&self) -> Result<Connection> {
+        if let Some(parent) = self.db_path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create sqlite parent directory {:?}", parent)
+            })?;
+        }
+        let conn = Connection::open(&self.db_path)
+            .with_context(|| format!("failed to open sqlite db at {:?}", self.db_path))?;
+        Ok(conn)
+    }
+
+    fn ensure_schema(&self) -> Result<()> {
+        let conn = self.open_connection()?;
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS submit_attempts (
+                idempotency_key TEXT PRIMARY KEY,
+                task_run_id TEXT NOT NULL,
+                attempt INTEGER NOT NULL,
+                selected_node_id TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_submit_attempts_run_attempt
+            ON submit_attempts(task_run_id, attempt);
+
+            CREATE TABLE IF NOT EXISTS submit_events (
+                idempotency_key TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (idempotency_key, seq),
+                FOREIGN KEY (idempotency_key) REFERENCES submit_attempts(idempotency_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS submit_results (
+                idempotency_key TEXT PRIMARY KEY,
+                payload_json TEXT NOT NULL,
+                FOREIGN KEY (idempotency_key) REFERENCES submit_attempts(idempotency_key)
+            );
+            ",
+        )?;
+        Ok(())
+    }
+
+    fn has_submit_attempt(&self, conn: &Connection, idempotency_key: &str) -> Result<bool> {
+        let mut stmt = conn.prepare(
+            "
+            SELECT 1
+            FROM submit_attempts
+            WHERE idempotency_key = ?1
+            LIMIT 1
+            ",
+        )?;
+        let mut rows = stmt.query(params![idempotency_key])?;
+        Ok(rows.next()?.is_some())
+    }
+
+    fn ensure_submit_attempt_exists(&self, conn: &Connection, idempotency_key: &str) -> Result<()> {
+        if self.has_submit_attempt(conn, idempotency_key)? {
+            return Ok(());
+        }
+        bail!("submit attempt {idempotency_key} does not exist")
+    }
+}
+
+fn is_submit_unique_violation(error: &rusqlite::Error) -> bool {
+    matches!(
+        error,
+        rusqlite::Error::SqliteFailure(inner, _)
+            if inner.code == ErrorCode::ConstraintViolation
+    )
+}
+
+/// Builds a deterministic submit idempotency key from `task_run_id` and `attempt`.
+///
+/// ```rust
+/// # use takd::build_submit_idempotency_key;
+/// let key = build_submit_idempotency_key("run-123", Some(2))?;
+/// assert_eq!(key, "run-123:2");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn build_submit_idempotency_key(task_run_id: &str, attempt: Option<u32>) -> Result<String> {
+    let task_run_id = task_run_id.trim();
+    if task_run_id.is_empty() {
+        bail!("task_run_id is required");
+    }
+
+    let attempt = validate_submit_attempt(attempt)?;
+    Ok(format!("{task_run_id}:{attempt}"))
+}
+
+fn validate_submit_attempt(attempt: Option<u32>) -> Result<u32> {
+    let attempt = attempt.ok_or_else(|| anyhow!("submit idempotency attempt is required"))?;
+    if attempt == 0 {
+        bail!("submit idempotency attempt must be >= 1");
+    }
+    Ok(attempt)
 }
 
 /// Returns the current Unix epoch timestamp in milliseconds.

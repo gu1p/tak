@@ -2773,8 +2773,10 @@ dependencies = [
 name = "tak-core"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
 ]
 
@@ -2785,6 +2787,7 @@ dependencies = [
  "anyhow",
  "serde_json",
  "tak-core",
+ "tak-loader",
  "takd",
  "tempfile",
  "tokio",
