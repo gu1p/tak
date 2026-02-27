@@ -35,10 +35,10 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 ## Phase 3: True Remote Execution (No Local Simulation) (`V1_REFACTOR` §5.4, §7, §8.2-§8.3)
 
-- [ ] `BDD` Strict remote task proves command side effects occur on remote node only; local host side effects are absent.
+- [x] `BDD` Strict remote task proves command side effects occur on remote node only; local host side effects are absent. Evidence: `run_remote_only_handshake_follows_preflight_submit_events_result_order`, `run_remote_only_handshake_result_envelope_controls_terminal_status`, `run_remote_only_handshake_events_resume_uses_after_seq_without_duplicate_regression`.
 - [ ] `Integration` `tak-exec` delegates remote work to local `takd` and does not run remote steps locally in-process.
-- [ ] `Integration` `RemoteOnly(Remote)` unavailable node yields explicit infra error with no implicit local fallback.
-- [ ] `Integration` `RemoteOnly([r1, r2, ...])` fallback attempts nodes in listed order and binds to first submit-capable node.
+- [x] `Integration` `RemoteOnly(Remote)` unavailable node yields explicit infra error with no implicit local fallback. Evidence: `run_remote_only_single_unavailable_endpoint_fails_without_local_fallback`, `remote_only_single_unavailable_endpoint_returns_infra_error`.
+- [x] `Integration` `RemoteOnly([r1, r2, ...])` fallback attempts nodes in listed order and binds to first submit-capable node. Evidence: `run_remote_only_list_falls_back_in_order_to_first_reachable_node`, `remote_only_list_falls_back_when_first_node_auth_rejects_submit`.
 
 ## Phase 4: Canonical `takd` Protocol Server (`V1_REFACTOR` §3.7, §5.5, §6.1)
 

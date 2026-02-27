@@ -1397,10 +1397,9 @@ SPEC
         "run output should include selected remote node marker: {stdout}"
     );
 
-    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
-    assert_eq!(
-        execution_log.lines().collect::<Vec<_>>(),
-        vec!["remote_handshake_ok"]
+    assert!(
+        !log_file.exists(),
+        "strict V1 remote handshake should not execute task steps locally"
     );
     assert_eq!(
         remote.call_order(),
@@ -1511,10 +1510,9 @@ SPEC
         "stderr should report terminal task failure from result envelope: {stderr}"
     );
 
-    let execution_log = fs::read_to_string(log_file).expect("task log should still exist");
-    assert_eq!(
-        execution_log.lines().collect::<Vec<_>>(),
-        vec!["remote_result_failure"]
+    assert!(
+        !log_file.exists(),
+        "strict V1 remote handshake should not execute task steps locally on result failure"
     );
     assert_eq!(
         remote.call_order(),
@@ -1572,11 +1570,9 @@ SPEC
         "run output should include selected remote node marker: {stdout}"
     );
 
-    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
-    assert_eq!(
-        execution_log.lines().collect::<Vec<_>>(),
-        vec!["remote_resume_ok"],
-        "task output should remain correct after resumable event streaming"
+    assert!(
+        !log_file.exists(),
+        "strict V1 remote handshake should not execute task steps locally during resumable events"
     );
     assert_eq!(
         remote.after_seq_calls(),

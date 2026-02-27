@@ -925,6 +925,10 @@ async fn remote_only_single_dispatches_identity_and_selected_node() {
     let result = summary.results.get(&label).expect("summary contains task");
     assert_eq!(result.placement_mode, PlacementMode::Remote);
     assert_eq!(result.remote_node_id.as_deref(), Some("remote-primary"));
+    assert!(
+        !log_file.exists(),
+        "strict remote V1 dispatch should not execute task steps locally"
+    );
 
     assert_eq!(
         remote.call_order(),

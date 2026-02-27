@@ -505,12 +505,22 @@ async fn run_single_task(
         }
 
         let lease_id = acquire_task_lease(task, attempt, options, lease_context).await?;
-        let run_result = run_task_steps(
-            task,
-            run_root,
-            runtime_metadata.as_ref().map(|meta| &meta.env_overrides),
-        )
-        .await;
+        let delegate_v1_remote_attempt = placement.placement_mode == PlacementMode::Remote
+            && protocol_mode == RemoteProtocolMode::HandshakeV1
+            && runtime_metadata.is_none();
+        let run_result = if delegate_v1_remote_attempt {
+            Ok(StepRunResult {
+                success: true,
+                exit_code: Some(0),
+            })
+        } else {
+            run_task_steps(
+                task,
+                run_root,
+                runtime_metadata.as_ref().map(|meta| &meta.env_overrides),
+            )
+            .await
+        };
 
         let (remote_logs, protocol_result) = if placement.placement_mode == PlacementMode::Remote
             && protocol_mode == RemoteProtocolMode::HandshakeV1
