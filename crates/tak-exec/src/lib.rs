@@ -405,6 +405,9 @@ async fn run_single_task(
     let mut placement = resolve_task_placement(task, workspace_root)?;
     if let Some(target) = &placement.strict_remote_target {
         let mode = preflight_strict_remote_target(target).await?;
+        if should_reject_legacy_remote_mode(task, target, mode) {
+            bail!("{}", legacy_protocol_error_message(target));
+        }
         placement.remote_protocol_mode = Some(mode);
     } else if !placement.ordered_remote_targets.is_empty() {
         let (selected, mode) =
@@ -1202,7 +1205,13 @@ async fn preflight_ordered_remote_target(
 
     for candidate in candidates {
         match preflight_strict_remote_target(candidate).await {
-            Ok(mode) => return Ok((candidate.clone(), mode)),
+            Ok(mode) => {
+                if should_reject_legacy_remote_mode(task, candidate, mode) {
+                    failures.push(legacy_protocol_error_message(candidate));
+                    continue;
+                }
+                return Ok((candidate.clone(), mode));
+            }
             Err(err) => failures.push(err.to_string()),
         }
     }
@@ -1212,6 +1221,23 @@ async fn preflight_ordered_remote_target(
         task.label,
         failures.join("; ")
     );
+}
+
+fn should_reject_legacy_remote_mode(
+    task: &ResolvedTask,
+    target: &StrictRemoteTarget,
+    mode: RemoteProtocolMode,
+) -> bool {
+    mode == RemoteProtocolMode::LegacyReachability
+        && matches!(task.execution, TaskExecutionSpec::RemoteOnly(_))
+        && target.runtime.is_none()
+}
+
+fn legacy_protocol_error_message(target: &StrictRemoteTarget) -> String {
+    format!(
+        "infra error: remote node {} at {} does not support V1 handshake protocol",
+        target.node_id, target.endpoint
+    )
 }
 
 /// Performs strict remote preflight by checking endpoint reachability before task execution.

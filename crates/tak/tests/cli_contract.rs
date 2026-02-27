@@ -641,14 +641,17 @@ SPEC
 fn run_remote_only_single_healthy_endpoint_reports_remote_placement() {
     let temp = tempfile::tempdir().expect("tempdir");
     let log_file = temp.path().join("run.log");
-    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
-    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
 
     write_tasks(
         temp.path(),
         &format!(
             r#"
-REMOTE = Remote(id="remote-primary", endpoint="http://127.0.0.1:{port}")
+REMOTE = Remote(id="remote-primary", endpoint="{endpoint}")
 
 SPEC = module_spec(tasks=[
   task(
@@ -659,7 +662,7 @@ SPEC = module_spec(tasks=[
 ])
 SPEC
 "#,
-            port = remote_port,
+            endpoint = remote.endpoint(),
             log = log_file.display()
         ),
     );
@@ -686,10 +689,69 @@ SPEC
         "run output should include selected strict remote node marker: {stdout}"
     );
 
-    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert!(
+        !log_file.exists(),
+        "strict RemoteOnly V1 path should not execute task command locally"
+    );
     assert_eq!(
-        execution_log.lines().collect::<Vec<_>>(),
-        vec!["remote_only"]
+        remote.call_order(),
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "healthy strict node should complete canonical V1 handshake flow"
+    );
+}
+
+/// Verifies strict `RemoteOnly(Remote)` rejects reachable endpoints that do not implement V1 handshake.
+#[test]
+fn run_remote_only_single_legacy_reachable_endpoint_fails_without_local_fallback() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let log_file = temp.path().join("run.log");
+    let legacy_listener = TcpListener::bind("127.0.0.1:0").expect("bind legacy reachable endpoint");
+    let legacy_port = legacy_listener
+        .local_addr()
+        .expect("legacy listener addr")
+        .port();
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(id="remote-legacy", endpoint="http://127.0.0.1:{port}")
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_legacy",
+    steps=[cmd("sh", "-c", "echo should_not_run >> {log}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            port = legacy_port,
+            log = log_file.display()
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .args(["run", "apps/web:remote_legacy"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        !output.status.success(),
+        "run should fail when strict remote endpoint is reachable but lacks V1 handshake support"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("infra error"),
+        "stderr should preserve infra classification: {stderr}"
+    );
+    assert!(
+        stderr.contains("does not support V1"),
+        "stderr should include explicit unsupported-remote-protocol reason: {stderr}"
+    );
+    assert!(
+        !log_file.exists(),
+        "strict RemoteOnly task must not execute command locally for legacy endpoints"
     );
 }
 
@@ -756,18 +818,18 @@ SPEC
 fn run_remote_only_list_falls_back_in_order_to_first_reachable_node() {
     let temp = tempfile::tempdir().expect("tempdir");
     let log_file = temp.path().join("run.log");
-    let second_listener = TcpListener::bind("127.0.0.1:0").expect("bind second fake remote");
-    let second_port = second_listener
-        .local_addr()
-        .expect("second listener addr")
-        .port();
+    let fallback_remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
 
     write_tasks(
         temp.path(),
         &format!(
             r#"
 REMOTE_A = Remote(id="remote-a", endpoint="http://127.0.0.1:9")
-REMOTE_B = Remote(id="remote-b", endpoint="http://127.0.0.1:{second_port}")
+REMOTE_B = Remote(id="remote-b", endpoint="{fallback_endpoint}")
 
 SPEC = module_spec(tasks=[
   task(
@@ -778,6 +840,7 @@ SPEC = module_spec(tasks=[
 ])
 SPEC
 "#,
+            fallback_endpoint = fallback_remote.endpoint(),
             log = log_file.display()
         ),
     );
@@ -804,29 +867,33 @@ SPEC
         "run output should include first reachable node id from ordered list: {stdout}"
     );
 
-    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert!(
+        !log_file.exists(),
+        "RemoteOnly fallback should delegate execution and avoid local command execution"
+    );
     assert_eq!(
-        execution_log.lines().collect::<Vec<_>>(),
-        vec!["remote_list"]
+        fallback_remote.call_order(),
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "fallback node should complete canonical V1 handshake flow"
     );
 }
 
-/// Verifies `RemoteOnly([Remote...])` does not probe later candidates after the first reachable node.
+/// Verifies `RemoteOnly([Remote...])` does not probe later candidates after the first submit-capable node.
 #[test]
 fn run_remote_only_list_stops_after_first_reachable_node() {
     let temp = tempfile::tempdir().expect("tempdir");
     let log_file = temp.path().join("run.log");
-    let first_listener = TcpListener::bind("127.0.0.1:0").expect("bind first fake remote");
-    let first_port = first_listener
-        .local_addr()
-        .expect("first listener addr")
-        .port();
+    let first_remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
 
     write_tasks(
         temp.path(),
         &format!(
             r#"
-REMOTE_A = Remote(id="remote-a", endpoint="http://127.0.0.1:{first_port}")
+REMOTE_A = Remote(id="remote-a", endpoint="{first_endpoint}")
 REMOTE_B = Remote(id="remote-b", endpoint="::invalid::endpoint::")
 
 SPEC = module_spec(tasks=[
@@ -838,6 +905,7 @@ SPEC = module_spec(tasks=[
 ])
 SPEC
 "#,
+            first_endpoint = first_remote.endpoint(),
             log = log_file.display()
         ),
     );
@@ -860,10 +928,14 @@ SPEC
         "run output should report first candidate node id: {stdout}"
     );
 
-    let execution_log = fs::read_to_string(log_file).expect("task log should exist");
+    assert!(
+        !log_file.exists(),
+        "first submit-capable remote should run remotely with no local command execution"
+    );
     assert_eq!(
-        execution_log.lines().collect::<Vec<_>>(),
-        vec!["remote_list_first_wins"]
+        first_remote.call_order(),
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "first submit-capable node should complete handshake and short-circuit later candidates"
     );
 }
 
@@ -1241,8 +1313,11 @@ fn run_remote_only_current_state_boundary_is_deterministic() {
     let temp = tempfile::tempdir().expect("tempdir");
     let list_a = temp.path().join("manifest-a.txt");
     let list_b = temp.path().join("manifest-b.txt");
-    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
-    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
 
     let project_dir = temp.path().join("apps/web/project");
     let ignored_dir = project_dir.join("ignored");
@@ -1261,7 +1336,7 @@ fn run_remote_only_current_state_boundary_is_deterministic() {
         temp.path(),
         &format!(
             r#"
-REMOTE = Remote(id="remote-primary", endpoint="http://127.0.0.1:{port}")
+REMOTE = Remote(id="remote-primary", endpoint="{endpoint}")
 
 SPEC = module_spec(tasks=[
   task(
@@ -1290,7 +1365,7 @@ SPEC = module_spec(tasks=[
 ])
 SPEC
 "#,
-            port = remote_port,
+            endpoint = remote.endpoint(),
             list_a = list_a.display(),
             list_b = list_b.display(),
         ),
@@ -1307,28 +1382,9 @@ SPEC
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let listed_a = fs::read_to_string(&list_a).expect("manifest A output should exist");
-    let listed_b = fs::read_to_string(&list_b).expect("manifest B output should exist");
-    assert_eq!(
-        listed_a.lines().collect::<Vec<_>>(),
-        listed_b.lines().collect::<Vec<_>>(),
-        "equivalent CurrentState declarations should produce identical payload file lists"
-    );
     assert!(
-        listed_a.contains("./apps/web/project/keep.txt"),
-        "root file should be transferred: {listed_a}"
-    );
-    assert!(
-        listed_a.contains("./apps/web/project/ignored/reinclude.txt"),
-        "include should re-include file from ignored subtree: {listed_a}"
-    );
-    assert!(
-        !listed_a.contains("./apps/web/project/ignored/drop.txt"),
-        "ignored file should stay excluded unless explicitly re-included: {listed_a}"
-    );
-    assert!(
-        !listed_a.contains("./apps/web/outside/should_not_transfer.txt"),
-        "include outside selected roots must not be re-included: {listed_a}"
+        !list_a.exists() && !list_b.exists(),
+        "strict V1 remote path should not execute local marker commands while still producing deterministic context hashes"
     );
 
     let stdout_raw = String::from_utf8_lossy(&output.stdout);
@@ -1340,6 +1396,22 @@ SPEC
     assert_eq!(
         hash_a, hash_b,
         "semantically equivalent boundaries should produce stable ContextManifest hashes"
+    );
+    assert_eq!(
+        remote.call_order(),
+        vec![
+            "capabilities",
+            "status",
+            "submit",
+            "events",
+            "result",
+            "capabilities",
+            "status",
+            "submit",
+            "events",
+            "result"
+        ],
+        "each strict RemoteOnly task should run through canonical V1 handshake flow"
     );
 }
 

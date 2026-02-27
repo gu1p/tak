@@ -1639,8 +1639,11 @@ async fn remote_execution_stages_only_current_state_manifest_files() {
     )
     .expect("write outside");
 
-    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
-    let remote_port = remote_listener.local_addr().expect("listener addr").port();
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
 
     let label = TaskLabel {
         package: "//apps/web".to_string(),
@@ -1694,7 +1697,7 @@ async fn remote_execution_stages_only_current_state_manifest_files() {
         timeout_s: None,
         execution: TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(RemoteSpec {
             id: "remote-primary".to_string(),
-            endpoint: Some(format!("http://127.0.0.1:{remote_port}")),
+            endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
             service_auth_env: None,
             runtime: None,
@@ -1717,26 +1720,9 @@ async fn remote_execution_stages_only_current_state_manifest_files() {
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await
         .expect("run should succeed");
-
-    let listed = fs::read_to_string(&listed_files).expect("listed files output exists");
-    let staged_files = listed
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(|line| line.trim_start_matches("./").to_string())
-        .collect::<BTreeSet<_>>();
-    let expected_files = expected_manifest
-        .entries
-        .iter()
-        .map(|entry| entry.path.clone())
-        .collect::<BTreeSet<_>>();
-    assert_eq!(
-        staged_files, expected_files,
-        "staged payload files must exactly match computed ContextManifest entries"
-    );
     assert!(
-        !staged_files.contains("apps/web/outside/should_not_transfer.txt"),
-        "files outside selected roots should never be transferred"
+        !listed_files.exists(),
+        "strict V1 remote flow should not execute local marker command for staged workspace inspection"
     );
 
     let result = summary
@@ -1747,6 +1733,11 @@ async fn remote_execution_stages_only_current_state_manifest_files() {
         result.context_manifest_hash.as_deref(),
         Some(expected_manifest.hash.as_str()),
         "context hash associated with staged payload should match manifest hash"
+    );
+    assert_eq!(
+        remote.call_order(),
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "strict V1 remote flow should complete canonical handshake"
     );
 }
 

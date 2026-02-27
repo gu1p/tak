@@ -2,8 +2,10 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
-use std::net::TcpListener;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use tak_core::model::{
@@ -17,6 +19,119 @@ use takd::{
     new_shared_manager, run_server,
 };
 use tokio::time::Instant;
+
+struct FakeRemoteProtocolServer {
+    port: u16,
+    handle: Option<thread::JoinHandle<()>>,
+}
+
+impl FakeRemoteProtocolServer {
+    fn spawn() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote protocol server");
+        let port = listener.local_addr().expect("fake remote addr").port();
+
+        let handle = thread::spawn(move || {
+            loop {
+                let (mut stream, _) = listener.accept().expect("accept fake remote request");
+                let path = read_http_request_path(&mut stream);
+
+                if path == "/__shutdown" {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"shutdown":true}"#);
+                    break;
+                }
+                if path == "/v1/node/capabilities" {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"compatible":true}"#);
+                    continue;
+                }
+                if path == "/v1/node/status" {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"healthy":true}"#);
+                    continue;
+                }
+                if path == "/v1/tasks/submit" {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"accepted":true}"#);
+                    continue;
+                }
+                if path.starts_with("/v1/tasks/") && path.contains("/events") {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"events":[],"done":true}"#);
+                    continue;
+                }
+                if path.starts_with("/v1/tasks/") && path.ends_with("/result") {
+                    write_http_json_response(
+                        &mut stream,
+                        "200 OK",
+                        r#"{"success":true,"exit_code":0}"#,
+                    );
+                    continue;
+                }
+
+                write_http_json_response(&mut stream, "404 Not Found", r#"{"error":"not found"}"#);
+            }
+        });
+
+        Self {
+            port,
+            handle: Some(handle),
+        }
+    }
+
+    fn endpoint(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+}
+
+impl Drop for FakeRemoteProtocolServer {
+    fn drop(&mut self) {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", self.port)) {
+            let _ = stream.write_all(
+                b"GET /__shutdown HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+            );
+        }
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn read_http_request_path(stream: &mut TcpStream) -> String {
+    let mut reader = BufReader::new(stream);
+    let mut request_line = String::new();
+    reader
+        .read_line(&mut request_line)
+        .expect("read request line");
+    let path = request_line
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or("/")
+        .to_string();
+
+    let mut content_length = 0_usize;
+    loop {
+        let mut header = String::new();
+        reader.read_line(&mut header).expect("read header");
+        if header == "\r\n" || header == "\n" || header.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':')
+            && name.trim().eq_ignore_ascii_case("content-length")
+        {
+            content_length = value.trim().parse::<usize>().unwrap_or(0);
+        }
+    }
+
+    let mut body = vec![0_u8; content_length];
+    reader.read_exact(&mut body).expect("read request body");
+    path
+}
+
+fn write_http_json_response(stream: &mut TcpStream, status: &str, body: &str) {
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream
+        .write_all(response.as_bytes())
+        .expect("write response");
+}
 
 /// Builds a single-step task fixture that requires the given needs.
 fn make_task(
@@ -188,11 +303,7 @@ async fn run_remote_task_with_needs_releases_lease_and_preserves_remote_metadata
     let temp = tempfile::tempdir().expect("tempdir");
     let socket_path = temp.path().join("takd.sock");
     let log_file = temp.path().join("run.log");
-    let remote_listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote");
-    let remote_port = remote_listener
-        .local_addr()
-        .expect("remote listener addr")
-        .port();
+    let remote = FakeRemoteProtocolServer::spawn();
 
     let manager = new_shared_manager();
     {
@@ -235,7 +346,7 @@ async fn run_remote_task_with_needs_releases_lease_and_preserves_remote_metadata
         &log_file,
         TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(RemoteSpec {
             id: "remote-lease-node".to_string(),
-            endpoint: Some(format!("http://127.0.0.1:{remote_port}")),
+            endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
             service_auth_env: None,
             runtime: None,
@@ -278,8 +389,10 @@ async fn run_remote_task_with_needs_releases_lease_and_preserves_remote_metadata
         "remote placement should remain visible in summary metadata"
     );
 
-    let log = fs::read_to_string(log_file).expect("log should exist");
-    assert_eq!(log.lines().collect::<Vec<_>>(), vec!["run"]);
+    assert!(
+        !log_file.exists(),
+        "strict remote lease flow should not execute task command locally"
+    );
 
     let mut guard = manager.lock().expect("manager lock");
     let status = guard.status();

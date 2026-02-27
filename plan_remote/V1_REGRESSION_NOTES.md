@@ -8,7 +8,7 @@ Reference criteria: `plan_remote/V1_REFACTOR.md` §8.1-§8.13.
 | Criterion | Tests | Owning crate(s) |
 | --- | --- | --- |
 | §8.1 local-only execution | `run_local_only_execution_reports_local_placement_and_ignores_unused_remote_defs`, `executes_dependencies_before_target` | `crates/tak`, `crates/tak-exec` |
-| §8.2 strict remote single | `run_remote_only_single_healthy_endpoint_reports_remote_placement`, `run_remote_only_single_unavailable_endpoint_fails_without_local_fallback`, `remote_only_single_unavailable_endpoint_returns_infra_error`, `run_remote_only_handshake_follows_preflight_submit_events_result_order` | `crates/tak`, `crates/tak-exec` |
+| §8.2 strict remote single | `run_remote_only_single_healthy_endpoint_reports_remote_placement`, `run_remote_only_single_unavailable_endpoint_fails_without_local_fallback`, `run_remote_only_single_legacy_reachable_endpoint_fails_without_local_fallback`, `remote_only_single_unavailable_endpoint_returns_infra_error`, `run_remote_only_handshake_follows_preflight_submit_events_result_order` | `crates/tak`, `crates/tak-exec` |
 | §8.3 strict remote list fallback | `run_remote_only_list_falls_back_in_order_to_first_reachable_node`, `run_remote_only_list_stops_after_first_reachable_node`, `run_remote_only_list_all_unavailable_returns_infra_error_without_local_fallback`, `remote_only_list_falls_back_when_first_node_auth_rejects_submit` | `crates/tak`, `crates/tak-exec` |
 | §8.4 policy runtime contract | `run_by_custom_policy_named_function_executes_runtime_policy_and_reports_reason`, `run_by_custom_policy_local_decision_uses_v1_context_surface_and_reports_reason`, `run_by_custom_policy_remote_decision_reports_node_reason_and_stays_stable_for_retries`, `evaluate_named_policy_decision_is_deterministic_for_identical_context_snapshot` | `crates/tak`, `crates/tak-loader`, `crates/tak-exec` |
 | §8.5/§8.6 transfer boundary + deterministic include | `run_remote_only_current_state_boundary_is_deterministic`, `remote_execution_stages_only_current_state_manifest_files` | `crates/tak`, `crates/tak-exec` |
@@ -23,5 +23,3 @@ Reference criteria: `plan_remote/V1_REFACTOR.md` §8.1-§8.13.
 ## Open risk summary
 
 - Tor Arti onion integration (`§8.12`) remains open.
-- Legacy reachable-but-non-protocol remote behavior still exists in some strict-remote scenarios (`§8.2` is marked partial in the compliance matrix).
-
