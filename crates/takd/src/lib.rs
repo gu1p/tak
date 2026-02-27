@@ -1173,6 +1173,13 @@ pub struct SubmitEventRecord {
     pub payload_json: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteV1Response {
+    pub status_code: u16,
+    pub content_type: String,
+    pub body: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct SubmitAttemptStore {
     db_path: PathBuf,
@@ -1365,6 +1372,56 @@ impl SubmitAttemptStore {
         }
     }
 
+    fn latest_submit_idempotency_key_for_task_run(
+        &self,
+        task_run_id: &str,
+    ) -> Result<Option<String>> {
+        let run_id = task_run_id.trim();
+        if run_id.is_empty() {
+            bail!("task_run_id is required");
+        }
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT idempotency_key
+            FROM submit_attempts
+            WHERE task_run_id = ?1
+            ORDER BY attempt DESC
+            LIMIT 1
+            ",
+        )?;
+        let mut rows = stmt.query(params![run_id])?;
+        if let Some(row) = rows.next()? {
+            let key = row.get::<_, String>(0)?;
+            Ok(Some(key))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn selected_node_id_for_submit(&self, idempotency_key: &str) -> Result<Option<String>> {
+        let key = idempotency_key.trim();
+        if key.is_empty() {
+            bail!("idempotency_key is required");
+        }
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT selected_node_id
+            FROM submit_attempts
+            WHERE idempotency_key = ?1
+            LIMIT 1
+            ",
+        )?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            let node_id = row.get::<_, String>(0)?;
+            Ok(Some(node_id))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn open_connection(&self) -> Result<Connection> {
         if let Some(parent) = self.db_path.parent()
             && !parent.as_os_str().is_empty()
@@ -1464,6 +1521,256 @@ fn validate_submit_attempt(attempt: Option<u32>) -> Result<u32> {
         bail!("submit idempotency attempt must be >= 1");
     }
     Ok(attempt)
+}
+
+/// Handles one canonical V1 remote protocol request against the local submit-attempt store.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on runtime request payloads and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
+pub fn handle_remote_v1_request(
+    store: &SubmitAttemptStore,
+    method: &str,
+    path: &str,
+    body: Option<&str>,
+) -> Result<RemoteV1Response> {
+    let method = method.trim().to_ascii_uppercase();
+    let (path_only, query) = split_path_and_query(path);
+
+    if method == "GET" && path_only == "/v1/node/capabilities" {
+        return Ok(json_response(
+            200,
+            serde_json::json!({
+                "compatible": true,
+                "protocol_version": "v1",
+            }),
+        ));
+    }
+    if method == "GET" && path_only == "/v1/node/status" {
+        return Ok(json_response(
+            200,
+            serde_json::json!({
+                "healthy": true,
+            }),
+        ));
+    }
+    if method == "POST" && path_only == "/v1/tasks/submit" {
+        let Some(body) = body else {
+            return Ok(json_response(
+                400,
+                serde_json::json!({"accepted": false, "reason": "missing_body"}),
+            ));
+        };
+        let payload: serde_json::Value = match serde_json::from_str(body) {
+            Ok(value) => value,
+            Err(_) => {
+                return Ok(json_response(
+                    400,
+                    serde_json::json!({"accepted": false, "reason": "invalid_json"}),
+                ));
+            }
+        };
+        let task_run_id = payload
+            .get("task_run_id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .trim();
+        let attempt = payload
+            .get("attempt")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| u32::try_from(value).ok());
+        let selected_node_id = payload
+            .get("selected_node_id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .trim();
+
+        if task_run_id.is_empty() || attempt.is_none() || selected_node_id.is_empty() {
+            return Ok(json_response(
+                400,
+                serde_json::json!({"accepted": false, "reason": "invalid_submit_fields"}),
+            ));
+        }
+
+        let registration = store.register_submit(task_run_id, attempt, selected_node_id)?;
+        let (attached, idempotency_key) = match registration {
+            SubmitRegistration::Created { idempotency_key } => (false, idempotency_key),
+            SubmitRegistration::Attached { idempotency_key } => (true, idempotency_key),
+        };
+        return Ok(json_response(
+            200,
+            serde_json::json!({
+                "accepted": true,
+                "attached": attached,
+                "idempotency_key": idempotency_key,
+            }),
+        ));
+    }
+
+    if let Some(task_run_id) = remote_task_path_arg(path_only, "/events")
+        && method == "GET"
+    {
+        let after_seq = query_param_u64(query, "after_seq").unwrap_or(0);
+        let key = resolve_submit_idempotency_key_for_task_run(store, task_run_id, query)?;
+        let Some(key) = key else {
+            return Ok(json_response(
+                404,
+                serde_json::json!({"error":"task_not_found"}),
+            ));
+        };
+
+        let events = store.events(&key)?;
+        let mut lines = Vec::new();
+        for event in events.into_iter().filter(|event| event.seq > after_seq) {
+            let payload_value = serde_json::from_str::<serde_json::Value>(&event.payload_json)
+                .unwrap_or_else(|_| serde_json::json!({ "raw": event.payload_json }));
+            let event_type = payload_value
+                .get("kind")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("EVENT");
+            let timestamp_ms = payload_value
+                .get("timestamp_ms")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0);
+            lines.push(
+                serde_json::json!({
+                    "seq": event.seq,
+                    "task_run_id": task_run_id,
+                    "type": event_type,
+                    "timestamp_ms": timestamp_ms,
+                    "payload": payload_value,
+                })
+                .to_string(),
+            );
+        }
+        let mut body = lines.join("\n");
+        if !body.is_empty() {
+            body.push('\n');
+        }
+        return Ok(RemoteV1Response {
+            status_code: 200,
+            content_type: "application/x-ndjson".to_string(),
+            body,
+        });
+    }
+
+    if let Some(task_run_id) = remote_task_path_arg(path_only, "/result")
+        && method == "GET"
+    {
+        let key = resolve_submit_idempotency_key_for_task_run(store, task_run_id, query)?;
+        let Some(key) = key else {
+            return Ok(json_response(
+                404,
+                serde_json::json!({"error":"task_not_found"}),
+            ));
+        };
+        let Some(payload_json) = store.result_payload(&key)? else {
+            return Ok(json_response(
+                404,
+                serde_json::json!({"error":"result_not_found"}),
+            ));
+        };
+        let payload_value = serde_json::from_str::<serde_json::Value>(&payload_json)
+            .unwrap_or_else(|_| serde_json::json!({}));
+        let success = payload_value
+            .get("success")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let status = if success { "success" } else { "failure" };
+        let node_id = store
+            .selected_node_id_for_submit(&key)?
+            .unwrap_or_else(|| "unknown".to_string());
+        return Ok(json_response(
+            200,
+            serde_json::json!({
+                "status": status,
+                "exit_code": payload_value.get("exit_code").cloned().unwrap_or_else(|| serde_json::json!(1)),
+                "started_at": payload_value.get("started_at").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                "finished_at": payload_value.get("finished_at").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                "duration_ms": payload_value.get("duration_ms").cloned().unwrap_or_else(|| serde_json::json!(0)),
+                "node_id": node_id,
+                "transport_kind": payload_value.get("transport_kind").cloned().unwrap_or_else(|| serde_json::json!("direct")),
+                "log_artifact_uri": payload_value.get("log_artifact_uri").cloned().unwrap_or(serde_json::Value::Null),
+                "outputs": payload_value.get("outputs").cloned().unwrap_or_else(|| serde_json::json!([])),
+                "stdout_tail": payload_value.get("stdout_tail").cloned().unwrap_or(serde_json::Value::Null),
+                "stderr_tail": payload_value.get("stderr_tail").cloned().unwrap_or(serde_json::Value::Null),
+            }),
+        ));
+    }
+
+    if let Some(task_run_id) = remote_task_path_arg(path_only, "/cancel")
+        && method == "POST"
+    {
+        return Ok(json_response(
+            202,
+            serde_json::json!({
+                "cancelled": true,
+                "task_run_id": task_run_id,
+            }),
+        ));
+    }
+
+    Ok(json_response(
+        404,
+        serde_json::json!({
+            "error": "not_found",
+            "method": method,
+            "path": path_only,
+        }),
+    ))
+}
+
+fn resolve_submit_idempotency_key_for_task_run(
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+    query: Option<&str>,
+) -> Result<Option<String>> {
+    if let Some(attempt) =
+        query_param_u64(query, "attempt").and_then(|value| u32::try_from(value).ok())
+    {
+        let key = build_submit_idempotency_key(task_run_id, Some(attempt))?;
+        return Ok(Some(key));
+    }
+    store.latest_submit_idempotency_key_for_task_run(task_run_id)
+}
+
+fn split_path_and_query(path: &str) -> (&str, Option<&str>) {
+    match path.split_once('?') {
+        Some((path_only, query)) => (path_only, Some(query)),
+        None => (path, None),
+    }
+}
+
+fn query_param_u64(query: Option<&str>, key: &str) -> Option<u64> {
+    let query = query?;
+    query.split('&').find_map(|pair| {
+        let (name, value) = pair.split_once('=')?;
+        if name == key {
+            value.parse::<u64>().ok()
+        } else {
+            None
+        }
+    })
+}
+
+fn remote_task_path_arg<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {
+    let path = path.strip_prefix("/v1/tasks/")?;
+    let task_run_id = path.strip_suffix(suffix)?;
+    if task_run_id.is_empty() || task_run_id.contains('/') {
+        return None;
+    }
+    Some(task_run_id)
+}
+
+fn json_response(status_code: u16, body: serde_json::Value) -> RemoteV1Response {
+    RemoteV1Response {
+        status_code,
+        content_type: "application/json".to_string(),
+        body: body.to_string(),
+    }
 }
 
 /// Returns the current Unix epoch timestamp in milliseconds.

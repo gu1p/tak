@@ -42,10 +42,10 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 ## Phase 4: Canonical `takd` Protocol Server (`V1_REFACTOR` §3.7, §5.5, §6.1)
 
-- [ ] `Integration` Remote `takd` serves required V1 endpoints: `submit`, `events`, `cancel`, `result`, `node/status`, `node/capabilities`.
-- [ ] `Unit` Submit idempotency is keyed by `(task_run_id, attempt)` and duplicate submit attaches to existing attempt.
-- [ ] `Integration` Event stream uses NDJSON with monotonic `seq` and resume via `after_seq` without duplicate delivery.
-- [ ] `Integration` Result envelope includes required V1 fields (status/exit/timing/placement/log-artifact/output metadata).
+- [x] `Integration` Remote `takd` serves required V1 endpoints: `submit`, `events`, `cancel`, `result`, `node/status`, `node/capabilities`. Evidence: `serves_required_v1_endpoints_with_stable_contracts`.
+- [x] `Unit` Submit idempotency is keyed by `(task_run_id, attempt)` and duplicate submit attaches to existing attempt. Evidence: `sqlite_submit_idempotency_duplicate_attach_reuses_existing_attempt_state`, `sqlite_submit_idempotency_attempt_increment_creates_new_execution_scope`, `submit_endpoint_attaches_duplicate_attempt`.
+- [x] `Integration` Event stream uses NDJSON with monotonic `seq` and resume via `after_seq` without duplicate delivery. Evidence: `serves_required_v1_endpoints_with_stable_contracts`.
+- [x] `Integration` Result envelope includes required V1 fields (status/exit/timing/placement/log-artifact/output metadata). Evidence: `serves_required_v1_endpoints_with_stable_contracts`.
 
 ## Phase 5: Transport + Auth Completion (`V1_REFACTOR` §6, §6.3, §6.4, §8.12-§8.13)
 
