@@ -2385,4 +2385,32 @@ mod tests {
             "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion:80"
         );
     }
+
+    #[test]
+    fn transport_variant_branching_isolated_to_transport_factory() {
+        let source = include_str!("lib.rs");
+        let production = source.split("\n#[cfg(test)]").next().unwrap_or(source);
+        let sites = production
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| line.contains("RemoteTransportKind::"))
+            .map(|(idx, line)| (idx + 1, line.trim().to_string()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            sites,
+            vec![
+                (
+                    317,
+                    "RemoteTransportKind::DirectHttps => &DIRECT_HTTPS_TRANSPORT_ADAPTER,"
+                        .to_string(),
+                ),
+                (
+                    318,
+                    "RemoteTransportKind::Tor => &TOR_TRANSPORT_ADAPTER,".to_string(),
+                ),
+            ],
+            "transport variant branching must remain isolated to TransportFactory::adapter"
+        );
+    }
 }
