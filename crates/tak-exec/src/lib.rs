@@ -1854,7 +1854,14 @@ fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
         ("", trimmed)
     };
 
-    let authority = without_scheme.split('/').next().unwrap_or_default().trim();
+    let authority_end = without_scheme
+        .find(['/', '?', '#'])
+        .unwrap_or(without_scheme.len());
+    let authority_with_userinfo = without_scheme[..authority_end].trim();
+    let authority = authority_with_userinfo
+        .rsplit_once('@')
+        .map_or(authority_with_userinfo, |(_, value)| value)
+        .trim();
     if authority.is_empty() {
         bail!("missing host:port");
     }
@@ -2288,6 +2295,27 @@ mod tests {
         );
         assert_eq!(
             TransportFactory::socket_addr(&tor_http).expect("onion http without explicit port"),
+            "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion:80"
+        );
+    }
+
+    #[test]
+    fn endpoint_socket_addr_accepts_full_url_forms_without_explicit_port() {
+        let direct_full_url = strict_remote_target(
+            RemoteTransportKind::DirectHttps,
+            "https://build.internal?region=us-east#ignored",
+        );
+        let tor_full_url = strict_remote_target(
+            RemoteTransportKind::Tor,
+            "http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion?queue=default#anchor",
+        );
+
+        assert_eq!(
+            TransportFactory::socket_addr(&direct_full_url).expect("direct full URL"),
+            "build.internal:443"
+        );
+        assert_eq!(
+            TransportFactory::socket_addr(&tor_full_url).expect("tor full URL"),
             "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion:80"
         );
     }
