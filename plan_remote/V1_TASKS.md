@@ -64,8 +64,8 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 ## Phase 7: Spec Lock and Regression Guard
 
-- [ ] Add a compliance matrix mapping each acceptance criterion in `V1_REFACTOR` §8.1-§8.13 to concrete test names.
-- [ ] Add/update `plan_remote` regression notes documenting criterion -> test -> owning crate.
+- [x] Add a compliance matrix mapping each acceptance criterion in `V1_REFACTOR` §8.1-§8.13 to concrete test names. Evidence: `plan_remote/V1_ACCEPTANCE_MATRIX.md`.
+- [x] Add/update `plan_remote` regression notes documenting criterion -> test -> owning crate. Evidence: `plan_remote/V1_REGRESSION_NOTES.md`.
 - [ ] Final gate on current branch state: `make check` passes after all above tasks are complete.
 
 ## Done Condition
