@@ -89,7 +89,7 @@ fn display_label(label: &TaskLabel) -> String {
     if package.is_empty() {
         return label.name.clone();
     }
-    format!("{}:{}", package.replace('/', "."), label.name)
+    format!("{package}:{}", label.name)
 }
 
 fn display_dep_label(task_label: &TaskLabel, dep_label: &TaskLabel) -> String {
