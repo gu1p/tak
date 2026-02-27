@@ -20,18 +20,18 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 ## Phase 1: Canonical Python API Parity (`V1_REFACTOR` §1, §3)
 
-- [ ] `BDD` Canonical `TASKS.py` snippet from §1 loads and resolves imports exactly (`from tak import ...`, `from tak.remote import ...`) with no unresolved symbols.
-- [ ] `Unit` Decision helpers accept only V1 calls: `Decision.local`, `Decision.remote`, `Decision.remote_any`.
-- [ ] `Unit` Loader rejects non-V1 decision API (`Decision.start`, `prefer_*`, `require_*`, numeric scoring/weights).
-- [ ] `Unit` Constructor validation enforces exact signatures for `LocalOnly(Local)`, `RemoteOnly(Remote|list[Remote])`, `ByCustomPolicy(policy_fn)`.
-- [ ] `Implementation` Fill missing prelude/stub exports so canonical V1 API shape works as written.
+- [x] `BDD` Canonical `TASKS.py` snippet from §1 loads and resolves imports exactly (`from tak import ...`, `from tak.remote import ...`) with no unresolved symbols. Evidence: `loads_canonical_v1_import_surface`.
+- [x] `Unit` Decision helpers accept only V1 calls: `Decision.local`, `Decision.remote`, `Decision.remote_any`. Evidence: `policy_helpers_compile_to_v1_decision_ir_variants`.
+- [x] `Unit` Loader rejects non-V1 decision API (`Decision.start`, `prefer_*`, `require_*`, numeric scoring/weights). Evidence: `rejects_builder_style_policy_api_calls`, `rejects_prefer_style_policy_api_calls`, `rejects_require_style_policy_api_calls`, `rejects_policy_decisions_with_scoring_fields`.
+- [x] `Unit` Constructor validation enforces exact signatures for `LocalOnly(Local)`, `RemoteOnly(Remote|list[Remote])`, `ByCustomPolicy(policy_fn)`. Evidence: `maps_v1_execution_constructors_to_expected_ir_variants`, `rejects_cross_constructor_execution_shapes`, `rejects_remote_only_empty_list`.
+- [x] `Implementation` Fill missing prelude/stub exports so canonical V1 API shape works as written. Evidence: `loads_canonical_v1_import_surface`.
 
 ## Phase 2: Real `ByCustomPolicy` Runtime (`V1_REFACTOR` §3.4, §4, §5.4)
 
-- [ ] `BDD` A task using `ByCustomPolicy` (without precompiled static decision) executes via runtime policy evaluation and records decision reason.
-- [ ] `Integration` Loader -> exec pipeline carries policy IR/context so `tak-exec` never hits `policy execution is not supported yet` for valid V1 policies.
-- [ ] `Unit` Policy evaluator consumes only V1 `PolicyContext` fields and is deterministic for identical snapshots.
-- [ ] `Unit` Policy output is immutable per task attempt once selected.
+- [x] `BDD` A task using `ByCustomPolicy` (without precompiled static decision) executes via runtime policy evaluation and records decision reason. Evidence: `run_by_custom_policy_named_function_executes_runtime_policy_and_reports_reason`.
+- [x] `Integration` Loader -> exec pipeline carries policy IR/context so `tak-exec` never hits `policy execution is not supported yet` for valid V1 policies. Evidence: `run_by_custom_policy_named_function_executes_runtime_policy_and_reports_reason`, `run_by_custom_policy_remote_decision_reports_node_reason_and_stays_stable_for_retries`.
+- [x] `Unit` Policy evaluator consumes only V1 `PolicyContext` fields and is deterministic for identical snapshots. Evidence: `evaluate_named_policy_decision_is_deterministic_for_identical_context_snapshot`, `run_by_custom_policy_local_decision_uses_v1_context_surface_and_reports_reason`.
+- [x] `Unit` Policy output is immutable per task attempt once selected. Evidence: `run_by_custom_policy_remote_decision_reports_node_reason_and_stays_stable_for_retries`.
 
 ## Phase 3: True Remote Execution (No Local Simulation) (`V1_REFACTOR` §5.4, §7, §8.2-§8.3)
 

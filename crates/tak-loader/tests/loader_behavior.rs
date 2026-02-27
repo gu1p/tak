@@ -6,7 +6,10 @@ use tak_core::label::parse_label;
 use tak_core::model::{
     PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSelectionSpec, TaskExecutionSpec,
 };
-use tak_loader::{LoadOptions, detect_workspace_root, discover_tasks_files, load_workspace};
+use tak_loader::{
+    LoadOptions, detect_workspace_root, discover_tasks_files, evaluate_named_policy_decision,
+    load_workspace,
+};
 
 /// Ensures file discovery respects `.gitignore` filtering.
 #[test]
@@ -485,6 +488,84 @@ SPEC
     }
 }
 
+/// Ensures runtime policy evaluation is deterministic for identical V1 `PolicyContext` snapshots.
+#[test]
+fn evaluate_named_policy_decision_is_deterministic_for_identical_context_snapshot() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
+    let tasks_file = temp.path().join("apps/web/TASKS.py");
+    fs::write(
+        &tasks_file,
+        r#"
+POLICY_CONTEXT = PolicyContext(
+  task_side_effecting=False,
+  local_cpu_percent=92.0,
+  remotes={
+    "remote-a": RemoteRuntimeView(
+      endpoint="http://127.0.0.1:8001",
+      healthy=True,
+      queue_eta_s=1.5,
+    )
+  },
+  remote_any_reachable=True,
+)
+
+def choose_runtime(ctx):
+    remote = policy_remote(ctx, "remote-a")
+    if (
+      ctx["local"]["cpu_percent"] >= 90
+      and remote
+      and remote["healthy"]
+      and remote["queue_eta_s"] < 10
+    ):
+        return Decision_remote("remote-a", reason="LOCAL_CPU_HIGH_ARM_IDLE")
+    return Decision_local(reason="DEFAULT_LOCAL")
+
+SPEC = module_spec(tasks=[
+  task("policy_runtime", steps=[cmd("echo", "ok")], execution=ByCustomPolicy(choose_runtime)),
+])
+SPEC
+"#,
+    )
+    .expect("write tasks");
+
+    let first = evaluate_named_policy_decision(&tasks_file, "choose_runtime")
+        .expect("first runtime decision must resolve");
+    let second = evaluate_named_policy_decision(&tasks_file, "choose_runtime")
+        .expect("second runtime decision must resolve");
+
+    match (&first, &second) {
+        (
+            PolicyDecisionSpec::Remote {
+                reason: first_reason,
+                remote: first_remote,
+            },
+            PolicyDecisionSpec::Remote {
+                reason: second_reason,
+                remote: second_remote,
+            },
+        ) => {
+            assert_eq!(first_reason, second_reason);
+            assert_eq!(first_reason, "LOCAL_CPU_HIGH_ARM_IDLE");
+            assert_eq!(first_remote.id, second_remote.id);
+            assert_eq!(first_remote.id, "remote-a");
+            assert_eq!(first_remote.endpoint, second_remote.endpoint);
+            assert_eq!(
+                first_remote.endpoint.as_deref(),
+                Some("http://127.0.0.1:8001")
+            );
+            assert_eq!(first_remote.transport_kind, second_remote.transport_kind);
+            assert_eq!(
+                first_remote.service_auth_env,
+                second_remote.service_auth_env
+            );
+        }
+        _ => panic!(
+            "runtime policy decisions must be identical for identical snapshots: first={first:?}, second={second:?}"
+        ),
+    }
+}
+
 /// Ensures builder-style policy APIs are rejected with explicit diagnostics.
 #[test]
 fn rejects_builder_style_policy_api_calls() {
@@ -510,6 +591,62 @@ SPEC
     assert!(
         message.contains("unsupported policy builder API: Decision.start"),
         "unexpected error message: {message}"
+    );
+}
+
+/// Ensures deprecated preference-style policy APIs are rejected with explicit diagnostics.
+#[test]
+fn rejects_prefer_style_policy_api_calls() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
+    fs::write(
+        temp.path().join("apps/web/TASKS.py"),
+        r#"
+def choose_runtime(ctx):
+    return Decision_prefer_remote("remote-a")
+
+SPEC = module_spec(tasks=[
+  task("bad_prefer_policy", steps=[cmd("echo", "ok")], execution=ByCustomPolicy(choose_runtime)),
+])
+SPEC
+"#,
+    )
+    .expect("write tasks");
+
+    let err = load_workspace(temp.path(), &LoadOptions::default())
+        .expect_err("prefer-style policy APIs must fail at load time");
+    let message = err.to_string();
+    assert!(
+        message.contains("unsupported policy builder API: Decision.prefer_remote"),
+        "unexpected error message: {message}"
+    );
+}
+
+/// Ensures unsupported require-style policy APIs fail with a clear symbol diagnostic.
+#[test]
+fn rejects_require_style_policy_api_calls() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
+    fs::write(
+        temp.path().join("apps/web/TASKS.py"),
+        r#"
+def choose_runtime(ctx):
+    return Decision_require_remote("remote-a")
+
+SPEC = module_spec(tasks=[
+  task("bad_require_policy", steps=[cmd("echo", "ok")], execution=ByCustomPolicy(choose_runtime)),
+])
+SPEC
+"#,
+    )
+    .expect("write tasks");
+
+    let err = load_workspace(temp.path(), &LoadOptions::default())
+        .expect_err("require-style policy APIs must fail at load time");
+    let message = err.to_string();
+    assert!(
+        message.contains("Decision_require_remote"),
+        "error should include unsupported symbol name: {message}"
     );
 }
 
