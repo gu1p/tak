@@ -58,6 +58,8 @@ pub struct LimiterRef {
 pub struct ModuleSpec {
     #[serde(default = "default_spec_version")]
     pub spec_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(default)]
     pub tasks: Vec<TaskDef>,
     #[serde(default)]

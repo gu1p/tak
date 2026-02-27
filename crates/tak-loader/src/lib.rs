@@ -3,7 +3,7 @@
 //! This crate discovers task definition files, evaluates them via Monty, converts output
 //! into strongly-typed core models, and assembles a resolved `WorkspaceSpec`.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,6 @@ use anyhow::{Context, Result, anyhow, bail};
 use ignore::WalkBuilder;
 use monty::{LimitedTracker, MontyObject, MontyRun, PrintWriter, ResourceLimits};
 use monty_type_checking::{SourceFile, type_check};
-use serde::Deserialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use tak_core::label::parse_label;
@@ -47,7 +46,7 @@ impl Default for LoadOptions {
     }
 }
 
-/// Detects the workspace root based on `tak.toml`, `.git`, or the current path.
+/// Detects the workspace root based on `.git` or the current path.
 ///
 /// ```no_run
 /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -65,9 +64,6 @@ pub fn detect_workspace_root(start: &Path) -> Result<PathBuf> {
         start
     };
 
-    if let Some(marker) = find_ancestor_with(&search_start, "tak.toml") {
-        return Ok(marker);
-    }
     if let Some(git) = find_ancestor_with(&search_start, ".git") {
         return Ok(git);
     }
@@ -121,16 +117,30 @@ pub fn discover_tasks_files(root: &Path) -> Result<Vec<PathBuf>> {
 /// ```
 pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpec> {
     let workspace_root = detect_workspace_root(root)?;
-    let project_id = resolve_project_id(&workspace_root, options.project_id.as_deref())?;
     let files = discover_tasks_files(&workspace_root)?;
+    let mut modules = Vec::<(String, ModuleSpec)>::new();
+
+    for file in files {
+        let module = eval_module_spec(&file, options)?;
+        let package = package_for_file(&workspace_root, &file)?;
+        modules.push((package, module));
+    }
+
+    let module_project_ids: Vec<Option<&str>> = modules
+        .iter()
+        .map(|(_, module)| module.project_id.as_deref())
+        .collect();
+    let project_id = resolve_project_id(
+        &workspace_root,
+        options.project_id.as_deref(),
+        &module_project_ids,
+    )?;
 
     let mut tasks = BTreeMap::<TaskLabel, ResolvedTask>::new();
     let mut limiters = HashMap::<LimiterKey, LimiterDef>::new();
     let mut queues = HashMap::<LimiterKey, QueueDef>::new();
 
-    for file in files {
-        let module = eval_module_spec(&file, options)?;
-        let package = package_for_file(&workspace_root, &file)?;
+    for (package, module) in modules {
         merge_module(
             &workspace_root,
             &project_id,
@@ -180,12 +190,7 @@ fn find_ancestor_with(start: &Path, marker: &str) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
-#[derive(Debug, Deserialize)]
-struct TakToml {
-    project_id: Option<String>,
-}
-
-/// Resolves the project id from options, `tak.toml`, or a path-based hash fallback.
+/// Resolves the project id from options, `TASKS.py` module specs, or a path-based hash fallback.
 ///
 /// ```no_run
 /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -193,19 +198,34 @@ struct TakToml {
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_project_id(root: &Path, from_options: Option<&str>) -> Result<String> {
+fn resolve_project_id(
+    root: &Path,
+    from_options: Option<&str>,
+    from_modules: &[Option<&str>],
+) -> Result<String> {
     if let Some(value) = from_options {
+        if value.trim().is_empty() {
+            bail!("project_id from options cannot be empty");
+        }
         return Ok(value.to_string());
     }
 
-    let config_file = root.join("tak.toml");
-    if config_file.exists() {
-        let config_data = fs::read_to_string(&config_file)?;
-        let config: TakToml = toml::from_str(&config_data)
-            .map_err(|e| anyhow!("failed to parse {}: {e}", config_file.display()))?;
-        if let Some(project_id) = config.project_id {
-            return Ok(project_id);
+    let mut module_ids = BTreeSet::new();
+    for value in from_modules.iter().flatten() {
+        let normalized = value.trim();
+        if normalized.is_empty() {
+            bail!("project_id in TASKS.py cannot be empty");
         }
+        module_ids.insert(normalized.to_string());
+    }
+
+    if module_ids.len() > 1 {
+        let ids = module_ids.into_iter().collect::<Vec<_>>().join(", ");
+        bail!("conflicting project_id values in TASKS.py modules: {ids}");
+    }
+
+    if let Some(project_id) = module_ids.iter().next() {
+        return Ok(project_id.clone());
     }
 
     let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
@@ -534,9 +554,10 @@ def _normalize_deps(value):
         return [_dep_to_label(item) for item in value]
     return [_dep_to_label(value)]
 
-def module_spec(tasks, limiters=None, queues=None, exclude=None, defaults=None):
+def module_spec(tasks, limiters=None, queues=None, exclude=None, defaults=None, project_id=None):
     return {
         "spec_version": 1,
+        "project_id": project_id,
         "tasks": tasks,
         "limiters": _or_empty_list(limiters),
         "queues": _or_empty_list(queues),
@@ -664,7 +685,7 @@ AT_START: str
 FIFO: str
 PRIORITY: str
 
-def module_spec(tasks: list, limiters: list | None = ..., queues: list | None = ..., exclude: list | None = ..., defaults: dict | None = ...) -> dict: ...
+def module_spec(tasks: list, limiters: list | None = ..., queues: list | None = ..., exclude: list | None = ..., defaults: dict | None = ..., project_id: str | None = ...) -> dict: ...
 def task(name: str, deps: list | str | dict | None = ..., steps: list | None = ..., needs: list | None = ..., queue: dict | None = ..., retry: dict | None = ..., timeout_s: int | None = ..., tags: list | None = ..., doc: str | None = ...) -> dict: ...
 def cmd(*argv: str, cwd: str | None = ..., env: dict | None = ...) -> dict: ...
 def script(path: str, *argv: str, interpreter: str | None = ..., cwd: str | None = ..., env: dict | None = ...) -> dict: ...

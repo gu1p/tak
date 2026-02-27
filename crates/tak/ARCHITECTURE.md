@@ -91,7 +91,7 @@ All commands fail fast on errors and return non-zero exit status.
 
 Common failure classes:
 
-- Workspace load/parse errors (`tak.toml`, `TASKS.py`, label resolution).
+- Workspace load/parse errors (`TASKS.py`, label resolution).
 - Invalid CLI input (unsupported graph format, missing run labels, bad label syntax).
 - Execution failures (`run` task failure, timeout, retry exhaustion).
 - Daemon RPC failures (socket not reachable, protocol error, daemon-side error response).

@@ -34,7 +34,7 @@ pub(crate) fn render_list(spec: &WorkspaceSpec) -> String {
         let deps = task
             .deps
             .iter()
-            .map(|dep| format!("{LIST_DEP}{}{RESET}", display_dep_label(label, dep)))
+            .map(|dep| format!("{LIST_DEP}{}{RESET}", display_label(dep)))
             .collect::<Vec<_>>()
             .join(&format!("{LIST_PUNC}, {RESET}"));
 
@@ -85,18 +85,15 @@ pub(crate) fn render_tree(spec: &WorkspaceSpec) -> Result<String> {
 }
 
 fn display_label(label: &TaskLabel) -> String {
-    let package = label.package.trim_start_matches("//");
-    if package.is_empty() {
-        return label.name.clone();
+    let package = label.package.trim();
+    if package.is_empty() || package == "//" || package == "/" {
+        return format!("//:{}", label.name);
     }
-    format!("{package}:{}", label.name)
-}
-
-fn display_dep_label(task_label: &TaskLabel, dep_label: &TaskLabel) -> String {
-    if dep_label.package == task_label.package {
-        return dep_label.name.clone();
-    }
-    display_label(dep_label)
+    let normalized = package
+        .strip_prefix("//")
+        .map(|rest| format!("//{}", rest.trim_start_matches('/')))
+        .unwrap_or_else(|| format!("//{}", package.trim_start_matches('/')));
+    format!("{normalized}:{}", label.name)
 }
 
 fn build_tree_lines(spec: &WorkspaceSpec) -> Vec<String> {

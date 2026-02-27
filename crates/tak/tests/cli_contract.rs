@@ -38,9 +38,9 @@ fn strip_ansi(input: &str) -> String {
     result
 }
 
-/// Verifies `tak list` prints friendly labels and bracketed deps without `//` labels.
+/// Verifies `tak list` prints canonical labels and bracketed dependencies.
 #[test]
-fn list_displays_friendly_dependency_lines() {
+fn list_displays_canonical_dependency_lines() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
@@ -61,18 +61,17 @@ SPEC
     let stdout = strip_ansi(&stdout_raw);
 
     assert!(
-        stdout.contains("apps/web:build"),
-        "missing friendly task label"
+        stdout.contains("//apps/web:build"),
+        "missing canonical task label"
     );
     assert!(
-        stdout.contains("apps/web:test [build]"),
+        stdout.contains("//apps/web:test [//apps/web:build]"),
         "missing bracketed dependency output"
     );
     assert!(
-        stdout.contains("apps/web:package [test]"),
+        stdout.contains("//apps/web:package [//apps/web:test]"),
         "missing second dependency line"
     );
-    assert!(!stdout.contains("//"), "list output must avoid // labels");
 }
 
 /// Verifies `tak list` includes ANSI colors for task names and dependency elements.
@@ -127,8 +126,8 @@ SPEC
         "tree should include hierarchy glyphs"
     );
     assert!(
-        stdout.contains("apps/web:build"),
-        "tree should include friendly labels"
+        stdout.contains("//apps/web:build"),
+        "tree should include canonical labels"
     );
 }
 

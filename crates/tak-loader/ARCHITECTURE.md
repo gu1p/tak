@@ -20,7 +20,7 @@ flowchart LR
 
 ## Responsibilities
 
-- Detect workspace root (`tak.toml`, `.git`, fallback cwd).
+- Detect workspace root (`.git`, fallback cwd).
 - Discover all `TASKS.py` files using gitignore-aware traversal.
 - Execute each file with DSL prelude under bounded Monty limits.
 - Convert Monty values into strict JSON-compatible structures.
