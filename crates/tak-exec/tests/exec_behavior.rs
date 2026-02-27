@@ -28,6 +28,7 @@ struct FakeRemoteProtocolConfig {
 struct FakeRemoteProtocolServer {
     port: u16,
     call_order: Arc<Mutex<Vec<String>>>,
+    request_paths: Arc<Mutex<Vec<String>>>,
     submit_payloads: Arc<Mutex<Vec<String>>>,
     handle: Option<thread::JoinHandle<()>>,
 }
@@ -71,7 +72,25 @@ impl FakeRemoteStreamingServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/submit") {
+                if path == "/v1/node/capabilities" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("capabilities".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"compatible":true}"#);
+                    continue;
+                }
+
+                if path == "/v1/node/status" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("status".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"healthy":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/submit") || path == "/v1/tasks/submit" {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -80,7 +99,9 @@ impl FakeRemoteStreamingServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/events") {
+                if path.starts_with("/v1/events")
+                    || (path.starts_with("/v1/tasks/") && path.contains("/events"))
+                {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -94,7 +115,9 @@ impl FakeRemoteStreamingServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/result") {
+                if path.starts_with("/v1/result")
+                    || (path.starts_with("/v1/tasks/") && path.ends_with("/result"))
+                {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -171,7 +194,25 @@ impl FakeRemoteSubmitServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/submit") {
+                if path == "/v1/node/capabilities" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("capabilities".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"compatible":true}"#);
+                    continue;
+                }
+
+                if path == "/v1/node/status" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("status".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"healthy":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/submit") || path == "/v1/tasks/submit" {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -180,7 +221,9 @@ impl FakeRemoteSubmitServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/events") {
+                if path.starts_with("/v1/events")
+                    || (path.starts_with("/v1/tasks/") && path.contains("/events"))
+                {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -193,7 +236,9 @@ impl FakeRemoteSubmitServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/result") {
+                if path.starts_with("/v1/result")
+                    || (path.starts_with("/v1/tasks/") && path.ends_with("/result"))
+                {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -244,14 +289,20 @@ impl FakeRemoteProtocolServer {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote protocol server");
         let port = listener.local_addr().expect("listener addr").port();
         let call_order = Arc::new(Mutex::new(Vec::new()));
+        let request_paths = Arc::new(Mutex::new(Vec::new()));
         let submit_payloads = Arc::new(Mutex::new(Vec::new()));
         let call_order_for_thread = Arc::clone(&call_order);
+        let request_paths_for_thread = Arc::clone(&request_paths);
         let submit_payloads_for_thread = Arc::clone(&submit_payloads);
 
         let handle = thread::spawn(move || {
             loop {
                 let (mut stream, _) = listener.accept().expect("accept fake remote request");
                 let (path, body) = read_http_request(&mut stream);
+                request_paths_for_thread
+                    .lock()
+                    .expect("lock request paths")
+                    .push(path.clone());
 
                 if path == "/__shutdown" {
                     write_http_json_response(&mut stream, "200 OK", r#"{"shutdown":true}"#);
@@ -271,7 +322,29 @@ impl FakeRemoteProtocolServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/submit") {
+                if path == "/v1/node/capabilities" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("capabilities".to_string());
+                    write_http_json_response(
+                        &mut stream,
+                        "200 OK",
+                        &format!(r#"{{"compatible":{}}}"#, config.preflight_compatible),
+                    );
+                    continue;
+                }
+
+                if path == "/v1/node/status" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("status".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"healthy":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/submit") || path == "/v1/tasks/submit" {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -284,7 +357,9 @@ impl FakeRemoteProtocolServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/events") {
+                if path.starts_with("/v1/events")
+                    || (path.starts_with("/v1/tasks/") && path.contains("/events"))
+                {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -297,7 +372,9 @@ impl FakeRemoteProtocolServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/result") {
+                if path.starts_with("/v1/result")
+                    || (path.starts_with("/v1/tasks/") && path.ends_with("/result"))
+                {
                     call_order_for_thread
                         .lock()
                         .expect("lock call order")
@@ -320,6 +397,7 @@ impl FakeRemoteProtocolServer {
         Self {
             port,
             call_order,
+            request_paths,
             submit_payloads,
             handle: Some(handle),
         }
@@ -340,6 +418,13 @@ impl FakeRemoteProtocolServer {
             .iter()
             .map(|payload| serde_json::from_str(payload).expect("parse submit payload"))
             .collect()
+    }
+
+    fn request_paths(&self) -> Vec<String> {
+        self.request_paths
+            .lock()
+            .expect("lock request paths")
+            .clone()
     }
 }
 
@@ -687,8 +772,8 @@ async fn remote_only_single_dispatches_identity_and_selected_node() {
 
     assert_eq!(
         remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
-        "remote lifecycle should remain preflight->submit->events->result"
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "remote lifecycle should remain capabilities->status->submit->events->result"
     );
 
     let submit_payloads = remote.submit_payloads();
@@ -717,6 +802,85 @@ async fn remote_only_single_dispatches_identity_and_selected_node() {
         submit.get("task_label").and_then(serde_json::Value::as_str),
         Some("apps/web:remote_dispatch"),
         "submit should preserve existing task label field"
+    );
+}
+
+/// Verifies remote protocol client uses canonical V1 endpoint paths.
+#[tokio::test]
+async fn remote_only_single_uses_canonical_v1_endpoint_paths() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let remote = FakeRemoteProtocolServer::spawn(FakeRemoteProtocolConfig {
+        preflight_compatible: true,
+        result_success: true,
+        result_exit_code: 0,
+    });
+
+    let label = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "remote_canonical_paths".to_string(),
+    };
+    let task = ResolvedTask {
+        label: label.clone(),
+        doc: String::new(),
+        deps: Vec::new(),
+        steps: vec![StepDef::Cmd {
+            argv: vec!["sh".to_string(), "-c".to_string(), "echo ok".to_string()],
+            cwd: None,
+            env: BTreeMap::new(),
+        }],
+        needs: Vec::<NeedDef>::new(),
+        queue: Option::<QueueUseDef>::None,
+        retry: RetryDef::default(),
+        timeout_s: None,
+        context: CurrentStateSpec::default(),
+        execution: TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(RemoteSpec {
+            id: "remote-primary".to_string(),
+            endpoint: Some(remote.endpoint()),
+            transport_kind: RemoteTransportKind::DirectHttps,
+            runtime: None,
+        })),
+        tags: Vec::new(),
+    };
+
+    let mut tasks = BTreeMap::new();
+    tasks.insert(label.clone(), task);
+
+    let spec = WorkspaceSpec {
+        project_id: "project-test".to_string(),
+        root: temp.path().to_path_buf(),
+        tasks,
+        limiters: HashMap::<LimiterKey, tak_core::model::LimiterDef>::new(),
+        queues: HashMap::<LimiterKey, QueueDef>::new(),
+    };
+
+    run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
+        .await
+        .expect("run should succeed");
+
+    let paths = remote.request_paths();
+    assert!(
+        paths.iter().any(|path| path == "/v1/node/capabilities"),
+        "expected canonical capabilities path, got: {paths:?}"
+    );
+    assert!(
+        paths.iter().any(|path| path == "/v1/node/status"),
+        "expected canonical node status path, got: {paths:?}"
+    );
+    assert!(
+        paths.iter().any(|path| path == "/v1/tasks/submit"),
+        "expected canonical submit path, got: {paths:?}"
+    );
+    assert!(
+        paths
+            .iter()
+            .any(|path| path.starts_with("/v1/tasks/") && path.contains("/events")),
+        "expected canonical events path, got: {paths:?}"
+    );
+    assert!(
+        paths
+            .iter()
+            .any(|path| path.starts_with("/v1/tasks/") && path.ends_with("/result")),
+        "expected canonical result path, got: {paths:?}"
     );
 }
 
@@ -785,7 +949,7 @@ async fn remote_only_single_maps_remote_result_failure_to_terminal_error() {
     );
     assert_eq!(
         remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "executor should still complete full remote protocol lifecycle before surfacing failure"
     );
 }
@@ -902,7 +1066,7 @@ async fn remote_only_single_auth_rejection_returns_infra_auth_error() {
     );
     assert_eq!(
         rejecting_remote.call_order(),
-        vec!["preflight", "submit"],
+        vec!["capabilities", "status", "submit"],
         "strict auth rejection should stop before events/result"
     );
 }
@@ -979,12 +1143,12 @@ async fn remote_only_list_falls_back_when_first_node_auth_rejects_submit() {
     );
     assert_eq!(
         auth_rejecting_remote.call_order(),
-        vec!["preflight", "submit"],
+        vec!["capabilities", "status", "submit"],
         "first node should fail during submit auth check"
     );
     assert_eq!(
         fallback_remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "second node should complete normal protocol lifecycle"
     );
 }
@@ -1052,12 +1216,12 @@ async fn remote_only_list_all_auth_rejections_return_auth_infra_error() {
     );
     assert_eq!(
         first_remote.call_order(),
-        vec!["preflight", "submit"],
+        vec!["capabilities", "status", "submit"],
         "first node should be attempted before fallback"
     );
     assert_eq!(
         second_remote.call_order(),
-        vec!["preflight", "submit"],
+        vec!["capabilities", "status", "submit"],
         "second node should also be attempted in ordered fallback mode"
     );
 }
@@ -1770,7 +1934,7 @@ async fn remote_container_runtime_strict_lifecycle_failure_returns_infra_error()
     );
     assert_eq!(
         remote.call_order(),
-        vec!["preflight"],
+        vec!["capabilities", "status"],
         "strict lifecycle failure should stop before submit/events/result"
     );
 }
@@ -1880,12 +2044,12 @@ async fn remote_container_runtime_fallback_advances_on_first_lifecycle_failure()
 
     assert_eq!(
         first_remote.call_order(),
-        vec!["preflight"],
+        vec!["capabilities", "status"],
         "first lifecycle-failing node should not reach submit/events/result"
     );
     assert_eq!(
         second_remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "fallback node should complete full remote protocol lifecycle"
     );
 }
@@ -1990,12 +2154,12 @@ async fn remote_container_runtime_all_candidates_fail_without_local_fallback() {
     );
     assert_eq!(
         first_remote.call_order(),
-        vec!["preflight"],
+        vec!["capabilities", "status"],
         "first failing candidate should stop before submit/events/result"
     );
     assert_eq!(
         second_remote.call_order(),
-        vec!["preflight"],
+        vec!["capabilities", "status"],
         "second failing candidate should also stop before submit/events/result"
     );
 }
@@ -2108,7 +2272,14 @@ async fn remote_only_single_persists_ordered_log_chunks_and_output_metadata() {
     );
     assert_eq!(
         remote.call_order(),
-        vec!["preflight", "submit", "events", "events", "result"],
+        vec![
+            "capabilities",
+            "status",
+            "submit",
+            "events",
+            "events",
+            "result",
+        ],
         "executor should keep protocol ordering while polling event stream"
     );
 }
@@ -2288,12 +2459,12 @@ async fn direct_and_tor_transports_share_remote_protocol_contract() {
 
     assert_eq!(
         direct_remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "direct transport should keep canonical protocol sequence"
     );
     assert_eq!(
         tor_remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "tor transport should keep canonical protocol sequence"
     );
     assert_eq!(

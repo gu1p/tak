@@ -520,7 +520,7 @@ async fn run_single_task(
                     task.label
                 )
             })?;
-            let remote_logs = remote_protocol_events(target, &task_run_id, attempt).await?;
+            let remote_logs = remote_protocol_events(target, &task_run_id).await?;
             let result = remote_protocol_result(target, &task_run_id, attempt).await?;
             (remote_logs, Some(result))
         } else {
@@ -1337,17 +1337,17 @@ async fn fallback_after_auth_submit_failure(
 /// # }
 /// ```
 async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<RemoteProtocolMode> {
-    let preflight = remote_protocol_http_request(
+    let capabilities = remote_protocol_http_request(
         target,
         "GET",
-        "/v1/preflight",
+        "/v1/node/capabilities",
         None,
-        "preflight",
+        "capabilities",
         Duration::from_millis(150),
     )
     .await;
 
-    let (status, body) = match preflight {
+    let (status, body) = match capabilities {
         Ok(response) => response,
         Err(_) => return Ok(RemoteProtocolMode::LegacyReachability),
     };
@@ -1369,7 +1369,36 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<Remo
 
     if !compatible {
         bail!(
-            "infra error: remote node {} preflight capability mismatch at {}",
+            "infra error: remote node {} capability mismatch at {}",
+            target.node_id,
+            target.endpoint
+        );
+    }
+
+    let status_response = remote_protocol_http_request(
+        target,
+        "GET",
+        "/v1/node/status",
+        None,
+        "status",
+        Duration::from_millis(150),
+    )
+    .await;
+    let (status_code, status_body) = match status_response {
+        Ok(response) => response,
+        Err(_) => return Ok(RemoteProtocolMode::LegacyReachability),
+    };
+    if status_code != 200 {
+        return Ok(RemoteProtocolMode::LegacyReachability);
+    }
+    if let Ok(parsed_status) = serde_json::from_str::<serde_json::Value>(&status_body)
+        && let Some(healthy) = parsed_status
+            .get("healthy")
+            .and_then(serde_json::Value::as_bool)
+        && !healthy
+    {
+        bail!(
+            "infra error: remote node {} reported unhealthy status at {}",
             target.node_id,
             target.endpoint
         );
@@ -1403,7 +1432,7 @@ async fn remote_protocol_submit(
     let (status, response_body) = remote_protocol_http_request(
         target,
         "POST",
-        "/v1/submit",
+        "/v1/tasks/submit",
         Some(&body),
         "submit",
         Duration::from_secs(1),
@@ -1464,7 +1493,6 @@ async fn remote_protocol_submit(
 async fn remote_protocol_events(
     target: &StrictRemoteTarget,
     task_run_id: &str,
-    attempt: u32,
 ) -> Result<Vec<RemoteLogChunk>> {
     const MAX_EVENT_RECONNECTS: u32 = 3;
     const MAX_EVENT_POLLS: u32 = 64;
@@ -1474,9 +1502,7 @@ async fn remote_protocol_events(
     let mut persisted_remote_logs = Vec::new();
 
     for _ in 0..MAX_EVENT_POLLS {
-        let path = format!(
-            "/v1/events?task_run_id={task_run_id}&attempt={attempt}&after_seq={last_seen_seq}"
-        );
+        let path = format!("/v1/tasks/{task_run_id}/events?after_seq={last_seen_seq}");
         let response = remote_protocol_http_request(
             target,
             "GET",
@@ -1528,7 +1554,7 @@ async fn remote_protocol_events(
     );
 }
 
-/// Parses one `/v1/events` response envelope and advances checkpoint sequence monotonically.
+/// Parses one remote events response envelope and advances checkpoint sequence monotonically.
 ///
 /// ```no_run
 /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -1615,7 +1641,8 @@ async fn remote_protocol_result(
     task_run_id: &str,
     attempt: u32,
 ) -> Result<RemoteProtocolResult> {
-    let path = format!("/v1/result?task_run_id={task_run_id}&attempt={attempt}");
+    let _ = attempt;
+    let path = format!("/v1/tasks/{task_run_id}/result");
     let (status, response_body) =
         remote_protocol_http_request(target, "GET", &path, None, "result", Duration::from_secs(1))
             .await?;

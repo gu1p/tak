@@ -137,11 +137,23 @@ impl FakeRemoteProtocolServer {
                         format!(r#"{{"compatible":{}}}"#, config.preflight_compatible),
                         Some("preflight"),
                     ))
-                } else if path.starts_with("/v1/submit") {
+                } else if path == "/v1/node/capabilities" {
+                    Some((
+                        "200 OK",
+                        format!(r#"{{"compatible":{}}}"#, config.preflight_compatible),
+                        Some("capabilities"),
+                    ))
+                } else if path == "/v1/node/status" {
+                    Some(("200 OK", r#"{"healthy":true}"#.to_string(), Some("status")))
+                } else if path.starts_with("/v1/submit") || path == "/v1/tasks/submit" {
                     Some(("200 OK", r#"{"accepted":true}"#.to_string(), Some("submit")))
-                } else if path.starts_with("/v1/events") {
+                } else if path.starts_with("/v1/events")
+                    || (path.starts_with("/v1/tasks/") && path.contains("/events"))
+                {
                     Some(("200 OK", r#"{"events":[]}"#.to_string(), Some("events")))
-                } else if path.starts_with("/v1/result") {
+                } else if path.starts_with("/v1/result")
+                    || (path.starts_with("/v1/tasks/") && path.ends_with("/result"))
+                {
                     Some((
                         "200 OK",
                         format!(
@@ -244,7 +256,25 @@ impl FakeRemoteResumableEventsServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/submit") {
+                if path == "/v1/node/capabilities" {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock resumable protocol calls")
+                        .push("capabilities".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"compatible":true}"#);
+                    continue;
+                }
+
+                if path == "/v1/node/status" {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock resumable protocol calls")
+                        .push("status".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"healthy":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/submit") || path == "/v1/tasks/submit" {
                     calls_for_thread
                         .lock()
                         .expect("lock resumable protocol calls")
@@ -253,7 +283,9 @@ impl FakeRemoteResumableEventsServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/events") {
+                if path.starts_with("/v1/events")
+                    || (path.starts_with("/v1/tasks/") && path.contains("/events"))
+                {
                     calls_for_thread
                         .lock()
                         .expect("lock resumable protocol calls")
@@ -303,7 +335,9 @@ impl FakeRemoteResumableEventsServer {
                     continue;
                 }
 
-                if path.starts_with("/v1/result") {
+                if path.starts_with("/v1/result")
+                    || (path.starts_with("/v1/tasks/") && path.ends_with("/result"))
+                {
                     calls_for_thread
                         .lock()
                         .expect("lock resumable protocol calls")
@@ -1309,7 +1343,8 @@ SPEC
     );
 }
 
-/// Verifies remote protocol handshake order is `preflight -> submit -> events -> result`.
+/// Verifies remote protocol handshake order is
+/// `capabilities -> status -> submit -> events -> result`.
 #[test]
 fn run_remote_only_handshake_follows_preflight_submit_events_result_order() {
     let temp = tempfile::tempdir().expect("tempdir");
@@ -1369,8 +1404,8 @@ SPEC
     );
     assert_eq!(
         remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
-        "remote protocol order should follow preflight->submit->events->result"
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "remote protocol order should follow capabilities->status->submit->events->result"
     );
 }
 
@@ -1425,7 +1460,7 @@ SPEC
     );
     assert_eq!(
         remote.call_order(),
-        vec!["preflight"],
+        vec!["capabilities"],
         "preflight mismatch should block submit/events/result"
     );
 }
@@ -1483,7 +1518,7 @@ SPEC
     );
     assert_eq!(
         remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "result should be fetched even when events stream has no log chunks"
     );
 }
@@ -1551,7 +1586,8 @@ SPEC
     assert_eq!(
         remote.call_order(),
         vec![
-            "preflight",
+            "capabilities",
+            "status",
             "submit",
             "events",
             "events",
@@ -1946,17 +1982,17 @@ SPEC
 
     assert_eq!(
         strict_remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "strict node should complete full handshake flow"
     );
     assert_eq!(
         preflight_mismatch_remote.call_order(),
-        vec!["preflight"],
+        vec!["capabilities"],
         "ordered fallback should exercise the first candidate before advancing"
     );
     assert_eq!(
         fallback_remote.call_order(),
-        vec!["preflight", "submit", "events", "result"],
+        vec!["capabilities", "status", "submit", "events", "result"],
         "fallback node should complete full handshake after ordered selection"
     );
 }
