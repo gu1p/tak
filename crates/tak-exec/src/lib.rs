@@ -211,6 +211,7 @@ struct StrictRemoteTarget {
     node_id: String,
     endpoint: String,
     transport_kind: RemoteTransportKind,
+    service_auth_env: Option<String>,
     runtime: Option<RemoteRuntimeSpec>,
 }
 
@@ -1025,6 +1026,7 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                     node_id: remote.id.clone(),
                     endpoint,
                     transport_kind: remote.transport_kind,
+                    service_auth_env: remote.service_auth_env.clone(),
                     runtime: remote.runtime.clone(),
                 }),
                 ordered_remote_targets: Vec::new(),
@@ -1051,6 +1053,7 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                     node_id: remote.id.clone(),
                     endpoint,
                     transport_kind: remote.transport_kind,
+                    service_auth_env: remote.service_auth_env.clone(),
                     runtime: remote.runtime.clone(),
                 });
             }
@@ -1101,6 +1104,7 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                             node_id: remote.id.clone(),
                             endpoint,
                             transport_kind: remote.transport_kind,
+                            service_auth_env: remote.service_auth_env.clone(),
                             runtime: remote.runtime.clone(),
                         }),
                         ordered_remote_targets: Vec::new(),
@@ -1127,6 +1131,7 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                             node_id: remote.id.clone(),
                             endpoint,
                             transport_kind: remote.transport_kind,
+                            service_auth_env: remote.service_auth_env.clone(),
                             runtime: remote.runtime.clone(),
                         });
                     }
@@ -1352,6 +1357,13 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<Remo
         Err(_) => return Ok(RemoteProtocolMode::LegacyReachability),
     };
 
+    if status == 401 || status == 403 {
+        bail!(
+            "infra error: remote node {} auth failed during capabilities with HTTP {}",
+            target.node_id,
+            status
+        );
+    }
     if status != 200 {
         return Ok(RemoteProtocolMode::LegacyReachability);
     }
@@ -1388,6 +1400,13 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<Remo
         Ok(response) => response,
         Err(_) => return Ok(RemoteProtocolMode::LegacyReachability),
     };
+    if status_code == 401 || status_code == 403 {
+        bail!(
+            "infra error: remote node {} auth failed during status with HTTP {}",
+            target.node_id,
+            status_code
+        );
+    }
     if status_code != 200 {
         return Ok(RemoteProtocolMode::LegacyReachability);
     }
@@ -1786,9 +1805,10 @@ async fn remote_protocol_http_request(
             target.node_id, target.endpoint
         )
     })?;
+    let header_block = remote_protocol_request_headers(target)?;
     let payload = body.unwrap_or("");
     let request = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {socket_addr}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{payload}",
+        "{method} {path} HTTP/1.1\r\nHost: {socket_addr}\r\nConnection: close\r\n{header_block}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{payload}",
         payload.len()
     );
 
@@ -1834,6 +1854,37 @@ async fn remote_protocol_http_request(
         })?;
 
     Ok((status_code, body.to_string()))
+}
+
+fn remote_protocol_request_headers(target: &StrictRemoteTarget) -> Result<String> {
+    let mut headers = String::from("X-Tak-Protocol-Version: v1\r\n");
+
+    if let Some(env_name) = target.service_auth_env.as_deref() {
+        let token = env::var(env_name).with_context(|| {
+            format!(
+                "infra error: remote node {} missing service auth token env {}",
+                target.node_id, env_name
+            )
+        })?;
+        let token = token.trim();
+        if token.is_empty() {
+            bail!(
+                "infra error: remote node {} service auth token env {} is empty",
+                target.node_id,
+                env_name
+            );
+        }
+        if token.contains(['\r', '\n']) {
+            bail!(
+                "infra error: remote node {} service auth token env {} contains invalid characters",
+                target.node_id,
+                env_name
+            );
+        }
+        headers.push_str(&format!("X-Tak-Service-Token: {token}\r\n"));
+    }
+
+    Ok(headers)
 }
 
 /// Converts an HTTP(S) endpoint string into a connectable `host:port` address.
@@ -2250,6 +2301,7 @@ mod tests {
             node_id: "node-a".to_string(),
             endpoint: endpoint.to_string(),
             transport_kind: kind,
+            service_auth_env: None,
             runtime: None,
         }
     }

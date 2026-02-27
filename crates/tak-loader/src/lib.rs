@@ -21,13 +21,15 @@ use tak_core::model::{
     LimiterRef, LocalSpec, ModuleSpec, PathInputDef, PolicyDecisionDef, PolicyDecisionModeDef,
     PolicyDecisionSpec, QueueDef, RemoteDef, RemoteResultDef, RemoteRuntimeDef, RemoteRuntimeSpec,
     RemoteSelectionDef, RemoteSelectionSpec, RemoteSpec, RemoteTransportDef, RemoteTransportKind,
-    RemoteWorkspaceDef, ResolvedTask, RetryDef, Scope, TaskExecutionDef, TaskExecutionSpec,
-    TaskLabel, WorkspaceSpec, normalize_path_ref, validate_container_runtime_execution_spec,
+    RemoteWorkspaceDef, ResolvedTask, RetryDef, Scope, ServiceAuthDef, TaskExecutionDef,
+    TaskExecutionSpec, TaskLabel, WorkspaceSpec, normalize_path_ref,
+    validate_container_runtime_execution_spec,
 };
 
 const TASKS_FILE: &str = "TASKS.py";
 const V1_TRANSPORT_DIRECT_HTTPS: &str = "direct_https";
 const V1_TRANSPORT_TOR: &str = "tor";
+const V1_TRANSPORT_AUTH_FROM_ENV: &str = "from_env";
 const V1_WORKSPACE_TRANSFER_MODE: &str = "REPO_ZIP_SNAPSHOT";
 const V1_RESULT_SYNC_MODE: &str = "OUTPUTS_AND_LOGS";
 
@@ -755,7 +757,7 @@ fn resolve_remote(remote: RemoteDef) -> Result<RemoteSpec> {
         }
     });
 
-    let transport_kind = validate_remote_transport(transport)?;
+    let (transport_kind, service_auth_env) = validate_remote_transport(transport)?;
     validate_remote_workspace(workspace)?;
     validate_remote_result(result)?;
     let runtime = validate_remote_runtime(runtime)?;
@@ -764,27 +766,56 @@ fn resolve_remote(remote: RemoteDef) -> Result<RemoteSpec> {
         id,
         endpoint,
         transport_kind,
+        service_auth_env,
         runtime,
     })
 }
 
-fn validate_remote_transport(transport: Option<RemoteTransportDef>) -> Result<RemoteTransportKind> {
+fn validate_remote_transport(
+    transport: Option<RemoteTransportDef>,
+) -> Result<(RemoteTransportKind, Option<String>)> {
     let Some(transport) = transport else {
-        return Ok(RemoteTransportKind::DirectHttps);
+        return Ok((RemoteTransportKind::DirectHttps, None));
     };
 
+    let service_auth_env = validate_service_auth(transport.auth)?;
     let kind = transport.kind.trim();
     if kind.is_empty() {
         bail!("execution Remote.transport.kind cannot be empty");
     }
 
     match kind {
-        V1_TRANSPORT_DIRECT_HTTPS => Ok(RemoteTransportKind::DirectHttps),
-        V1_TRANSPORT_TOR => Ok(RemoteTransportKind::Tor),
+        V1_TRANSPORT_DIRECT_HTTPS => Ok((RemoteTransportKind::DirectHttps, service_auth_env)),
+        V1_TRANSPORT_TOR => Ok((RemoteTransportKind::Tor, service_auth_env)),
         _ => bail!(
             "execution Remote.transport.kind `{kind}` is unsupported in V1; expected `{V1_TRANSPORT_DIRECT_HTTPS}` or `{V1_TRANSPORT_TOR}`"
         ),
     }
+}
+
+fn validate_service_auth(auth: Option<ServiceAuthDef>) -> Result<Option<String>> {
+    let Some(auth) = auth else {
+        return Ok(None);
+    };
+
+    let kind = auth.kind.trim();
+    if kind != V1_TRANSPORT_AUTH_FROM_ENV {
+        bail!(
+            "execution Remote.transport.auth.kind `{kind}` is unsupported in V1; expected `{V1_TRANSPORT_AUTH_FROM_ENV}`"
+        );
+    }
+
+    let env_name = auth
+        .env_name
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string();
+    if env_name.is_empty() {
+        bail!("execution Remote.transport.auth.env_name cannot be empty");
+    }
+
+    Ok(Some(env_name))
 }
 
 fn validate_remote_workspace(workspace: Option<RemoteWorkspaceDef>) -> Result<()> {
@@ -1041,7 +1072,7 @@ def Remote(id, endpoint=None, transport=None, workspace=None, result=None, runti
     normalized_result = result
     if isinstance(transport, dict):
         normalized_endpoint = endpoint if endpoint is not None else transport.get("endpoint")
-        normalized_transport = {"kind": transport.get("kind")}
+        normalized_transport = {"kind": transport.get("kind"), "auth": transport.get("auth")}
     if isinstance(workspace, str):
         normalized_workspace = {"transfer": workspace}
     if isinstance(result, str):

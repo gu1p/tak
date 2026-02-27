@@ -50,7 +50,7 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 ## Phase 5: Transport + Auth Completion (`V1_REFACTOR` §6, §6.3, §6.4, §8.12-§8.13)
 
 - [x] `Unit` Endpoint parsing accepts full URL forms for direct and Tor endpoints, including `.onion` without explicit port (default port by scheme). Evidence: `tests::endpoint_socket_addr_defaults_port_by_scheme_when_missing`, `tests::endpoint_socket_addr_accepts_full_url_forms_without_explicit_port`.
-- [ ] `Integration` Direct HTTPS transport sends protocol/auth headers and returns explicit infra errors on auth failure.
+- [x] `Integration` Direct HTTPS transport sends protocol/auth headers and returns explicit infra errors on auth failure. Evidence: `remote_only_single_sends_protocol_and_service_auth_headers`, `remote_only_single_auth_failure_during_capabilities_returns_infra_error`.
 - [ ] `Integration` Tor transport (Arti) reaches onion `takd` with protocol parity to direct transport.
 - [ ] `Unit` Transport variant branching exists only inside `TransportFactory`.
 - [ ] `Unit` Service tokens are redacted from logs/traces for direct and Tor flows.

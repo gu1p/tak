@@ -182,6 +182,15 @@ pub struct RemoteDef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteTransportDef {
     pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<ServiceAuthDef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceAuthDef {
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -628,6 +637,7 @@ pub struct RemoteSpec {
     pub id: String,
     pub endpoint: Option<String>,
     pub transport_kind: RemoteTransportKind,
+    pub service_auth_env: Option<String>,
     pub runtime: Option<RemoteRuntimeSpec>,
 }
 

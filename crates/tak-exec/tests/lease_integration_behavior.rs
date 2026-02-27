@@ -237,6 +237,7 @@ async fn run_remote_task_with_needs_releases_lease_and_preserves_remote_metadata
             id: "remote-lease-node".to_string(),
             endpoint: Some(format!("http://127.0.0.1:{remote_port}")),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
     );

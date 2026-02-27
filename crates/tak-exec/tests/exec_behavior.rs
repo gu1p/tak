@@ -45,6 +45,13 @@ struct FakeRemoteSubmitServer {
     handle: Option<thread::JoinHandle<()>>,
 }
 
+struct FakeRemoteAuthHeaderServer {
+    port: u16,
+    call_order: Arc<Mutex<Vec<String>>>,
+    request_headers: Arc<Mutex<Vec<HashMap<String, String>>>>,
+    handle: Option<thread::JoinHandle<()>>,
+}
+
 impl FakeRemoteStreamingServer {
     fn spawn(events_responses: Vec<String>, result_response: String) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake streaming remote");
@@ -284,6 +291,143 @@ impl Drop for FakeRemoteSubmitServer {
     }
 }
 
+impl FakeRemoteAuthHeaderServer {
+    fn spawn(expected_service_token: &str) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake auth-header remote");
+        let port = listener.local_addr().expect("listener addr").port();
+        let call_order = Arc::new(Mutex::new(Vec::new()));
+        let request_headers = Arc::new(Mutex::new(Vec::new()));
+        let call_order_for_thread = Arc::clone(&call_order);
+        let request_headers_for_thread = Arc::clone(&request_headers);
+        let expected_service_token = expected_service_token.to_string();
+
+        let handle = thread::spawn(move || {
+            loop {
+                let (mut stream, _) = listener.accept().expect("accept fake remote request");
+                let (path, headers, _) = read_http_request_with_headers(&mut stream);
+
+                if path == "/__shutdown" {
+                    write_http_json_response(&mut stream, "200 OK", r#"{"shutdown":true}"#);
+                    break;
+                }
+
+                // The executor performs a plain TCP reachability probe before protocol requests.
+                if path == "/" && headers.is_empty() {
+                    continue;
+                }
+
+                request_headers_for_thread
+                    .lock()
+                    .expect("lock request headers")
+                    .push(headers.clone());
+
+                let protocol = headers.get("x-tak-protocol-version").map(String::as_str);
+                let service_token = headers.get("x-tak-service-token").map(String::as_str);
+                let auth_ok = protocol == Some("v1")
+                    && service_token == Some(expected_service_token.as_str());
+                if !auth_ok {
+                    write_http_json_response(
+                        &mut stream,
+                        "401 Unauthorized",
+                        r#"{"accepted":false,"reason":"auth_failed"}"#,
+                    );
+                    continue;
+                }
+
+                if path == "/v1/node/capabilities" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("capabilities".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"compatible":true}"#);
+                    continue;
+                }
+
+                if path == "/v1/node/status" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("status".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"healthy":true}"#);
+                    continue;
+                }
+
+                if path == "/v1/tasks/submit" {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("submit".to_string());
+                    write_http_json_response(&mut stream, "200 OK", r#"{"accepted":true}"#);
+                    continue;
+                }
+
+                if path.starts_with("/v1/tasks/") && path.contains("/events") {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("events".to_string());
+                    write_http_json_response(
+                        &mut stream,
+                        "200 OK",
+                        r#"{"events":[{"seq":1,"kind":"TASK_LOG_CHUNK","chunk":"ok\n"}],"done":true}"#,
+                    );
+                    continue;
+                }
+
+                if path.starts_with("/v1/tasks/") && path.ends_with("/result") {
+                    call_order_for_thread
+                        .lock()
+                        .expect("lock call order")
+                        .push("result".to_string());
+                    write_http_json_response(
+                        &mut stream,
+                        "200 OK",
+                        r#"{"success":true,"exit_code":0}"#,
+                    );
+                    continue;
+                }
+
+                write_http_json_response(&mut stream, "404 Not Found", r#"{"error":"not found"}"#);
+            }
+        });
+
+        Self {
+            port,
+            call_order,
+            request_headers,
+            handle: Some(handle),
+        }
+    }
+
+    fn endpoint(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+
+    fn call_order(&self) -> Vec<String> {
+        self.call_order.lock().expect("lock call order").clone()
+    }
+
+    fn request_headers(&self) -> Vec<HashMap<String, String>> {
+        self.request_headers
+            .lock()
+            .expect("lock request headers")
+            .clone()
+    }
+}
+
+impl Drop for FakeRemoteAuthHeaderServer {
+    fn drop(&mut self) {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", self.port)) {
+            let _ = stream.write_all(
+                b"GET /__shutdown HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+            );
+        }
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
 impl FakeRemoteProtocolServer {
     fn spawn(config: FakeRemoteProtocolConfig) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake remote protocol server");
@@ -441,7 +585,9 @@ impl Drop for FakeRemoteProtocolServer {
     }
 }
 
-fn read_http_request(stream: &mut TcpStream) -> (String, String) {
+fn read_http_request_with_headers(
+    stream: &mut TcpStream,
+) -> (String, HashMap<String, String>, String) {
     let mut reader = BufReader::new(stream);
     let mut request_line = String::new();
     reader
@@ -454,6 +600,7 @@ fn read_http_request(stream: &mut TcpStream) -> (String, String) {
         .unwrap_or("/")
         .to_string();
 
+    let mut headers = HashMap::new();
     let mut content_length = 0_usize;
     loop {
         let mut header = String::new();
@@ -463,10 +610,13 @@ fn read_http_request(stream: &mut TcpStream) -> (String, String) {
         if header == "\r\n" || header == "\n" || header.is_empty() {
             break;
         }
-        if let Some((name, value)) = header.split_once(':')
-            && name.eq_ignore_ascii_case("content-length")
-        {
-            content_length = value.trim().parse::<usize>().unwrap_or(0);
+        if let Some((name, value)) = header.split_once(':') {
+            let key = name.trim().to_ascii_lowercase();
+            let normalized_value = value.trim().to_string();
+            if key == "content-length" {
+                content_length = normalized_value.parse::<usize>().unwrap_or(0);
+            }
+            headers.insert(key, normalized_value);
         }
     }
 
@@ -476,6 +626,11 @@ fn read_http_request(stream: &mut TcpStream) -> (String, String) {
         .expect("read HTTP request body");
     let body = String::from_utf8_lossy(&body_bytes).to_string();
 
+    (path, headers, body)
+}
+
+fn read_http_request(stream: &mut TcpStream) -> (String, String) {
+    let (path, _, body) = read_http_request_with_headers(stream);
     (path, body)
 }
 
@@ -746,6 +901,7 @@ async fn remote_only_single_dispatches_identity_and_selected_node() {
             id: "remote-primary".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -837,6 +993,7 @@ async fn remote_only_single_uses_canonical_v1_endpoint_paths() {
             id: "remote-primary".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -916,6 +1073,7 @@ async fn remote_only_single_maps_remote_result_failure_to_terminal_error() {
             id: "remote-primary".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -980,6 +1138,7 @@ async fn remote_only_single_unavailable_endpoint_returns_infra_error() {
             id: "remote-down".to_string(),
             endpoint: Some("http://127.0.0.1:9".to_string()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -1040,6 +1199,7 @@ async fn remote_only_single_auth_rejection_returns_infra_auth_error() {
             id: "remote-auth".to_string(),
             endpoint: Some(rejecting_remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -1068,6 +1228,144 @@ async fn remote_only_single_auth_rejection_returns_infra_auth_error() {
         rejecting_remote.call_order(),
         vec!["capabilities", "status", "submit"],
         "strict auth rejection should stop before events/result"
+    );
+}
+
+/// Verifies direct transport sends canonical protocol + service auth headers for remote requests.
+#[tokio::test]
+async fn remote_only_single_sends_protocol_and_service_auth_headers() {
+    let _env_lock = env_var_lock().await;
+    let _token_guard = ScopedEnvVar::set("TAK_TEST_REMOTE_SERVICE_TOKEN", "token-abc".to_string());
+    let temp = tempfile::tempdir().expect("tempdir");
+    let remote = FakeRemoteAuthHeaderServer::spawn("token-abc");
+    let label = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "remote_auth_headers".to_string(),
+    };
+    let task = ResolvedTask {
+        label: label.clone(),
+        doc: String::new(),
+        deps: Vec::new(),
+        steps: vec![StepDef::Cmd {
+            argv: vec!["sh".to_string(), "-c".to_string(), "exit 0".to_string()],
+            cwd: None,
+            env: BTreeMap::new(),
+        }],
+        needs: Vec::<NeedDef>::new(),
+        queue: Option::<QueueUseDef>::None,
+        retry: RetryDef::default(),
+        timeout_s: None,
+        context: CurrentStateSpec::default(),
+        execution: TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(RemoteSpec {
+            id: "remote-auth-headers".to_string(),
+            endpoint: Some(remote.endpoint()),
+            transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: Some("TAK_TEST_REMOTE_SERVICE_TOKEN".to_string()),
+            runtime: None,
+        })),
+        tags: Vec::new(),
+    };
+
+    let mut tasks = BTreeMap::new();
+    tasks.insert(label.clone(), task);
+    let spec = WorkspaceSpec {
+        project_id: "project-test".to_string(),
+        root: temp.path().to_path_buf(),
+        tasks,
+        limiters: HashMap::<LimiterKey, tak_core::model::LimiterDef>::new(),
+        queues: HashMap::<LimiterKey, QueueDef>::new(),
+    };
+
+    let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
+        .await
+        .expect("run should succeed with valid service auth token");
+    let result = summary.results.get(&label).expect("summary contains task");
+    assert!(result.success);
+    assert_eq!(result.placement_mode, PlacementMode::Remote);
+
+    assert_eq!(
+        remote.call_order(),
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "remote lifecycle should complete when protocol/auth headers are present"
+    );
+
+    let request_headers = remote.request_headers();
+    assert!(
+        request_headers.iter().all(|headers| {
+            headers
+                .get("x-tak-protocol-version")
+                .is_some_and(|value| value == "v1")
+        }),
+        "every remote request should include canonical protocol marker header"
+    );
+    assert!(
+        request_headers.iter().all(|headers| {
+            headers
+                .get("x-tak-service-token")
+                .is_some_and(|value| value == "token-abc")
+        }),
+        "every remote request should include node-scoped service auth header"
+    );
+}
+
+/// Verifies strict remote auth failures during capabilities preflight surface explicit infra errors.
+#[tokio::test]
+async fn remote_only_single_auth_failure_during_capabilities_returns_infra_error() {
+    let _env_lock = env_var_lock().await;
+    let _token_guard =
+        ScopedEnvVar::set("TAK_TEST_REMOTE_SERVICE_TOKEN", "wrong-token".to_string());
+    let temp = tempfile::tempdir().expect("tempdir");
+    let remote = FakeRemoteAuthHeaderServer::spawn("expected-token");
+    let label = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "remote_auth_capabilities".to_string(),
+    };
+    let task = ResolvedTask {
+        label: label.clone(),
+        doc: String::new(),
+        deps: Vec::new(),
+        steps: vec![StepDef::Cmd {
+            argv: vec!["sh".to_string(), "-c".to_string(), "exit 0".to_string()],
+            cwd: None,
+            env: BTreeMap::new(),
+        }],
+        needs: Vec::<NeedDef>::new(),
+        queue: Option::<QueueUseDef>::None,
+        retry: RetryDef::default(),
+        timeout_s: None,
+        context: CurrentStateSpec::default(),
+        execution: TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(RemoteSpec {
+            id: "remote-auth-capabilities".to_string(),
+            endpoint: Some(remote.endpoint()),
+            transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: Some("TAK_TEST_REMOTE_SERVICE_TOKEN".to_string()),
+            runtime: None,
+        })),
+        tags: Vec::new(),
+    };
+
+    let mut tasks = BTreeMap::new();
+    tasks.insert(label.clone(), task);
+    let spec = WorkspaceSpec {
+        project_id: "project-test".to_string(),
+        root: temp.path().to_path_buf(),
+        tasks,
+        limiters: HashMap::<LimiterKey, tak_core::model::LimiterDef>::new(),
+        queues: HashMap::<LimiterKey, QueueDef>::new(),
+    };
+
+    let err = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
+        .await
+        .expect_err("auth failure during capabilities preflight should fail run");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("auth failed"),
+        "auth failure should be surfaced explicitly instead of downgrading handshake: {message}"
+    );
+    assert_eq!(
+        remote.call_order(),
+        Vec::<String>::new(),
+        "server should reject before any phase marker is recorded"
     );
 }
 
@@ -1105,12 +1403,14 @@ async fn remote_only_list_falls_back_when_first_node_auth_rejects_submit() {
                 id: "remote-auth-reject".to_string(),
                 endpoint: Some(auth_rejecting_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: None,
             },
             RemoteSpec {
                 id: "remote-fallback".to_string(),
                 endpoint: Some(fallback_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: None,
             },
         ])),
@@ -1183,12 +1483,14 @@ async fn remote_only_list_all_auth_rejections_return_auth_infra_error() {
                 id: "remote-auth-a".to_string(),
                 endpoint: Some(first_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: None,
             },
             RemoteSpec {
                 id: "remote-auth-b".to_string(),
                 endpoint: Some(second_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: None,
             },
         ])),
@@ -1301,6 +1603,7 @@ async fn remote_execution_stages_only_current_state_manifest_files() {
             id: "remote-primary".to_string(),
             endpoint: Some(format!("http://127.0.0.1:{remote_port}")),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         context,
@@ -1455,6 +1758,7 @@ async fn remote_container_runtime_stages_manifest_and_syncs_outputs_and_logs() {
             id: "remote-container".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: Some(RemoteRuntimeSpec::Containerized {
                 image: "tak/test:v1".to_string(),
             }),
@@ -1592,6 +1896,7 @@ async fn remote_container_runtime_prefers_docker_without_probings_podman() {
             id: "remote-container-docker".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: Some(RemoteRuntimeSpec::Containerized {
                 image: "tak/test:v1".to_string(),
             }),
@@ -1698,6 +2003,7 @@ async fn remote_container_runtime_falls_back_to_podman_on_macos() {
             id: "remote-container-podman".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: Some(RemoteRuntimeSpec::Containerized {
                 image: "tak/test:v1".to_string(),
             }),
@@ -1797,6 +2103,7 @@ async fn remote_container_runtime_unavailable_lists_attempted_engine_probes() {
             id: "remote-container-down".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: Some(RemoteRuntimeSpec::Containerized {
                 image: "tak/test:v1".to_string(),
             }),
@@ -1894,6 +2201,7 @@ async fn remote_container_runtime_strict_lifecycle_failure_returns_infra_error()
             id: "remote-container-strict".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: Some(RemoteRuntimeSpec::Containerized {
                 image: "tak/test:v1".to_string(),
             }),
@@ -1993,6 +2301,7 @@ async fn remote_container_runtime_fallback_advances_on_first_lifecycle_failure()
                 id: "remote-container-a".to_string(),
                 endpoint: Some(first_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: Some(RemoteRuntimeSpec::Containerized {
                     image: "tak/test:v1".to_string(),
                 }),
@@ -2001,6 +2310,7 @@ async fn remote_container_runtime_fallback_advances_on_first_lifecycle_failure()
                 id: "remote-container-b".to_string(),
                 endpoint: Some(second_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: Some(RemoteRuntimeSpec::Containerized {
                     image: "tak/test:v1".to_string(),
                 }),
@@ -2105,6 +2415,7 @@ async fn remote_container_runtime_all_candidates_fail_without_local_fallback() {
                 id: "remote-container-a".to_string(),
                 endpoint: Some(first_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: Some(RemoteRuntimeSpec::Containerized {
                     image: "tak/test:v1".to_string(),
                 }),
@@ -2113,6 +2424,7 @@ async fn remote_container_runtime_all_candidates_fail_without_local_fallback() {
                 id: "remote-container-b".to_string(),
                 endpoint: Some(second_remote.endpoint()),
                 transport_kind: RemoteTransportKind::DirectHttps,
+                service_auth_env: None,
                 runtime: Some(RemoteRuntimeSpec::Containerized {
                     image: "tak/test:v1".to_string(),
                 }),
@@ -2208,6 +2520,7 @@ async fn remote_only_single_persists_ordered_log_chunks_and_output_metadata() {
             id: "remote-primary".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -2315,6 +2628,7 @@ async fn remote_only_single_rejects_unsupported_result_sync_mode() {
             id: "remote-primary".to_string(),
             endpoint: Some(remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -2382,6 +2696,7 @@ async fn direct_and_tor_transports_share_remote_protocol_contract() {
             id: "remote-direct".to_string(),
             endpoint: Some(direct_remote.endpoint()),
             transport_kind: RemoteTransportKind::DirectHttps,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),
@@ -2431,6 +2746,7 @@ async fn direct_and_tor_transports_share_remote_protocol_contract() {
             id: "remote-tor".to_string(),
             endpoint: Some(tor_remote.endpoint()),
             transport_kind: RemoteTransportKind::Tor,
+            service_auth_env: None,
             runtime: None,
         })),
         tags: Vec::new(),

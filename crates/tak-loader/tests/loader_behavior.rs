@@ -328,6 +328,49 @@ SPEC
     );
 }
 
+/// Ensures direct transport auth from `ServiceAuth.from_env(...)` is preserved in IR.
+#[test]
+fn resolves_remote_transport_service_auth_from_env() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
+    fs::write(
+        temp.path().join("apps/web/TASKS.py"),
+        r#"
+from tak import cmd, module_spec, task
+from tak.remote import Remote, RemoteOnly, RemoteTransportMode, ServiceAuth
+
+REMOTE = Remote(
+  id="remote-auth",
+  transport=RemoteTransportMode.DirectHttps(
+    endpoint="https://build.internal",
+    auth=ServiceAuth.from_env("TAK_NODE_BUILD_TOKEN"),
+  ),
+)
+
+SPEC = module_spec(tasks=[
+  task("remote_auth", steps=[cmd("echo", "ok")], execution=RemoteOnly(REMOTE)),
+])
+SPEC
+"#,
+    )
+    .expect("write tasks");
+
+    let spec = load_workspace(temp.path(), &LoadOptions::default()).expect("load");
+    let label = parse_label("//apps/web:remote_auth", "//").expect("remote auth label");
+    let task = spec.tasks.get(&label).expect("remote auth task");
+    match &task.execution {
+        TaskExecutionSpec::RemoteOnly(RemoteSelectionSpec::Single(remote)) => {
+            assert_eq!(remote.id, "remote-auth");
+            assert_eq!(remote.endpoint.as_deref(), Some("https://build.internal"));
+            assert_eq!(
+                remote.service_auth_env.as_deref(),
+                Some("TAK_NODE_BUILD_TOKEN")
+            );
+        }
+        other => panic!("expected strict remote execution, got: {other:?}"),
+    }
+}
+
 /// Ensures unsupported execution shape mixes are rejected at load time.
 #[test]
 fn rejects_cross_constructor_execution_shapes() {
