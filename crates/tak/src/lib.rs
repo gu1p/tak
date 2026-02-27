@@ -16,6 +16,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use uuid::Uuid;
 
+mod list_tui;
 pub mod web;
 
 #[derive(Debug, Parser)]
@@ -30,6 +31,7 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     List,
+    Tree,
     Explain {
         label: String,
     },
@@ -75,9 +77,11 @@ pub async fn run_cli() -> Result<()> {
     match cli.command {
         Commands::List => {
             let spec = load_workspace_from_cwd()?;
-            for label in spec.tasks.keys() {
-                println!("{label}");
-            }
+            print!("{}", list_tui::render_list(&spec));
+        }
+        Commands::Tree => {
+            let spec = load_workspace_from_cwd()?;
+            print!("{}", list_tui::render_tree(&spec)?);
         }
         Commands::Explain { label } => {
             let spec = load_workspace_from_cwd()?;

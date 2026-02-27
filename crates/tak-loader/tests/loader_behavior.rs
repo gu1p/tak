@@ -53,3 +53,50 @@ SPEC
     assert!(spec.tasks.contains_key(&build));
     assert!(spec.tasks.contains_key(&test));
 }
+
+/// Ensures dependency lists can reference another task object directly.
+#[test]
+fn loads_module_with_task_object_dependencies() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
+
+    let code = r#"
+build = task("build", steps=[cmd("echo", "ok")])
+test = task("test", deps=[build], steps=[cmd("echo", "test")])
+
+SPEC = module_spec(tasks=[build, test])
+SPEC
+"#;
+    fs::write(temp.path().join("apps/web/TASKS.py"), code).expect("write tasks");
+
+    let spec = load_workspace(temp.path(), &LoadOptions::default()).expect("load");
+    let build = parse_label("//apps/web:build", "//").expect("label");
+    let test = parse_label("//apps/web:test", "//").expect("label");
+    let test_task = spec.tasks.get(&test).expect("test task exists");
+
+    assert!(spec.tasks.contains_key(&build));
+    assert_eq!(test_task.deps, vec![build]);
+}
+
+/// Ensures a single dependency can be passed as a task object (without wrapping in a list).
+#[test]
+fn loads_module_with_single_task_object_dependency() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
+
+    let code = r#"
+build = task("build", steps=[cmd("echo", "ok")])
+test = task("test", deps=build, steps=[cmd("echo", "test")])
+
+SPEC = module_spec(tasks=[build, test])
+SPEC
+"#;
+    fs::write(temp.path().join("apps/web/TASKS.py"), code).expect("write tasks");
+
+    let spec = load_workspace(temp.path(), &LoadOptions::default()).expect("load");
+    let build = parse_label("//apps/web:build", "//").expect("label");
+    let test = parse_label("//apps/web:test", "//").expect("label");
+    let test_task = spec.tasks.get(&test).expect("test task exists");
+
+    assert_eq!(test_task.deps, vec![build]);
+}

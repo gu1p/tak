@@ -516,6 +516,24 @@ def _or_empty_list(value):
 def _or_empty_dict(value):
     return value if value is not None else {}
 
+def _dep_to_label(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        name = value.get("name")
+        if isinstance(name, str):
+            if name.startswith("//") or name.startswith(":"):
+                return name
+            return ":" + name
+    raise TypeError("dependency must be a label string or a task object")
+
+def _normalize_deps(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [_dep_to_label(item) for item in value]
+    return [_dep_to_label(value)]
+
 def module_spec(tasks, limiters=None, queues=None, exclude=None, defaults=None):
     return {
         "spec_version": 1,
@@ -529,7 +547,7 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, defaults=None):
 def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, tags=None, doc=None):
     return {
         "name": name,
-        "deps": _or_empty_list(deps),
+        "deps": _normalize_deps(deps),
         "steps": _or_empty_list(steps),
         "needs": _or_empty_list(needs),
         "queue": queue,
@@ -647,7 +665,7 @@ FIFO: str
 PRIORITY: str
 
 def module_spec(tasks: list, limiters: list | None = ..., queues: list | None = ..., exclude: list | None = ..., defaults: dict | None = ...) -> dict: ...
-def task(name: str, deps: list | None = ..., steps: list | None = ..., needs: list | None = ..., queue: dict | None = ..., retry: dict | None = ..., timeout_s: int | None = ..., tags: list | None = ..., doc: str | None = ...) -> dict: ...
+def task(name: str, deps: list | str | dict | None = ..., steps: list | None = ..., needs: list | None = ..., queue: dict | None = ..., retry: dict | None = ..., timeout_s: int | None = ..., tags: list | None = ..., doc: str | None = ...) -> dict: ...
 def cmd(*argv: str, cwd: str | None = ..., env: dict | None = ...) -> dict: ...
 def script(path: str, *argv: str, interpreter: str | None = ..., cwd: str | None = ..., env: dict | None = ...) -> dict: ...
 def need(name: str, slots: float = ..., scope: str = ..., hold: str = ...) -> dict: ...

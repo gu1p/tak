@@ -18,27 +18,118 @@ fn write_tasks(root: &std::path::Path, body: &str) {
     fs::write(root.join("apps/web/TASKS.py"), body).expect("write tasks");
 }
 
-/// Verifies `tak list` outputs fully-qualified task labels.
+/// Strips ANSI escape sequences for stable assertions.
+fn strip_ansi(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut in_escape = false;
+    for ch in input.chars() {
+        if in_escape {
+            if ch == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+        if ch == '\u{1b}' {
+            in_escape = true;
+            continue;
+        }
+        result.push(ch);
+    }
+    result
+}
+
+/// Verifies `tak list` prints friendly labels and bracketed deps without `//` labels.
 #[test]
-fn list_displays_fully_qualified_labels() {
+fn list_displays_friendly_dependency_lines() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
         r#"
-SPEC = module_spec(tasks=[
-  task("build", steps=[cmd("echo", "ok")]),
-  task("test", deps=[":build"], steps=[cmd("echo", "ok")])
-])
+build = task("build", steps=[cmd("echo", "ok")])
+test = task("test", deps=build, steps=[cmd("echo", "ok")])
+package = task("package", deps=[test], steps=[cmd("echo", "ok")])
+SPEC = module_spec(tasks=[build, test, package])
 SPEC
 "#,
     );
 
     let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
     cmd.current_dir(temp.path()).arg("list");
-    cmd.assert()
-        .success()
-        .stdout(contains("//apps/web:build"))
-        .stdout(contains("//apps/web:test"));
+    let output = cmd.output().expect("list should execute");
+    assert!(output.status.success(), "list must succeed");
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+
+    assert!(
+        stdout.contains("apps.web:build"),
+        "missing friendly task label"
+    );
+    assert!(
+        stdout.contains("apps.web:test [build]"),
+        "missing bracketed dependency output"
+    );
+    assert!(
+        stdout.contains("apps.web:package [test]"),
+        "missing second dependency line"
+    );
+    assert!(!stdout.contains("//"), "list output must avoid // labels");
+}
+
+/// Verifies `tak list` includes ANSI colors for task names and dependency elements.
+#[test]
+fn list_uses_colors_for_elements() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    write_tasks(
+        temp.path(),
+        r#"
+build = task("build", steps=[cmd("echo", "ok")])
+test = task("test", deps=build, steps=[cmd("echo", "ok")])
+SPEC = module_spec(tasks=[build, test])
+SPEC
+"#,
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path()).arg("list");
+    let output = cmd.output().expect("list should execute");
+    assert!(output.status.success(), "list must succeed");
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout_raw.contains('\u{1b}'),
+        "list should include ANSI color sequences"
+    );
+}
+
+/// Verifies `tak tree` shows hierarchy using tree glyphs.
+#[test]
+fn tree_renders_hierarchy() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    write_tasks(
+        temp.path(),
+        r#"
+build = task("build", steps=[cmd("echo", "ok")])
+test = task("test", deps=build, steps=[cmd("echo", "ok")])
+package = task("package", deps=[test], steps=[cmd("echo", "ok")])
+SPEC = module_spec(tasks=[build, test, package])
+SPEC
+"#,
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path()).arg("tree");
+    let output = cmd.output().expect("tree should execute");
+    assert!(output.status.success(), "tree must succeed");
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(stdout.contains("Tak Tree"), "tree should include title");
+    assert!(
+        stdout.contains("└─"),
+        "tree should include hierarchy glyphs"
+    );
+    assert!(
+        stdout.contains("apps.web:build"),
+        "tree should include friendly labels"
+    );
 }
 
 /// Verifies `tak explain` prints dependency information for a target.

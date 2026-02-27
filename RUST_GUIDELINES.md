@@ -100,11 +100,16 @@ Follow repo TDD rules. In Rust terms:
 - Domain and use cases should be **easy to unit test** (pure inputs/outputs).
 - Use-case tests should assert behavior via ports (traits) using fakes/mocks.
 - Adapter/infrastructure tests verify integration with external systems.
+- E2E test should test whole user flows, mimicking every single stakeholder usage of the system
+- Doctests should be placed in every single function/method, so we have a rich documentation that keeps updated
+- Never write tests in the same file that prodution code. They can live in the same folder, but never in the same file.
+- Keep E2E tests in a separated directory and just one test per file
+- Keep test files small, testing just a few of coesive set of features. (max 100 lines)
 
 If a bug is found:
 1. Write a failing test reproducing it.
 2. Fix with minimal change.
-3. Add regression coverage at the right layer.
+3. Add regression coverage at the right layer. If necessary, multiple layers.
 
 ## Doctest Contract (Mandatory)
 
@@ -129,6 +134,8 @@ If a bug is found:
 - Prefer simple control flow over cleverness.
 - Keep lifetimes and generics as simple as possible; introduce complexity only when necessary.
 - Use `clippy` guidance, but choose clarity over pedantic micro-optimizations.
+- Files should be small and have coesive set of features. Try to never go beyond 200 lines.
+- Functions and methods should also be small and do just only one thing very well, following the Clean Code practices -- a function should always work in a certain level of abstraction, and we avoid to mix different kind of levels in the same function. If a function handles higher levels of abstractions, we put the low level things in other function and call it from the first.
 - `unsafe` is exceptional:
   - isolate it
   - document invariants
