@@ -1,6 +1,7 @@
 //! Label parsing and normalization utilities.
 //!
-//! Task labels are represented as `//package:name` with support for relative `:name`
+//! Task labels support clean user-facing syntax (`package:name`, `name`) and preserve
+//! canonical internal package storage (`//package`) with support for relative `:name`
 //! parsing against the current package.
 
 use thiserror::Error;
@@ -13,13 +14,17 @@ pub enum LabelError {
     Empty,
     #[error("invalid label format: {0}")]
     InvalidFormat(String),
-    #[error("package must begin with //: {0}")]
+    #[error("invalid package: {0}")]
     InvalidPackage(String),
     #[error("name must be non-empty: {0}")]
     InvalidName(String),
 }
 
-/// Parses either an absolute (`//pkg:name`) or relative (`:name`) label.
+/// Parses labels using one of:
+/// - `package:name`
+/// - `//package:name` (backward compatible)
+/// - `name` (root package)
+/// - `:name` (relative to current package)
 ///
 /// Relative labels are resolved against `current_package`.
 ///
@@ -44,21 +49,25 @@ pub fn parse_label(raw: &str, current_package: &str) -> Result<TaskLabel, LabelE
         });
     }
 
-    if let Some((package, name)) = trimmed.split_once(':')
-        && package.starts_with("//")
-    {
-        validate_package(package)?;
+    if let Some((package, name)) = trimmed.split_once(':') {
         validate_name(name)?;
+        let normalized_package = normalize_package(package);
+        validate_package(&normalized_package)?;
         return Ok(TaskLabel {
-            package: normalize_package(package),
+            package: normalized_package,
             name: name.to_string(),
         });
     }
 
-    Err(LabelError::InvalidFormat(trimmed.to_string()))
+    validate_name(trimmed)?;
+    validate_package(current_package)?;
+    Ok(TaskLabel {
+        package: normalize_package(current_package),
+        name: trimmed.to_string(),
+    })
 }
 
-/// Normalizes a package string by removing trailing `/` while preserving `//`.
+/// Normalizes package syntax into canonical `//...` representation.
 ///
 /// ```no_run
 /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -67,15 +76,17 @@ pub fn parse_label(raw: &str, current_package: &str) -> Result<TaskLabel, LabelE
 /// # }
 /// ```
 pub fn normalize_package(package: &str) -> String {
-    if package == "//" {
-        return "//".to_string();
+    let trimmed = package.trim();
+    let without_prefix = trimmed.strip_prefix("//").unwrap_or(trimmed);
+    let core = without_prefix.trim_matches('/');
+    if core.is_empty() {
+        "//".to_string()
+    } else {
+        format!("//{core}")
     }
-
-    let without_trailing = package.trim_end_matches('/');
-    without_trailing.to_string()
 }
 
-/// Validates that a package path uses Tak `//...` package syntax.
+/// Validates a canonical Tak package path.
 ///
 /// ```no_run
 /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -84,7 +95,7 @@ pub fn normalize_package(package: &str) -> String {
 /// # }
 /// ```
 fn validate_package(package: &str) -> Result<(), LabelError> {
-    if !package.starts_with("//") {
+    if !package.starts_with("//") || package.contains(':') {
         return Err(LabelError::InvalidPackage(package.to_string()));
     }
 

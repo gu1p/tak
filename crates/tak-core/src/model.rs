@@ -16,7 +16,9 @@ pub struct TaskLabel {
 }
 
 impl fmt::Display for TaskLabel {
-    /// Formats a label as `//package:name`.
+    /// Formats labels using clean user-facing syntax:
+    /// - root package: `name`
+    /// - nested package: `package:name`
     ///
     /// ```no_run
     /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -25,6 +27,12 @@ impl fmt::Display for TaskLabel {
     /// # }
     /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.package == "//" {
+            return write!(f, "{}", self.name);
+        }
+        if let Some(package) = self.package.strip_prefix("//") {
+            return write!(f, "{}:{}", package, self.name);
+        }
         write!(f, "{}:{}", self.package, self.name)
     }
 }

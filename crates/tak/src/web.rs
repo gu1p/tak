@@ -331,13 +331,13 @@ mod tests {
             .iter()
             .map(|node| node.id.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(node_ids, vec!["//pkg:a", "//pkg:b", "//pkg:c"]);
+        assert_eq!(node_ids, vec!["pkg:a", "pkg:b", "pkg:c"]);
         assert_eq!(payload.edges.len(), 2);
         assert!(
             payload
                 .edges
                 .iter()
-                .any(|edge| edge.from == "//pkg:b" && edge.to == "//pkg:a")
+                .any(|edge| edge.from == "pkg:b" && edge.to == "pkg:a")
         );
     }
 

@@ -37,8 +37,8 @@ SPEC
     cmd.current_dir(temp.path()).arg("list");
     cmd.assert()
         .success()
-        .stdout(contains("//apps/web:build"))
-        .stdout(contains("//apps/web:test"));
+        .stdout(contains("apps/web:build"))
+        .stdout(contains("apps/web:test"));
 }
 
 /// Verifies `tak explain` prints dependency information for a target.
@@ -58,11 +58,11 @@ SPEC
 
     let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
     cmd.current_dir(temp.path())
-        .args(["explain", "//apps/web:test"]);
+        .args(["explain", "apps/web:test"]);
     cmd.assert()
         .success()
         .stdout(contains("deps"))
-        .stdout(contains("//apps/web:build"));
+        .stdout(contains("apps/web:build"));
 }
 
 /// Verifies `tak run` executes dependencies before the requested target.
@@ -85,8 +85,7 @@ SPEC
     );
 
     let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
-    cmd.current_dir(temp.path())
-        .args(["run", "//apps/web:test"]);
+    cmd.current_dir(temp.path()).args(["run", "apps/web:test"]);
     cmd.assert().success();
 
     let output = fs::read_to_string(log_file).expect("log should exist");
@@ -144,7 +143,7 @@ SPEC
     run_cmd
         .current_dir(temp.path())
         .env("TAKD_SOCKET", &socket)
-        .args(["run", "//apps/web:limited"]);
+        .args(["run", "apps/web:limited"]);
     run_cmd.assert().success();
 
     let mut status_cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
@@ -197,7 +196,7 @@ SPEC
     child
         .current_dir(temp.path())
         .env("TAK_NO_BROWSER_OPEN", "1")
-        .args(["web", "//apps/web:test"])
+        .args(["web", "apps/web:test"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = child.spawn().expect("web command should spawn");

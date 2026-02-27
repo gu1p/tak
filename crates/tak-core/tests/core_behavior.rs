@@ -33,6 +33,48 @@ fn parses_absolute_label() {
     );
 }
 
+/// Ensures clean absolute labels (`package:name`) parse without `//` syntax.
+#[test]
+fn parses_clean_absolute_label_without_slashes() {
+    let label = parse_label("apps/api:test", "//apps/web").expect("label should parse");
+    assert_eq!(
+        label,
+        TaskLabel {
+            package: "//apps/api".to_string(),
+            name: "test".to_string()
+        }
+    );
+}
+
+/// Ensures bare task names parse as root package labels for CLI ergonomics.
+#[test]
+fn parses_root_label_from_bare_task_name() {
+    let label = parse_label("hello", "//").expect("label should parse");
+    assert_eq!(
+        label,
+        TaskLabel {
+            package: "//".to_string(),
+            name: "hello".to_string()
+        }
+    );
+}
+
+/// Ensures label display omits the internal `//` package prefix.
+#[test]
+fn display_omits_double_slash_prefix() {
+    let nested = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "test".to_string(),
+    };
+    let root = TaskLabel {
+        package: "//".to_string(),
+        name: "hello".to_string(),
+    };
+
+    assert_eq!(nested.to_string(), "apps/web:test");
+    assert_eq!(root.to_string(), "hello");
+}
+
 /// Ensures topological sorting places dependencies before dependents.
 #[test]
 fn topo_sort_returns_dependency_first_order() {
