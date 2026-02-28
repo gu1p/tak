@@ -31,6 +31,7 @@ mod container_engine;
 mod container_runtime;
 mod execution_graph;
 mod lease_client;
+mod remote_endpoint;
 mod remote_events_wait;
 mod retry;
 mod step_runner;
@@ -42,6 +43,10 @@ use container_engine::{
 use container_runtime::run_task_steps_in_container;
 use execution_graph::collect_required_labels;
 use lease_client::{acquire_task_lease, release_task_lease};
+use remote_endpoint::{
+    endpoint_host_port, endpoint_socket_addr, remote_protocol_request_headers,
+    test_tor_onion_dial_addr,
+};
 use remote_events_wait::remote_events_max_wait_duration;
 use retry::{retry_backoff_delay, should_retry};
 #[allow(unused_imports)]
@@ -2389,7 +2394,8 @@ async fn remote_protocol_http_request(
             target.node_id, target.endpoint
         )
     })?;
-    let header_block = remote_protocol_request_headers(target)?;
+    let header_block =
+        remote_protocol_request_headers(&target.node_id, target.service_auth_env.as_deref())?;
     let payload = body.unwrap_or("");
     let request = format!(
         "{method} {path} HTTP/1.1\r\nHost: {socket_addr}\r\nConnection: close\r\n{header_block}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{payload}",
@@ -2439,100 +2445,6 @@ async fn remote_protocol_http_request(
         })?;
 
     Ok((status_code, body.to_string()))
-}
-
-fn remote_protocol_request_headers(target: &StrictRemoteTarget) -> Result<String> {
-    let mut headers = String::from("X-Tak-Protocol-Version: v1\r\n");
-
-    if let Some(env_name) = target.service_auth_env.as_deref() {
-        let token = env::var(env_name).with_context(|| {
-            format!(
-                "infra error: remote node {} missing service auth token env {}",
-                target.node_id, env_name
-            )
-        })?;
-        let token = token.trim();
-        if token.is_empty() {
-            bail!(
-                "infra error: remote node {} service auth token env {} is empty",
-                target.node_id,
-                env_name
-            );
-        }
-        if token.contains(['\r', '\n']) {
-            bail!(
-                "infra error: remote node {} service auth token env {} contains invalid characters",
-                target.node_id,
-                env_name
-            );
-        }
-        headers.push_str(&format!("X-Tak-Service-Token: {token}\r\n"));
-    }
-
-    Ok(headers)
-}
-
-/// Converts an HTTP(S) endpoint string into a connectable `host:port` address.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
-    let trimmed = endpoint.trim();
-    let (scheme, without_scheme) = if let Some(value) = trimmed.strip_prefix("http://") {
-        ("http", value)
-    } else if let Some(value) = trimmed.strip_prefix("https://") {
-        ("https", value)
-    } else {
-        ("", trimmed)
-    };
-
-    let authority_end = without_scheme
-        .find(['/', '?', '#'])
-        .unwrap_or(without_scheme.len());
-    let authority_with_userinfo = without_scheme[..authority_end].trim();
-    let authority = authority_with_userinfo
-        .rsplit_once('@')
-        .map_or(authority_with_userinfo, |(_, value)| value)
-        .trim();
-    if authority.is_empty() {
-        bail!("missing host:port");
-    }
-
-    if authority.contains(':') {
-        return Ok(authority.to_string());
-    }
-
-    if scheme.is_empty() {
-        bail!("missing port in endpoint authority");
-    }
-
-    let default_port = if scheme == "https" { "443" } else { "80" };
-    Ok(format!("{authority}:{default_port}"))
-}
-
-fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
-    let socket_addr = endpoint_socket_addr(endpoint)?;
-    let (host, raw_port) = socket_addr
-        .rsplit_once(':')
-        .ok_or_else(|| anyhow!("missing host:port"))?;
-    if host.trim().is_empty() {
-        bail!("missing host");
-    }
-    let port = raw_port
-        .parse::<u16>()
-        .with_context(|| format!("invalid port `{raw_port}`"))?;
-    Ok((host.to_string(), port))
-}
-
-fn test_tor_onion_dial_addr() -> Option<String> {
-    env::var("TAK_TEST_TOR_ONION_DIAL_ADDR")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
 }
 
 /// Executes all steps in one task attempt and short-circuits on first failing step.

@@ -92,6 +92,21 @@ fn endpoint_socket_addr_accepts_full_url_forms_without_explicit_port() {
 }
 
 #[test]
+fn endpoint_host_port_parses_default_port_from_scheme() {
+    let (host, port) = super::remote_endpoint::endpoint_host_port("https://build.internal")
+        .expect("https endpoint should parse host and default port");
+    assert_eq!(host, "build.internal");
+    assert_eq!(port, 443);
+}
+
+#[test]
+fn endpoint_host_port_rejects_invalid_port_values() {
+    let err = super::remote_endpoint::endpoint_host_port("https://build.internal:not-a-port")
+        .expect_err("non-numeric port should fail");
+    assert!(err.to_string().contains("invalid port"));
+}
+
+#[test]
 fn transport_variant_branching_isolated_to_transport_factory() {
     let source = include_str!("lib.rs");
     let production = source.split("\n#[cfg(test)]").next().unwrap_or(source);
