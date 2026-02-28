@@ -133,19 +133,19 @@ fn ndjson_single_line_event_is_not_treated_as_wrapped_done_payload() {
 #[test]
 fn remote_events_max_wait_defaults_to_120_seconds() {
     assert_eq!(
-        parse_remote_events_max_wait_duration(None),
+        super::remote_events_wait::parse_remote_events_max_wait_duration(None),
         Duration::from_secs(120)
     );
     assert_eq!(
-        parse_remote_events_max_wait_duration(Some("")),
+        super::remote_events_wait::parse_remote_events_max_wait_duration(Some("")),
         Duration::from_secs(120)
     );
     assert_eq!(
-        parse_remote_events_max_wait_duration(Some("0")),
+        super::remote_events_wait::parse_remote_events_max_wait_duration(Some("0")),
         Duration::from_secs(120)
     );
     assert_eq!(
-        parse_remote_events_max_wait_duration(Some("invalid")),
+        super::remote_events_wait::parse_remote_events_max_wait_duration(Some("invalid")),
         Duration::from_secs(120)
     );
 }
@@ -153,7 +153,7 @@ fn remote_events_max_wait_defaults_to_120_seconds() {
 #[test]
 fn remote_events_max_wait_accepts_positive_seconds_override() {
     assert_eq!(
-        parse_remote_events_max_wait_duration(Some("900")),
+        super::remote_events_wait::parse_remote_events_max_wait_duration(Some("900")),
         Duration::from_secs(900)
     );
 }
@@ -391,4 +391,120 @@ async fn acquire_task_lease_without_socket_returns_none() {
         .await
         .expect("no socket should short-circuit");
     assert_eq!(lease, None);
+}
+
+struct TestContainerEngineProbe {
+    docker_ok: bool,
+    podman_ok: bool,
+    calls: Vec<ContainerEngine>,
+}
+
+impl super::container_engine::ContainerEngineProbe for TestContainerEngineProbe {
+    fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String> {
+        self.calls.push(engine);
+        match engine {
+            ContainerEngine::Docker if self.docker_ok => Ok(()),
+            ContainerEngine::Podman if self.podman_ok => Ok(()),
+            ContainerEngine::Docker => Err("docker unavailable".to_string()),
+            ContainerEngine::Podman => Err("podman unavailable".to_string()),
+        }
+    }
+}
+
+#[test]
+fn select_container_engine_prefers_docker_and_short_circuits() {
+    let mut probe = TestContainerEngineProbe {
+        docker_ok: true,
+        podman_ok: true,
+        calls: Vec::new(),
+    };
+    let selected = super::container_engine::select_container_engine_with_probe(
+        super::container_engine::HostPlatform::MacOs,
+        &mut probe,
+    )
+    .expect("docker should be selected first");
+    assert_eq!(selected, ContainerEngine::Docker);
+    assert_eq!(probe.calls, vec![ContainerEngine::Docker]);
+}
+
+#[test]
+fn select_container_engine_falls_back_to_podman_on_macos() {
+    let mut probe = TestContainerEngineProbe {
+        docker_ok: false,
+        podman_ok: true,
+        calls: Vec::new(),
+    };
+    let selected = super::container_engine::select_container_engine_with_probe(
+        super::container_engine::HostPlatform::MacOs,
+        &mut probe,
+    )
+    .expect("podman fallback should work on macOS");
+    assert_eq!(selected, ContainerEngine::Podman);
+    assert_eq!(
+        probe.calls,
+        vec![ContainerEngine::Docker, ContainerEngine::Podman]
+    );
+}
+
+#[test]
+fn select_container_engine_does_not_probe_podman_on_non_macos() {
+    let mut probe = TestContainerEngineProbe {
+        docker_ok: false,
+        podman_ok: true,
+        calls: Vec::new(),
+    };
+    let err = super::container_engine::select_container_engine_with_probe(
+        super::container_engine::HostPlatform::Other,
+        &mut probe,
+    )
+    .expect_err("non-macos must not fallback to podman");
+    assert!(err.to_string().contains("attempted probes: docker"));
+    assert_eq!(probe.calls, vec![ContainerEngine::Docker]);
+}
+
+#[test]
+fn select_container_engine_error_on_macos_mentions_both_probes() {
+    let mut probe = TestContainerEngineProbe {
+        docker_ok: false,
+        podman_ok: false,
+        calls: Vec::new(),
+    };
+    let err = super::container_engine::select_container_engine_with_probe(
+        super::container_engine::HostPlatform::MacOs,
+        &mut probe,
+    )
+    .expect_err("macOS should fail after both probes");
+    assert!(err.to_string().contains("attempted probes: docker, podman"));
+    assert_eq!(
+        probe.calls,
+        vec![ContainerEngine::Docker, ContainerEngine::Podman]
+    );
+}
+
+#[test]
+fn podman_socket_candidates_builder_keeps_priority_order() {
+    let candidates = super::container_engine::podman_socket_candidates_from_inputs(
+        Some("unix:///custom/podman.sock"),
+        Some("/run/user/2000"),
+        Some("2000"),
+    );
+    assert_eq!(
+        candidates,
+        vec![
+            "unix:///custom/podman.sock".to_string(),
+            "unix:///run/user/2000/podman/podman.sock".to_string(),
+            "unix:///run/user/2000/podman/podman.sock".to_string(),
+            "unix:///run/podman/podman.sock".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn podman_socket_candidates_builder_omits_empty_inputs() {
+    let candidates =
+        super::container_engine::podman_socket_candidates_from_inputs(Some("  "), None, Some(""));
+    assert_eq!(
+        candidates,
+        vec!["unix:///run/podman/podman.sock".to_string()]
+    );
 }

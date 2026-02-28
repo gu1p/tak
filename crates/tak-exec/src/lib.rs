@@ -23,7 +23,6 @@ use bollard::container::{
 use bollard::image::CreateImageOptions;
 use bollard::models::HostConfig;
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tak_core::model::{
     PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
@@ -36,13 +35,20 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
+mod container_engine;
 mod execution_graph;
 mod lease_client;
+mod remote_events_wait;
 mod retry;
 mod step_runner;
 mod summary;
+use container_engine::{
+    ContainerEngine, ShellContainerEngineProbe, engine_name, podman_socket_candidates_from_env,
+    resolve_container_engine_host_platform, select_container_engine_with_probe,
+};
 use execution_graph::collect_required_labels;
 use lease_client::{acquire_task_lease, release_task_lease};
+use remote_events_wait::remote_events_max_wait_duration;
 use retry::{retry_backoff_delay, should_retry};
 use step_runner::{StepRunResult, resolve_cwd, run_step};
 pub use summary::target_set_from_summary;
@@ -78,53 +84,6 @@ impl Default for RunOptions {
             user: None,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum ContainerEngine {
-    Docker,
-    Podman,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HostPlatform {
-    MacOs,
-    Other,
-}
-
-impl HostPlatform {
-    fn current() -> Self {
-        if cfg!(target_os = "macos") {
-            Self::MacOs
-        } else {
-            Self::Other
-        }
-    }
-}
-
-trait ContainerEngineProbe {
-    fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String>;
-}
-
-fn select_container_engine_with_probe(
-    platform: HostPlatform,
-    probe: &mut impl ContainerEngineProbe,
-) -> Result<ContainerEngine> {
-    if probe.probe(ContainerEngine::Docker).is_ok() {
-        return Ok(ContainerEngine::Docker);
-    }
-
-    if platform == HostPlatform::MacOs && probe.probe(ContainerEngine::Podman).is_ok() {
-        return Ok(ContainerEngine::Podman);
-    }
-
-    let attempted = if platform == HostPlatform::MacOs {
-        "docker, podman"
-    } else {
-        "docker"
-    };
-    bail!("no container engine available; attempted probes: {attempted}");
 }
 
 #[derive(Debug, Clone)]
@@ -1221,31 +1180,6 @@ fn normalize_filesystem_relative_path(path: &Path) -> String {
     }
 }
 
-struct ShellContainerEngineProbe;
-
-impl ContainerEngineProbe for ShellContainerEngineProbe {
-    fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String> {
-        let binary = match engine {
-            ContainerEngine::Docker => "docker",
-            ContainerEngine::Podman => "podman",
-        };
-
-        let status = std::process::Command::new(binary)
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-
-        match status {
-            Ok(status) if status.success() => Ok(()),
-            Ok(status) => Err(format!(
-                "engine probe `{binary}` exited with status {status}"
-            )),
-            Err(err) => Err(err.to_string()),
-        }
-    }
-}
-
 fn resolve_runtime_execution_metadata(
     task: &ResolvedTask,
     placement: &TaskPlacement,
@@ -1402,19 +1336,6 @@ fn test_injected_container_lifecycle_stage(node_id: &str) -> Option<ContainerLif
     }
 
     None
-}
-
-fn resolve_container_engine_host_platform() -> HostPlatform {
-    match env::var("TAK_TEST_HOST_PLATFORM")
-        .ok()
-        .as_deref()
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("macos") => HostPlatform::MacOs,
-        Some("other") => HostPlatform::Other,
-        _ => HostPlatform::current(),
-    }
 }
 
 /// Resolves the execution constructor into current placement metadata and validates support.
@@ -2151,25 +2072,6 @@ async fn remote_protocol_events(
     );
 }
 
-fn remote_events_max_wait_duration() -> Duration {
-    let configured = env::var("TAK_REMOTE_EVENTS_MAX_WAIT_SECS").ok();
-    parse_remote_events_max_wait_duration(configured.as_deref())
-}
-
-fn parse_remote_events_max_wait_duration(raw: Option<&str>) -> Duration {
-    const DEFAULT_MAX_WAIT_SECS: u64 = 120;
-    let Some(raw) = raw else {
-        return Duration::from_secs(DEFAULT_MAX_WAIT_SECS);
-    };
-    let Ok(secs) = raw.trim().parse::<u64>() else {
-        return Duration::from_secs(DEFAULT_MAX_WAIT_SECS);
-    };
-    if secs == 0 {
-        return Duration::from_secs(DEFAULT_MAX_WAIT_SECS);
-    }
-    Duration::from_secs(secs)
-}
-
 /// Parses one remote events response envelope and advances checkpoint sequence monotonically.
 ///
 /// ```no_run
@@ -2786,7 +2688,7 @@ async fn connect_container_engine(engine: ContainerEngine) -> Result<Docker> {
 }
 
 fn connect_podman_client() -> Result<Docker> {
-    for socket in podman_socket_candidates() {
+    for socket in podman_socket_candidates_from_env() {
         let socket_path = socket.strip_prefix("unix://").unwrap_or(socket.as_str());
         if let Ok(client) =
             Docker::connect_with_unix(socket_path, 120, bollard::API_DEFAULT_VERSION)
@@ -2795,37 +2697,6 @@ fn connect_podman_client() -> Result<Docker> {
         }
     }
     bail!("infra error: container lifecycle start failed: no podman socket available");
-}
-
-fn podman_socket_candidates() -> Vec<String> {
-    let mut sockets = Vec::new();
-    if let Ok(explicit) = env::var("TAK_PODMAN_SOCKET") {
-        let explicit = explicit.trim();
-        if !explicit.is_empty() {
-            sockets.push(explicit.to_string());
-        }
-    }
-
-    if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
-        sockets.push(format!("unix://{runtime_dir}/podman/podman.sock"));
-    }
-
-    if let Ok(uid) = env::var("UID") {
-        let uid = uid.trim();
-        if !uid.is_empty() {
-            sockets.push(format!("unix:///run/user/{uid}/podman/podman.sock"));
-        }
-    }
-
-    sockets.push("unix:///run/podman/podman.sock".to_string());
-    sockets
-}
-
-fn engine_name(engine: ContainerEngine) -> &'static str {
-    match engine {
-        ContainerEngine::Docker => "docker",
-        ContainerEngine::Podman => "podman",
-    }
 }
 
 async fn ensure_container_image(docker: &Docker, image: &str) -> Result<()> {
