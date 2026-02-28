@@ -2212,13 +2212,15 @@ async fn remote_protocol_events(
     task_run_id: &str,
 ) -> Result<Vec<RemoteLogChunk>> {
     const MAX_EVENT_RECONNECTS: u32 = 3;
-    const MAX_EVENT_POLLS: u32 = 64;
+    const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(50);
+    const MAX_EVENT_WAIT: Duration = Duration::from_secs(120);
 
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
     let mut persisted_remote_logs = Vec::new();
+    let deadline = tokio::time::Instant::now() + MAX_EVENT_WAIT;
 
-    for _ in 0..MAX_EVENT_POLLS {
+    while tokio::time::Instant::now() < deadline {
         let path = format!("/v1/tasks/{task_run_id}/events?after_seq={last_seen_seq}");
         let response = remote_protocol_http_request(
             target,
@@ -2244,6 +2246,7 @@ async fn remote_protocol_events(
                         last_seen_seq
                     );
                 }
+                tokio::time::sleep(EVENT_POLL_INTERVAL).await;
                 continue;
             }
         };
@@ -2262,12 +2265,13 @@ async fn remote_protocol_events(
         if parsed.done {
             return Ok(persisted_remote_logs);
         }
+        tokio::time::sleep(EVENT_POLL_INTERVAL).await;
     }
 
     bail!(
-        "infra error: remote node {} events stream exceeded {} polls without terminal completion",
+        "infra error: remote node {} events stream exceeded {}s without terminal completion",
         target.node_id,
-        MAX_EVENT_POLLS
+        MAX_EVENT_WAIT.as_secs()
     );
 }
 
