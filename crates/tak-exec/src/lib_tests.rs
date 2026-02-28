@@ -146,6 +146,96 @@ fn ndjson_single_line_event_is_not_treated_as_wrapped_done_payload() {
 }
 
 #[test]
+fn parse_remote_result_outputs_returns_valid_synced_outputs() {
+    let target = strict_remote_target(RemoteTransportKind::DirectHttps, "http://127.0.0.1:4242");
+    let result = serde_json::json!({
+        "outputs": [
+            {
+                "path": "dist/app.js",
+                "digest": "sha256:abc",
+                "size": 123_u64
+            }
+        ]
+    });
+
+    let outputs = parse_remote_result_outputs(&target, &result).expect("outputs should parse");
+    assert_eq!(
+        outputs,
+        vec![SyncedOutput {
+            path: "dist/app.js".to_string(),
+            digest: "sha256:abc".to_string(),
+            size_bytes: 123,
+        }]
+    );
+}
+
+#[test]
+fn parse_remote_result_outputs_rejects_missing_digest() {
+    let target = strict_remote_target(RemoteTransportKind::DirectHttps, "http://127.0.0.1:4242");
+    let result = serde_json::json!({
+        "outputs": [
+            {
+                "path": "dist/app.js",
+                "size": 123_u64
+            }
+        ]
+    });
+
+    let err = parse_remote_result_outputs(&target, &result)
+        .expect_err("missing digest should produce an infra error");
+    assert!(err.to_string().contains("missing string digest"));
+}
+
+#[test]
+fn build_remote_submit_payload_omits_execution_when_archive_not_included() {
+    let target = strict_remote_target(RemoteTransportKind::DirectHttps, "http://127.0.0.1:4242");
+    let mut task = test_task(test_label("//pkg", "task"), Vec::new());
+    task.steps = vec![tak_core::model::StepDef::Cmd {
+        argv: vec!["echo".to_string(), "hello".to_string()],
+        cwd: None,
+        env: BTreeMap::new(),
+    }];
+    let workspace = RemoteWorkspaceStage {
+        temp_dir: tempfile::tempdir().expect("tempdir"),
+        manifest_hash: "manifest-1".to_string(),
+        archive_zip_base64: "archive".to_string(),
+    };
+
+    let payload =
+        build_remote_submit_payload(&target, "run-1", 2, "//pkg:task", &task, &workspace, false)
+            .expect("preflight payload should build");
+
+    assert_eq!(
+        payload
+            .get("task_run_id")
+            .and_then(serde_json::Value::as_str),
+        Some("run-1")
+    );
+    assert_eq!(
+        payload.get("attempt").and_then(serde_json::Value::as_u64),
+        Some(2)
+    );
+    assert!(
+        payload.get("execution").is_none(),
+        "preflight payload must not include execution fields"
+    );
+    assert_eq!(
+        payload
+            .get("workspace")
+            .and_then(|workspace| workspace.get("manifest_hash"))
+            .and_then(serde_json::Value::as_str),
+        Some("manifest-1")
+    );
+    assert!(
+        payload
+            .get("workspace")
+            .and_then(|workspace| workspace.get("archive_zip_base64"))
+            .is_none(),
+        "preflight payload must not include workspace archive"
+    );
+}
+
+#[test]
 fn remote_events_max_wait_defaults_to_120_seconds() {
     assert_eq!(
         super::remote_events_wait::parse_remote_events_max_wait_duration(None),
