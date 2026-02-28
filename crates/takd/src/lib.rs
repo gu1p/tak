@@ -10,11 +10,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
+use futures::StreamExt;
 use rusqlite::{Connection, ErrorCode, params};
+use safelog::DisplayRedacted;
 use serde::{Deserialize, Serialize};
 use tak_core::model::Scope;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::net::{TcpListener, TcpStream, UnixListener, UnixStream};
+use tor_cell::relaycell::msg::Connected;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,6 +182,13 @@ pub struct TorTransportConfig {
     pub onion_endpoint: String,
     pub service_auth_token: String,
     pub arti: ArtiSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TorHiddenServiceRuntimeConfig {
+    pub nickname: String,
+    pub state_dir: PathBuf,
+    pub cache_dir: PathBuf,
 }
 
 /// Validates Tor transport configuration before any transport/client creation.
@@ -990,6 +1000,276 @@ pub async fn run_server(socket_path: &Path, manager: SharedLeaseManager) -> Resu
     }
 }
 
+/// Runs a TCP HTTP server that exposes canonical remote V1 endpoints backed by SQLite state.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on runtime network IO and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
+pub async fn run_remote_v1_http_server(
+    listener: TcpListener,
+    store: SubmitAttemptStore,
+) -> Result<()> {
+    loop {
+        let (stream, _) = listener.accept().await.context("accept failed")?;
+        let store = store.clone();
+        tokio::spawn(async move {
+            if let Err(err) = handle_remote_v1_http_client(stream, store).await {
+                eprintln!("remote v1 http client handling error: {err}");
+            }
+        });
+    }
+}
+
+async fn handle_remote_v1_http_client(
+    mut stream: TcpStream,
+    store: SubmitAttemptStore,
+) -> Result<()> {
+    handle_remote_v1_http_stream(&mut stream, &store).await
+}
+
+async fn handle_remote_v1_http_stream<S>(stream: &mut S, store: &SubmitAttemptStore) -> Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let Some(request) = read_http_request(stream).await? else {
+        return Ok(());
+    };
+    let response = handle_remote_v1_request(
+        store,
+        &request.method,
+        &request.path,
+        request.body.as_deref(),
+    )?;
+    write_http_response(stream, &response).await?;
+    Ok(())
+}
+
+struct ParsedHttpRequest {
+    method: String,
+    path: String,
+    body: Option<String>,
+}
+
+async fn read_http_request<S>(stream: &mut S) -> Result<Option<ParsedHttpRequest>>
+where
+    S: AsyncRead + Unpin,
+{
+    let mut request_bytes = Vec::new();
+    let mut chunk = [0_u8; 1024];
+    let mut header_end = None;
+
+    while header_end.is_none() {
+        let read = stream
+            .read(&mut chunk)
+            .await
+            .context("read request bytes")?;
+        if read == 0 {
+            break;
+        }
+        request_bytes.extend_from_slice(&chunk[..read]);
+        header_end = request_bytes
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .map(|idx| idx + 4);
+    }
+
+    if request_bytes.is_empty() {
+        return Ok(None);
+    }
+
+    let header_end = header_end.unwrap_or(request_bytes.len());
+    let header_text = String::from_utf8_lossy(&request_bytes[..header_end]);
+    let request_line = header_text.lines().next().unwrap_or_default();
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or_default().to_string();
+    let path = parts.next().unwrap_or("/").to_string();
+
+    let content_length = header_text
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.trim().eq_ignore_ascii_case("content-length") {
+                value.trim().parse::<usize>().ok()
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0);
+
+    let mut body = request_bytes[header_end..].to_vec();
+    while body.len() < content_length {
+        let read = stream.read(&mut chunk).await.context("read request body")?;
+        if read == 0 {
+            break;
+        }
+        body.extend_from_slice(&chunk[..read]);
+    }
+    body.truncate(content_length);
+    let body = if body.is_empty() {
+        None
+    } else {
+        Some(String::from_utf8_lossy(&body).to_string())
+    };
+
+    Ok(Some(ParsedHttpRequest { method, path, body }))
+}
+
+async fn write_http_response<S>(stream: &mut S, response: &RemoteV1Response) -> Result<()>
+where
+    S: AsyncWrite + Unpin,
+{
+    let status = http_status_line(response.status_code);
+    let encoded = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        response.content_type,
+        response.body.len(),
+        response.body
+    );
+    stream
+        .write_all(encoded.as_bytes())
+        .await
+        .context("write response bytes")?;
+    stream.flush().await.context("flush response bytes")?;
+    Ok(())
+}
+
+fn http_status_line(status_code: u16) -> &'static str {
+    match status_code {
+        200 => "200 OK",
+        202 => "202 Accepted",
+        400 => "400 Bad Request",
+        401 => "401 Unauthorized",
+        403 => "403 Forbidden",
+        404 => "404 Not Found",
+        500 => "500 Internal Server Error",
+        _ => "500 Internal Server Error",
+    }
+}
+
+/// Runs canonical remote V1 endpoints as an embedded Arti onion service.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on runtime Tor network bootstrapping and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
+pub async fn run_remote_v1_tor_hidden_service(
+    config: TorHiddenServiceRuntimeConfig,
+    store: SubmitAttemptStore,
+) -> Result<()> {
+    if let Some(test_bind_addr) = test_tor_hidden_service_bind_addr() {
+        let listener = TcpListener::bind(test_bind_addr.as_str())
+            .await
+            .with_context(|| {
+                format!("failed to bind takd tor test listener at {test_bind_addr}")
+            })?;
+        return run_remote_v1_http_server(listener, store).await;
+    }
+
+    let tor_client_config = arti_client::config::TorClientConfigBuilder::from_directories(
+        &config.state_dir,
+        &config.cache_dir,
+    )
+    .build()
+    .context("invalid Arti client configuration for takd hidden service")?;
+    let tor_client = arti_client::TorClient::create_bootstrapped(tor_client_config)
+        .await
+        .context("failed to bootstrap embedded Arti for takd hidden service")?;
+    let onion_service_config = build_tor_hidden_service_config(&config.nickname)?;
+    let Some((running_service, rend_requests)) = tor_client
+        .launch_onion_service(onion_service_config)
+        .context("failed to launch takd onion service via embedded Arti")?
+    else {
+        bail!("takd onion service launch was skipped because the service is disabled");
+    };
+
+    let onion_endpoint = running_service
+        .onion_address()
+        .map(|hsid| format!("http://{}", hsid.display_unredacted()))
+        .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
+    eprintln!("takd remote v1 onion service ready at {onion_endpoint}");
+
+    futures::pin_mut!(rend_requests);
+    while let Some(rend_request) = rend_requests.next().await {
+        let accepted = rend_request.accept().await;
+        let mut stream_requests = match accepted {
+            Ok(stream_requests) => stream_requests,
+            Err(err) => {
+                eprintln!("takd onion service rendezvous accept failed: {err}");
+                continue;
+            }
+        };
+
+        while let Some(stream_request) = stream_requests.next().await {
+            match stream_request.accept(Connected::new_empty()).await {
+                Ok(mut stream) => {
+                    if let Err(err) = handle_remote_v1_http_stream(&mut stream, &store).await {
+                        eprintln!("takd onion service stream handling failed: {err}");
+                    }
+                }
+                Err(err) => {
+                    eprintln!("takd onion service stream accept failed: {err}");
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+fn build_tor_hidden_service_config(
+    nickname: &str,
+) -> Result<arti_client::config::onion_service::OnionServiceConfig> {
+    let nickname = nickname
+        .trim()
+        .parse()
+        .with_context(|| format!("invalid tor hidden-service nickname `{nickname}`"))?;
+    arti_client::config::onion_service::OnionServiceConfigBuilder::default()
+        .nickname(nickname)
+        .build()
+        .context("invalid onion service config for takd")
+}
+
+fn remote_v1_bind_addr_from_env() -> Option<String> {
+    std::env::var("TAKD_REMOTE_V1_BIND_ADDR")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn tor_hidden_service_runtime_config_from_env() -> Result<Option<TorHiddenServiceRuntimeConfig>> {
+    let nickname = match std::env::var("TAKD_TOR_HS_NICKNAME") {
+        Ok(value) => value.trim().to_string(),
+        Err(_) => return Ok(None),
+    };
+    if nickname.is_empty() {
+        return Ok(None);
+    }
+
+    let state_dir = std::env::var("TAKD_TOR_STATE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir().join("takd-arti-state"));
+    let cache_dir = std::env::var("TAKD_TOR_CACHE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir().join("takd-arti-cache"));
+
+    Ok(Some(TorHiddenServiceRuntimeConfig {
+        nickname,
+        state_dir,
+        cache_dir,
+    }))
+}
+
+fn test_tor_hidden_service_bind_addr() -> Option<String> {
+    std::env::var("TAKD_TEST_TOR_HS_BIND_ADDR")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 /// Handles a single client connection and processes line-delimited requests.
 ///
 /// ```no_run
@@ -1109,7 +1389,7 @@ pub async fn run_daemon(socket_path: &Path) -> Result<()> {
     let db_path = std::env::var("TAKD_DB_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| default_state_db_path());
-    let manager = new_shared_manager_with_db(db_path)?;
+    let manager = new_shared_manager_with_db(db_path.clone())?;
 
     {
         let mut guard = manager
@@ -1119,7 +1399,41 @@ pub async fn run_daemon(socket_path: &Path) -> Result<()> {
         guard.set_capacity("ram_gib", Scope::Machine, None, 32.0);
     }
 
+    spawn_optional_remote_v1_services(&db_path).await?;
     run_server(socket_path, manager).await
+}
+
+async fn spawn_optional_remote_v1_services(db_path: &Path) -> Result<()> {
+    if let Some(bind_addr) = remote_v1_bind_addr_from_env() {
+        let listener = TcpListener::bind(bind_addr.as_str())
+            .await
+            .with_context(|| {
+                format!("failed to bind takd remote v1 http listener at {bind_addr}")
+            })?;
+        let local_addr = listener
+            .local_addr()
+            .context("failed to read takd remote v1 local address")?;
+        let store = SubmitAttemptStore::with_db_path(db_path.to_path_buf())
+            .context("failed to open takd remote v1 sqlite store")?;
+        tokio::spawn(async move {
+            if let Err(err) = run_remote_v1_http_server(listener, store).await {
+                eprintln!("takd remote v1 http server failed: {err}");
+            }
+        });
+        eprintln!("takd remote v1 http listening on {local_addr}");
+    }
+
+    if let Some(config) = tor_hidden_service_runtime_config_from_env()? {
+        let store = SubmitAttemptStore::with_db_path(db_path.to_path_buf())
+            .context("failed to open takd tor hidden-service sqlite store")?;
+        tokio::spawn(async move {
+            if let Err(err) = run_remote_v1_tor_hidden_service(config, store).await {
+                eprintln!("takd remote v1 tor hidden-service failed: {err}");
+            }
+        });
+    }
+
+    Ok(())
 }
 
 /// Resolves the daemon socket path from runtime conventions.

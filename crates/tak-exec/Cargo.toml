@@ -12,7 +12,7 @@ uuid.workspace = true
 takd = { path = "../takd" }
 tak-loader = { path = "../tak-loader" }
 tempfile.workspace = true
-arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls"] }
+arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-client"] }
 
 [dev-dependencies]
 tempfile.workspace = true

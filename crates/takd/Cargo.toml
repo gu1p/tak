@@ -5,11 +5,15 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
+arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-service"] }
+futures.workspace = true
 rusqlite.workspace = true
+safelog = "0.7"
 serde.workspace = true
 serde_json.workspace = true
 tak-core = { path = "../tak-core" }
 tokio.workspace = true
+tor-cell = "0.39"
 uuid.workspace = true
 
 [dev-dependencies]
