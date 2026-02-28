@@ -15,14 +15,6 @@ use std::time::Duration;
 use anyhow::{Context, Result, anyhow, bail};
 use arti_client::TorClientConfig;
 use base64::Engine;
-use bollard::Docker;
-use bollard::container::{
-    Config as ContainerConfig, CreateContainerOptions, RemoveContainerOptions,
-    StartContainerOptions, WaitContainerOptions,
-};
-use bollard::image::CreateImageOptions;
-use bollard::models::HostConfig;
-use futures::StreamExt;
 use sha2::{Digest, Sha256};
 use tak_core::model::{
     PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
@@ -36,6 +28,7 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
 mod container_engine;
+mod container_runtime;
 mod execution_graph;
 mod lease_client;
 mod remote_events_wait;
@@ -43,14 +36,17 @@ mod retry;
 mod step_runner;
 mod summary;
 use container_engine::{
-    ContainerEngine, ShellContainerEngineProbe, engine_name, podman_socket_candidates_from_env,
-    resolve_container_engine_host_platform, select_container_engine_with_probe,
+    ContainerEngine, ShellContainerEngineProbe, resolve_container_engine_host_platform,
+    select_container_engine_with_probe,
 };
+use container_runtime::run_task_steps_in_container;
 use execution_graph::collect_required_labels;
 use lease_client::{acquire_task_lease, release_task_lease};
 use remote_events_wait::remote_events_max_wait_duration;
 use retry::{retry_backoff_delay, should_retry};
-use step_runner::{StepRunResult, resolve_cwd, run_step};
+#[allow(unused_imports)]
+use step_runner::resolve_cwd;
+use step_runner::{StepRunResult, run_step};
 pub use summary::target_set_from_summary;
 
 #[derive(Debug, Clone)]
@@ -2576,7 +2572,8 @@ async fn run_task_steps_with_runtime(
         return run_task_steps_in_container(
             task,
             workspace_root,
-            plan,
+            plan.engine,
+            &plan.image,
             Some(&metadata.env_overrides),
         )
         .await;
@@ -2632,244 +2629,6 @@ pub async fn execute_remote_worker_steps(
             .as_ref()
             .and_then(|metadata| metadata.engine.clone()),
     })
-}
-
-#[derive(Debug)]
-struct ContainerStepSpec {
-    argv: Vec<String>,
-    cwd: PathBuf,
-    env: BTreeMap<String, String>,
-}
-
-async fn run_task_steps_in_container(
-    task: &ResolvedTask,
-    workspace_root: &Path,
-    plan: &ContainerExecutionPlan,
-    runtime_env: Option<&BTreeMap<String, String>>,
-) -> Result<StepRunResult> {
-    let docker = connect_container_engine(plan.engine).await?;
-    ensure_container_image(&docker, &plan.image).await?;
-
-    for step in &task.steps {
-        let step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
-        let status = run_step_in_container(
-            &docker,
-            &plan.image,
-            &step_spec,
-            task.timeout_s,
-            workspace_root,
-        )
-        .await?;
-        if !status.success {
-            return Ok(status);
-        }
-    }
-
-    Ok(StepRunResult {
-        success: true,
-        exit_code: Some(0),
-    })
-}
-
-async fn connect_container_engine(engine: ContainerEngine) -> Result<Docker> {
-    let docker = match engine {
-        ContainerEngine::Docker => Docker::connect_with_local_defaults().context(
-            "infra error: container lifecycle start failed: docker client connect failed",
-        )?,
-        ContainerEngine::Podman => connect_podman_client()?,
-    };
-    docker.ping().await.with_context(|| {
-        format!(
-            "infra error: container lifecycle start failed: {} ping failed",
-            engine_name(engine)
-        )
-    })?;
-    Ok(docker)
-}
-
-fn connect_podman_client() -> Result<Docker> {
-    for socket in podman_socket_candidates_from_env() {
-        let socket_path = socket.strip_prefix("unix://").unwrap_or(socket.as_str());
-        if let Ok(client) =
-            Docker::connect_with_unix(socket_path, 120, bollard::API_DEFAULT_VERSION)
-        {
-            return Ok(client);
-        }
-    }
-    bail!("infra error: container lifecycle start failed: no podman socket available");
-}
-
-async fn ensure_container_image(docker: &Docker, image: &str) -> Result<()> {
-    match docker.inspect_image(image).await {
-        Ok(_) => return Ok(()),
-        Err(bollard::errors::Error::DockerResponseServerError {
-            status_code: 404, ..
-        }) => {}
-        Err(err) => {
-            return Err(err)
-                .context("infra error: container lifecycle pull failed: inspect image failed");
-        }
-    }
-
-    let mut stream = docker.create_image(
-        Some(CreateImageOptions {
-            from_image: image.to_string(),
-            ..Default::default()
-        }),
-        None,
-        None,
-    );
-    while let Some(item) = stream.next().await {
-        item.context("infra error: container lifecycle pull failed")?;
-    }
-    Ok(())
-}
-
-fn build_container_step_spec(
-    step: &StepDef,
-    workspace_root: &Path,
-    runtime_env: Option<&BTreeMap<String, String>>,
-) -> Result<ContainerStepSpec> {
-    match step {
-        StepDef::Cmd { argv, cwd, env } => {
-            if argv.is_empty() {
-                bail!("cmd step requires a non-empty argv");
-            }
-            let mut env_map = BTreeMap::new();
-            if let Some(runtime_env) = runtime_env {
-                env_map.extend(runtime_env.clone());
-            }
-            env_map.extend(env.clone());
-            Ok(ContainerStepSpec {
-                argv: argv.clone(),
-                cwd: resolve_cwd(workspace_root, cwd),
-                env: env_map,
-            })
-        }
-        StepDef::Script {
-            path,
-            argv,
-            interpreter,
-            cwd,
-            env,
-        } => {
-            let mut full_argv = Vec::with_capacity(argv.len() + 2);
-            if let Some(interpreter) = interpreter {
-                full_argv.push(interpreter.clone());
-                full_argv.push(path.clone());
-            } else {
-                full_argv.push(path.clone());
-            }
-            full_argv.extend(argv.clone());
-
-            let mut env_map = BTreeMap::new();
-            if let Some(runtime_env) = runtime_env {
-                env_map.extend(runtime_env.clone());
-            }
-            env_map.extend(env.clone());
-            Ok(ContainerStepSpec {
-                argv: full_argv,
-                cwd: resolve_cwd(workspace_root, cwd),
-                env: env_map,
-            })
-        }
-    }
-}
-
-async fn run_step_in_container(
-    docker: &Docker,
-    image: &str,
-    step: &ContainerStepSpec,
-    timeout_s: Option<u64>,
-    workspace_root: &Path,
-) -> Result<StepRunResult> {
-    let container_name = format!("tak-step-{}", Uuid::new_v4());
-    let bind_mount = format!(
-        "{}:{}:rw",
-        workspace_root.display(),
-        workspace_root.display()
-    );
-    let env = step
-        .env
-        .iter()
-        .map(|(key, value)| format!("{key}={value}"))
-        .collect::<Vec<_>>();
-
-    let config = ContainerConfig {
-        image: Some(image.to_string()),
-        cmd: Some(step.argv.clone()),
-        env: Some(env),
-        working_dir: Some(step.cwd.to_string_lossy().to_string()),
-        attach_stdout: Some(true),
-        attach_stderr: Some(true),
-        tty: Some(false),
-        host_config: Some(HostConfig {
-            binds: Some(vec![bind_mount]),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-
-    docker
-        .create_container(
-            Some(CreateContainerOptions {
-                name: container_name.as_str(),
-                platform: None,
-            }),
-            config,
-        )
-        .await
-        .context("infra error: container lifecycle start failed: create container failed")?;
-    docker
-        .start_container(&container_name, None::<StartContainerOptions<String>>)
-        .await
-        .context("infra error: container lifecycle start failed: start container failed")?;
-
-    let wait_result = wait_for_container_exit_code(docker, &container_name);
-    let status = if let Some(seconds) = timeout_s {
-        match tokio::time::timeout(Duration::from_secs(seconds), wait_result).await {
-            Ok(result) => result?,
-            Err(_) => {
-                let _ = cleanup_container(docker, &container_name).await;
-                return Ok(StepRunResult {
-                    success: false,
-                    exit_code: None,
-                });
-            }
-        }
-    } else {
-        wait_result.await?
-    };
-
-    let _ = cleanup_container(docker, &container_name).await;
-    Ok(StepRunResult {
-        success: status == 0,
-        exit_code: Some(status),
-    })
-}
-
-async fn wait_for_container_exit_code(docker: &Docker, container_name: &str) -> Result<i32> {
-    let mut stream = docker.wait_container(container_name, None::<WaitContainerOptions<String>>);
-    let Some(result) = stream.next().await else {
-        bail!("infra error: container lifecycle runtime failed: wait stream ended unexpectedly");
-    };
-    let result = result
-        .context("infra error: container lifecycle runtime failed: waiting for container failed")?;
-    let code = i32::try_from(result.status_code).unwrap_or(1);
-    Ok(code)
-}
-
-async fn cleanup_container(docker: &Docker, container_name: &str) -> Result<()> {
-    let _ = docker
-        .remove_container(
-            container_name,
-            Some(RemoveContainerOptions {
-                force: true,
-                ..Default::default()
-            }),
-        )
-        .await;
-    Ok(())
 }
 
 #[cfg(test)]

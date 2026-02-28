@@ -2,7 +2,11 @@
 
 #[test]
 fn container_runtime_embeds_bollard_lifecycle_calls() {
-    let source = include_str!("../src/lib.rs");
+    let source = format!(
+        "{}\n{}",
+        include_str!("../src/lib.rs"),
+        include_str!("../src/container_runtime.rs")
+    );
     assert!(
         source.contains("bollard::Docker"),
         "container runtime must use bollard Docker client for lifecycle control"

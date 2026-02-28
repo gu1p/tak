@@ -341,6 +341,71 @@ fn resolve_cwd_preserves_absolute_paths() {
 }
 
 #[test]
+fn build_container_step_spec_cmd_merges_runtime_env_and_resolves_relative_cwd() {
+    let workspace_root = std::env::temp_dir().join("tak-exec-container-step-cmd");
+    let step = tak_core::model::StepDef::Cmd {
+        argv: vec!["echo".to_string(), "hello".to_string()],
+        cwd: Some("apps/web".to_string()),
+        env: BTreeMap::from([
+            ("TAK_STEP_ONLY".to_string(), "1".to_string()),
+            ("TAK_OVERRIDE".to_string(), "step".to_string()),
+        ]),
+    };
+    let runtime_env = BTreeMap::from([
+        ("TAK_RUNTIME_ONLY".to_string(), "1".to_string()),
+        ("TAK_OVERRIDE".to_string(), "runtime".to_string()),
+    ]);
+
+    let spec = super::container_runtime::build_container_step_spec(
+        &step,
+        &workspace_root,
+        Some(&runtime_env),
+    )
+    .expect("cmd container step spec should build");
+
+    assert_eq!(spec.argv, vec!["echo".to_string(), "hello".to_string()]);
+    assert_eq!(spec.cwd, workspace_root.join("apps/web"));
+    assert_eq!(
+        spec.env.get("TAK_RUNTIME_ONLY").map(String::as_str),
+        Some("1")
+    );
+    assert_eq!(spec.env.get("TAK_STEP_ONLY").map(String::as_str), Some("1"));
+    assert_eq!(
+        spec.env.get("TAK_OVERRIDE").map(String::as_str),
+        Some("step")
+    );
+}
+
+#[test]
+fn build_container_step_spec_script_prefixes_interpreter_and_defaults_cwd() {
+    let workspace_root = std::env::temp_dir().join("tak-exec-container-step-script");
+    let step = tak_core::model::StepDef::Script {
+        path: "scripts/check.sh".to_string(),
+        argv: vec!["--verbose".to_string()],
+        interpreter: Some("/bin/sh".to_string()),
+        cwd: None,
+        env: BTreeMap::from([("TAK_SCRIPT_ENV".to_string(), "1".to_string())]),
+    };
+
+    let spec = super::container_runtime::build_container_step_spec(&step, &workspace_root, None)
+        .expect("script container step spec should build");
+
+    assert_eq!(
+        spec.argv,
+        vec![
+            "/bin/sh".to_string(),
+            "scripts/check.sh".to_string(),
+            "--verbose".to_string()
+        ]
+    );
+    assert_eq!(spec.cwd, workspace_root);
+    assert_eq!(
+        spec.env.get("TAK_SCRIPT_ENV").map(String::as_str),
+        Some("1")
+    );
+}
+
+#[test]
 fn convert_needs_maps_limiter_fields_into_wire_shape() {
     let needs = vec![
         NeedDef {
