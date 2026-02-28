@@ -3,9 +3,11 @@
 #[test]
 fn container_runtime_embeds_bollard_lifecycle_calls() {
     let source = format!(
-        "{}\n{}",
+        "{}\n{}\n{}\n{}",
         include_str!("../src/lib.rs"),
-        include_str!("../src/container_runtime.rs")
+        include_str!("../src/container_runtime.rs"),
+        include_str!("../src/container_runtime/foundation.rs"),
+        include_str!("../src/container_runtime/execution.rs")
     );
     assert!(
         source.contains("bollard::Docker"),

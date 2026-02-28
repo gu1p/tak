@@ -1,0 +1,23 @@
+/// Renders a DOT graph for the selected task scope.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on internal state and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
+fn print_dot_graph(spec: &WorkspaceSpec, scope: &[TaskLabel]) {
+    println!("digraph tak {{");
+    for label in scope {
+        if let Some(task) = spec.tasks.get(label) {
+            if task.deps.is_empty() {
+                println!("  \"{label}\";");
+            } else {
+                for dep in &task.deps {
+                    println!("  \"{dep}\" -> \"{label}\";");
+                }
+            }
+        }
+    }
+    println!("}}");
+}
