@@ -1,4 +1,6 @@
-async fn try_run_via_daemon(
+use super::*;
+
+pub(super) async fn try_run_via_daemon(
     socket_path: PathBuf,
     workspace_root: PathBuf,
     targets: &[TaskLabel],

@@ -3,10 +3,12 @@
 //! This module serves an interactive graph UI with fully embedded assets and opens a
 //! browser tab in production builds.
 
-include!("web/types_and_assets.rs");
-include!("web/server.rs");
-include!("web/payload.rs");
-include!("web/handlers.rs");
+mod handlers;
+mod payload;
+mod server;
+mod types_and_assets;
+
+pub use server::serve_graph_ui;
 
 #[cfg(test)]
 mod tests;

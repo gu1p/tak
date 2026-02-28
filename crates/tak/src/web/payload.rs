@@ -1,4 +1,14 @@
-fn build_graph_payload(spec: &WorkspaceSpec, target: Option<&TaskLabel>) -> Result<GraphPayload> {
+use std::collections::{BTreeMap, BTreeSet};
+
+use anyhow::{Result, anyhow, bail};
+use tak_core::model::{TaskLabel, WorkspaceSpec};
+
+use super::types_and_assets::{GraphEdge, GraphNode, GraphPayload};
+
+pub(super) fn build_graph_payload(
+    spec: &WorkspaceSpec,
+    target: Option<&TaskLabel>,
+) -> Result<GraphPayload> {
     let selected = selected_labels(spec, target)?;
     let target_label = target.map(ToString::to_string);
 
@@ -9,7 +19,7 @@ fn build_graph_payload(spec: &WorkspaceSpec, target: Option<&TaskLabel>) -> Resu
         let task = spec
             .tasks
             .get(label)
-            .ok_or_else(|| anyhow::anyhow!("missing task for label {label}"))?;
+            .ok_or_else(|| anyhow!("missing task for label {label}"))?;
         for dep in &task.deps {
             if selected.contains(dep) {
                 edges.push(GraphEdge {
@@ -28,7 +38,7 @@ fn build_graph_payload(spec: &WorkspaceSpec, target: Option<&TaskLabel>) -> Resu
         let task = spec
             .tasks
             .get(label)
-            .ok_or_else(|| anyhow::anyhow!("missing task for label {label}"))?;
+            .ok_or_else(|| anyhow!("missing task for label {label}"))?;
 
         nodes.push(GraphNode {
             id: label.to_string(),
@@ -76,7 +86,7 @@ fn selected_labels(
         let task = spec
             .tasks
             .get(&current)
-            .ok_or_else(|| anyhow::anyhow!("task not found while walking closure: {current}"))?;
+            .ok_or_else(|| anyhow!("task not found while walking closure: {current}"))?;
         for dep in &task.deps {
             stack.push(dep.clone());
         }

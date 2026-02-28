@@ -1,9 +1,12 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
-use tak_core::model::{CurrentStateSpec, ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel};
+use tak_core::model::{
+    CurrentStateSpec, ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
+};
 
-use super::*;
+use super::payload::build_graph_payload;
+use super::server::should_auto_open_browser_for;
 
 fn label(package: &str, name: &str) -> TaskLabel {
     TaskLabel {
@@ -78,6 +81,16 @@ fn payload_with_target_contains_transitive_dependencies() {
             .iter()
             .any(|edge| edge.from == "pkg:b" && edge.to == "pkg:a")
     );
+}
+
+#[test]
+fn payload_with_unknown_target_returns_error() {
+    let workspace = workspace_fixture();
+    let missing = label("//pkg", "missing");
+    let error = build_graph_payload(&workspace, Some(&missing)).expect_err("target should fail");
+    let rendered = format!("{error:#}");
+    assert!(rendered.contains("task not found"));
+    assert!(rendered.contains("pkg:missing"));
 }
 
 #[test]

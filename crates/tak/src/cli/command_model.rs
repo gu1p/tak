@@ -1,14 +1,16 @@
+use super::*;
+
 #[derive(Debug, Parser)]
 #[command(name = "tak")]
 #[command(about = "Tak task orchestrator")]
 #[command(version = env!("TAK_VERSION"))]
-struct Cli {
+pub(super) struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    pub(super) command: Commands,
 }
 
 #[derive(Debug, Subcommand)]
-enum Commands {
+pub(super) enum Commands {
     List,
     Tree,
     Explain {
@@ -37,7 +39,7 @@ enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-enum DaemonCommands {
+pub(super) enum DaemonCommands {
     Start,
     Status,
 }

@@ -1,4 +1,6 @@
-fn buffer_to_plain_text(buffer: &Buffer) -> String {
+use super::*;
+
+pub(super) fn buffer_to_plain_text(buffer: &Buffer) -> String {
     let area = buffer.area;
     let mut lines = Vec::with_capacity(area.height as usize);
 
@@ -23,7 +25,7 @@ fn buffer_to_plain_text(buffer: &Buffer) -> String {
     lines.join("\n")
 }
 
-fn colorize_tree_output(raw: &str) -> String {
+pub(super) fn colorize_tree_output(raw: &str) -> String {
     let mut output = String::new();
     for line in raw.lines() {
         if line.contains("Tak Tree") {

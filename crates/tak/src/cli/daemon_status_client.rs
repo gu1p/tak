@@ -1,3 +1,5 @@
+use super::*;
+
 /// Requests daemon status over the Unix socket protocol.
 ///
 /// ```no_run
@@ -6,7 +8,7 @@
 /// #     Ok(())
 /// # }
 /// ```
-async fn query_daemon_status(socket_path: PathBuf) -> Result<takd::StatusSnapshot> {
+pub(super) async fn query_daemon_status(socket_path: PathBuf) -> Result<takd::StatusSnapshot> {
     let stream = UnixStream::connect(&socket_path)
         .await
         .with_context(|| format!("failed to connect to daemon at {}", socket_path.display()))?;

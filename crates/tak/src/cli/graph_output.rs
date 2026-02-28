@@ -1,3 +1,5 @@
+use super::*;
+
 /// Renders a DOT graph for the selected task scope.
 ///
 /// ```no_run
@@ -6,7 +8,7 @@
 /// #     Ok(())
 /// # }
 /// ```
-fn print_dot_graph(spec: &WorkspaceSpec, scope: &[TaskLabel]) {
+pub(super) fn print_dot_graph(spec: &WorkspaceSpec, scope: &[TaskLabel]) {
     println!("digraph tak {{");
     for label in scope {
         if let Some(task) = spec.tasks.get(label) {

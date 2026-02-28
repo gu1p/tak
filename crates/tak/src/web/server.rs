@@ -1,3 +1,17 @@
+use std::io::Write;
+
+use anyhow::{Context, Result};
+use axum::routing::get;
+use axum::{Router, serve};
+use tak_core::model::{TaskLabel, WorkspaceSpec};
+
+use super::handlers::{
+    app_js_handler, graph_json_handler, index_html_handler, styles_css_handler,
+    vis_network_css_handler, vis_network_js_handler,
+};
+use super::payload::build_graph_payload;
+use super::types_and_assets::WebState;
+
 /// Serves an interactive browser graph for the full workspace or one target closure.
 ///
 /// ```no_run
@@ -58,7 +72,7 @@ fn should_auto_open_browser() -> bool {
     should_auto_open_browser_for(cfg!(debug_assertions), env_flag_set("TAK_NO_BROWSER_OPEN"))
 }
 
-fn should_auto_open_browser_for(debug_assertions: bool, disable_open: bool) -> bool {
+pub(super) fn should_auto_open_browser_for(debug_assertions: bool, disable_open: bool) -> bool {
     !debug_assertions && !disable_open
 }
 

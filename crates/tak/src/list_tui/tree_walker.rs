@@ -1,11 +1,14 @@
-struct TreeWalker<'a> {
+use super::render::display_label;
+use super::*;
+
+pub(super) struct TreeWalker<'a> {
     children: &'a BTreeMap<TaskLabel, Vec<TaskLabel>>,
     seen: BTreeSet<TaskLabel>,
-    lines: Vec<String>,
+    pub(super) lines: Vec<String>,
 }
 
 impl<'a> TreeWalker<'a> {
-    fn new(children: &'a BTreeMap<TaskLabel, Vec<TaskLabel>>) -> Self {
+    pub(super) fn new(children: &'a BTreeMap<TaskLabel, Vec<TaskLabel>>) -> Self {
         Self {
             children,
             seen: BTreeSet::new(),
@@ -13,7 +16,7 @@ impl<'a> TreeWalker<'a> {
         }
     }
 
-    fn walk(&mut self, node: &TaskLabel, prefix: &str, is_last: bool, is_root: bool) {
+    pub(super) fn walk(&mut self, node: &TaskLabel, prefix: &str, is_last: bool, is_root: bool) {
         let branch = if is_root {
             ""
         } else if is_last {

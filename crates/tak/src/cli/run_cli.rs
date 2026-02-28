@@ -1,3 +1,5 @@
+use super::*;
+
 /// Parses CLI input and dispatches Tak commands.
 ///
 /// ```no_run
@@ -12,11 +14,11 @@ pub async fn run_cli() -> Result<()> {
     match cli.command {
         Commands::List => {
             let spec = load_workspace_from_cwd()?;
-            print!("{}", list_tui::render_list(&spec));
+            print!("{}", crate::list_tui::render_list(&spec));
         }
         Commands::Tree => {
             let spec = load_workspace_from_cwd()?;
-            print!("{}", list_tui::render_tree(&spec)?);
+            print!("{}", crate::list_tui::render_tree(&spec)?);
         }
         Commands::Explain { label } => {
             let spec = load_workspace_from_cwd()?;
@@ -62,7 +64,7 @@ pub async fn run_cli() -> Result<()> {
                 .map(parse_input_label)
                 .transpose()
                 .context("failed to parse optional web graph label")?;
-            web::serve_graph_ui(&spec, parsed.as_ref()).await?;
+            crate::web::serve_graph_ui(&spec, parsed.as_ref()).await?;
         }
         Commands::Run {
             labels,
