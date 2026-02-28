@@ -3,7 +3,7 @@
 //! This crate expands target dependencies, enforces execution ordering, applies retry and
 //! timeout policy, and optionally coordinates daemon leases around task execution.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs;
 use std::future::Future;
@@ -26,16 +26,26 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tak_core::model::{
-    BackoffDef, NeedDef, PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec,
-    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, RetryDef, Scope, StepDef,
-    TaskExecutionSpec, TaskLabel, WorkspaceSpec, build_current_state_manifest, normalize_path_ref,
+    PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
+    RemoteTransportKind, ResolvedTask, RetryDef, StepDef, TaskExecutionSpec, TaskLabel,
+    WorkspaceSpec, build_current_state_manifest, normalize_path_ref,
 };
 use tak_loader::evaluate_named_policy_decision;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpStream, UnixStream};
-use tokio::process::Command;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
+
+mod execution_graph;
+mod lease_client;
+mod retry;
+mod step_runner;
+mod summary;
+use execution_graph::collect_required_labels;
+use lease_client::{acquire_task_lease, release_task_lease};
+use retry::{retry_backoff_delay, should_retry};
+use step_runner::{StepRunResult, resolve_cwd, run_step};
+pub use summary::target_set_from_summary;
 
 #[derive(Debug, Clone)]
 pub struct RunOptions {
@@ -68,81 +78,6 @@ impl Default for RunOptions {
             user: None,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ClientInfo {
-    user: String,
-    pid: u32,
-    session_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct TaskInfo {
-    label: String,
-    attempt: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct NeedRequest {
-    name: String,
-    scope: Scope,
-    scope_key: Option<String>,
-    slots: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AcquireLeaseRequest {
-    request_id: String,
-    client: ClientInfo,
-    task: TaskInfo,
-    needs: Vec<NeedRequest>,
-    ttl_ms: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ReleaseLeaseRequest {
-    request_id: String,
-    lease_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct LeaseInfo {
-    lease_id: String,
-    ttl_ms: u64,
-    renew_after_ms: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PendingInfo {
-    queue_position: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Request {
-    AcquireLease(AcquireLeaseRequest),
-    ReleaseLease(ReleaseLeaseRequest),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Response {
-    LeaseGranted {
-        request_id: String,
-        lease: LeaseInfo,
-    },
-    LeasePending {
-        request_id: String,
-        pending: PendingInfo,
-    },
-    LeaseReleased {
-        request_id: String,
-    },
-    Error {
-        request_id: String,
-        message: String,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -326,9 +261,9 @@ pub async fn run_tasks(
 }
 
 #[derive(Debug, Clone)]
-struct LeaseContext {
-    user: String,
-    session_id: String,
+pub(crate) struct LeaseContext {
+    pub(crate) user: String,
+    pub(crate) session_id: String,
 }
 
 impl LeaseContext {
@@ -606,65 +541,6 @@ impl TransportFactory {
     fn phase_timeout(target: &StrictRemoteTarget, requested: Duration) -> Duration {
         requested.max(Self::adapter(target.transport_kind).min_phase_timeout())
     }
-}
-
-/// Collects all tasks required to execute `targets` including transitive dependencies.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn collect_required_labels(
-    spec: &WorkspaceSpec,
-    targets: &[TaskLabel],
-) -> Result<BTreeSet<TaskLabel>> {
-    let mut required = BTreeSet::new();
-    let mut visiting = Vec::new();
-
-    for target in targets {
-        dfs_collect(target, spec, &mut required, &mut visiting)?;
-    }
-
-    Ok(required)
-}
-
-/// Depth-first dependency traversal used to populate the required task set.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn dfs_collect(
-    label: &TaskLabel,
-    spec: &WorkspaceSpec,
-    required: &mut BTreeSet<TaskLabel>,
-    visiting: &mut Vec<TaskLabel>,
-) -> Result<()> {
-    if required.contains(label) {
-        return Ok(());
-    }
-
-    if visiting.contains(label) {
-        bail!("cycle detected while collecting dependencies at {label}");
-    }
-
-    let task = spec
-        .tasks
-        .get(label)
-        .ok_or_else(|| anyhow!("target does not exist: {label}"))?;
-
-    visiting.push(label.clone());
-    for dep in &task.deps {
-        dfs_collect(dep, spec, required, visiting)?;
-    }
-    visiting.pop();
-
-    required.insert(label.clone());
-    Ok(())
 }
 
 /// Runs one task with retries, acquiring and releasing leases per attempt when configured.
@@ -2761,204 +2637,6 @@ fn test_tor_onion_dial_addr() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-/// Repeatedly requests a lease for a task until granted or a terminal daemon error occurs.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-async fn acquire_task_lease(
-    task: &ResolvedTask,
-    attempt: u32,
-    options: &RunOptions,
-    lease_context: &LeaseContext,
-) -> Result<Option<String>> {
-    let Some(socket_path) = options.lease_socket.as_ref() else {
-        return Ok(None);
-    };
-
-    if task.needs.is_empty() {
-        return Ok(None);
-    }
-
-    let request_id = Uuid::new_v4().to_string();
-    let acquire_request = AcquireLeaseRequest {
-        request_id: request_id.clone(),
-        client: ClientInfo {
-            user: lease_context.user.clone(),
-            pid: std::process::id(),
-            session_id: lease_context.session_id.clone(),
-        },
-        task: TaskInfo {
-            label: task.label.to_string(),
-            attempt,
-        },
-        needs: convert_needs(&task.needs),
-        ttl_ms: options.lease_ttl_ms.max(1_000),
-    };
-
-    loop {
-        let response =
-            send_daemon_request(socket_path, Request::AcquireLease(acquire_request.clone()))
-                .await
-                .with_context(|| format!("lease acquire request failed for {}", task.label))?;
-
-        match response {
-            Response::LeaseGranted { lease, .. } => return Ok(Some(lease.lease_id)),
-            Response::LeasePending { .. } => {
-                let poll_ms = options.lease_poll_interval_ms.max(10);
-                tokio::time::sleep(Duration::from_millis(poll_ms)).await;
-            }
-            Response::Error { message, .. } => {
-                bail!(
-                    "daemon rejected lease request for {}: {message}",
-                    task.label
-                )
-            }
-            other => bail!("unexpected response while acquiring lease: {other:?}"),
-        }
-    }
-}
-
-/// Releases a previously granted lease id using the daemon protocol.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-async fn release_task_lease(lease_id: &str, options: &RunOptions) -> Result<()> {
-    let Some(socket_path) = options.lease_socket.as_ref() else {
-        return Ok(());
-    };
-
-    let response = send_daemon_request(
-        socket_path,
-        Request::ReleaseLease(ReleaseLeaseRequest {
-            request_id: Uuid::new_v4().to_string(),
-            lease_id: lease_id.to_string(),
-        }),
-    )
-    .await
-    .with_context(|| format!("release request failed for lease {lease_id}"))?;
-
-    match response {
-        Response::LeaseReleased { .. } => Ok(()),
-        Response::Error { message, .. } => bail!("daemon failed to release lease: {message}"),
-        other => bail!("unexpected response while releasing lease: {other:?}"),
-    }
-}
-
-/// Converts core model need definitions into daemon wire-format needs.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn convert_needs(needs: &[NeedDef]) -> Vec<NeedRequest> {
-    needs
-        .iter()
-        .map(|need| NeedRequest {
-            name: need.limiter.name.clone(),
-            scope: need.limiter.scope.clone(),
-            scope_key: need.limiter.scope_key.clone(),
-            slots: need.slots,
-        })
-        .collect()
-}
-
-/// Sends one NDJSON request to the daemon and returns the decoded response frame.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-async fn send_daemon_request(socket_path: &Path, request: Request) -> Result<Response> {
-    let stream = UnixStream::connect(socket_path)
-        .await
-        .with_context(|| format!("failed to connect to daemon at {}", socket_path.display()))?;
-
-    let payload = serde_json::to_string(&request)?;
-    let (reader_half, mut writer_half) = stream.into_split();
-
-    writer_half.write_all(payload.as_bytes()).await?;
-    writer_half.write_all(b"\n").await?;
-    writer_half.flush().await?;
-
-    let mut reader = BufReader::new(reader_half);
-    let mut line = String::new();
-    let bytes = reader.read_line(&mut line).await?;
-    if bytes == 0 {
-        bail!("daemon closed connection before response");
-    }
-
-    serde_json::from_str(line.trim_end()).context("failed to decode daemon response")
-}
-
-/// Returns true when the given exit code qualifies for retry under policy rules.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn should_retry(exit_code: Option<i32>, retry_on_exit: &[i32]) -> bool {
-    if retry_on_exit.is_empty() {
-        return true;
-    }
-
-    exit_code.is_some_and(|code| retry_on_exit.contains(&code))
-}
-
-/// Computes retry delay duration for the configured backoff strategy.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn retry_backoff_delay(backoff: &BackoffDef, attempt: u32) -> Duration {
-    match backoff {
-        BackoffDef::Fixed { seconds } => seconds_to_duration(*seconds),
-        BackoffDef::ExpJitter { min_s, max_s, .. } => {
-            let exponent = attempt.saturating_sub(1).min(20);
-            let factor = 1u64 << exponent;
-            let delay = (min_s * factor as f64).min(*max_s);
-            seconds_to_duration(delay)
-        }
-    }
-}
-
-/// Converts a floating-point second value into a clamped non-negative duration.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn seconds_to_duration(seconds: f64) -> Duration {
-    if !seconds.is_finite() || seconds <= 0.0 {
-        return Duration::ZERO;
-    }
-    Duration::from_secs_f64(seconds)
-}
-
-#[derive(Debug)]
-struct StepRunResult {
-    success: bool,
-    exit_code: Option<i32>,
-}
-
 /// Executes all steps in one task attempt and short-circuits on first failing step.
 ///
 /// ```no_run
@@ -3321,145 +2999,6 @@ async fn cleanup_container(docker: &Docker, container_name: &str) -> Result<()> 
         )
         .await;
     Ok(())
-}
-
-/// Executes one step definition with optional timeout enforcement.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-async fn run_step(
-    step: &StepDef,
-    timeout_s: Option<u64>,
-    workspace_root: &Path,
-    runtime_env: Option<&BTreeMap<String, String>>,
-) -> Result<StepRunResult> {
-    let (mut command, cwd) = build_command(step, workspace_root, runtime_env)?;
-    command.current_dir(cwd);
-    command.kill_on_drop(true);
-
-    let mut child = command.spawn().context("failed to spawn process")?;
-
-    let wait_result = if let Some(seconds) = timeout_s {
-        match tokio::time::timeout(Duration::from_secs(seconds), child.wait()).await {
-            Ok(wait) => wait.context("failed while waiting for process")?,
-            Err(_) => {
-                let _ = child.kill().await;
-                let _ = child.wait().await;
-                return Ok(StepRunResult {
-                    success: false,
-                    exit_code: None,
-                });
-            }
-        }
-    } else {
-        child
-            .wait()
-            .await
-            .context("failed while waiting for process")?
-    };
-
-    Ok(StepRunResult {
-        success: wait_result.success(),
-        exit_code: wait_result.code(),
-    })
-}
-
-/// Builds an executable process command and effective working directory for a step.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn build_command(
-    step: &StepDef,
-    workspace_root: &Path,
-    runtime_env: Option<&BTreeMap<String, String>>,
-) -> Result<(Command, PathBuf)> {
-    match step {
-        StepDef::Cmd { argv, cwd, env } => {
-            let (program, args) = argv
-                .split_first()
-                .ok_or_else(|| anyhow!("cmd step requires a non-empty argv"))?;
-            let mut command = Command::new(program);
-            command.args(args);
-            if let Some(runtime_env) = runtime_env {
-                for (key, value) in runtime_env {
-                    command.env(key, value);
-                }
-            }
-            for (key, value) in env {
-                command.env(key, value);
-            }
-            Ok((command, resolve_cwd(workspace_root, cwd)))
-        }
-        StepDef::Script {
-            path,
-            argv,
-            interpreter,
-            cwd,
-            env,
-        } => {
-            let mut command = if let Some(interpreter) = interpreter {
-                let mut cmd = Command::new(interpreter);
-                cmd.arg(path);
-                cmd.args(argv);
-                cmd
-            } else {
-                let mut cmd = Command::new(path);
-                cmd.args(argv);
-                cmd
-            };
-            if let Some(runtime_env) = runtime_env {
-                for (key, value) in runtime_env {
-                    command.env(key, value);
-                }
-            }
-            for (key, value) in env {
-                command.env(key, value);
-            }
-            Ok((command, resolve_cwd(workspace_root, cwd)))
-        }
-    }
-}
-
-/// Resolves a step-local working directory against the workspace root.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn resolve_cwd(workspace_root: &Path, cwd: &Option<String>) -> PathBuf {
-    match cwd {
-        Some(value) => {
-            let path = Path::new(value);
-            if path.is_absolute() {
-                path.to_path_buf()
-            } else {
-                workspace_root.join(path)
-            }
-        }
-        None => workspace_root.to_path_buf(),
-    }
-}
-
-/// Returns the set of labels included in a run summary.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-pub fn target_set_from_summary(summary: &RunSummary) -> HashSet<TaskLabel> {
-    summary.results.keys().cloned().collect()
 }
 
 #[cfg(test)]
