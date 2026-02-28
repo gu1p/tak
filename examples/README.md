@@ -41,7 +41,7 @@ tak daemon start
 |---|---|---|
 | small | 01-10 | isolated DSL/runtime behaviors |
 | medium | 11-20 | multi-feature scenarios + scoped coordination |
-| large | 21-24 | recursive multi-package topologies and realistic pipelines |
+| large | 21-28 | recursive topologies, remote execution, Tor transport, hybrid test pipelines |
 
 Feature areas covered:
 
@@ -53,6 +53,9 @@ Feature areas covered:
 - scope-aware limiter keys (machine/user/project/worktree)
 - daemon contention and lease scheduling
 - recursive monorepo and polyglot release chains
+- strict remote execution with artifact roundtrip
+- Tor onion transport execution parity
+- hybrid local+remote suites including failure diagnostics retrieval
 
 ## Catalog Contract Fields
 
@@ -63,7 +66,11 @@ Each `[[example]]` entry defines:
 - `explain_target`: target used for explain/graph checks
 - `expect_success`: expected run exit outcome
 - `requires_daemon`: whether daemon is required
-- `check_files`: output files that must exist on successful run
+- `remote_fixture` (optional): deterministic remote fixture (`direct_http` or `tor_onion_http`)
+- `expect_stdout_contains` (optional): substrings that must appear in `tak run` stdout
+- `expect_stderr_contains` (optional): substrings that must appear in `tak run` stderr
+- `check_files`: output files that must exist after `tak run` (useful for success and failure cases)
+- `check_file_contains` (optional): file content assertions using nested tables (`path` and `contains`)
 
 ## Validation
 

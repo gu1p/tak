@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use tak_core::model::Scope;
-use takd::{new_shared_manager_with_db, run_server};
+use takd::{SubmitAttemptStore, new_shared_manager_with_db, run_remote_v1_http_server, run_server};
 
 /// Represents one entry in `examples/catalog.toml`.
 #[derive(Debug, Deserialize)]
@@ -21,7 +21,30 @@ struct ExampleCase {
     explain_target: String,
     expect_success: bool,
     requires_daemon: bool,
+    #[serde(default)]
+    remote_fixture: Option<RemoteFixtureKind>,
+    #[serde(default)]
+    expect_stdout_contains: Vec<String>,
+    #[serde(default)]
+    expect_stderr_contains: Vec<String>,
     check_files: Vec<String>,
+    #[serde(default)]
+    check_file_contains: Vec<CheckFileContainsExpectation>,
+}
+
+/// Optional deterministic remote fixture kind for catalog examples.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RemoteFixtureKind {
+    DirectHttp,
+    TorOnionHttp,
+}
+
+/// File content contract check for one catalog example.
+#[derive(Debug, Deserialize)]
+struct CheckFileContainsExpectation {
+    path: String,
+    contains: String,
 }
 
 /// Represents the full catalog structure in `examples/catalog.toml`.
@@ -72,6 +95,16 @@ fn run_catalog_case(repo_root: &Path, case: &ExampleCase) {
     let working = temp.path().join("workspace");
     copy_dir_recursive(&source_example, &working);
 
+    let remote_fixture = maybe_start_remote_fixture(case, temp.path());
+    if let Some(fixture) = remote_fixture.as_ref() {
+        rewrite_remote_endpoint_placeholders(&working, &fixture.endpoint);
+    }
+
+    let mut env_overrides = Vec::new();
+    if let Some(fixture) = remote_fixture.as_ref() {
+        env_overrides.extend_from_slice(&fixture.env_overrides);
+    }
+
     let daemon = maybe_start_daemon(case, temp.path());
 
     run_tak_command(
@@ -79,38 +112,53 @@ fn run_catalog_case(repo_root: &Path, case: &ExampleCase) {
         daemon.as_ref().map(|d| d.socket.as_path()),
         &["list"],
         true,
+        &env_overrides,
     );
     run_tak_command(
         &working,
         daemon.as_ref().map(|d| d.socket.as_path()),
         &["graph", &case.explain_target, "--format", "dot"],
         true,
+        &env_overrides,
     );
     run_tak_command(
         &working,
         daemon.as_ref().map(|d| d.socket.as_path()),
         &["explain", &case.explain_target],
         true,
+        &env_overrides,
     );
-    run_tak_command(
+    let run_output = run_tak_command(
         &working,
         daemon.as_ref().map(|d| d.socket.as_path()),
         &["run", &case.run_target],
         case.expect_success,
+        &env_overrides,
     );
 
-    if case.expect_success {
-        for relative in &case.check_files {
-            let output = working.join(relative);
-            assert!(
-                output.exists(),
-                "expected output file missing for {}: {}",
+    assert_expected_substrings(case, &run_output.stdout, &run_output.stderr);
+    assert_expected_output_files(case, &working);
+
+    for check in &case.check_file_contains {
+        let output = working.join(&check.path);
+        let body = fs::read_to_string(&output).unwrap_or_else(|err| {
+            panic!(
+                "failed reading expected file content for {} at {}: {err}",
                 case.name,
                 output.display()
-            );
-        }
+            )
+        });
+        assert!(
+            body.contains(&check.contains),
+            "file content mismatch for {} at {}: expected to contain `{}`\nactual:\n{}",
+            case.name,
+            output.display(),
+            check.contains,
+            body
+        );
     }
 
+    drop(remote_fixture);
     drop(daemon);
 }
 
@@ -128,6 +176,118 @@ impl Drop for RunningDaemon {
         self.runtime.block_on(async {
             let _ = (&mut self.server).await;
         });
+    }
+}
+
+const REMOTE_ENDPOINT_PLACEHOLDER: &str = "__TAK_REMOTE_ENDPOINT__";
+const FIXTURE_TOR_ONION_HOST: &str =
+    "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion";
+
+/// Represents one running deterministic remote fixture for catalog execution.
+struct RunningRemoteFixture {
+    endpoint: String,
+    env_overrides: Vec<(String, String)>,
+    runtime: tokio::runtime::Runtime,
+    server: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for RunningRemoteFixture {
+    /// Aborts the background remote fixture server and synchronizes runtime shutdown.
+    fn drop(&mut self) {
+        self.server.abort();
+        self.runtime.block_on(async {
+            let _ = (&mut self.server).await;
+        });
+    }
+}
+
+/// Starts a deterministic remote fixture when the catalog case requires one.
+fn maybe_start_remote_fixture(
+    case: &ExampleCase,
+    temp_root: &Path,
+) -> Option<RunningRemoteFixture> {
+    let fixture = case.remote_fixture?;
+    let runtime = tokio::runtime::Runtime::new().expect("tokio runtime for remote fixture");
+    let listener = runtime
+        .block_on(async { tokio::net::TcpListener::bind("127.0.0.1:0").await })
+        .expect("bind local remote fixture listener");
+    let port = listener
+        .local_addr()
+        .expect("remote fixture local addr")
+        .port();
+
+    let store_db = temp_root.join(format!("remote-v1-{}.sqlite", case.name.replace('/', "_")));
+    let store = SubmitAttemptStore::with_db_path(store_db).expect("create submit attempt store");
+    let server = runtime.spawn(async move {
+        run_remote_v1_http_server(listener, store)
+            .await
+            .expect("remote fixture server should run");
+    });
+    wait_for_tcp_port(port, case);
+
+    let (endpoint, env_overrides) = match fixture {
+        RemoteFixtureKind::DirectHttp => (format!("http://127.0.0.1:{port}"), Vec::new()),
+        RemoteFixtureKind::TorOnionHttp => (
+            format!("http://{FIXTURE_TOR_ONION_HOST}:{port}"),
+            vec![(
+                "TAK_TEST_TOR_ONION_DIAL_ADDR".to_string(),
+                format!("127.0.0.1:{port}"),
+            )],
+        ),
+    };
+
+    Some(RunningRemoteFixture {
+        endpoint,
+        env_overrides,
+        runtime,
+        server,
+    })
+}
+
+/// Waits for one fixture TCP port to become available.
+fn wait_for_tcp_port(port: u16, case: &ExampleCase) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!(
+        "remote fixture did not become reachable for {} on 127.0.0.1:{}",
+        case.name, port
+    );
+}
+
+/// Rewrites placeholder endpoints inside copied TASKS files.
+fn rewrite_remote_endpoint_placeholders(working: &Path, endpoint: &str) {
+    rewrite_remote_endpoint_placeholders_in_dir(working, endpoint);
+}
+
+fn rewrite_remote_endpoint_placeholders_in_dir(root: &Path, endpoint: &str) {
+    let entries = fs::read_dir(root)
+        .unwrap_or_else(|err| panic!("failed to read directory {}: {err}", root.display()));
+    for entry in entries {
+        let entry =
+            entry.unwrap_or_else(|err| panic!("failed reading entry in {}: {err}", root.display()));
+        let path = entry.path();
+        if path.is_dir() {
+            rewrite_remote_endpoint_placeholders_in_dir(&path, endpoint);
+            continue;
+        }
+        if path.file_name().and_then(|name| name.to_str()) != Some("TASKS.py") {
+            continue;
+        }
+
+        let original = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed reading {}: {err}", path.display()));
+        if !original.contains(REMOTE_ENDPOINT_PLACEHOLDER) {
+            continue;
+        }
+
+        let replaced = original.replace(REMOTE_ENDPOINT_PLACEHOLDER, endpoint);
+        fs::write(&path, replaced)
+            .unwrap_or_else(|err| panic!("failed writing {}: {err}", path.display()));
     }
 }
 
@@ -179,11 +339,15 @@ fn run_tak_command(
     daemon_socket: Option<&Path>,
     args: &[&str],
     expect_success: bool,
-) {
+    env_overrides: &[(String, String)],
+) -> TakCommandOutput {
     let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
     command.current_dir(working_dir).args(args);
     if let Some(socket) = daemon_socket {
         command.env("TAKD_SOCKET", socket);
+    }
+    for (key, value) in env_overrides {
+        command.env(key, value);
     }
 
     let output = command.output().unwrap_or_else(|err| {
@@ -193,6 +357,8 @@ fn run_tak_command(
             working_dir.display()
         )
     });
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
     let success = output.status.success();
     if success != expect_success {
@@ -202,8 +368,53 @@ fn run_tak_command(
             working_dir.display(),
             expect_success,
             success,
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
+            stdout,
+            stderr
+        );
+    }
+
+    TakCommandOutput { stdout, stderr }
+}
+
+/// Captured text output for one CLI invocation.
+struct TakCommandOutput {
+    stdout: String,
+    stderr: String,
+}
+
+/// Validates run stdout/stderr substring expectations for one catalog case.
+fn assert_expected_substrings(case: &ExampleCase, stdout: &str, stderr: &str) {
+    for expected in &case.expect_stdout_contains {
+        assert!(
+            stdout.contains(expected),
+            "stdout contract mismatch for {}: expected to contain `{}`\nstdout:\n{}\nstderr:\n{}",
+            case.name,
+            expected,
+            stdout,
+            stderr
+        );
+    }
+    for expected in &case.expect_stderr_contains {
+        assert!(
+            stderr.contains(expected),
+            "stderr contract mismatch for {}: expected to contain `{}`\nstdout:\n{}\nstderr:\n{}",
+            case.name,
+            expected,
+            stdout,
+            stderr
+        );
+    }
+}
+
+/// Validates expected output file presence for one catalog case.
+fn assert_expected_output_files(case: &ExampleCase, working: &Path) {
+    for relative in &case.check_files {
+        let output = working.join(relative);
+        assert!(
+            output.exists(),
+            "expected output file missing for {}: {}",
+            case.name,
+            output.display()
         );
     }
 }
