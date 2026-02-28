@@ -7,27 +7,35 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::env;
 use std::fs;
 use std::future::Future;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use arti_client::TorClientConfig;
+use base64::Engine;
+use bollard::Docker;
+use bollard::container::{
+    Config as ContainerConfig, CreateContainerOptions, RemoveContainerOptions,
+    StartContainerOptions, WaitContainerOptions,
+};
+use bollard::image::CreateImageOptions;
+use bollard::models::HostConfig;
+use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tak_core::model::{
     BackoffDef, NeedDef, PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec,
-    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, StepDef, TaskExecutionSpec,
-    TaskLabel, WorkspaceSpec, build_current_state_manifest, normalize_path_ref,
+    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, RetryDef, Scope, StepDef,
+    TaskExecutionSpec, TaskLabel, WorkspaceSpec, build_current_state_manifest, normalize_path_ref,
 };
 use tak_loader::evaluate_named_policy_decision;
-use takd::{
-    AcquireLeaseRequest, ClientInfo, ContainerEngine, ContainerEngineProbe, HostPlatform,
-    NeedRequest, ReleaseLeaseRequest, Request, Response, TaskInfo,
-    select_container_engine_with_probe,
-};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpStream, UnixStream};
 use tokio::process::Command;
 use uuid::Uuid;
+use zip::write::SimpleFileOptions;
 
 #[derive(Debug, Clone)]
 pub struct RunOptions {
@@ -62,6 +70,128 @@ impl Default for RunOptions {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ClientInfo {
+    user: String,
+    pid: u32,
+    session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TaskInfo {
+    label: String,
+    attempt: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NeedRequest {
+    name: String,
+    scope: Scope,
+    scope_key: Option<String>,
+    slots: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AcquireLeaseRequest {
+    request_id: String,
+    client: ClientInfo,
+    task: TaskInfo,
+    needs: Vec<NeedRequest>,
+    ttl_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReleaseLeaseRequest {
+    request_id: String,
+    lease_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LeaseInfo {
+    lease_id: String,
+    ttl_ms: u64,
+    renew_after_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PendingInfo {
+    queue_position: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum Request {
+    AcquireLease(AcquireLeaseRequest),
+    ReleaseLease(ReleaseLeaseRequest),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum Response {
+    LeaseGranted {
+        request_id: String,
+        lease: LeaseInfo,
+    },
+    LeasePending {
+        request_id: String,
+        pending: PendingInfo,
+    },
+    LeaseReleased {
+        request_id: String,
+    },
+    Error {
+        request_id: String,
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ContainerEngine {
+    Docker,
+    Podman,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostPlatform {
+    MacOs,
+    Other,
+}
+
+impl HostPlatform {
+    fn current() -> Self {
+        if cfg!(target_os = "macos") {
+            Self::MacOs
+        } else {
+            Self::Other
+        }
+    }
+}
+
+trait ContainerEngineProbe {
+    fn probe(&mut self, engine: ContainerEngine) -> std::result::Result<(), String>;
+}
+
+fn select_container_engine_with_probe(
+    platform: HostPlatform,
+    probe: &mut impl ContainerEngineProbe,
+) -> Result<ContainerEngine> {
+    if probe.probe(ContainerEngine::Docker).is_ok() {
+        return Ok(ContainerEngine::Docker);
+    }
+
+    if platform == HostPlatform::MacOs && probe.probe(ContainerEngine::Podman).is_ok() {
+        return Ok(ContainerEngine::Podman);
+    }
+
+    let attempted = if platform == HostPlatform::MacOs {
+        "docker, podman"
+    } else {
+        "docker"
+    };
+    bail!("no container engine available; attempted probes: {attempted}");
+}
+
 #[derive(Debug, Clone)]
 pub struct TaskRunResult {
     pub attempts: u32,
@@ -89,6 +219,22 @@ pub struct SyncedOutput {
     pub path: String,
     pub digest: String,
     pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteWorkerExecutionSpec {
+    pub steps: Vec<StepDef>,
+    pub timeout_s: Option<u64>,
+    pub runtime: Option<RemoteRuntimeSpec>,
+    pub node_id: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteWorkerExecutionResult {
+    pub success: bool,
+    pub exit_code: Option<i32>,
+    pub runtime_kind: Option<String>,
+    pub runtime_engine: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -221,7 +367,20 @@ struct StrictRemoteTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RemoteProtocolMode {
     LegacyReachability,
-    HandshakeV1,
+    HandshakeV1 { remote_worker: bool },
+}
+
+impl RemoteProtocolMode {
+    fn is_handshake_v1(self) -> bool {
+        matches!(self, Self::HandshakeV1 { .. })
+    }
+
+    fn remote_worker(self) -> bool {
+        match self {
+            Self::HandshakeV1 { remote_worker } => remote_worker,
+            Self::LegacyReachability => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -239,6 +398,13 @@ struct RemoteProtocolResult {
     success: bool,
     exit_code: Option<i32>,
     synced_outputs: Vec<SyncedOutput>,
+    runtime_kind: Option<String>,
+    runtime_engine: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RemoteSubmitAck {
+    remote_worker: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -252,6 +418,7 @@ struct ParsedRemoteEvents {
 struct RemoteWorkspaceStage {
     temp_dir: tempfile::TempDir,
     manifest_hash: String,
+    archive_zip_base64: String,
 }
 
 #[derive(Debug, Clone)]
@@ -259,6 +426,21 @@ struct RuntimeExecutionMetadata {
     kind: String,
     engine: Option<String>,
     env_overrides: BTreeMap<String, String>,
+    container_plan: Option<ContainerExecutionPlan>,
+}
+
+#[derive(Debug, Clone)]
+struct ContainerExecutionPlan {
+    engine: ContainerEngine,
+    image: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RemoteSubmitContext<'a> {
+    task_run_id: &'a str,
+    attempt: u32,
+    task_label: &'a str,
+    remote_workspace: &'a RemoteWorkspaceStage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -513,37 +695,46 @@ async fn run_single_task(
         placement.strict_remote_target = Some(selected);
         placement.remote_protocol_mode = Some(mode);
     }
-    let mut runtime_metadata = match resolve_runtime_execution_metadata(task, &placement) {
-        Ok(metadata) => metadata,
-        Err(runtime_error) => {
-            if placement.ordered_remote_targets.is_empty()
-                || !is_container_lifecycle_failure(&runtime_error)
-            {
-                return Err(runtime_error);
-            }
+    let initial_protocol_mode = placement
+        .remote_protocol_mode
+        .unwrap_or(RemoteProtocolMode::LegacyReachability);
+    let mut runtime_metadata = if placement.placement_mode == PlacementMode::Remote
+        && initial_protocol_mode.remote_worker()
+    {
+        None
+    } else {
+        match resolve_runtime_execution_metadata(task, &placement) {
+            Ok(metadata) => metadata,
+            Err(runtime_error) => {
+                if placement.ordered_remote_targets.is_empty()
+                    || !is_container_lifecycle_failure(&runtime_error)
+                {
+                    return Err(runtime_error);
+                }
 
-            let failed_node_id = placement
-                .strict_remote_target
-                .as_ref()
-                .map(|target| target.node_id.clone())
-                .ok_or_else(|| {
-                    anyhow!(
-                        "infra error: missing strict remote target during runtime metadata resolution for task {}",
-                        task.label
+                let failed_node_id = placement
+                    .strict_remote_target
+                    .as_ref()
+                    .map(|target| target.node_id.clone())
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "infra error: missing strict remote target during runtime metadata resolution for task {}",
+                            task.label
+                        )
+                    })?;
+                let (fallback_target, fallback_mode, fallback_runtime_metadata) =
+                    fallback_after_container_lifecycle_failure(
+                        task,
+                        &placement.ordered_remote_targets,
+                        &failed_node_id,
+                        runtime_error.to_string(),
                     )
-                })?;
-            let (fallback_target, fallback_mode, fallback_runtime_metadata) =
-                fallback_after_container_lifecycle_failure(
-                    task,
-                    &placement.ordered_remote_targets,
-                    &failed_node_id,
-                    runtime_error.to_string(),
-                )
-                .await?;
-            placement.remote_node_id = Some(fallback_target.node_id.clone());
-            placement.strict_remote_target = Some(fallback_target);
-            placement.remote_protocol_mode = Some(fallback_mode);
-            fallback_runtime_metadata
+                    .await?;
+                placement.remote_node_id = Some(fallback_target.node_id.clone());
+                placement.strict_remote_target = Some(fallback_target);
+                placement.remote_protocol_mode = Some(fallback_mode);
+                fallback_runtime_metadata
+            }
         }
     };
     let remote_workspace = if placement.placement_mode == PlacementMode::Remote {
@@ -567,63 +758,87 @@ async fn run_single_task(
         let mut protocol_mode = placement
             .remote_protocol_mode
             .unwrap_or(RemoteProtocolMode::LegacyReachability);
-        if placement.placement_mode == PlacementMode::Remote
-            && protocol_mode == RemoteProtocolMode::HandshakeV1
-        {
+        let mut submit_ack = RemoteSubmitAck {
+            remote_worker: false,
+        };
+        if placement.placement_mode == PlacementMode::Remote && protocol_mode.is_handshake_v1() {
             let target = placement.strict_remote_target.clone().ok_or_else(|| {
                 anyhow!(
                     "infra error: missing strict remote target during submit for task {}",
                     task.label
                 )
             })?;
-            if let Err(submit_error) =
-                remote_protocol_submit(&target, &task_run_id, attempt, &task_label).await
+            let remote_workspace = remote_workspace.as_ref().ok_or_else(|| {
+                anyhow!(
+                    "infra error: missing staged remote workspace during submit for task {}",
+                    task.label
+                )
+            })?;
+            match remote_protocol_submit(
+                &target,
+                &task_run_id,
+                attempt,
+                &task_label,
+                task,
+                remote_workspace,
+                protocol_mode.remote_worker(),
+            )
+            .await
             {
-                if !placement.ordered_remote_targets.is_empty()
-                    && is_auth_submit_failure(&submit_error)
-                {
-                    let failed_node_id = target.node_id.clone();
-                    let (fallback_target, fallback_mode) = fallback_after_auth_submit_failure(
-                        task,
-                        &placement.ordered_remote_targets,
-                        &failed_node_id,
-                        &task_run_id,
-                        attempt,
-                        &task_label,
-                        submit_error.to_string(),
-                    )
-                    .await?;
-                    placement.remote_node_id = Some(fallback_target.node_id.clone());
-                    placement.strict_remote_target = Some(fallback_target);
-                    placement.remote_protocol_mode = Some(fallback_mode);
-                    protocol_mode = fallback_mode;
-                    runtime_metadata = resolve_runtime_execution_metadata(task, &placement)?;
-                } else {
-                    return Err(submit_error);
+                Ok(ack) => {
+                    submit_ack = ack;
+                }
+                Err(submit_error) => {
+                    if !placement.ordered_remote_targets.is_empty()
+                        && is_auth_submit_failure(&submit_error)
+                    {
+                        let failed_node_id = target.node_id.clone();
+                        let (fallback_target, fallback_mode, fallback_ack) =
+                            fallback_after_auth_submit_failure(
+                                task,
+                                &placement.ordered_remote_targets,
+                                &failed_node_id,
+                                RemoteSubmitContext {
+                                    task_run_id: &task_run_id,
+                                    attempt,
+                                    task_label: &task_label,
+                                    remote_workspace,
+                                },
+                                submit_error.to_string(),
+                            )
+                            .await?;
+                        placement.remote_node_id = Some(fallback_target.node_id.clone());
+                        placement.strict_remote_target = Some(fallback_target);
+                        placement.remote_protocol_mode = Some(fallback_mode);
+                        protocol_mode = fallback_mode;
+                        if !protocol_mode.remote_worker() {
+                            runtime_metadata =
+                                resolve_runtime_execution_metadata(task, &placement)?;
+                        }
+                        submit_ack = fallback_ack;
+                    } else {
+                        return Err(submit_error);
+                    }
                 }
             }
         }
 
         let lease_id = acquire_task_lease(task, attempt, options, lease_context).await?;
         let delegate_v1_remote_attempt = placement.placement_mode == PlacementMode::Remote
-            && protocol_mode == RemoteProtocolMode::HandshakeV1
-            && runtime_metadata.is_none();
-        let run_result = if delegate_v1_remote_attempt {
+            && protocol_mode.is_handshake_v1()
+            && (submit_ack.remote_worker || runtime_metadata.is_none());
+        let run_local_attempt = !delegate_v1_remote_attempt;
+        let run_result = if run_local_attempt {
+            run_task_steps_with_runtime(task, run_root, runtime_metadata.as_ref()).await
+        } else {
             Ok(StepRunResult {
                 success: true,
                 exit_code: Some(0),
             })
-        } else {
-            run_task_steps(
-                task,
-                run_root,
-                runtime_metadata.as_ref().map(|meta| &meta.env_overrides),
-            )
-            .await
         };
 
         let (remote_logs, protocol_result) = if placement.placement_mode == PlacementMode::Remote
-            && protocol_mode == RemoteProtocolMode::HandshakeV1
+            && protocol_mode.is_handshake_v1()
         {
             let target = placement.strict_remote_target.as_ref().ok_or_else(|| {
                 anyhow!(
@@ -648,20 +863,47 @@ async fn run_single_task(
         }
 
         let run = run_result?;
-        let (attempt_success, last_exit_code, synced_outputs) = match protocol_result {
+        let (
+            attempt_success,
+            last_exit_code,
+            synced_outputs,
+            remote_runtime_kind,
+            remote_runtime_engine,
+        ) = match protocol_result {
             Some(remote_result) => (
                 remote_result.success,
                 remote_result.exit_code.or(run.exit_code),
                 remote_result.synced_outputs,
+                remote_result.runtime_kind,
+                remote_result.runtime_engine,
             ),
-            None => (run.success, run.exit_code, Vec::new()),
+            None => (run.success, run.exit_code, Vec::new(), None, None),
         };
-        if let Some(staged_workspace) = remote_workspace.as_ref() {
-            sync_remote_outputs(
-                staged_workspace.temp_dir.path(),
-                workspace_root,
-                &synced_outputs,
-            )?;
+        if !synced_outputs.is_empty() {
+            if run_local_attempt {
+                if let Some(staged_workspace) = remote_workspace.as_ref() {
+                    sync_remote_outputs(
+                        staged_workspace.temp_dir.path(),
+                        workspace_root,
+                        &synced_outputs,
+                    )?;
+                }
+            } else if submit_ack.remote_worker {
+                let target = placement.strict_remote_target.as_ref().ok_or_else(|| {
+                    anyhow!(
+                        "infra error: missing strict remote target during output sync for task {}",
+                        task.label
+                    )
+                })?;
+                sync_remote_outputs_from_remote(
+                    target,
+                    &task_run_id,
+                    attempt,
+                    workspace_root,
+                    &synced_outputs,
+                )
+                .await?;
+            }
         }
 
         if attempt_success {
@@ -679,10 +921,13 @@ async fn run_single_task(
                 context_manifest_hash: remote_workspace
                     .as_ref()
                     .map(|staged| staged.manifest_hash.clone()),
-                remote_runtime_kind: runtime_metadata.as_ref().map(|meta| meta.kind.clone()),
-                remote_runtime_engine: runtime_metadata
-                    .as_ref()
-                    .and_then(|meta| meta.engine.clone()),
+                remote_runtime_kind: remote_runtime_kind
+                    .or_else(|| runtime_metadata.as_ref().map(|meta| meta.kind.clone())),
+                remote_runtime_engine: remote_runtime_engine.or_else(|| {
+                    runtime_metadata
+                        .as_ref()
+                        .and_then(|meta| meta.engine.clone())
+                }),
                 remote_logs,
                 synced_outputs,
             });
@@ -705,10 +950,13 @@ async fn run_single_task(
                 context_manifest_hash: remote_workspace
                     .as_ref()
                     .map(|staged| staged.manifest_hash.clone()),
-                remote_runtime_kind: runtime_metadata.as_ref().map(|meta| meta.kind.clone()),
-                remote_runtime_engine: runtime_metadata
-                    .as_ref()
-                    .and_then(|meta| meta.engine.clone()),
+                remote_runtime_kind: remote_runtime_kind
+                    .or_else(|| runtime_metadata.as_ref().map(|meta| meta.kind.clone())),
+                remote_runtime_engine: remote_runtime_engine.or_else(|| {
+                    runtime_metadata
+                        .as_ref()
+                        .and_then(|meta| meta.engine.clone())
+                }),
                 remote_logs,
                 synced_outputs,
             });
@@ -737,11 +985,77 @@ fn stage_remote_workspace(
     let manifest = build_current_state_manifest(available_files, &task.context);
     let staged_dir = tempfile::tempdir().context("failed to create staged remote workspace")?;
     materialize_manifest_files(workspace_root, staged_dir.path(), &manifest.entries)?;
+    let archive_zip_base64 = build_zip_snapshot_base64(staged_dir.path())?;
 
     Ok(RemoteWorkspaceStage {
         temp_dir: staged_dir,
         manifest_hash: manifest.hash,
+        archive_zip_base64,
     })
+}
+
+fn build_zip_snapshot_base64(staged_root: &Path) -> Result<String> {
+    let mut archive_bytes = Vec::<u8>::new();
+    {
+        let cursor = std::io::Cursor::new(&mut archive_bytes);
+        let mut zip = zip::ZipWriter::new(cursor);
+        write_zip_entries_recursive(staged_root, staged_root, &mut zip)?;
+        zip.finish()
+            .context("failed finishing staged workspace zip snapshot")?;
+    }
+    Ok(base64::engine::general_purpose::STANDARD.encode(archive_bytes))
+}
+
+fn write_zip_entries_recursive<W: Write + std::io::Seek>(
+    staged_root: &Path,
+    current_dir: &Path,
+    zip: &mut zip::ZipWriter<W>,
+) -> Result<()> {
+    for entry in fs::read_dir(current_dir)
+        .with_context(|| format!("failed to read staged directory {}", current_dir.display()))?
+    {
+        let entry = entry.with_context(|| {
+            format!(
+                "failed to read staged entry under {}",
+                current_dir.display()
+            )
+        })?;
+        let path = entry.path();
+        let file_type = entry.file_type().with_context(|| {
+            format!(
+                "failed to read staged file type for {}",
+                path.to_string_lossy()
+            )
+        })?;
+        if file_type.is_dir() {
+            write_zip_entries_recursive(staged_root, &path, zip)?;
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+
+        let relative = path.strip_prefix(staged_root).with_context(|| {
+            format!(
+                "failed to compute staged relative path {} under {}",
+                path.display(),
+                staged_root.display()
+            )
+        })?;
+        let name = normalize_filesystem_relative_path(relative);
+        let options = SimpleFileOptions::default();
+        zip.start_file(&name, options)
+            .with_context(|| format!("failed to start zip entry {name}"))?;
+        let mut file = fs::File::open(&path)
+            .with_context(|| format!("failed to open staged file {}", path.display()))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
+            .with_context(|| format!("failed to read staged file {}", path.display()))?;
+        zip.write_all(&buffer)
+            .with_context(|| format!("failed to write zip entry {name}"))?;
+    }
+
+    Ok(())
 }
 
 /// Collects all regular files under the workspace root as normalized workspace-anchored refs.
@@ -900,6 +1214,106 @@ fn sync_remote_outputs(
     Ok(())
 }
 
+async fn sync_remote_outputs_from_remote(
+    target: &StrictRemoteTarget,
+    task_run_id: &str,
+    attempt: u32,
+    workspace_root: &Path,
+    outputs: &[SyncedOutput],
+) -> Result<()> {
+    for output in outputs {
+        let relative_path = normalized_synced_output_path(output)?;
+        let path_query = relative_path.to_string_lossy().to_string();
+        let request_path =
+            format!("/v1/tasks/{task_run_id}/outputs?attempt={attempt}&path={path_query}");
+        let (status, response_body) = remote_protocol_http_request(
+            target,
+            "GET",
+            &request_path,
+            None,
+            "outputs",
+            Duration::from_secs(2),
+        )
+        .await?;
+        if status != 200 {
+            bail!(
+                "infra error: remote node {} output download failed for {} with HTTP {}",
+                target.node_id,
+                output.path,
+                status
+            );
+        }
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&response_body).with_context(|| {
+                format!(
+                    "infra error: remote node {} output download payload is invalid JSON for {}",
+                    target.node_id, output.path
+                )
+            })?;
+        let encoded = parsed
+            .get("data_base64")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| {
+                anyhow!(
+                    "infra error: remote node {} output download payload is missing data_base64 for {}",
+                    target.node_id,
+                    output.path
+                )
+            })?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .with_context(|| {
+                format!(
+                    "infra error: remote node {} output download payload has invalid base64 for {}",
+                    target.node_id, output.path
+                )
+            })?;
+
+        let destination = workspace_root.join(&relative_path);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).with_context(|| {
+                format!(
+                    "failed to create output sync directory {}",
+                    parent.to_string_lossy()
+                )
+            })?;
+        }
+        fs::write(&destination, &bytes).with_context(|| {
+            format!(
+                "failed to write remote output {} to {}",
+                output.path,
+                destination.display()
+            )
+        })?;
+
+        let copied_size = u64::try_from(bytes.len()).unwrap_or(0);
+        if copied_size != output.size_bytes {
+            bail!(
+                "infra error: remote output {} size mismatch after download (expected {}, got {})",
+                output.path,
+                output.size_bytes,
+                copied_size
+            );
+        }
+
+        let expected_digest = output
+            .digest
+            .strip_prefix("sha256:")
+            .unwrap_or(output.digest.as_str())
+            .to_string();
+        let actual_digest = format!("{:x}", Sha256::digest(&bytes));
+        if actual_digest != expected_digest {
+            bail!(
+                "infra error: remote output {} digest mismatch after download",
+                output.path
+            );
+        }
+    }
+
+    Ok(())
+}
+
 fn normalized_synced_output_path(output: &SyncedOutput) -> Result<PathBuf> {
     let normalized = normalize_path_ref("workspace", &output.path).map_err(|err| {
         anyhow!(
@@ -974,7 +1388,19 @@ fn resolve_runtime_execution_metadata_for_target(
     task: &ResolvedTask,
     target: &StrictRemoteTarget,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
-    let Some(runtime) = target.runtime.as_ref() else {
+    resolve_runtime_execution_metadata_for_node_runtime(
+        task,
+        &target.node_id,
+        target.runtime.as_ref(),
+    )
+}
+
+fn resolve_runtime_execution_metadata_for_node_runtime(
+    task: &ResolvedTask,
+    node_id: &str,
+    runtime: Option<&RemoteRuntimeSpec>,
+) -> Result<Option<RuntimeExecutionMetadata>> {
+    let Some(runtime) = runtime else {
         return Ok(None);
     };
 
@@ -982,7 +1408,7 @@ fn resolve_runtime_execution_metadata_for_target(
         RemoteRuntimeSpec::Containerized { image } => {
             maybe_fail_injected_container_lifecycle_stage(
                 task,
-                target,
+                node_id,
                 ContainerLifecycleStage::Pull,
             )?;
 
@@ -994,7 +1420,7 @@ fn resolve_runtime_execution_metadata_for_target(
             .map_err(|err| {
                 anyhow!(
                     "infra error: remote node {} container lifecycle {} failed for task {}: {}",
-                    target.node_id,
+                    node_id,
                     ContainerLifecycleStage::Start.as_str(),
                     task.label,
                     err
@@ -1003,7 +1429,7 @@ fn resolve_runtime_execution_metadata_for_target(
 
             maybe_fail_injected_container_lifecycle_stage(
                 task,
-                target,
+                node_id,
                 ContainerLifecycleStage::Start,
             )?;
 
@@ -1022,25 +1448,40 @@ fn resolve_runtime_execution_metadata_for_target(
 
             maybe_fail_injected_container_lifecycle_stage(
                 task,
-                target,
+                node_id,
                 ContainerLifecycleStage::Runtime,
             )?;
+
+            let container_plan = if should_use_simulated_container_runtime() {
+                None
+            } else {
+                Some(ContainerExecutionPlan {
+                    engine,
+                    image: image.clone(),
+                })
+            };
 
             Ok(Some(RuntimeExecutionMetadata {
                 kind: "containerized".to_string(),
                 engine: Some(engine_name),
                 env_overrides,
+                container_plan,
             }))
         }
     }
 }
 
+fn should_use_simulated_container_runtime() -> bool {
+    env::var("TAK_TEST_HOST_PLATFORM").is_ok()
+        || env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok()
+}
+
 fn maybe_fail_injected_container_lifecycle_stage(
     task: &ResolvedTask,
-    target: &StrictRemoteTarget,
+    node_id: &str,
     stage: ContainerLifecycleStage,
 ) -> Result<()> {
-    let Some(injected_stage) = test_injected_container_lifecycle_stage(&target.node_id) else {
+    let Some(injected_stage) = test_injected_container_lifecycle_stage(node_id) else {
         return Ok(());
     };
     if injected_stage != stage {
@@ -1049,7 +1490,7 @@ fn maybe_fail_injected_container_lifecycle_stage(
 
     bail!(
         "infra error: remote node {} container lifecycle {} failed for task {}: simulated deterministic failure",
-        target.node_id,
+        node_id,
         stage.as_str(),
         task.label
     );
@@ -1325,7 +1766,7 @@ fn should_reject_legacy_remote_mode(
     target: &StrictRemoteTarget,
     mode: RemoteProtocolMode,
 ) -> bool {
-    mode == RemoteProtocolMode::LegacyReachability
+    matches!(mode, RemoteProtocolMode::LegacyReachability)
         && matches!(task.execution, TaskExecutionSpec::RemoteOnly(_))
         && target.runtime.is_none()
 }
@@ -1429,11 +1870,9 @@ async fn fallback_after_auth_submit_failure(
     task: &ResolvedTask,
     candidates: &[StrictRemoteTarget],
     failed_node_id: &str,
-    task_run_id: &str,
-    attempt: u32,
-    task_label: &str,
+    submit: RemoteSubmitContext<'_>,
     initial_failure: String,
-) -> Result<(StrictRemoteTarget, RemoteProtocolMode)> {
+) -> Result<(StrictRemoteTarget, RemoteProtocolMode, RemoteSubmitAck)> {
     let mut failures = vec![initial_failure];
 
     for candidate in candidates {
@@ -1449,16 +1888,32 @@ async fn fallback_after_auth_submit_failure(
             }
         };
 
-        if mode == RemoteProtocolMode::HandshakeV1 {
-            match remote_protocol_submit(candidate, task_run_id, attempt, task_label).await {
-                Ok(()) => return Ok((candidate.clone(), mode)),
+        if mode.is_handshake_v1() {
+            match remote_protocol_submit(
+                candidate,
+                submit.task_run_id,
+                submit.attempt,
+                submit.task_label,
+                task,
+                submit.remote_workspace,
+                mode.remote_worker(),
+            )
+            .await
+            {
+                Ok(ack) => return Ok((candidate.clone(), mode, ack)),
                 Err(err) => {
                     failures.push(err.to_string());
                     continue;
                 }
             }
         } else {
-            return Ok((candidate.clone(), mode));
+            return Ok((
+                candidate.clone(),
+                mode,
+                RemoteSubmitAck {
+                    remote_worker: false,
+                },
+            ));
         }
     }
 
@@ -1571,7 +2026,18 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<Remo
         );
     }
 
-    Ok(RemoteProtocolMode::HandshakeV1)
+    let remote_worker = parsed
+        .get("remote_worker")
+        .and_then(serde_json::Value::as_bool)
+        .or_else(|| {
+            parsed
+                .get("execution_mode")
+                .and_then(serde_json::Value::as_str)
+                .map(|mode| mode == "remote_worker")
+        })
+        .unwrap_or(false);
+
+    Ok(RemoteProtocolMode::HandshakeV1 { remote_worker })
 }
 
 /// Submits one remote attempt after successful preflight.
@@ -1587,13 +2053,19 @@ async fn remote_protocol_submit(
     task_run_id: &str,
     attempt: u32,
     task_label: &str,
-) -> Result<()> {
-    let body = serde_json::json!({
-        "task_run_id": task_run_id,
-        "attempt": attempt,
-        "task_label": task_label,
-        "selected_node_id": target.node_id,
-    })
+    task: &ResolvedTask,
+    remote_workspace: &RemoteWorkspaceStage,
+    include_workspace_archive: bool,
+) -> Result<RemoteSubmitAck> {
+    let body = build_remote_submit_payload(
+        target,
+        task_run_id,
+        attempt,
+        task_label,
+        task,
+        remote_workspace,
+        include_workspace_archive,
+    )?
     .to_string();
 
     let (status, response_body) = remote_protocol_http_request(
@@ -1646,7 +2118,85 @@ async fn remote_protocol_submit(
         );
     }
 
-    Ok(())
+    let remote_worker = parsed
+        .as_ref()
+        .and_then(|value| {
+            value
+                .get("execution_mode")
+                .and_then(serde_json::Value::as_str)
+        })
+        .map(|mode| mode == "remote_worker")
+        .or_else(|| {
+            parsed.as_ref().and_then(|value| {
+                value
+                    .get("remote_worker")
+                    .and_then(serde_json::Value::as_bool)
+            })
+        })
+        .unwrap_or(false);
+
+    Ok(RemoteSubmitAck { remote_worker })
+}
+
+fn build_remote_submit_payload(
+    target: &StrictRemoteTarget,
+    task_run_id: &str,
+    attempt: u32,
+    task_label: &str,
+    task: &ResolvedTask,
+    remote_workspace: &RemoteWorkspaceStage,
+    include_workspace_archive: bool,
+) -> Result<serde_json::Value> {
+    if !include_workspace_archive {
+        return Ok(serde_json::json!({
+            "task_run_id": task_run_id,
+            "attempt": attempt,
+            "task_label": task_label,
+            "selected_node_id": target.node_id,
+            "workspace": {
+                "mode": "REPO_ZIP_SNAPSHOT",
+                "manifest_hash": remote_workspace.manifest_hash,
+            },
+        }));
+    }
+
+    let runtime = target
+        .runtime
+        .as_ref()
+        .map(remote_runtime_submit_value)
+        .unwrap_or(serde_json::Value::Null);
+
+    let steps = serde_json::to_value(&task.steps)
+        .context("failed serializing task steps for remote submit payload")?;
+
+    Ok(serde_json::json!({
+        "task_run_id": task_run_id,
+        "attempt": attempt,
+        "task_label": task_label,
+        "selected_node_id": target.node_id,
+        "workspace": {
+            "mode": "REPO_ZIP_SNAPSHOT",
+            "archive_zip_base64": remote_workspace.archive_zip_base64,
+            "manifest_hash": remote_workspace.manifest_hash,
+        },
+        "execution": {
+            "steps": steps,
+            "timeout_s": task.timeout_s,
+            "runtime": runtime,
+        },
+        "result": {
+            "sync_mode": "OUTPUTS_AND_LOGS",
+        },
+    }))
+}
+
+fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> serde_json::Value {
+    match runtime {
+        RemoteRuntimeSpec::Containerized { image } => serde_json::json!({
+            "kind": "containerized",
+            "image": image,
+        }),
+    }
 }
 
 /// Opens the remote event stream endpoint for one attempt.
@@ -1734,13 +2284,26 @@ fn parse_remote_events_response(
     response_body: &str,
     last_seen_seq: u64,
 ) -> Result<ParsedRemoteEvents> {
-    let parsed: serde_json::Value = serde_json::from_str(response_body).with_context(|| {
-        format!(
-            "infra error: remote node {} returned invalid JSON for events",
-            target.node_id
-        )
-    })?;
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(response_body)
+        && is_wrapped_remote_events_payload(&parsed)
+    {
+        return parse_wrapped_remote_events(target, &parsed, last_seen_seq);
+    }
 
+    parse_ndjson_remote_events(target, response_body, last_seen_seq)
+}
+
+fn is_wrapped_remote_events_payload(parsed: &serde_json::Value) -> bool {
+    parsed
+        .as_object()
+        .is_some_and(|object| object.contains_key("events") || object.contains_key("done"))
+}
+
+fn parse_wrapped_remote_events(
+    target: &StrictRemoteTarget,
+    parsed: &serde_json::Value,
+    last_seen_seq: u64,
+) -> Result<ParsedRemoteEvents> {
     let mut checkpoint = last_seen_seq;
     let mut remote_logs = Vec::new();
     let mut observed_new_log_seqs = HashSet::new();
@@ -1783,10 +2346,78 @@ fn parse_remote_events_response(
     }
     remote_logs.sort_unstable_by_key(|chunk| chunk.seq);
 
-    let done = parsed
-        .get("done")
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(true);
+    Ok(ParsedRemoteEvents {
+        next_seq: checkpoint,
+        done: parsed
+            .get("done")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true),
+        remote_logs,
+    })
+}
+
+fn parse_ndjson_remote_events(
+    target: &StrictRemoteTarget,
+    response_body: &str,
+    last_seen_seq: u64,
+) -> Result<ParsedRemoteEvents> {
+    let mut checkpoint = last_seen_seq;
+    let mut remote_logs = Vec::new();
+    let mut observed_new_log_seqs = HashSet::new();
+    let mut done = false;
+
+    for line in response_body
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        let event: serde_json::Value = serde_json::from_str(line).with_context(|| {
+            format!(
+                "infra error: remote node {} returned invalid NDJSON event line",
+                target.node_id
+            )
+        })?;
+        let Some(seq) = event.get("seq").and_then(serde_json::Value::as_u64) else {
+            continue;
+        };
+        if seq > checkpoint {
+            checkpoint = seq;
+        }
+        if seq <= last_seen_seq || !observed_new_log_seqs.insert(seq) {
+            continue;
+        }
+
+        let event_type = event
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .or_else(|| {
+                event
+                    .get("payload")
+                    .and_then(|payload| payload.get("kind"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .unwrap_or_default();
+        if event_type == "TASK_LOG_CHUNK" {
+            let payload = event.get("payload").unwrap_or(&serde_json::Value::Null);
+            let chunk = payload
+                .get("chunk")
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| payload.get("message").and_then(serde_json::Value::as_str))
+                .or_else(|| event.get("chunk").and_then(serde_json::Value::as_str))
+                .unwrap_or_default();
+            remote_logs.push(RemoteLogChunk {
+                seq,
+                chunk: chunk.to_string(),
+            });
+        }
+        if matches!(
+            event_type,
+            "TASK_COMPLETED" | "TASK_FAILED" | "TASK_TERMINAL"
+        ) {
+            done = true;
+        }
+    }
+    remote_logs.sort_unstable_by_key(|chunk| chunk.seq);
 
     Ok(ParsedRemoteEvents {
         next_seq: checkpoint,
@@ -1856,6 +2487,14 @@ async fn remote_protocol_result(
         success,
         exit_code,
         synced_outputs,
+        runtime_kind: parsed
+            .get("runtime")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        runtime_engine: parsed
+            .get("runtime_engine")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
     })
 }
 
@@ -2321,6 +2960,344 @@ async fn run_task_steps(
         success: true,
         exit_code: Some(0),
     })
+}
+
+async fn run_task_steps_with_runtime(
+    task: &ResolvedTask,
+    workspace_root: &Path,
+    runtime_metadata: Option<&RuntimeExecutionMetadata>,
+) -> Result<StepRunResult> {
+    if let Some(metadata) = runtime_metadata
+        && let Some(plan) = metadata.container_plan.as_ref()
+    {
+        return run_task_steps_in_container(
+            task,
+            workspace_root,
+            plan,
+            Some(&metadata.env_overrides),
+        )
+        .await;
+    }
+
+    run_task_steps(
+        task,
+        workspace_root,
+        runtime_metadata.map(|metadata| &metadata.env_overrides),
+    )
+    .await
+}
+
+pub async fn execute_remote_worker_steps(
+    workspace_root: &Path,
+    spec: &RemoteWorkerExecutionSpec,
+) -> Result<RemoteWorkerExecutionResult> {
+    let task = ResolvedTask {
+        label: TaskLabel {
+            package: "//".to_string(),
+            name: "remote_worker_task".to_string(),
+        },
+        doc: String::new(),
+        deps: Vec::new(),
+        steps: spec.steps.clone(),
+        needs: Vec::new(),
+        queue: None,
+        retry: RetryDef::default(),
+        timeout_s: spec.timeout_s,
+        context: tak_core::model::CurrentStateSpec::default(),
+        execution: TaskExecutionSpec::LocalOnly(tak_core::model::LocalSpec::default()),
+        tags: Vec::new(),
+    };
+
+    let runtime_metadata = match spec.runtime.as_ref() {
+        Some(runtime) => resolve_runtime_execution_metadata_for_node_runtime(
+            &task,
+            &spec.node_id,
+            Some(runtime),
+        )?,
+        None => None,
+    };
+
+    let result =
+        run_task_steps_with_runtime(&task, workspace_root, runtime_metadata.as_ref()).await?;
+    Ok(RemoteWorkerExecutionResult {
+        success: result.success,
+        exit_code: result.exit_code,
+        runtime_kind: runtime_metadata
+            .as_ref()
+            .map(|metadata| metadata.kind.clone()),
+        runtime_engine: runtime_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.engine.clone()),
+    })
+}
+
+#[derive(Debug)]
+struct ContainerStepSpec {
+    argv: Vec<String>,
+    cwd: PathBuf,
+    env: BTreeMap<String, String>,
+}
+
+async fn run_task_steps_in_container(
+    task: &ResolvedTask,
+    workspace_root: &Path,
+    plan: &ContainerExecutionPlan,
+    runtime_env: Option<&BTreeMap<String, String>>,
+) -> Result<StepRunResult> {
+    let docker = connect_container_engine(plan.engine).await?;
+    ensure_container_image(&docker, &plan.image).await?;
+
+    for step in &task.steps {
+        let step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
+        let status = run_step_in_container(
+            &docker,
+            &plan.image,
+            &step_spec,
+            task.timeout_s,
+            workspace_root,
+        )
+        .await?;
+        if !status.success {
+            return Ok(status);
+        }
+    }
+
+    Ok(StepRunResult {
+        success: true,
+        exit_code: Some(0),
+    })
+}
+
+async fn connect_container_engine(engine: ContainerEngine) -> Result<Docker> {
+    let docker = match engine {
+        ContainerEngine::Docker => Docker::connect_with_local_defaults().context(
+            "infra error: container lifecycle start failed: docker client connect failed",
+        )?,
+        ContainerEngine::Podman => connect_podman_client()?,
+    };
+    docker.ping().await.with_context(|| {
+        format!(
+            "infra error: container lifecycle start failed: {} ping failed",
+            engine_name(engine)
+        )
+    })?;
+    Ok(docker)
+}
+
+fn connect_podman_client() -> Result<Docker> {
+    for socket in podman_socket_candidates() {
+        let socket_path = socket.strip_prefix("unix://").unwrap_or(socket.as_str());
+        if let Ok(client) =
+            Docker::connect_with_unix(socket_path, 120, bollard::API_DEFAULT_VERSION)
+        {
+            return Ok(client);
+        }
+    }
+    bail!("infra error: container lifecycle start failed: no podman socket available");
+}
+
+fn podman_socket_candidates() -> Vec<String> {
+    let mut sockets = Vec::new();
+    if let Ok(explicit) = env::var("TAK_PODMAN_SOCKET") {
+        let explicit = explicit.trim();
+        if !explicit.is_empty() {
+            sockets.push(explicit.to_string());
+        }
+    }
+
+    if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
+        sockets.push(format!("unix://{runtime_dir}/podman/podman.sock"));
+    }
+
+    if let Ok(uid) = env::var("UID") {
+        let uid = uid.trim();
+        if !uid.is_empty() {
+            sockets.push(format!("unix:///run/user/{uid}/podman/podman.sock"));
+        }
+    }
+
+    sockets.push("unix:///run/podman/podman.sock".to_string());
+    sockets
+}
+
+fn engine_name(engine: ContainerEngine) -> &'static str {
+    match engine {
+        ContainerEngine::Docker => "docker",
+        ContainerEngine::Podman => "podman",
+    }
+}
+
+async fn ensure_container_image(docker: &Docker, image: &str) -> Result<()> {
+    match docker.inspect_image(image).await {
+        Ok(_) => return Ok(()),
+        Err(bollard::errors::Error::DockerResponseServerError {
+            status_code: 404, ..
+        }) => {}
+        Err(err) => {
+            return Err(err)
+                .context("infra error: container lifecycle pull failed: inspect image failed");
+        }
+    }
+
+    let mut stream = docker.create_image(
+        Some(CreateImageOptions {
+            from_image: image.to_string(),
+            ..Default::default()
+        }),
+        None,
+        None,
+    );
+    while let Some(item) = stream.next().await {
+        item.context("infra error: container lifecycle pull failed")?;
+    }
+    Ok(())
+}
+
+fn build_container_step_spec(
+    step: &StepDef,
+    workspace_root: &Path,
+    runtime_env: Option<&BTreeMap<String, String>>,
+) -> Result<ContainerStepSpec> {
+    match step {
+        StepDef::Cmd { argv, cwd, env } => {
+            if argv.is_empty() {
+                bail!("cmd step requires a non-empty argv");
+            }
+            let mut env_map = BTreeMap::new();
+            if let Some(runtime_env) = runtime_env {
+                env_map.extend(runtime_env.clone());
+            }
+            env_map.extend(env.clone());
+            Ok(ContainerStepSpec {
+                argv: argv.clone(),
+                cwd: resolve_cwd(workspace_root, cwd),
+                env: env_map,
+            })
+        }
+        StepDef::Script {
+            path,
+            argv,
+            interpreter,
+            cwd,
+            env,
+        } => {
+            let mut full_argv = Vec::with_capacity(argv.len() + 2);
+            if let Some(interpreter) = interpreter {
+                full_argv.push(interpreter.clone());
+                full_argv.push(path.clone());
+            } else {
+                full_argv.push(path.clone());
+            }
+            full_argv.extend(argv.clone());
+
+            let mut env_map = BTreeMap::new();
+            if let Some(runtime_env) = runtime_env {
+                env_map.extend(runtime_env.clone());
+            }
+            env_map.extend(env.clone());
+            Ok(ContainerStepSpec {
+                argv: full_argv,
+                cwd: resolve_cwd(workspace_root, cwd),
+                env: env_map,
+            })
+        }
+    }
+}
+
+async fn run_step_in_container(
+    docker: &Docker,
+    image: &str,
+    step: &ContainerStepSpec,
+    timeout_s: Option<u64>,
+    workspace_root: &Path,
+) -> Result<StepRunResult> {
+    let container_name = format!("tak-step-{}", Uuid::new_v4());
+    let bind_mount = format!(
+        "{}:{}:rw",
+        workspace_root.display(),
+        workspace_root.display()
+    );
+    let env = step
+        .env
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>();
+
+    let config = ContainerConfig {
+        image: Some(image.to_string()),
+        cmd: Some(step.argv.clone()),
+        env: Some(env),
+        working_dir: Some(step.cwd.to_string_lossy().to_string()),
+        attach_stdout: Some(true),
+        attach_stderr: Some(true),
+        tty: Some(false),
+        host_config: Some(HostConfig {
+            binds: Some(vec![bind_mount]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    docker
+        .create_container(
+            Some(CreateContainerOptions {
+                name: container_name.as_str(),
+                platform: None,
+            }),
+            config,
+        )
+        .await
+        .context("infra error: container lifecycle start failed: create container failed")?;
+    docker
+        .start_container(&container_name, None::<StartContainerOptions<String>>)
+        .await
+        .context("infra error: container lifecycle start failed: start container failed")?;
+
+    let wait_result = wait_for_container_exit_code(docker, &container_name);
+    let status = if let Some(seconds) = timeout_s {
+        match tokio::time::timeout(Duration::from_secs(seconds), wait_result).await {
+            Ok(result) => result?,
+            Err(_) => {
+                let _ = cleanup_container(docker, &container_name).await;
+                return Ok(StepRunResult {
+                    success: false,
+                    exit_code: None,
+                });
+            }
+        }
+    } else {
+        wait_result.await?
+    };
+
+    let _ = cleanup_container(docker, &container_name).await;
+    Ok(StepRunResult {
+        success: status == 0,
+        exit_code: Some(status),
+    })
+}
+
+async fn wait_for_container_exit_code(docker: &Docker, container_name: &str) -> Result<i32> {
+    let mut stream = docker.wait_container(container_name, None::<WaitContainerOptions<String>>);
+    let Some(result) = stream.next().await else {
+        bail!("infra error: container lifecycle runtime failed: wait stream ended unexpectedly");
+    };
+    let result = result
+        .context("infra error: container lifecycle runtime failed: waiting for container failed")?;
+    let code = i32::try_from(result.status_code).unwrap_or(1);
+    Ok(code)
+}
+
+async fn cleanup_container(docker: &Docker, container_name: &str) -> Result<()> {
+    let _ = docker
+        .remove_container(
+            container_name,
+            Some(RemoveContainerOptions {
+                force: true,
+                ..Default::default()
+            }),
+        )
+        .await;
+    Ok(())
 }
 
 /// Executes one step definition with optional timeout enforcement.

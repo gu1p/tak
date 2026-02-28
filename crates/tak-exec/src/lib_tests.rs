@@ -94,3 +94,22 @@ fn transport_variant_branching_isolated_to_transport_factory() {
         "transport variant branching must remain isolated to TransportFactory::adapter"
     );
 }
+
+#[test]
+fn ndjson_single_line_event_is_not_treated_as_wrapped_done_payload() {
+    let target = strict_remote_target(RemoteTransportKind::DirectHttps, "http://127.0.0.1:4242");
+    let response_body =
+        r#"{"seq":1,"type":"TASK_LOG_CHUNK","payload":{"kind":"TASK_LOG_CHUNK","chunk":"hello"}}"#;
+
+    let parsed =
+        parse_remote_events_response(&target, response_body, 0).expect("single NDJSON line parse");
+    assert_eq!(parsed.next_seq, 1);
+    assert!(!parsed.done);
+    assert_eq!(
+        parsed.remote_logs,
+        vec![RemoteLogChunk {
+            seq: 1,
+            chunk: "hello".to_string(),
+        }]
+    );
+}

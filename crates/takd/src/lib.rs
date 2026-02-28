@@ -10,15 +10,21 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
+use base64::Engine;
 use futures::StreamExt;
 use rusqlite::{Connection, ErrorCode, params};
 use safelog::DisplayRedacted;
 use serde::{Deserialize, Serialize};
-use tak_core::model::Scope;
+use sha2::{Digest, Sha256};
+use tak_core::label::parse_label;
+use tak_core::model::{RemoteRuntimeSpec, Scope, StepDef, normalize_path_ref};
+use tak_exec::{RemoteWorkerExecutionSpec, RunOptions, execute_remote_worker_steps, run_tasks};
+use tak_loader::{LoadOptions, load_workspace};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream, UnixListener, UnixStream};
 use tor_cell::relaycell::msg::Connected;
 use uuid::Uuid;
+use zip::read::ZipArchive;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientInfo {
@@ -69,6 +75,41 @@ pub struct StatusRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunTasksRequest {
+    pub request_id: String,
+    pub workspace_root: String,
+    pub labels: Vec<String>,
+    pub jobs: usize,
+    pub keep_going: bool,
+    pub lease_socket: Option<String>,
+    pub lease_ttl_ms: u64,
+    pub lease_poll_interval_ms: u64,
+    pub session_id: Option<String>,
+    pub user: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct RemoteWorkerSubmitPayload {
+    workspace_zip_base64: String,
+    steps: Vec<StepDef>,
+    timeout_s: Option<u64>,
+    runtime: Option<RemoteRuntimeSpec>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RemoteWorkerOutputRecord {
+    path: String,
+    digest: String,
+    size: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkspaceFileFingerprint {
+    digest: String,
+    size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeaseInfo {
     pub lease_id: String,
     pub ttl_ms: u64,
@@ -87,6 +128,7 @@ pub enum Request {
     RenewLease(RenewLeaseRequest),
     ReleaseLease(ReleaseLeaseRequest),
     Status(StatusRequest),
+    RunTasks(RunTasksRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +152,26 @@ pub enum Response {
     StatusSnapshot {
         request_id: String,
         status: StatusSnapshot,
+    },
+    RunStarted {
+        request_id: String,
+    },
+    RunTaskResult {
+        request_id: String,
+        label: String,
+        attempts: u32,
+        success: bool,
+        exit_code: Option<i32>,
+        placement: String,
+        remote_node: Option<String>,
+        transport: Option<String>,
+        reason: Option<String>,
+        context_hash: Option<String>,
+        runtime: Option<String>,
+        runtime_engine: Option<String>,
+    },
+    RunCompleted {
+        request_id: String,
     },
     Error {
         request_id: String,
@@ -1292,13 +1354,75 @@ async fn handle_client(stream: UnixStream, manager: SharedLeaseManager) -> Resul
 
         let request: Request = serde_json::from_str(line.trim_end())
             .with_context(|| format!("invalid request line: {}", line.trim_end()))?;
-        let response = dispatch_request(request, &manager)?;
-        let encoded = serde_json::to_string(&response)?;
-        writer_half.write_all(encoded.as_bytes()).await?;
-        writer_half.write_all(b"\n").await?;
-        writer_half.flush().await?;
+        match request {
+            Request::RunTasks(payload) => {
+                write_protocol_response(
+                    &mut writer_half,
+                    &Response::RunStarted {
+                        request_id: payload.request_id.clone(),
+                    },
+                )
+                .await?;
+                match execute_run_tasks_request(&payload).await {
+                    Ok(task_results) => {
+                        for task_result in task_results {
+                            write_protocol_response(
+                                &mut writer_half,
+                                &Response::RunTaskResult {
+                                    request_id: payload.request_id.clone(),
+                                    label: task_result.label,
+                                    attempts: task_result.attempts,
+                                    success: task_result.success,
+                                    exit_code: task_result.exit_code,
+                                    placement: task_result.placement,
+                                    remote_node: task_result.remote_node,
+                                    transport: task_result.transport,
+                                    reason: task_result.reason,
+                                    context_hash: task_result.context_hash,
+                                    runtime: task_result.runtime,
+                                    runtime_engine: task_result.runtime_engine,
+                                },
+                            )
+                            .await?;
+                        }
+                        write_protocol_response(
+                            &mut writer_half,
+                            &Response::RunCompleted {
+                                request_id: payload.request_id,
+                            },
+                        )
+                        .await?;
+                    }
+                    Err(err) => {
+                        write_protocol_response(
+                            &mut writer_half,
+                            &Response::Error {
+                                request_id: payload.request_id,
+                                message: err.to_string(),
+                            },
+                        )
+                        .await?;
+                    }
+                }
+            }
+            other => {
+                let response = dispatch_request(other, &manager)?;
+                write_protocol_response(&mut writer_half, &response).await?;
+            }
+        }
     }
 
+    Ok(())
+}
+
+async fn write_protocol_response(
+    writer: &mut tokio::net::unix::OwnedWriteHalf,
+    response: &Response,
+) -> Result<()> {
+    let encoded = serde_json::to_string(response)?;
+    writer.write_all(encoded.as_bytes()).await?;
+    writer.write_all(b"\n").await?;
+    writer.flush().await?;
     Ok(())
 }
 
@@ -1374,7 +1498,71 @@ fn dispatch_request(request: Request, manager: &SharedLeaseManager) -> Result<Re
                 status: guard.status(),
             })
         }
+        Request::RunTasks(_) => {
+            bail!("run tasks request must be handled by async client stream handler")
+        }
     }
+}
+
+#[derive(Debug)]
+struct RunTaskResultEnvelope {
+    label: String,
+    attempts: u32,
+    success: bool,
+    exit_code: Option<i32>,
+    placement: String,
+    remote_node: Option<String>,
+    transport: Option<String>,
+    reason: Option<String>,
+    context_hash: Option<String>,
+    runtime: Option<String>,
+    runtime_engine: Option<String>,
+}
+
+async fn execute_run_tasks_request(
+    payload: &RunTasksRequest,
+) -> Result<Vec<RunTaskResultEnvelope>> {
+    let workspace_root = PathBuf::from(payload.workspace_root.trim());
+    if payload.labels.is_empty() {
+        bail!("run requires at least one label");
+    }
+
+    let spec = load_workspace(&workspace_root, &LoadOptions::default())?;
+    let mut targets = Vec::with_capacity(payload.labels.len());
+    for raw_label in &payload.labels {
+        let parsed = parse_label(raw_label, "//")
+            .map_err(|err| anyhow!("invalid label {raw_label}: {err}"))?;
+        targets.push(parsed);
+    }
+
+    let run_options = RunOptions {
+        jobs: payload.jobs,
+        keep_going: payload.keep_going,
+        lease_socket: payload.lease_socket.as_ref().map(PathBuf::from),
+        lease_ttl_ms: payload.lease_ttl_ms,
+        lease_poll_interval_ms: payload.lease_poll_interval_ms,
+        session_id: payload.session_id.clone(),
+        user: payload.user.clone(),
+    };
+    let summary = run_tasks(&spec, &targets, &run_options).await?;
+
+    let mut task_results = Vec::new();
+    for (label, result) in summary.results {
+        task_results.push(RunTaskResultEnvelope {
+            label: label.to_string(),
+            attempts: result.attempts,
+            success: result.success,
+            exit_code: result.exit_code,
+            placement: result.placement_mode.as_str().to_string(),
+            remote_node: result.remote_node_id,
+            transport: result.remote_transport_kind,
+            reason: result.decision_reason,
+            context_hash: result.context_manifest_hash,
+            runtime: result.remote_runtime_kind,
+            runtime_engine: result.remote_runtime_engine,
+        });
+    }
+    Ok(task_results)
 }
 
 /// Boots the daemon with default capacities and configured SQLite persistence.
@@ -1880,6 +2068,8 @@ pub fn handle_remote_v1_request(
             serde_json::json!({
                 "compatible": true,
                 "protocol_version": "v1",
+                "remote_worker": true,
+                "execution_mode": "remote_worker",
             }),
         ));
     }
@@ -1929,10 +2119,26 @@ pub fn handle_remote_v1_request(
             ));
         }
 
+        let worker_payload = parse_remote_worker_submit_payload(&payload)?;
         let registration = store.register_submit(task_run_id, attempt, selected_node_id)?;
         let (attached, idempotency_key) = match registration {
             SubmitRegistration::Created { idempotency_key } => (false, idempotency_key),
             SubmitRegistration::Attached { idempotency_key } => (true, idempotency_key),
+        };
+
+        if !attached && let Some(worker_payload) = worker_payload.clone() {
+            spawn_remote_worker_submit_execution(
+                store.clone(),
+                idempotency_key.clone(),
+                selected_node_id.to_string(),
+                worker_payload,
+            );
+        }
+
+        let execution_mode = if worker_payload.is_some() {
+            "remote_worker"
+        } else {
+            "store_only"
         };
         return Ok(json_response(
             200,
@@ -1940,6 +2146,8 @@ pub fn handle_remote_v1_request(
                 "accepted": true,
                 "attached": attached,
                 "idempotency_key": idempotency_key,
+                "execution_mode": execution_mode,
+                "remote_worker": worker_payload.is_some(),
             }),
         ));
     }
@@ -1991,6 +2199,48 @@ pub fn handle_remote_v1_request(
         });
     }
 
+    if let Some(task_run_id) = remote_task_path_arg(path_only, "/outputs")
+        && method == "GET"
+    {
+        let key = resolve_submit_idempotency_key_for_task_run(store, task_run_id, query)?;
+        let Some(key) = key else {
+            return Ok(json_response(
+                404,
+                serde_json::json!({"error":"task_not_found"}),
+            ));
+        };
+        let Some(raw_path) = query_param_string(query, "path") else {
+            return Ok(json_response(
+                400,
+                serde_json::json!({"error":"missing_output_path"}),
+            ));
+        };
+        let normalized = match normalize_path_ref("workspace", raw_path) {
+            Ok(path_ref) if path_ref.path != "." => path_ref.path,
+            _ => {
+                return Ok(json_response(
+                    400,
+                    serde_json::json!({"error":"invalid_output_path"}),
+                ));
+            }
+        };
+        let execution_root = execution_root_for_submit_key(&key);
+        let output_path = execution_root.join(&normalized);
+        let Ok(bytes) = fs::read(&output_path) else {
+            return Ok(json_response(
+                404,
+                serde_json::json!({"error":"output_not_found"}),
+            ));
+        };
+        return Ok(json_response(
+            200,
+            serde_json::json!({
+                "path": normalized,
+                "data_base64": base64::engine::general_purpose::STANDARD.encode(bytes),
+            }),
+        ));
+    }
+
     if let Some(task_run_id) = remote_task_path_arg(path_only, "/result")
         && method == "GET"
     {
@@ -2028,6 +2278,8 @@ pub fn handle_remote_v1_request(
                 "duration_ms": payload_value.get("duration_ms").cloned().unwrap_or_else(|| serde_json::json!(0)),
                 "node_id": node_id,
                 "transport_kind": payload_value.get("transport_kind").cloned().unwrap_or_else(|| serde_json::json!("direct")),
+                "runtime": payload_value.get("runtime").cloned().unwrap_or(serde_json::Value::Null),
+                "runtime_engine": payload_value.get("runtime_engine").cloned().unwrap_or(serde_json::Value::Null),
                 "log_artifact_uri": payload_value.get("log_artifact_uri").cloned().unwrap_or(serde_json::Value::Null),
                 "outputs": payload_value.get("outputs").cloned().unwrap_or_else(|| serde_json::json!([])),
                 "stdout_tail": payload_value.get("stdout_tail").cloned().unwrap_or(serde_json::Value::Null),
@@ -2058,6 +2310,385 @@ pub fn handle_remote_v1_request(
     ))
 }
 
+fn parse_remote_worker_submit_payload(
+    payload: &serde_json::Value,
+) -> Result<Option<RemoteWorkerSubmitPayload>> {
+    let Some(workspace) = payload
+        .get("workspace")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return Ok(None);
+    };
+    let mode = workspace
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    if mode != "REPO_ZIP_SNAPSHOT" {
+        return Ok(None);
+    }
+
+    let workspace_zip_base64 = workspace
+        .get("archive_zip_base64")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow!("invalid_submit_fields: missing workspace.archive_zip_base64"))?
+        .to_string();
+
+    let execution = payload
+        .get("execution")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| anyhow!("invalid_submit_fields: missing execution"))?;
+    let steps = execution
+        .get("steps")
+        .cloned()
+        .map(serde_json::from_value::<Vec<StepDef>>)
+        .transpose()
+        .context("invalid_submit_fields: execution.steps")?
+        .unwrap_or_default();
+    let timeout_s = execution
+        .get("timeout_s")
+        .and_then(serde_json::Value::as_u64);
+    let runtime = execution
+        .get("runtime")
+        .filter(|value| !value.is_null())
+        .map(parse_remote_worker_runtime_spec)
+        .transpose()
+        .context("invalid_submit_fields: execution.runtime")?;
+
+    Ok(Some(RemoteWorkerSubmitPayload {
+        workspace_zip_base64,
+        steps,
+        timeout_s,
+        runtime,
+    }))
+}
+
+fn parse_remote_worker_runtime_spec(value: &serde_json::Value) -> Result<RemoteRuntimeSpec> {
+    let Some(kind) = value.get("kind").and_then(serde_json::Value::as_str) else {
+        bail!("execution.runtime.kind is required");
+    };
+    match kind {
+        "containerized" => {
+            let image = value
+                .get("image")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| anyhow!("execution.runtime.image is required"))?;
+            Ok(RemoteRuntimeSpec::Containerized {
+                image: image.to_string(),
+            })
+        }
+        _ => bail!("unsupported execution.runtime.kind `{kind}`"),
+    }
+}
+
+fn spawn_remote_worker_submit_execution(
+    store: SubmitAttemptStore,
+    idempotency_key: String,
+    selected_node_id: String,
+    payload: RemoteWorkerSubmitPayload,
+) {
+    let thread_name = format!("takd-remote-worker-{idempotency_key}");
+    let spawn_result = std::thread::Builder::new()
+        .name(thread_name)
+        .spawn(move || {
+            run_remote_worker_submit_execution(
+                &store,
+                &idempotency_key,
+                &selected_node_id,
+                &payload,
+            )
+        });
+    if let Err(error) = spawn_result {
+        eprintln!("failed to spawn remote worker thread: {error}");
+    }
+}
+
+fn run_remote_worker_submit_execution(
+    store: &SubmitAttemptStore,
+    idempotency_key: &str,
+    selected_node_id: &str,
+    payload: &RemoteWorkerSubmitPayload,
+) {
+    let started_at = unix_epoch_ms();
+    if let Err(error) = store.append_event(
+        idempotency_key,
+        1,
+        &serde_json::json!({
+            "kind": "TASK_STARTED",
+            "timestamp_ms": started_at,
+        })
+        .to_string(),
+    ) {
+        eprintln!("failed to append TASK_STARTED event for submit {idempotency_key}: {error:#}");
+    }
+
+    let execution_result = execute_remote_worker_submit(idempotency_key, selected_node_id, payload);
+    let finished_at = unix_epoch_ms();
+    let duration_ms = finished_at.saturating_sub(started_at);
+
+    match execution_result {
+        Ok((result, outputs)) => {
+            let terminal_kind = if result.success {
+                "TASK_COMPLETED"
+            } else {
+                "TASK_FAILED"
+            };
+            let exit_code = result
+                .exit_code
+                .unwrap_or(if result.success { 0 } else { 1 });
+            if let Err(error) = store.append_event(
+                idempotency_key,
+                2,
+                &serde_json::json!({
+                    "kind": terminal_kind,
+                    "timestamp_ms": finished_at,
+                    "success": result.success,
+                    "exit_code": exit_code,
+                })
+                .to_string(),
+            ) {
+                eprintln!(
+                    "failed to append terminal event for submit {idempotency_key}: {error:#}"
+                );
+            }
+
+            if let Err(error) = store.set_result_payload(
+                idempotency_key,
+                &serde_json::json!({
+                    "success": result.success,
+                    "exit_code": exit_code,
+                    "started_at": started_at,
+                    "finished_at": finished_at,
+                    "duration_ms": duration_ms,
+                    "transport_kind": "direct",
+                    "sync_mode": "OUTPUTS_AND_LOGS",
+                    "outputs": outputs,
+                    "runtime": result.runtime_kind,
+                    "runtime_engine": result.runtime_engine,
+                })
+                .to_string(),
+            ) {
+                eprintln!("failed to persist submit result {idempotency_key}: {error:#}");
+            }
+        }
+        Err(error) => {
+            if let Err(append_error) = store.append_event(
+                idempotency_key,
+                2,
+                &serde_json::json!({
+                    "kind": "TASK_FAILED",
+                    "timestamp_ms": finished_at,
+                    "success": false,
+                    "exit_code": 1,
+                    "message": error.to_string(),
+                })
+                .to_string(),
+            ) {
+                eprintln!(
+                    "failed to append TASK_FAILED event for submit {idempotency_key}: {append_error:#}"
+                );
+            }
+
+            if let Err(persist_error) = store.set_result_payload(
+                idempotency_key,
+                &serde_json::json!({
+                    "success": false,
+                    "exit_code": 1,
+                    "started_at": started_at,
+                    "finished_at": finished_at,
+                    "duration_ms": duration_ms,
+                    "transport_kind": "direct",
+                    "sync_mode": "OUTPUTS_AND_LOGS",
+                    "outputs": serde_json::json!([]),
+                    "stderr_tail": error.to_string(),
+                })
+                .to_string(),
+            ) {
+                eprintln!(
+                    "failed to persist failure submit result {idempotency_key}: {persist_error:#}"
+                );
+            }
+        }
+    }
+}
+
+fn execute_remote_worker_submit(
+    idempotency_key: &str,
+    selected_node_id: &str,
+    payload: &RemoteWorkerSubmitPayload,
+) -> Result<(
+    tak_exec::RemoteWorkerExecutionResult,
+    Vec<RemoteWorkerOutputRecord>,
+)> {
+    let execution_root = execution_root_for_submit_key(idempotency_key);
+    if execution_root.exists() {
+        fs::remove_dir_all(&execution_root).with_context(|| {
+            format!(
+                "failed to clear existing remote execution root {}",
+                execution_root.display()
+            )
+        })?;
+    }
+    fs::create_dir_all(&execution_root).with_context(|| {
+        format!(
+            "failed to create remote execution root {}",
+            execution_root.display()
+        )
+    })?;
+
+    unpack_remote_worker_workspace(&payload.workspace_zip_base64, &execution_root)?;
+    let before = snapshot_workspace_files(&execution_root)?;
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("failed to create tokio runtime for remote worker execution")?;
+    let result = runtime.block_on(execute_remote_worker_steps(
+        &execution_root,
+        &RemoteWorkerExecutionSpec {
+            steps: payload.steps.clone(),
+            timeout_s: payload.timeout_s,
+            runtime: payload.runtime.clone(),
+            node_id: selected_node_id.to_string(),
+        },
+    ))?;
+    let outputs = changed_remote_worker_outputs(&execution_root, &before)?;
+
+    Ok((result, outputs))
+}
+
+fn unpack_remote_worker_workspace(workspace_zip_base64: &str, execution_root: &Path) -> Result<()> {
+    let archive_bytes = base64::engine::general_purpose::STANDARD
+        .decode(workspace_zip_base64)
+        .context("invalid_submit_fields: workspace archive base64 decode failed")?;
+    let cursor = std::io::Cursor::new(archive_bytes);
+    let mut archive = ZipArchive::new(cursor)
+        .context("invalid_submit_fields: workspace archive zip decode failed")?;
+
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .with_context(|| format!("failed to load zip entry index {index}"))?;
+        let entry_name = entry.name();
+        let normalized = normalize_path_ref("workspace", entry_name)
+            .with_context(|| format!("invalid workspace zip entry path `{entry_name}`"))?
+            .path;
+        if normalized == "." {
+            continue;
+        }
+
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| (mode & 0o170000) == 0o120000)
+        {
+            bail!("invalid workspace zip entry `{entry_name}`: symlink entries are unsupported");
+        }
+
+        let output_path = execution_root.join(&normalized);
+        if entry.is_dir() || entry_name.ends_with('/') {
+            fs::create_dir_all(&output_path).with_context(|| {
+                format!(
+                    "failed to create workspace directory {}",
+                    output_path.display()
+                )
+            })?;
+            continue;
+        }
+
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create workspace parent {}", parent.display())
+            })?;
+        }
+        let mut output_file = fs::File::create(&output_path).with_context(|| {
+            format!("failed to create workspace file {}", output_path.display())
+        })?;
+        std::io::copy(&mut entry, &mut output_file)
+            .with_context(|| format!("failed to write workspace file {}", output_path.display()))?;
+    }
+
+    Ok(())
+}
+
+fn snapshot_workspace_files(root: &Path) -> Result<HashMap<String, WorkspaceFileFingerprint>> {
+    let mut fingerprints = HashMap::new();
+    if !root.exists() {
+        return Ok(fingerprints);
+    }
+    snapshot_workspace_files_recursive(root, root, &mut fingerprints)?;
+    Ok(fingerprints)
+}
+
+fn snapshot_workspace_files_recursive(
+    root: &Path,
+    current: &Path,
+    fingerprints: &mut HashMap<String, WorkspaceFileFingerprint>,
+) -> Result<()> {
+    for entry in fs::read_dir(current)
+        .with_context(|| format!("failed to read directory {}", current.display()))?
+    {
+        let entry =
+            entry.with_context(|| format!("failed to iterate directory {}", current.display()))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("failed to inspect path {}", path.display()))?;
+        if file_type.is_dir() {
+            snapshot_workspace_files_recursive(root, &path, fingerprints)?;
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+
+        let relative = path
+            .strip_prefix(root)
+            .with_context(|| format!("failed to strip workspace prefix for {}", path.display()))?;
+        let normalized = relative.to_string_lossy().replace('\\', "/");
+        if normalized.is_empty() || normalized == "." {
+            continue;
+        }
+
+        let bytes =
+            fs::read(&path).with_context(|| format!("failed to read file {}", path.display()))?;
+        let digest = format!("sha256:{:x}", Sha256::digest(&bytes));
+        let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        fingerprints.insert(normalized, WorkspaceFileFingerprint { digest, size });
+    }
+
+    Ok(())
+}
+
+fn changed_remote_worker_outputs(
+    execution_root: &Path,
+    before: &HashMap<String, WorkspaceFileFingerprint>,
+) -> Result<Vec<RemoteWorkerOutputRecord>> {
+    let after = snapshot_workspace_files(execution_root)?;
+    let mut outputs = Vec::new();
+
+    for (path, fingerprint) in after {
+        let changed = match before.get(&path) {
+            Some(previous) => previous != &fingerprint,
+            None => true,
+        };
+        if !changed {
+            continue;
+        }
+
+        outputs.push(RemoteWorkerOutputRecord {
+            path,
+            digest: fingerprint.digest,
+            size: fingerprint.size,
+        });
+    }
+    outputs.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+
+    Ok(outputs)
+}
+
 fn resolve_submit_idempotency_key_for_task_run(
     store: &SubmitAttemptStore,
     task_run_id: &str,
@@ -2079,16 +2710,40 @@ fn split_path_and_query(path: &str) -> (&str, Option<&str>) {
     }
 }
 
-fn query_param_u64(query: Option<&str>, key: &str) -> Option<u64> {
+fn query_param_string<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
     let query = query?;
     query.split('&').find_map(|pair| {
         let (name, value) = pair.split_once('=')?;
-        if name == key {
-            value.parse::<u64>().ok()
-        } else {
-            None
-        }
+        if name == key { Some(value) } else { None }
     })
+}
+
+fn query_param_u64(query: Option<&str>, key: &str) -> Option<u64> {
+    query_param_string(query, key).and_then(|value| value.parse::<u64>().ok())
+}
+
+fn execution_root_for_submit_key(idempotency_key: &str) -> PathBuf {
+    let base = std::env::var("TAKD_REMOTE_EXEC_ROOT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("takd-remote-exec"));
+
+    base.join(sanitize_submit_idempotency_key(idempotency_key))
+}
+
+fn sanitize_submit_idempotency_key(idempotency_key: &str) -> String {
+    idempotency_key
+        .chars()
+        .map(|value| {
+            if value.is_ascii_alphanumeric() || matches!(value, '.' | '-' | '_') {
+                value
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 fn remote_task_path_arg<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {

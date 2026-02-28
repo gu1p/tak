@@ -57,10 +57,10 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 ## Phase 6: Real Container Runtime Contract (`V1_REFACTOR` runtime acceptance)
 
-- [ ] `BDD` Remote container task runs in a real containerized process context (not marker-only simulation).
-- [ ] `Integration` Engine selection enforces Docker-first and Podman fallback on macOS.
-- [ ] `Integration` Runtime unavailable behavior is explicit: infra error for strict pin; fallback semantics for `remote_any`.
-- [ ] `Integration` Streaming logs and output sync remain correct for containerized remote runs.
+- [x] `BDD` Remote container task runs in a real containerized process context (not marker-only simulation). Evidence: `remote_container_runtime_runs_in_real_container_context_when_enabled`, `container_runtime_embeds_bollard_lifecycle_calls`.
+- [x] `Integration` Engine selection enforces Docker-first and Podman fallback on macOS. Evidence: `remote_container_runtime_prefers_docker_without_probings_podman`, `remote_container_runtime_falls_back_to_podman_on_macos`, `run_remote_only_container_runtime_falls_back_to_podman_on_macos`.
+- [x] `Integration` Runtime unavailable behavior is explicit: infra error for strict pin; fallback semantics for `remote_any`. Evidence: `remote_container_runtime_strict_lifecycle_failure_returns_infra_error`, `remote_container_runtime_fallback_advances_on_first_lifecycle_failure`, `remote_container_runtime_all_candidates_fail_without_local_fallback`, `run_remote_only_container_runtime_unavailable_is_infra_error_without_local_fallback`.
+- [x] `Integration` Streaming logs and output sync remain correct for containerized remote runs. Evidence: `remote_container_runtime_stages_manifest_and_syncs_outputs_and_logs`.
 
 ## Phase 7: Spec Lock and Regression Guard
 

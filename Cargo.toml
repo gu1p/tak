@@ -17,6 +17,8 @@ license = "MIT"
 anyhow = "1.0"
 axum = "0.8"
 assert_cmd = "2.0"
+base64 = "0.22"
+bollard = "0.18"
 clap = { version = "4.5", features = ["derive"] }
 futures = "0.3"
 hex = "0.4"
@@ -35,5 +37,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
 webbrowser = "1.0"
+zip = "2.2"
 monty = { git = "https://github.com/pydantic/monty.git", package = "monty", rev = "9395c521d40a118edbf4bdb21bda6a61c70a5aec" }
 monty_type_checking = { git = "https://github.com/pydantic/monty.git", package = "monty_type_checking", rev = "9395c521d40a118edbf4bdb21bda6a61c70a5aec" }

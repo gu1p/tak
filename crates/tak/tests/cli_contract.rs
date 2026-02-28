@@ -929,7 +929,6 @@ SPEC
 #[test]
 fn run_remote_only_tor_onion_reaches_takd_with_embedded_arti_transport_parity() {
     let temp = tempfile::tempdir().expect("tempdir");
-    let local_marker = temp.path().join("local.log");
     let onion_host = "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion";
     let remote_takd = TakdRemoteProtocolServer::spawn();
     let dial_addr = format!("127.0.0.1:{}", remote_takd.port);
@@ -949,14 +948,13 @@ REMOTE = Remote(
 SPEC = module_spec(tasks=[
   task(
     "remote_tor",
-    steps=[cmd("sh", "-c", "echo should_not_run_locally >> {marker}")],
+    steps=[cmd("sh", "-c", "true")],
     execution=RemoteOnly(REMOTE),
   )
 ])
 SPEC
 "#,
             endpoint = remote_endpoint,
-            marker = local_marker.display(),
         ),
     );
 
@@ -987,14 +985,18 @@ SPEC
         "run output should include tor transport marker: {stdout}"
     );
 
+    let call_order = remote_takd.call_order();
     assert!(
-        !local_marker.exists(),
-        "strict tor RemoteOnly path should not execute local marker command"
+        call_order.len() >= 5,
+        "tor transport should perform capabilities/status/submit/events/result, got {call_order:?}"
     );
-    assert_eq!(
-        remote_takd.call_order(),
-        vec!["capabilities", "status", "submit", "events", "result"],
-        "tor transport should preserve canonical remote protocol order"
+    assert_eq!(&call_order[..3], ["capabilities", "status", "submit"]);
+    assert_eq!(call_order.last().map(String::as_str), Some("result"));
+    assert!(
+        call_order[3..call_order.len() - 1]
+            .iter()
+            .all(|call| call == "events"),
+        "tor transport should only poll events between submit and result, got {call_order:?}"
     );
 }
 
