@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use assert_cmd::assert::OutputAssertExt;
 use predicates::str::contains;
 use tak_core::model::Scope;
-use takd::{new_shared_manager_with_db, run_server};
+use takd::{SubmitAttemptStore, handle_remote_v1_request, new_shared_manager_with_db, run_server};
 
 /// Writes a `TASKS.py` file under `apps/web` for command-level tests.
 fn write_tasks(root: &std::path::Path, body: &str) {
@@ -394,6 +394,171 @@ impl Drop for FakeRemoteResumableEventsServer {
     }
 }
 
+#[derive(Debug)]
+struct ParsedHttpRequest {
+    method: String,
+    path: String,
+    body: Vec<u8>,
+}
+
+struct TakdRemoteProtocolServer {
+    port: u16,
+    calls: Arc<Mutex<Vec<String>>>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl TakdRemoteProtocolServer {
+    fn spawn() -> Self {
+        let state_dir = tempfile::tempdir().expect("tempdir for takd protocol server");
+        let db_path = state_dir.path().join("takd-remote.sqlite");
+        let store = SubmitAttemptStore::with_db_path(db_path).expect("create submit attempt store");
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind takd protocol server");
+        let port = listener.local_addr().expect("takd protocol addr").port();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let calls_for_thread = Arc::clone(&calls);
+
+        let handle = std::thread::spawn(move || {
+            let _state_dir_guard = state_dir;
+            loop {
+                let (mut stream, _) = listener.accept().expect("accept takd protocol request");
+                let request = read_http_request(&mut stream);
+                let path_only = request.path.split('?').next().unwrap_or("/");
+
+                if path_only == "/__shutdown" {
+                    let _ = try_write_http_response(
+                        &mut stream,
+                        "200 OK",
+                        "application/json",
+                        r#"{"shutdown":true}"#,
+                    );
+                    break;
+                }
+                if request.method.is_empty() {
+                    continue;
+                }
+
+                if let Some(marker) = remote_call_marker(path_only) {
+                    calls_for_thread
+                        .lock()
+                        .expect("lock takd protocol call order")
+                        .push(marker.to_string());
+                }
+
+                let request_body = if request.body.is_empty() {
+                    None
+                } else {
+                    Some(String::from_utf8_lossy(&request.body).to_string())
+                };
+                let response = handle_remote_v1_request(
+                    &store,
+                    &request.method,
+                    &request.path,
+                    request_body.as_deref(),
+                )
+                .expect("handle takd remote protocol request");
+
+                if request.method == "POST" && path_only == "/v1/tasks/submit" {
+                    persist_terminal_success_fixture_for_submit(&store, &response.body);
+                }
+
+                let status = http_status_text(response.status_code);
+                let _ = try_write_http_response(
+                    &mut stream,
+                    &status,
+                    &response.content_type,
+                    &response.body,
+                );
+            }
+        });
+
+        Self {
+            port,
+            calls,
+            handle: Some(handle),
+        }
+    }
+
+    fn endpoint_with_onion_host(&self, onion_host: &str) -> String {
+        format!("http://{onion_host}:{}", self.port)
+    }
+
+    fn call_order(&self) -> Vec<String> {
+        self.calls
+            .lock()
+            .expect("lock takd protocol call order")
+            .clone()
+    }
+}
+
+impl Drop for TakdRemoteProtocolServer {
+    fn drop(&mut self) {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", self.port)) {
+            let _ = stream.write_all(
+                b"GET /__shutdown HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+            );
+        }
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn remote_call_marker(path_only: &str) -> Option<&'static str> {
+    if path_only == "/v1/node/capabilities" {
+        return Some("capabilities");
+    }
+    if path_only == "/v1/node/status" {
+        return Some("status");
+    }
+    if path_only == "/v1/tasks/submit" {
+        return Some("submit");
+    }
+    if path_only.starts_with("/v1/tasks/") && path_only.ends_with("/events") {
+        return Some("events");
+    }
+    if path_only.starts_with("/v1/tasks/") && path_only.ends_with("/result") {
+        return Some("result");
+    }
+    None
+}
+
+fn persist_terminal_success_fixture_for_submit(store: &SubmitAttemptStore, response_body: &str) {
+    let parsed: serde_json::Value =
+        serde_json::from_str(response_body).expect("parse submit response JSON");
+    let idempotency_key = parsed
+        .get("idempotency_key")
+        .and_then(serde_json::Value::as_str)
+        .expect("submit response idempotency_key")
+        .to_string();
+
+    store
+        .append_event(
+            &idempotency_key,
+            1,
+            r#"{"kind":"TASK_LOG_CHUNK","chunk":"remote log\n","timestamp_ms":1700000000000}"#,
+        )
+        .expect("append deterministic remote event");
+    store
+        .set_result_payload(
+            &idempotency_key,
+            r#"{"success":true,"exit_code":0,"outputs":[]}"#,
+        )
+        .expect("persist deterministic remote result");
+}
+
+fn http_status_text(status_code: u16) -> String {
+    match status_code {
+        200 => "200 OK".to_string(),
+        202 => "202 Accepted".to_string(),
+        400 => "400 Bad Request".to_string(),
+        401 => "401 Unauthorized".to_string(),
+        403 => "403 Forbidden".to_string(),
+        404 => "404 Not Found".to_string(),
+        _ => format!("{status_code} Unknown"),
+    }
+}
+
 fn extract_query_u64(path: &str, key: &str) -> Option<u64> {
     let query = path.split_once('?')?.1;
     query.split('&').find_map(|pair| {
@@ -427,14 +592,74 @@ fn read_http_request_line(stream: &mut TcpStream) -> String {
         .to_string()
 }
 
-fn write_http_json_response(stream: &mut TcpStream, status: &str, body: &str) {
+fn read_http_request(stream: &mut TcpStream) -> ParsedHttpRequest {
+    let mut request_bytes = Vec::new();
+    let mut chunk = [0_u8; 1024];
+    let mut header_end = None;
+
+    while header_end.is_none() {
+        let read = stream.read(&mut chunk).expect("read request bytes");
+        if read == 0 {
+            break;
+        }
+        request_bytes.extend_from_slice(&chunk[..read]);
+        header_end = request_bytes
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .map(|idx| idx + 4);
+    }
+
+    let header_end = header_end.unwrap_or(request_bytes.len());
+    let header_text = String::from_utf8_lossy(&request_bytes[..header_end]);
+    let request_line = header_text.lines().next().unwrap_or_default();
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or_default().to_string();
+    let path = parts.next().unwrap_or("/").to_string();
+    let content_length = header_text
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.trim().eq_ignore_ascii_case("content-length") {
+                value.trim().parse::<usize>().ok()
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0);
+
+    let mut body = request_bytes[header_end..].to_vec();
+    while body.len() < content_length {
+        let read = stream.read(&mut chunk).expect("read request body bytes");
+        if read == 0 {
+            break;
+        }
+        body.extend_from_slice(&chunk[..read]);
+    }
+    body.truncate(content_length);
+
+    ParsedHttpRequest { method, path, body }
+}
+
+fn write_http_response(stream: &mut TcpStream, status: &str, content_type: &str, body: &str) {
+    try_write_http_response(stream, status, content_type, body)
+        .expect("write fake protocol response");
+}
+
+fn try_write_http_response(
+    stream: &mut TcpStream,
+    status: &str,
+    content_type: &str,
+    body: &str,
+) -> std::io::Result<()> {
     let response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
-    stream
-        .write_all(response.as_bytes())
-        .expect("write fake protocol response");
+    stream.write_all(response.as_bytes())
+}
+
+fn write_http_json_response(stream: &mut TcpStream, status: &str, body: &str) {
+    write_http_response(stream, status, "application/json", body);
 }
 
 /// Verifies `tak list` prints canonical labels and bracketed dependencies.
@@ -697,6 +922,79 @@ SPEC
         remote.call_order(),
         vec!["capabilities", "status", "submit", "events", "result"],
         "healthy strict node should complete canonical V1 handshake flow"
+    );
+}
+
+/// Verifies embedded Tor transport reaches onion `takd` with canonical V1 protocol order.
+#[test]
+fn run_remote_only_tor_onion_reaches_takd_with_embedded_arti_transport_parity() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let local_marker = temp.path().join("local.log");
+    let onion_host = "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion";
+    let remote_takd = TakdRemoteProtocolServer::spawn();
+    let dial_addr = format!("127.0.0.1:{}", remote_takd.port);
+    let remote_endpoint = remote_takd.endpoint_with_onion_host(onion_host);
+
+    write_tasks(
+        temp.path(),
+        &format!(
+            r#"
+REMOTE = Remote(
+  id="remote-tor",
+  transport=RemoteTransportMode.TorOnionService(
+    endpoint="{endpoint}",
+  ),
+)
+
+SPEC = module_spec(tasks=[
+  task(
+    "remote_tor",
+    steps=[cmd("sh", "-c", "echo should_not_run_locally >> {marker}")],
+    execution=RemoteOnly(REMOTE),
+  )
+])
+SPEC
+"#,
+            endpoint = remote_endpoint,
+            marker = local_marker.display(),
+        ),
+    );
+
+    let mut cmd = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    cmd.current_dir(temp.path())
+        .env("TAK_TEST_TOR_ONION_DIAL_ADDR", &dial_addr)
+        .args(["run", "apps/web:remote_tor"]);
+    let output = cmd.output().expect("run should execute");
+    assert!(
+        output.status.success(),
+        "tor remote run must succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stdout_raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi(&stdout_raw);
+    assert!(
+        stdout.contains("placement=remote"),
+        "run output should include remote placement marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("remote_node=remote-tor"),
+        "run output should include selected tor node marker: {stdout}"
+    );
+    assert!(
+        stdout.contains("transport=tor"),
+        "run output should include tor transport marker: {stdout}"
+    );
+
+    assert!(
+        !local_marker.exists(),
+        "strict tor RemoteOnly path should not execute local marker command"
+    );
+    assert_eq!(
+        remote_takd.call_order(),
+        vec!["capabilities", "status", "submit", "events", "result"],
+        "tor transport should preserve canonical remote protocol order"
     );
 }
 

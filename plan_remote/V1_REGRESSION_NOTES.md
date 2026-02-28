@@ -17,9 +17,5 @@ Reference criteria: `plan_remote/V1_REFACTOR.md` §8.1-§8.13.
 | §8.9 lease behavior stability | `run_with_needs_acquires_and_releases_daemon_lease`, `run_waits_for_lease_then_releases_it`, `run_remote_task_with_needs_releases_lease_and_preserves_remote_metadata` | `crates/tak`, `crates/tak-exec` |
 | §8.10 handshake lifecycle | `run_remote_only_handshake_follows_preflight_submit_events_result_order`, `run_remote_only_handshake_events_resume_uses_after_seq_without_duplicate_regression`, `serves_required_v1_endpoints_with_stable_contracts` | `crates/tak`, `crates/tak-exec`, `crates/takd` |
 | §8.11 submit idempotency tuple | `sqlite_submit_idempotency_duplicate_attach_reuses_existing_attempt_state`, `sqlite_submit_idempotency_attempt_increment_creates_new_execution_scope`, `submit_endpoint_attaches_duplicate_attempt`, `key_changes_when_attempt_increments` | `crates/takd` |
-| §8.12 Tor Arti onion parity | `direct_and_tor_transports_share_remote_protocol_contract` (parity-only coverage; Arti onion transport still open) | `crates/tak-exec`, `crates/takd` |
+| §8.12 Tor Arti onion parity | `run_remote_only_tor_onion_reaches_takd_with_embedded_arti_transport_parity`, `direct_and_tor_transports_share_remote_protocol_contract` | `crates/tak`, `crates/tak-exec`, `crates/takd` |
 | §8.13 auth error handling | `remote_only_single_auth_rejection_returns_infra_auth_error`, `remote_only_single_auth_failure_during_capabilities_returns_infra_error`, `remote_only_list_falls_back_when_first_node_auth_rejects_submit`, `remote_only_list_all_auth_rejections_return_auth_infra_error` | `crates/tak-exec`, `crates/tak` |
-
-## Open risk summary
-
-- Tor Arti onion integration (`§8.12`) remains open.

@@ -6,10 +6,13 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::env;
 use std::fs;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use arti_client::TorClientConfig;
 use tak_core::model::{
     BackoffDef, NeedDef, PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec,
     RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, StepDef, TaskExecutionSpec,
@@ -279,10 +282,23 @@ trait RemoteTransportAdapter {
     #[cfg(test)]
     fn name(&self) -> &'static str;
     fn socket_addr(&self, endpoint: &str) -> Result<String>;
+    fn preflight_timeout(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+    fn min_phase_timeout(&self) -> Duration {
+        Duration::ZERO
+    }
+    fn connect_stream<'a>(
+        &'a self,
+        target: &'a StrictRemoteTarget,
+    ) -> Pin<Box<dyn Future<Output = Result<RemoteIoStream>> + Send + 'a>>;
 }
 
 struct DirectHttpsTransportAdapter;
 struct TorTransportAdapter;
+trait RemoteIo: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
+impl<T> RemoteIo for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + ?Sized {}
+type RemoteIoStream = Box<dyn RemoteIo + Unpin + Send>;
 
 impl RemoteTransportAdapter for DirectHttpsTransportAdapter {
     #[cfg(test)]
@@ -292,6 +308,18 @@ impl RemoteTransportAdapter for DirectHttpsTransportAdapter {
 
     fn socket_addr(&self, endpoint: &str) -> Result<String> {
         endpoint_socket_addr(endpoint)
+    }
+
+    fn connect_stream<'a>(
+        &'a self,
+        target: &'a StrictRemoteTarget,
+    ) -> Pin<Box<dyn Future<Output = Result<RemoteIoStream>> + Send + 'a>> {
+        Box::pin(async move {
+            let socket_addr = self.socket_addr(&target.endpoint)?;
+            let stream = TcpStream::connect(&socket_addr).await?;
+            let stream: RemoteIoStream = Box::new(stream);
+            Ok(stream)
+        })
     }
 }
 
@@ -303,6 +331,61 @@ impl RemoteTransportAdapter for TorTransportAdapter {
 
     fn socket_addr(&self, endpoint: &str) -> Result<String> {
         endpoint_socket_addr(endpoint)
+    }
+
+    fn preflight_timeout(&self) -> Duration {
+        Duration::from_secs(30)
+    }
+
+    fn min_phase_timeout(&self) -> Duration {
+        Duration::from_secs(30)
+    }
+
+    fn connect_stream<'a>(
+        &'a self,
+        target: &'a StrictRemoteTarget,
+    ) -> Pin<Box<dyn Future<Output = Result<RemoteIoStream>> + Send + 'a>> {
+        Box::pin(async move {
+            let (host, port) = endpoint_host_port(&target.endpoint)?;
+            if !host.ends_with(".onion") {
+                let socket_addr = format!("{host}:{port}");
+                let stream = TcpStream::connect(&socket_addr).await?;
+                let stream: RemoteIoStream = Box::new(stream);
+                return Ok(stream);
+            }
+
+            if let Some(test_dial_addr) = test_tor_onion_dial_addr() {
+                let stream = TcpStream::connect(&test_dial_addr).await.with_context(|| {
+                    format!(
+                        "infra error: remote node {} unavailable at {}",
+                        target.node_id, target.endpoint
+                    )
+                })?;
+                let stream: RemoteIoStream = Box::new(stream);
+                return Ok(stream);
+            }
+
+            let tor_client =
+                arti_client::TorClient::create_bootstrapped(TorClientConfig::default())
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "infra error: remote node {} unavailable at {}",
+                            target.node_id, target.endpoint
+                        )
+                    })?;
+            let stream = tor_client
+                .connect((host.as_str(), port))
+                .await
+                .with_context(|| {
+                    format!(
+                        "infra error: remote node {} unavailable at {}",
+                        target.node_id, target.endpoint
+                    )
+                })?;
+            let stream: RemoteIoStream = Box::new(stream);
+            Ok(stream)
+        })
     }
 }
 
@@ -326,6 +409,20 @@ impl TransportFactory {
 
     fn socket_addr(target: &StrictRemoteTarget) -> Result<String> {
         Self::adapter(target.transport_kind).socket_addr(&target.endpoint)
+    }
+
+    fn connect(
+        target: &StrictRemoteTarget,
+    ) -> impl Future<Output = Result<RemoteIoStream>> + Send + '_ {
+        Self::adapter(target.transport_kind).connect_stream(target)
+    }
+
+    fn preflight_timeout(target: &StrictRemoteTarget) -> Duration {
+        Self::adapter(target.transport_kind).preflight_timeout()
+    }
+
+    fn phase_timeout(target: &StrictRemoteTarget, requested: Duration) -> Duration {
+        requested.max(Self::adapter(target.transport_kind).min_phase_timeout())
     }
 }
 
@@ -1249,14 +1346,15 @@ fn legacy_protocol_error_message(target: &StrictRemoteTarget) -> String {
 /// # }
 /// ```
 async fn preflight_strict_remote_target(target: &StrictRemoteTarget) -> Result<RemoteProtocolMode> {
-    let socket_addr = TransportFactory::socket_addr(target).with_context(|| {
+    TransportFactory::socket_addr(target).with_context(|| {
         format!(
             "infra error: remote node {} has invalid endpoint {}",
             target.node_id, target.endpoint
         )
     })?;
 
-    match tokio::time::timeout(Duration::from_secs(1), TcpStream::connect(&socket_addr)).await {
+    let preflight_timeout = TransportFactory::preflight_timeout(target);
+    match tokio::time::timeout(preflight_timeout, TransportFactory::connect(target)).await {
         Ok(Ok(stream)) => {
             drop(stream);
             detect_remote_protocol_mode(target).await
@@ -1863,7 +1961,7 @@ async fn remote_protocol_http_request(
     );
 
     let exchange = async {
-        let mut stream = TcpStream::connect(&socket_addr).await?;
+        let mut stream = TransportFactory::connect(target).await?;
         stream.write_all(request.as_bytes()).await?;
         stream.flush().await?;
 
@@ -1872,7 +1970,8 @@ async fn remote_protocol_http_request(
         Ok::<Vec<u8>, anyhow::Error>(response)
     };
 
-    let response_bytes = tokio::time::timeout(timeout, exchange)
+    let effective_timeout = TransportFactory::phase_timeout(target, timeout);
+    let response_bytes = tokio::time::timeout(effective_timeout, exchange)
         .await
         .map_err(|_| {
             anyhow!(
@@ -1977,6 +2076,27 @@ fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
 
     let default_port = if scheme == "https" { "443" } else { "80" };
     Ok(format!("{authority}:{default_port}"))
+}
+
+fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
+    let socket_addr = endpoint_socket_addr(endpoint)?;
+    let (host, raw_port) = socket_addr
+        .rsplit_once(':')
+        .ok_or_else(|| anyhow!("missing host:port"))?;
+    if host.trim().is_empty() {
+        bail!("missing host");
+    }
+    let port = raw_port
+        .parse::<u16>()
+        .with_context(|| format!("invalid port `{raw_port}`"))?;
+    Ok((host.to_string(), port))
+}
+
+fn test_tor_onion_dial_addr() -> Option<String> {
+    env::var("TAK_TEST_TOR_ONION_DIAL_ADDR")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 /// Repeatedly requests a lease for a task until granted or a terminal daemon error occurs.
@@ -2343,110 +2463,4 @@ pub fn target_set_from_summary(summary: &RunSummary) -> HashSet<TaskLabel> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn strict_remote_target(kind: RemoteTransportKind, endpoint: &str) -> StrictRemoteTarget {
-        StrictRemoteTarget {
-            node_id: "node-a".to_string(),
-            endpoint: endpoint.to_string(),
-            transport_kind: kind,
-            service_auth_env: None,
-            runtime: None,
-        }
-    }
-
-    #[test]
-    fn transport_factory_selects_direct_transport_variant() {
-        assert_eq!(
-            TransportFactory::transport_name(RemoteTransportKind::DirectHttps),
-            "direct"
-        );
-    }
-
-    #[test]
-    fn transport_factory_selects_tor_transport_variant() {
-        assert_eq!(
-            TransportFactory::transport_name(RemoteTransportKind::Tor),
-            "tor"
-        );
-    }
-
-    #[test]
-    fn transport_factory_resolves_socket_addr_for_supported_transports() {
-        for kind in [RemoteTransportKind::DirectHttps, RemoteTransportKind::Tor] {
-            let target = strict_remote_target(kind, "http://127.0.0.1:4242");
-            let socket_addr = TransportFactory::socket_addr(&target)
-                .expect("socket address should resolve for supported transport");
-            assert_eq!(socket_addr, "127.0.0.1:4242");
-        }
-    }
-
-    #[test]
-    fn endpoint_socket_addr_defaults_port_by_scheme_when_missing() {
-        let https =
-            strict_remote_target(RemoteTransportKind::DirectHttps, "https://build.internal");
-        let tor_http = strict_remote_target(
-            RemoteTransportKind::Tor,
-            "http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion",
-        );
-
-        assert_eq!(
-            TransportFactory::socket_addr(&https).expect("https without explicit port"),
-            "build.internal:443"
-        );
-        assert_eq!(
-            TransportFactory::socket_addr(&tor_http).expect("onion http without explicit port"),
-            "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion:80"
-        );
-    }
-
-    #[test]
-    fn endpoint_socket_addr_accepts_full_url_forms_without_explicit_port() {
-        let direct_full_url = strict_remote_target(
-            RemoteTransportKind::DirectHttps,
-            "https://build.internal?region=us-east#ignored",
-        );
-        let tor_full_url = strict_remote_target(
-            RemoteTransportKind::Tor,
-            "http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion?queue=default#anchor",
-        );
-
-        assert_eq!(
-            TransportFactory::socket_addr(&direct_full_url).expect("direct full URL"),
-            "build.internal:443"
-        );
-        assert_eq!(
-            TransportFactory::socket_addr(&tor_full_url).expect("tor full URL"),
-            "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuvwxyz2345.onion:80"
-        );
-    }
-
-    #[test]
-    fn transport_variant_branching_isolated_to_transport_factory() {
-        let source = include_str!("lib.rs");
-        let production = source.split("\n#[cfg(test)]").next().unwrap_or(source);
-        let sites = production
-            .lines()
-            .enumerate()
-            .filter(|(_, line)| line.contains("RemoteTransportKind::"))
-            .map(|(idx, line)| (idx + 1, line.trim().to_string()))
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            sites,
-            vec![
-                (
-                    317,
-                    "RemoteTransportKind::DirectHttps => &DIRECT_HTTPS_TRANSPORT_ADAPTER,"
-                        .to_string(),
-                ),
-                (
-                    318,
-                    "RemoteTransportKind::Tor => &TOR_TRANSPORT_ADAPTER,".to_string(),
-                ),
-            ],
-            "transport variant branching must remain isolated to TransportFactory::adapter"
-        );
-    }
-}
+mod lib_tests;

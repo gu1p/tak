@@ -727,7 +727,7 @@ impl LeaseManager {
                 user_name: row.get::<_, String>(3)?,
                 pid: row.get::<_, u32>(4)?,
                 needs_json: row.get::<_, String>(5)?,
-                ttl_ms: row.get::<_, u64>(6)?,
+                ttl_ms: row.get::<_, i64>(6)?,
                 expires_at_ms: row.get::<_, i64>(7)?,
             })
         })?;
@@ -741,6 +741,12 @@ impl LeaseManager {
                 continue;
             }
 
+            let ttl_ms = u64::try_from(row.ttl_ms).with_context(|| {
+                format!(
+                    "invalid persisted ttl_ms {} for lease {}",
+                    row.ttl_ms, row.lease_id
+                )
+            })?;
             let remaining_ms = (row.expires_at_ms - now_ms) as u64;
             let needs: Vec<NeedRequest> =
                 serde_json::from_str(&row.needs_json).with_context(|| {
@@ -753,7 +759,7 @@ impl LeaseManager {
                 LeaseRecord {
                     needs,
                     expires_at: Instant::now() + Duration::from_millis(remaining_ms),
-                    ttl_ms: row.ttl_ms,
+                    ttl_ms,
                     request_id: row.request_id,
                     task_label: row.task_label,
                     user_name: row.user_name,
@@ -790,7 +796,14 @@ impl LeaseManager {
         };
 
         let needs_json = serde_json::to_string(&record.needs)?;
-        let expires_at_ms = unix_epoch_ms() + record.ttl_ms as i64;
+        let ttl_ms = i64::try_from(record.ttl_ms)
+            .with_context(|| format!("ttl_ms {} exceeds sqlite range", record.ttl_ms))?;
+        let expires_at_ms = unix_epoch_ms().checked_add(ttl_ms).ok_or_else(|| {
+            anyhow!(
+                "ttl_ms overflow while computing expires_at_ms for lease {}",
+                lease_id
+            )
+        })?;
         conn.execute(
             "
             INSERT INTO active_leases (
@@ -812,7 +825,7 @@ impl LeaseManager {
                 record.user_name,
                 record.pid,
                 needs_json,
-                record.ttl_ms,
+                ttl_ms,
                 expires_at_ms
             ],
         )?;
@@ -910,7 +923,7 @@ struct StoredLeaseRow {
     user_name: String,
     pid: u32,
     needs_json: String,
-    ttl_ms: u64,
+    ttl_ms: i64,
     expires_at_ms: i64,
 }
 
@@ -1267,6 +1280,8 @@ impl SubmitAttemptStore {
         if payload_json.trim().is_empty() {
             bail!("event payload_json is required");
         }
+        let seq =
+            i64::try_from(seq).with_context(|| format!("event seq {seq} exceeds sqlite range"))?;
         let conn = self.open_connection()?;
         self.ensure_submit_attempt_exists(&conn, key)?;
         conn.execute(
@@ -1331,13 +1346,18 @@ impl SubmitAttemptStore {
             ",
         )?;
         let rows = stmt.query_map(params![key], |row| {
-            let seq = row.get::<_, u64>(0)?;
+            let seq = row.get::<_, i64>(0)?;
             let payload_json = row.get::<_, String>(1)?;
-            Ok(SubmitEventRecord { seq, payload_json })
+            Ok((seq, payload_json))
         })?;
         let mut events = Vec::new();
         for row in rows {
-            events.push(row?);
+            let (seq, payload_json) = row?;
+            events.push(SubmitEventRecord {
+                seq: u64::try_from(seq)
+                    .with_context(|| format!("invalid persisted submit event seq {seq}"))?,
+                payload_json,
+            });
         }
         Ok(events)
     }
@@ -1686,6 +1706,7 @@ pub fn handle_remote_v1_request(
         return Ok(json_response(
             200,
             serde_json::json!({
+                "success": success,
                 "status": status,
                 "exit_code": payload_value.get("exit_code").cloned().unwrap_or_else(|| serde_json::json!(1)),
                 "started_at": payload_value.get("started_at").cloned().unwrap_or_else(|| serde_json::json!(0)),

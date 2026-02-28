@@ -131,6 +131,10 @@ fn serves_required_v1_endpoints_with_stable_contracts() {
         Some("success")
     );
     assert_eq!(
+        result_json.get("success").and_then(Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
         result_json.get("exit_code").and_then(Value::as_i64),
         Some(0)
     );

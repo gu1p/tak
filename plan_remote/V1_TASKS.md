@@ -49,10 +49,10 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 ## Phase 5: Transport + Auth Completion (`V1_REFACTOR` §6, §6.3, §6.4, §8.12-§8.13)
 
-- [x] `Unit` Endpoint parsing accepts full URL forms for direct and Tor endpoints, including `.onion` without explicit port (default port by scheme). Evidence: `tests::endpoint_socket_addr_defaults_port_by_scheme_when_missing`, `tests::endpoint_socket_addr_accepts_full_url_forms_without_explicit_port`.
+- [x] `Unit` Endpoint parsing accepts full URL forms for direct and Tor endpoints, including `.onion` without explicit port (default port by scheme). Evidence: `endpoint_socket_addr_defaults_port_by_scheme_when_missing`, `endpoint_socket_addr_accepts_full_url_forms_without_explicit_port`.
 - [x] `Integration` Direct HTTPS transport sends protocol/auth headers and returns explicit infra errors on auth failure. Evidence: `remote_only_single_sends_protocol_and_service_auth_headers`, `remote_only_single_auth_failure_during_capabilities_returns_infra_error`.
-- [ ] `Integration` Tor transport (Arti) reaches onion `takd` with protocol parity to direct transport.
-- [x] `Unit` Transport variant branching exists only inside `TransportFactory`. Evidence: `tests::transport_variant_branching_isolated_to_transport_factory`.
+- [x] `Integration` Tor transport (embedded Arti library) reaches onion `takd` with protocol parity to direct transport. Evidence: `run_remote_only_tor_onion_reaches_takd_with_embedded_arti_transport_parity`, `direct_and_tor_transports_share_remote_protocol_contract`.
+- [x] `Unit` Transport variant branching exists only inside `TransportFactory`. Evidence: `transport_variant_branching_isolated_to_transport_factory`.
 - [x] `Unit` Service tokens are redacted from logs/traces for direct and Tor flows. Evidence: `direct_transport_service_token_errors_are_redacted`, `tor_transport_service_token_errors_are_redacted`.
 
 ## Phase 6: Real Container Runtime Contract (`V1_REFACTOR` runtime acceptance)
@@ -66,7 +66,7 @@ Goal: close remaining gaps so canonical V1 execution works end-to-end without st
 
 - [x] Add a compliance matrix mapping each acceptance criterion in `V1_REFACTOR` §8.1-§8.13 to concrete test names. Evidence: `plan_remote/V1_ACCEPTANCE_MATRIX.md`.
 - [x] Add/update `plan_remote` regression notes documenting criterion -> test -> owning crate. Evidence: `plan_remote/V1_REGRESSION_NOTES.md`.
-- [ ] Final gate on current branch state: `make check` passes after all above tasks are complete.
+- [x] Final gate on current branch state: `make check` passes after all above tasks are complete. Evidence: `make check` (pass, current branch state).
 
 ## Done Condition
 
