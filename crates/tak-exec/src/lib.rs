@@ -2213,12 +2213,12 @@ async fn remote_protocol_events(
 ) -> Result<Vec<RemoteLogChunk>> {
     const MAX_EVENT_RECONNECTS: u32 = 3;
     const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(50);
-    const MAX_EVENT_WAIT: Duration = Duration::from_secs(120);
+    let max_event_wait = remote_events_max_wait_duration();
 
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
     let mut persisted_remote_logs = Vec::new();
-    let deadline = tokio::time::Instant::now() + MAX_EVENT_WAIT;
+    let deadline = tokio::time::Instant::now() + max_event_wait;
 
     while tokio::time::Instant::now() < deadline {
         let path = format!("/v1/tasks/{task_run_id}/events?after_seq={last_seen_seq}");
@@ -2271,8 +2271,27 @@ async fn remote_protocol_events(
     bail!(
         "infra error: remote node {} events stream exceeded {}s without terminal completion",
         target.node_id,
-        MAX_EVENT_WAIT.as_secs()
+        max_event_wait.as_secs()
     );
+}
+
+fn remote_events_max_wait_duration() -> Duration {
+    let configured = env::var("TAK_REMOTE_EVENTS_MAX_WAIT_SECS").ok();
+    parse_remote_events_max_wait_duration(configured.as_deref())
+}
+
+fn parse_remote_events_max_wait_duration(raw: Option<&str>) -> Duration {
+    const DEFAULT_MAX_WAIT_SECS: u64 = 120;
+    let Some(raw) = raw else {
+        return Duration::from_secs(DEFAULT_MAX_WAIT_SECS);
+    };
+    let Ok(secs) = raw.trim().parse::<u64>() else {
+        return Duration::from_secs(DEFAULT_MAX_WAIT_SECS);
+    };
+    if secs == 0 {
+        return Duration::from_secs(DEFAULT_MAX_WAIT_SECS);
+    }
+    Duration::from_secs(secs)
 }
 
 /// Parses one remote events response envelope and advances checkpoint sequence monotonically.

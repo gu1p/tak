@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Duration;
 
 fn strict_remote_target(kind: RemoteTransportKind, endpoint: &str) -> StrictRemoteTarget {
     StrictRemoteTarget {
@@ -111,5 +112,33 @@ fn ndjson_single_line_event_is_not_treated_as_wrapped_done_payload() {
             seq: 1,
             chunk: "hello".to_string(),
         }]
+    );
+}
+
+#[test]
+fn remote_events_max_wait_defaults_to_120_seconds() {
+    assert_eq!(
+        parse_remote_events_max_wait_duration(None),
+        Duration::from_secs(120)
+    );
+    assert_eq!(
+        parse_remote_events_max_wait_duration(Some("")),
+        Duration::from_secs(120)
+    );
+    assert_eq!(
+        parse_remote_events_max_wait_duration(Some("0")),
+        Duration::from_secs(120)
+    );
+    assert_eq!(
+        parse_remote_events_max_wait_duration(Some("invalid")),
+        Duration::from_secs(120)
+    );
+}
+
+#[test]
+fn remote_events_max_wait_accepts_positive_seconds_override() {
+    assert_eq!(
+        parse_remote_events_max_wait_duration(Some("900")),
+        Duration::from_secs(900)
     );
 }
