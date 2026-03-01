@@ -6,7 +6,7 @@ on:
       - '**'
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
