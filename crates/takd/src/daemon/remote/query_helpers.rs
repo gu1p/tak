@@ -83,9 +83,9 @@ pub(super) fn json_response(status_code: u16, body: serde_json::Value) -> Remote
 /// # }
 /// ```
 pub(super) fn unix_epoch_ms() -> i64 {
-    let now = SystemTime::now();
-    let duration = now
+    let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("system clock is before UNIX_EPOCH");
-    i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0);
+    i64::try_from(millis).unwrap_or(i64::MAX)
 }

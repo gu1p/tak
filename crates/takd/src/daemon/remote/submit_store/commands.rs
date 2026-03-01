@@ -20,7 +20,8 @@ impl SubmitAttemptStore {
             bail!("selected_node_id is required");
         }
 
-        let idempotency_key = build_submit_idempotency_key(task_run_id, attempt)?;
+        let attempt = validate_submit_attempt(attempt)?;
+        let idempotency_key = build_submit_idempotency_key(task_run_id, Some(attempt))?;
         let conn = self.open_connection()?;
         let inserted = conn.execute(
             "
@@ -31,7 +32,7 @@ impl SubmitAttemptStore {
             params![
                 idempotency_key,
                 task_run_id.trim(),
-                attempt.expect("validated by build_submit_idempotency_key"),
+                attempt,
                 selected_node_id,
                 unix_epoch_ms(),
             ],

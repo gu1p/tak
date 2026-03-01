@@ -1,62 +1,6 @@
 use super::*;
 
 impl LeaseManager {
-    #[must_use]
-    /// Creates an in-memory lease manager with no configured capacities.
-    ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on internal state and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Creates a SQLite-backed lease manager and restores active lease state.
-    ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on internal state and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    pub fn with_db_path(db_path: PathBuf) -> Result<Self> {
-        let mut manager = Self {
-            db_path: Some(db_path),
-            ..Self::default()
-        };
-        manager.ensure_schema()?;
-        manager.restore_active_leases()?;
-        Ok(manager)
-    }
-
-    /// Sets capacity for one limiter key.
-    ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on internal state and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    pub fn set_capacity(
-        &mut self,
-        name: impl Into<String>,
-        scope: Scope,
-        scope_key: Option<String>,
-        capacity: f64,
-    ) {
-        self.capacities.insert(
-            LimiterKey {
-                name: name.into(),
-                scope,
-                scope_key,
-            },
-            capacity,
-        );
-    }
-
     /// Attempts to atomically acquire all requested needs for a lease request.
     ///
     /// ```no_run
@@ -76,42 +20,59 @@ impl LeaseManager {
             self.pending.remove(existing);
         }
 
-        if self.can_allocate(&request.needs) {
-            self.allocate(&request.needs);
-            let lease_id = Uuid::new_v4().to_string();
-            let ttl_ms = request.ttl_ms.max(1_000);
-            let expires_at = Instant::now() + Duration::from_millis(ttl_ms);
-            let lease_record = LeaseRecord {
-                needs: request.needs,
-                expires_at,
-                ttl_ms,
-                request_id: request.request_id,
-                task_label: request.task.label,
-                user_name: request.client.user,
-                pid: request.client.pid,
-            };
-
-            self.leases.insert(lease_id.clone(), lease_record.clone());
-            self.persist_active_lease(&lease_id, &lease_record)
-                .expect("failed to persist active lease");
-            self.append_history("acquire", &lease_id, &lease_record)
-                .expect("failed to append acquire history");
-
-            return AcquireLeaseResponse::LeaseGranted {
-                lease: LeaseInfo {
-                    lease_id,
-                    ttl_ms,
-                    renew_after_ms: ttl_ms / 3,
-                },
-            };
+        if !self.can_allocate(&request.needs) {
+            return self.enqueue_pending_request(request);
         }
 
+        self.allocate(&request.needs);
+        let lease_id = Uuid::new_v4().to_string();
+        let ttl_ms = request.ttl_ms.max(1_000);
+        let lease_record = LeaseRecord {
+            needs: request.needs.clone(),
+            expires_at: Instant::now() + Duration::from_millis(ttl_ms),
+            ttl_ms,
+            request_id: request.request_id.clone(),
+            task_label: request.task.label.clone(),
+            user_name: request.client.user.clone(),
+            pid: request.client.pid,
+        };
+
+        if let Err(err) = self.persist_acquired_lease(&lease_id, &lease_record) {
+            self.deallocate(&request.needs);
+            eprintln!("failed to persist acquired lease {lease_id}: {err}");
+            return self.enqueue_pending_request(request);
+        }
+
+        self.leases.insert(lease_id.clone(), lease_record);
+        AcquireLeaseResponse::LeaseGranted {
+            lease: LeaseInfo {
+                lease_id,
+                ttl_ms,
+                renew_after_ms: ttl_ms / 3,
+            },
+        }
+    }
+
+    fn enqueue_pending_request(&mut self, request: AcquireLeaseRequest) -> AcquireLeaseResponse {
         self.pending.push_back(request);
         AcquireLeaseResponse::LeasePending {
             pending: PendingInfo {
                 queue_position: self.pending.len(),
             },
         }
+    }
+
+    fn persist_acquired_lease(&self, lease_id: &str, lease_record: &LeaseRecord) -> Result<()> {
+        self.persist_active_lease(lease_id, lease_record)?;
+        if let Err(err) = self.append_history("acquire", lease_id, lease_record) {
+            if let Err(cleanup_err) = self.delete_active_lease(lease_id) {
+                eprintln!(
+                    "failed to rollback sqlite lease {lease_id} after history failure: {cleanup_err}"
+                );
+            }
+            return Err(err);
+        }
+        Ok(())
     }
 
     /// Renews an existing lease by updating TTL and persisted expiry.
@@ -163,36 +124,5 @@ impl LeaseManager {
         self.append_history("release", lease_id, &record)?;
 
         Ok(())
-    }
-
-    #[must_use]
-    /// Returns current daemon state as an externally-visible status snapshot.
-    ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on internal state and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    pub fn status(&mut self) -> StatusSnapshot {
-        self.expire_leases();
-
-        let usage = self
-            .usage
-            .iter()
-            .map(|(key, used)| LimiterUsage {
-                name: key.name.clone(),
-                scope: key.scope.clone(),
-                scope_key: key.scope_key.clone(),
-                used: *used,
-                capacity: self.capacities.get(key).copied().unwrap_or(f64::INFINITY),
-            })
-            .collect();
-
-        StatusSnapshot {
-            active_leases: self.leases.len(),
-            pending_requests: self.pending.len(),
-            usage,
-        }
     }
 }

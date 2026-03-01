@@ -17,6 +17,7 @@ mod manager_allocation_methods;
 mod manager_persistence_load;
 mod manager_persistence_store;
 mod manager_public_methods;
+mod manager_setup_and_status;
 mod models;
 mod shared;
 
@@ -27,9 +28,9 @@ pub use models::{AcquireLeaseResponse, LeaseManager};
 pub use shared::{SharedLeaseManager, new_shared_manager, new_shared_manager_with_db};
 
 fn unix_epoch_ms() -> i64 {
-    let now = SystemTime::now();
-    let duration = now
+    let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("system clock is before UNIX_EPOCH");
-    i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0);
+    i64::try_from(millis).unwrap_or(i64::MAX)
 }

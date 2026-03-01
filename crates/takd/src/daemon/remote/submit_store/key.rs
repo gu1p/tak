@@ -18,7 +18,7 @@ pub fn build_submit_idempotency_key(task_run_id: &str, attempt: Option<u32>) -> 
     Ok(format!("{task_run_id}:{attempt}"))
 }
 
-fn validate_submit_attempt(attempt: Option<u32>) -> Result<u32> {
+pub(super) fn validate_submit_attempt(attempt: Option<u32>) -> Result<u32> {
     let attempt = attempt.ok_or_else(|| anyhow!("submit idempotency attempt is required"))?;
     if attempt == 0 {
         bail!("submit idempotency attempt must be >= 1");
