@@ -1,6 +1,6 @@
-.PHONY: check test lint fmt-check docs-check line-limits-check src-test-separation-check
+.PHONY: check test lint fmt-check docs-check line-limits-check src-test-separation-check workflow-contract-check
 
-check: fmt-check line-limits-check src-test-separation-check lint test docs-check
+check: fmt-check line-limits-check src-test-separation-check workflow-contract-check lint test docs-check
 
 fmt-check:
 	cargo fmt --all -- --check
@@ -20,3 +20,6 @@ line-limits-check:
 
 src-test-separation-check:
 	scripts/check_no_tests_in_src.sh
+
+workflow-contract-check:
+	scripts/check_workflow_binary_matrix.sh

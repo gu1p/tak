@@ -8,7 +8,7 @@ on:
       - completed
 
 concurrency:
-  group: release-main
+  group: release-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 permissions:
@@ -20,7 +20,7 @@ jobs:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event.workflow_run.head_branch != ''
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
@@ -42,29 +42,43 @@ jobs:
           head_sha="${{ github.event.workflow_run.head_sha }}"
           git fetch --force --tags origin
 
-          semver_on_sha="$(git tag --points-at "$head_sha" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
-          if [ -n "$semver_on_sha" ]; then
-            tag="$semver_on_sha"
-          else
-            latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)"
-            if [ -z "$latest_tag" ]; then
-              workspace_version="$(awk '
-                $0 == "[workspace.package]" { in_section=1; next }
-                /^\[/ { in_section=0 }
-                in_section && $1 == "version" {
-                  gsub(/\"/, "", $3)
-                  print $3
-                  exit
-                }
-              ' Cargo.toml)"
-              tag="v${workspace_version}"
-            else
-              version_no_prefix="${latest_tag#v}"
-              IFS='.' read -r major minor patch <<<"$version_no_prefix"
-              patch="$((patch + 1))"
-              tag="v${major}.${minor}.${patch}"
-            fi
+          workspace_version="$(awk '
+            $0 == "[workspace.package]" { in_section=1; next }
+            /^\[/ { in_section=0 }
+            in_section && $1 == "version" {
+              gsub(/"/, "", $3)
+              print $3
+              exit
+            }
+          ' Cargo.toml)"
 
+          if [ -z "$workspace_version" ]; then
+            echo "failed to read workspace version from Cargo.toml" >&2
+            exit 1
+          fi
+
+          tag="v${workspace_version}-${head_sha:0:8}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            existing_sha="$(git rev-list -n1 "${tag}")"
+            if [ "$existing_sha" != "$head_sha" ]; then
+              tag="v${workspace_version}-${head_sha:0:12}"
+            fi
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            existing_sha="$(git rev-list -n1 "${tag}")"
+            if [ "$existing_sha" != "$head_sha" ]; then
+              tag="v${workspace_version}-${head_sha}"
+            fi
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            existing_sha="$(git rev-list -n1 "${tag}")"
+            if [ "$existing_sha" != "$head_sha" ]; then
+              echo "tag ${tag} already exists at ${existing_sha}, expected ${head_sha}" >&2
+              exit 1
+            fi
+          else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git tag -a "$tag" "$head_sha" -m "Release $tag"
@@ -78,6 +92,7 @@ jobs:
     name: Build ${{ matrix.target }}
     needs: prepare_tag
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -85,7 +100,7 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             use_zig: true
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
             use_zig: true
           - os: macos-13
@@ -129,6 +144,18 @@ jobs:
             cargo build --release --locked --target "${{ matrix.target }}" -p tak -p takd
           fi
 
+      - name: Verify tak --version matches injected build version
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          expected="tak ${TAK_BUILD_VERSION}"
+          actual="$(target/${target}/release/tak --version | tr -d '\r')"
+          if [ "$actual" != "$expected" ]; then
+            echo "version mismatch: expected '${expected}', got '${actual}'" >&2
+            exit 1
+          fi
+
       - name: Package release artifacts
         shell: bash
         run: |
@@ -159,6 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_BRANCH: ${{ github.event.workflow_run.head_branch }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -176,5 +204,9 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber
           else
-            gh release create "$tag" dist/* --title "$tag" --generate-notes
+            if [ "${RELEASE_BRANCH}" = "main" ]; then
+              gh release create "$tag" dist/* --title "$tag" --generate-notes
+            else
+              gh release create "$tag" dist/* --title "$tag" --generate-notes --prerelease
+            fi
           fi
