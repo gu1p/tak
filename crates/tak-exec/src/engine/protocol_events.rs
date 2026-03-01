@@ -10,8 +10,9 @@ async fn remote_protocol_events(
     target: &StrictRemoteTarget,
     task_run_id: &str,
 ) -> Result<Vec<RemoteLogChunk>> {
-    const MAX_EVENT_RECONNECTS: u32 = 3;
-    const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(50);
+    const MAX_EVENT_RECONNECTS: u32 = 30;
+    const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+    const EVENT_RECONNECT_DELAY: Duration = Duration::from_millis(500);
     let max_event_wait = remote_events_max_wait_duration();
 
     let mut last_seen_seq = 0_u64;
@@ -27,7 +28,7 @@ async fn remote_protocol_events(
             &path,
             None,
             "events",
-            Duration::from_secs(1),
+            Duration::from_secs(10),
         )
         .await;
 
@@ -45,7 +46,7 @@ async fn remote_protocol_events(
                         last_seen_seq
                     );
                 }
-                tokio::time::sleep(EVENT_POLL_INTERVAL).await;
+                tokio::time::sleep(EVENT_RECONNECT_DELAY).await;
                 continue;
             }
         };

@@ -42,7 +42,7 @@ async fn remote_container_runtime_runs_in_real_container_context_when_enabled() 
                 "sh".to_string(),
                 "-c".to_string(),
                 format!(
-                    "if [ -f /.dockerenv ] || grep -Eq '(docker|containerd|podman|kubepods)' /proc/1/cgroup; then echo containerized > '{}'; else echo host > '{}'; exit 17; fi",
+                    "if [ -f /.dockerenv ] || [ -f /run/.containerenv ] || grep -Eq '(docker|containerd|podman|kubepods)' /proc/1/cgroup; then echo containerized > '{}'; else echo host > '{}'; exit 17; fi",
                     marker.display(),
                     marker.display()
                 ),

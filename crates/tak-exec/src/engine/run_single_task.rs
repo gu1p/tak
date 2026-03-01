@@ -19,10 +19,18 @@ async fn run_single_task(
     } else {
         None
     };
-    let run_root = remote_workspace
+    let run_root = if runtime_metadata
         .as_ref()
-        .map(|staged| staged.temp_dir.path().to_path_buf())
-        .unwrap_or_else(|| workspace_root.to_path_buf());
+        .and_then(|metadata| metadata.container_plan.as_ref())
+        .is_some()
+    {
+        workspace_root.to_path_buf()
+    } else {
+        remote_workspace
+            .as_ref()
+            .map(|staged| staged.temp_dir.path().to_path_buf())
+            .unwrap_or_else(|| workspace_root.to_path_buf())
+    };
 
     let total_attempts = task.retry.attempts.max(1);
     let mut attempt = 0;

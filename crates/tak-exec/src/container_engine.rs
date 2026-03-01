@@ -103,9 +103,9 @@ pub(crate) fn podman_socket_candidates_from_inputs(
     let mut sockets = Vec::new();
 
     if let Some(explicit) = explicit {
-        let explicit = explicit.trim();
-        if !explicit.is_empty() {
-            sockets.push(explicit.to_string());
+        let explicit = normalize_podman_socket(explicit);
+        if let Some(explicit) = explicit {
+            sockets.push(explicit);
         }
     }
 
@@ -127,13 +127,36 @@ pub(crate) fn podman_socket_candidates_from_inputs(
     sockets
 }
 
+fn normalize_podman_socket(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if value.starts_with("unix://") {
+        return Some(value.to_string());
+    }
+    if value.starts_with('/') {
+        return Some(format!("unix://{value}"));
+    }
+    Some(value.to_string())
+}
+
 pub(crate) fn podman_socket_candidates_from_env() -> Vec<String> {
     let explicit = env::var("TAK_PODMAN_SOCKET").ok();
     let runtime_dir = env::var("XDG_RUNTIME_DIR").ok();
     let uid = env::var("UID").ok();
-    podman_socket_candidates_from_inputs(
+    let mut sockets = podman_socket_candidates_from_inputs(
         explicit.as_deref(),
         runtime_dir.as_deref(),
         uid.as_deref(),
-    )
+    );
+    if let Ok(tmpdir) = env::var("TMPDIR") {
+        let tmpdir = tmpdir.trim().trim_end_matches('/');
+        if !tmpdir.is_empty() {
+            sockets.push(format!(
+                "unix://{tmpdir}/podman/podman-machine-default-api.sock"
+            ));
+        }
+    }
+    sockets
 }

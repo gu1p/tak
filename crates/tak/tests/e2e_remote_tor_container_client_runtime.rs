@@ -39,7 +39,7 @@ REMOTE = Remote(
 SPEC = module_spec(tasks=[
   task(
     "remote_tor_container",
-    steps=[cmd("sh", "-c", "if [ -r /proc/1/comm ] && [ \"$(cat /proc/1/comm 2>/dev/null)\" = \"sh\" ]; then mkdir -p out && echo containerized > out/container-proof.txt; else mkdir -p out && echo host > out/container-proof.txt; exit 17; fi")],
+    steps=[cmd("sh", "-c", "if [ -f /.dockerenv ] || [ -f /run/.containerenv ] || grep -Eq '(docker|containerd|podman|kubepods)' /proc/1/cgroup; then mkdir -p out && echo containerized > out/container-proof.txt; else mkdir -p out && echo host > out/container-proof.txt; exit 17; fi")],
     execution=RemoteOnly(REMOTE),
   )
 ])
