@@ -1,14 +1,12 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
+  push:
+    branches:
+      - '**'
 
 concurrency:
-  group: release-${{ github.event.workflow_run.head_branch }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -17,20 +15,16 @@ permissions:
 jobs:
   prepare_tag:
     name: Prepare release tag
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch != ''
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       version: ${{ steps.tag.outputs.version }}
-      head_sha: ${{ github.event.workflow_run.head_sha }}
+      head_sha: ${{ github.sha }}
     steps:
-      - name: Checkout commit from successful CI run
+      - name: Checkout pushed commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Compute and push tag
@@ -39,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          head_sha="${{ github.event.workflow_run.head_sha }}"
+          head_sha="${{ github.sha }}"
           git fetch --force --tags origin
 
           workspace_version="$(awk '
@@ -186,7 +180,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      RELEASE_BRANCH: ${{ github.ref_name }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
