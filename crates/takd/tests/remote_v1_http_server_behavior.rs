@@ -3,7 +3,7 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use takd::{SubmitAttemptStore, run_remote_v1_http_server};
+use takd::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
 
 #[tokio::test]
 async fn remote_v1_http_server_serves_capabilities_endpoint() {

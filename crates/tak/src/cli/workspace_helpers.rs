@@ -36,7 +36,7 @@ pub(super) fn parse_input_label(value: &str) -> Result<TaskLabel> {
 pub(super) fn resolve_daemon_socket_path() -> PathBuf {
     std::env::var("TAKD_SOCKET")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| takd::default_socket_path())
+        .unwrap_or_else(|_| takd::daemon::runtime::default_socket_path())
 }
 
 /// Reads a `u64` value from an environment variable with a fallback default.

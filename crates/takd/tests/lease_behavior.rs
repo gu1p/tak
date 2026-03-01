@@ -1,9 +1,8 @@
 //! Behavioral tests for in-memory lease manager grant/pending/release flow.
 
 use tak_core::model::Scope;
-use takd::{
-    AcquireLeaseRequest, AcquireLeaseResponse, ClientInfo, LeaseManager, NeedRequest, TaskInfo,
-};
+use takd::daemon::lease::{AcquireLeaseResponse, LeaseManager};
+use takd::daemon::protocol::{AcquireLeaseRequest, ClientInfo, NeedRequest, TaskInfo};
 
 /// Builds a lease acquire request fixture for CPU needs.
 fn acquire_request(slots: f64) -> AcquireLeaseRequest {

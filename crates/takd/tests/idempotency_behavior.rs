@@ -1,6 +1,6 @@
 //! Behavioral tests for remote submit idempotency tuple handling.
 
-use takd::build_submit_idempotency_key;
+use takd::daemon::remote::build_submit_idempotency_key;
 
 #[test]
 fn key_is_stable_for_identical_task_run_tuple() {

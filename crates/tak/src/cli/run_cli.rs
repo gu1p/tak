@@ -144,7 +144,7 @@ pub async fn run_cli() -> Result<()> {
         Commands::Daemon { command } => match command {
             DaemonCommands::Start => {
                 let socket = resolve_daemon_socket_path();
-                takd::run_daemon(&socket).await?;
+                takd::daemon::runtime::run_daemon(&socket).await?;
             }
             DaemonCommands::Status => {
                 let snapshot = query_daemon_status(resolve_daemon_socket_path()).await?;

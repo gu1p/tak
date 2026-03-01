@@ -1,6 +1,6 @@
 //! Behavioral tests for Tor transport configuration validation.
 
-use takd::{
+use takd::daemon::transport::{
     ArtiSettings, TorTransportConfig, normalize_tor_transport_config, validate_tor_transport_config,
 };
 

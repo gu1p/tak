@@ -8,7 +8,9 @@ use super::*;
 /// #     Ok(())
 /// # }
 /// ```
-pub(super) async fn query_daemon_status(socket_path: PathBuf) -> Result<takd::StatusSnapshot> {
+pub(super) async fn query_daemon_status(
+    socket_path: PathBuf,
+) -> Result<takd::daemon::protocol::StatusSnapshot> {
     let stream = UnixStream::connect(&socket_path)
         .await
         .with_context(|| format!("failed to connect to daemon at {}", socket_path.display()))?;

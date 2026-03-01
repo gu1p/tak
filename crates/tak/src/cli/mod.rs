@@ -6,7 +6,7 @@ use tak_core::label::parse_label;
 use tak_core::model::{TaskLabel, WorkspaceSpec};
 use tak_exec::{RunOptions, run_tasks};
 use tak_loader::{LoadOptions, load_workspace};
-use takd::{Request, Response, RunTasksRequest, StatusRequest};
+use takd::daemon::protocol::{Request, Response, RunTasksRequest, StatusRequest};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use uuid::Uuid;
