@@ -1,32 +1,52 @@
 # small/04_cmd_with_env_and_cwd
 
-## Scenario Goal
-Command step behavior with explicit environment variables and working directory.
+## Why This Matters
 
-Small tier: focused behavior with minimal topology.
+Most build and test instability comes from implicit shell context. This example shows explicit `cwd` and `env` so task behavior is deterministic across laptops and CI runners.
 
-## What This Example Exercises
-- `env` injection
-- `cwd` path resolution
-- command trio contract: `list`, `explain`, `graph`, `run`
+## Copy-Paste Starter
+
+```python
+SPEC = module_spec(
+    tasks=[
+        task(
+            "env_cmd",
+            steps=[
+                cmd("mkdir", "-p", "out"),
+                cmd(
+                    "sh",
+                    "-c",
+                    "echo \"$TAK_ENV_MARKER\" > marker.txt",
+                    cwd="out",
+                    env={"TAK_ENV_MARKER": "ENV_OK"},
+                ),
+            ],
+        )
+    ]
+)
+SPEC
+```
+
+## Parameter Alternatives
+
+| Parameter | Current value | Alternatives | Behavior impact |
+|---|---|---|---|
+| `cwd` | `"out"` | omit `cwd` | Step runs from task working root instead of `out/`. |
+| `env` | explicit map | inherited shell env only | Less explicit and easier to break across environments. |
+| step kind | `cmd(...)` | `script(...)` | Better for long scripts and reuse across tasks. |
 
 ## Runbook
+
 1. `tak list`
 2. `tak explain //:env_cmd`
 3. `tak graph //:env_cmd --format dot`
 4. `tak run //:env_cmd`
 
-## Expected Command Answers
-- `list`: includes fully-qualified labels relevant to this scenario.
-- `explain`: returns task metadata fields (`label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`).
-- `graph --format dot`: prints DOT dependency edges for `//:env_cmd`.
-- `run`: expected success is `true`.
+## Expected Signals
 
-## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
-- Required output files on successful run: `out/marker.txt`
+- `tak run` reports success for `env_cmd`.
+- The marker value is written from task-scoped environment.
 
-## File Layout
-- `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
-- `TASKS.py`: root definitions used by loader.
-- Nested `TASKS.py` and scripts (if present): recursive modules and step assets.
+## Artifacts
+
+- `out/marker.txt`

@@ -1,33 +1,65 @@
 # large/28_hybrid_local_remote_test_suite_failure_with_logs
 
-## Scenario Goal
-Run local checks first, then run a remote test phase that fails and returns failure artifacts.
+## Why This Matters
 
-Large tier: hybrid execution with explicit remote failure diagnostics.
+Successful systems also need deterministic failure behavior. This example proves that a failing remote test phase still returns actionable logs and failure reason artifacts to local workspace consumers.
 
-## What This Example Exercises
-- local + remote split in one suite pipeline
-- strict `RemoteOnly` test execution for the failing remote suite phase
-- synced failure artifacts (`out/remote-test-output.log` and `out/remote-failure-reason.txt`)
-- run failure contract while still preserving remote diagnostics for local inspection
+## Copy-Paste Starter
+
+```python
+REMOTE = Remote(id="remote-hybrid-failure", endpoint="https://remote.example")
+
+SPEC = module_spec(
+    tasks=[
+        task(
+            "unit_local",
+            steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log")],
+        ),
+        task(
+            "remote_suite",
+            deps=[":unit_local"],
+            steps=[
+                cmd(
+                    "sh",
+                    "-c",
+                    "mkdir -p out && "
+                    "echo test_auth_pass > out/remote-test-output.log && "
+                    "echo test_payments_fail_expected_200_got_500 >> out/remote-test-output.log && "
+                    "echo failure_reason_assertion_mismatch_in_payments_handler > out/remote-failure-reason.txt && "
+                    "exit 3",
+                )
+            ],
+            execution=RemoteOnly(REMOTE),
+        ),
+    ]
+)
+SPEC
+```
+
+## Parameter Alternatives
+
+| Parameter | Current value | Alternatives | Behavior impact |
+|---|---|---|---|
+| remote task exit behavior | `exit 3` | `exit 0` or retried failure codes | Controls fail-fast behavior and whether pipeline ends as failure. |
+| execution mode | `RemoteOnly(REMOTE)` | `ByCustomPolicy(...)` | Allows dynamic fallback when remote is unavailable. |
+| run strategy | default fail-fast | `tak run ... --keep-going` | Continue running independent targets after failures. |
 
 ## Runbook
+
 1. `tak list`
 2. `tak explain //apps/web:remote_suite`
 3. `tak graph //apps/web:remote_suite --format dot`
 4. `tak run //apps/web:remote_suite`
 
-## Expected Behavior
-- command exits non-zero
-- stderr includes task failure reason
-- failure logs remain available in `out/`
+## Expected Signals
 
-## Expected Artifacts
+- Command exits non-zero for `remote_suite`.
+- Stderr reports task failure.
+- Failure diagnostics remain in `out/` for inspection.
+
+## Artifacts
+
 - `out/local-bootstrap.log`
 - `out/local-unit.log`
 - `out/remote-test-output.log`
 - `out/remote-failure-reason.txt`
-
-## Notes
-This example is intended for catalog contract execution where
-`__TAK_REMOTE_ENDPOINT__` is replaced by a deterministic direct-HTTP fixture endpoint.

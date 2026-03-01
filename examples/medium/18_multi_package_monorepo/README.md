@@ -1,32 +1,45 @@
 # medium/18_multi_package_monorepo
 
-## Scenario Goal
-Recursive package graph assembly in a medium monorepo.
+## Why This Matters
 
-Medium tier: combines multiple runtime and modeling features.
+This is the first example that looks like a real monorepo: root bootstrap tasks, app tasks, and shared library tasks, all resolved as one graph.
 
-## What This Example Exercises
-- nested TASKS.py merge
-- cross-package dependencies
-- command trio contract: `list`, `explain`, `graph`, `run`
+## Copy-Paste Starter
+
+```python
+# apps/web/TASKS.py
+SPEC = module_spec(
+    tasks=[
+        task(
+            "all",
+            deps=["//apps/api:build", "//libs/common:lint"],
+            steps=[cmd("sh", "-c", "mkdir -p out && echo web-all >> out/monorepo.log")],
+        )
+    ]
+)
+SPEC
+```
+
+## Parameter Alternatives
+
+| Parameter | Current value | Alternatives | Behavior impact |
+|---|---|---|---|
+| dependency labels | absolute labels (`//apps/api:build`) | relative labels (`:build`) where appropriate | Absolute labels make cross-package intent explicit and stable. |
+| topology | app depends on shared + api | fan-out from root bootstrap | Lets you control bottlenecks and critical path shape. |
+| output strategy | single `out/monorepo.log` | per-package output files | Per-package outputs simplify ownership and debugging. |
 
 ## Runbook
+
 1. `tak list`
 2. `tak explain //apps/web:all`
 3. `tak graph //apps/web:all --format dot`
 4. `tak run //apps/web:all`
 
-## Expected Command Answers
-- `list`: includes fully-qualified labels relevant to this scenario.
-- `explain`: returns task metadata fields (`label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`).
-- `graph --format dot`: prints DOT dependency edges for `//apps/web:all`.
-- `run`: expected success is `true`.
+## Expected Signals
 
-## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
-- Required output files on successful run: `out/monorepo.log`
+- The graph includes root bootstrap plus `apps/api` and `libs/common` dependencies.
+- `tak run` executes prerequisites before `apps/web:all`.
 
-## File Layout
-- `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
-- `TASKS.py`: root definitions used by loader.
-- Nested `TASKS.py` and scripts (if present): recursive modules and step assets.
+## Artifacts
+
+- `out/monorepo.log`

@@ -1,32 +1,46 @@
 # small/01_hello_single_task
 
-## Scenario Goal
-Minimal happy-path single task execution.
+## Why This Matters
 
-Small tier: focused behavior with minimal topology.
+This is the minimum useful Tak setup: one task, one step, one artifact. Use it as a baseline template before layering retries, needs, or remote execution.
 
-## What This Example Exercises
-- single task command step
-- output artifact creation
-- command trio contract: `list`, `explain`, `graph`, `run`
+## Copy-Paste Starter
+
+```python
+SPEC = module_spec(
+    tasks=[
+        task(
+            "hello",
+            doc="Writes a hello output file.",
+            steps=[cmd("sh", "-c", "mkdir -p out && echo hello > out/hello.txt")],
+            tags=["starter"],
+        )
+    ]
+)
+SPEC
+```
+
+## Parameter Alternatives
+
+| Parameter | Current value | Alternatives | Behavior impact |
+|---|---|---|---|
+| `steps` | `cmd("sh", "-c", "...")` | `script("scripts/build.sh", interpreter="sh")` | Move complex shell logic to a reusable script file. |
+| `tags` | `["starter"]` | `[]` or custom tags | Helps filtering/grouping tasks in larger repos. |
+| `doc` | short description | richer runbook text | Improves explainability when sharing task intent. |
 
 ## Runbook
+
 1. `tak list`
 2. `tak explain //:hello`
 3. `tak graph //:hello --format dot`
 4. `tak run //:hello`
 
-## Expected Command Answers
-- `list`: includes fully-qualified labels relevant to this scenario.
-- `explain`: returns task metadata fields (`label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`).
-- `graph --format dot`: prints DOT dependency edges for `//:hello`.
-- `run`: expected success is `true`.
+## Expected Signals
 
-## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
-- Required output files on successful run: `out/hello.txt`
+- `tak list` includes `//:hello`.
+- `tak run` prints a success summary for `hello`.
+- Exit code is zero.
 
-## File Layout
-- `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
-- `TASKS.py`: root definitions used by loader.
-- Nested `TASKS.py` and scripts (if present): recursive modules and step assets.
+## Artifacts
+
+- `out/hello.txt`

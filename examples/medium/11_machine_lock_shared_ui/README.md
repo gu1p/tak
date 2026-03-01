@@ -1,32 +1,46 @@
 # medium/11_machine_lock_shared_ui
 
-## Scenario Goal
-Daemon lock coordination for a shared machine resource.
+## Why This Matters
 
-Medium tier: combines multiple runtime and modeling features.
+UI and device-bound tests often cannot run in parallel safely. This example shows machine-scoped locking via daemon leases so concurrent runs do not fight for the same shared resource.
 
-## What This Example Exercises
-- machine-scope lock need
-- lease pending/grant behavior
-- command trio contract: `list`, `explain`, `graph`, `run`
+## Copy-Paste Starter
+
+```python
+SPEC = module_spec(
+    limiters=[lock("ui_lock", scope=MACHINE)],
+    tasks=[
+        task(
+            "ui_test",
+            needs=[need("ui_lock", 1, scope=MACHINE)],
+            steps=[cmd("sh", "-c", "mkdir -p out && echo ui-lock > out/ui_lock.txt")],
+        )
+    ],
+)
+SPEC
+```
+
+## Parameter Alternatives
+
+| Parameter | Current value | Alternatives | Behavior impact |
+|---|---|---|---|
+| limiter kind | `lock("ui_lock")` | `resource(...)`, `rate_limit(...)`, `process_cap(...)` | Switch between exclusive lock, capacity pool, token rate, or process match guard. |
+| `scope` | `MACHINE` | `USER`, `PROJECT`, `WORKTREE` | Changes the contention boundary and fairness domain. |
+| `hold` in `need(...)` | default `DURING` | `AT_START` | `AT_START` acquires at start and releases earlier after admission. |
 
 ## Runbook
-1. `tak list`
-2. `tak explain //:ui_test`
-3. `tak graph //:ui_test --format dot`
-4. `tak run //:ui_test`
 
-## Expected Command Answers
-- `list`: includes fully-qualified labels relevant to this scenario.
-- `explain`: returns task metadata fields (`label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`).
-- `graph --format dot`: prints DOT dependency edges for `//:ui_test`.
-- `run`: expected success is `true`.
+1. Start daemon: `tak daemon start`
+2. `tak list`
+3. `tak explain //:ui_test`
+4. `tak graph //:ui_test --format dot`
+5. `tak run //:ui_test`
 
-## Expected Artifacts
-- Required daemon: `true` (Required. Start daemon before running this example.)
-- Required output files on successful run: `out/ui_lock.txt`
+## Expected Signals
 
-## File Layout
-- `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
-- `TASKS.py`: root definitions used by loader.
-- Nested `TASKS.py` and scripts (if present): recursive modules and step assets.
+- `tak run` succeeds with daemon available.
+- `tak status` shows lease activity while the task is running.
+
+## Artifacts
+
+- `out/ui_lock.txt`
