@@ -29,8 +29,20 @@ pub(super) async fn handle_remote_v1_http_stream<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let Some(request) = read_http_request(stream).await? else {
-        return Ok(());
+    let request = match read_http_request(stream).await {
+        Ok(Some(request)) => request,
+        Ok(None) => return Ok(()),
+        Err(err) => {
+            let response = json_response(
+                400,
+                serde_json::json!({
+                    "accepted": false,
+                    "reason": request_parse_error_reason(&err),
+                }),
+            );
+            write_http_response(stream, &response).await?;
+            return Ok(());
+        }
     };
     let response = handle_remote_v1_request(
         store,
@@ -81,18 +93,7 @@ where
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or_default().to_string();
     let path = parts.next().unwrap_or("/").to_string();
-
-    let content_length = header_text
-        .lines()
-        .find_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            if name.trim().eq_ignore_ascii_case("content-length") {
-                value.trim().parse::<usize>().ok()
-            } else {
-                None
-            }
-        })
-        .unwrap_or(0);
+    let content_length = parse_content_length(&header_text)?;
 
     let mut body = request_bytes[header_end..].to_vec();
     while body.len() < content_length {
@@ -110,6 +111,30 @@ where
     };
 
     Ok(Some(ParsedHttpRequest { method, path, body }))
+}
+
+fn parse_content_length(header_text: &str) -> Result<usize> {
+    for line in header_text.lines() {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if !name.trim().eq_ignore_ascii_case("content-length") {
+            continue;
+        }
+        return value
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| anyhow!("invalid_content_length"));
+    }
+    Ok(0)
+}
+
+fn request_parse_error_reason(err: &anyhow::Error) -> &'static str {
+    if format!("{err:#}").contains("invalid_content_length") {
+        "invalid_content_length"
+    } else {
+        "invalid_http_request"
+    }
 }
 
 async fn write_http_response<S>(stream: &mut S, response: &RemoteV1Response) -> Result<()>
