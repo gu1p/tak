@@ -61,6 +61,8 @@ require_match "$RELEASE_WORKFLOW" 'GH_REPO: \$\{\{ github\.repository \}\}' "Rel
 require_match "$RELEASE_WORKFLOW" 'cargo build --release --locked --target "\$\{\{ matrix\.target \}\}" -p tak -p takd' "Release native build command for tak and takd"
 require_match "$RELEASE_WORKFLOW" 'cargo zigbuild --release --locked --target "\$\{\{ matrix\.target \}\}" -p tak -p takd' "Release zigbuild command for tak and takd"
 require_match "$RELEASE_WORKFLOW" 'target/\$\{target\}/release/tak --version' "Release tak --version verification step"
+require_match "$RELEASE_WORKFLOW" 'dist/\*\.tar\.gz' "Release upload includes binary archives only"
+require_match "$RELEASE_WORKFLOW" 'dist/\*\.tar\.gz\.sha256' "Release upload includes archive checksums only"
 require_match "$RELEASE_WORKFLOW" '--prerelease' "Release prerelease flag for non-main branches"
 
 ci_targets="$(extract_targets "$CI_WORKFLOW")"
