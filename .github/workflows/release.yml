@@ -180,6 +180,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       RELEASE_BRANCH: ${{ github.ref_name }}
     steps:
       - name: Download artifacts

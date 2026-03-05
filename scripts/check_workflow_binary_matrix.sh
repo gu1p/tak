@@ -57,6 +57,7 @@ require_match "$RELEASE_WORKFLOW" 'tag="v\$\{workspace_version\}-\$\{head_sha:0:
 require_match "$RELEASE_WORKFLOW" 'tag="v\$\{workspace_version\}-\$\{head_sha\}"' "Release collision fallback tag with full SHA"
 require_match "$RELEASE_WORKFLOW" 'TAK_BUILD_VERSION: \$\{\{ needs\.prepare_tag\.outputs\.version \}\}' "Release build-time TAK version injection"
 require_match "$RELEASE_WORKFLOW" 'timeout-minutes:\s*240' "Release extended binary build timeout"
+require_match "$RELEASE_WORKFLOW" 'GH_REPO: \$\{\{ github\.repository \}\}' "Release gh CLI repository context"
 require_match "$RELEASE_WORKFLOW" 'cargo build --release --locked --target "\$\{\{ matrix\.target \}\}" -p tak -p takd' "Release native build command for tak and takd"
 require_match "$RELEASE_WORKFLOW" 'cargo zigbuild --release --locked --target "\$\{\{ matrix\.target \}\}" -p tak -p takd' "Release zigbuild command for tak and takd"
 require_match "$RELEASE_WORKFLOW" 'target/\$\{target\}/release/tak --version' "Release tak --version verification step"
