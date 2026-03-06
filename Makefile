@@ -1,6 +1,6 @@
-.PHONY: check test lint fmt-check docs-check line-limits-check src-test-separation-check workflow-contract-check
+.PHONY: check test lint fmt-check docs-check line-limits-check src-test-separation-check workflow-contract-check generated-artifact-ignore-check
 
-check: fmt-check line-limits-check src-test-separation-check workflow-contract-check lint test docs-check
+check: fmt-check line-limits-check src-test-separation-check workflow-contract-check generated-artifact-ignore-check lint test docs-check
 
 fmt-check:
 	cargo fmt --all -- --check
@@ -23,3 +23,6 @@ src-test-separation-check:
 
 workflow-contract-check:
 	scripts/check_workflow_binary_matrix.sh
+
+generated-artifact-ignore-check:
+	scripts/check_generated_artifacts_ignore.sh

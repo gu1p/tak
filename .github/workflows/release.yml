@@ -164,7 +164,10 @@ jobs:
 
           archive="tak-${tag}-${target}.tar.gz"
           tar -C dist/pkg -czf "dist/${archive}" tak takd
-          shasum -a 256 "dist/${archive}" > "dist/${archive}.sha256"
+          (
+            cd dist
+            shasum -a 256 "${archive}" > "${archive}.sha256"
+          )
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
