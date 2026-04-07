@@ -118,3 +118,6 @@ pub(super) fn test_tor_hidden_service_bind_addr() -> Option<String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }
+
+#[cfg(test)]
+mod tests;

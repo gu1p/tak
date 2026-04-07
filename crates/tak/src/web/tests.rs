@@ -1,12 +1,20 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
+use axum::body::to_bytes;
+use axum::extract::State;
+use axum::http::header;
+use axum::response::IntoResponse;
 use tak_core::model::{
     CurrentStateSpec, ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
 };
 
+use super::handlers::{
+    app_js_handler, graph_json_handler, index_html_handler, styles_css_handler,
+    vis_network_css_handler, vis_network_js_handler,
+};
 use super::payload::build_graph_payload;
-use super::server::should_auto_open_browser_for;
+use super::server::{graph_router, graph_state, should_auto_open_browser_for};
 
 fn label(package: &str, name: &str) -> TaskLabel {
     TaskLabel {
@@ -98,4 +106,50 @@ fn production_guard_disables_browser_open_in_debug_or_when_overridden() {
     assert!(!should_auto_open_browser_for(true, false));
     assert!(!should_auto_open_browser_for(false, true));
     assert!(should_auto_open_browser_for(false, false));
+}
+
+#[tokio::test]
+async fn ui_routes_and_handlers_remain_available() {
+    let state = graph_state(&workspace_fixture(), Some(&label("//pkg", "a"))).expect("graph state");
+    let graph_json = state.graph_json.clone();
+    let _ = graph_router(state.clone());
+
+    let index = index_html_handler().await.into_response();
+    assert_eq!(
+        index.headers()[header::CONTENT_TYPE],
+        "text/html; charset=utf-8"
+    );
+    let app_js = app_js_handler().await.into_response();
+    assert_eq!(
+        app_js.headers()[header::CONTENT_TYPE],
+        "application/javascript; charset=utf-8"
+    );
+    let styles = styles_css_handler().await.into_response();
+    assert_eq!(
+        styles.headers()[header::CONTENT_TYPE],
+        "text/css; charset=utf-8"
+    );
+    let vendor_js = vis_network_js_handler().await.into_response();
+    assert_eq!(
+        vendor_js.headers()[header::CONTENT_TYPE],
+        "application/javascript; charset=utf-8"
+    );
+    let vendor_css = vis_network_css_handler().await.into_response();
+    assert_eq!(
+        vendor_css.headers()[header::CONTENT_TYPE],
+        "text/css; charset=utf-8"
+    );
+
+    let graph = graph_json_handler(State(state)).await.into_response();
+    assert_eq!(
+        graph.headers()[header::CONTENT_TYPE],
+        "application/json; charset=utf-8"
+    );
+    let body = to_bytes(graph.into_body(), usize::MAX)
+        .await
+        .expect("graph body");
+    let body = String::from_utf8(body.to_vec()).expect("utf8 graph body");
+    assert_eq!(body, graph_json);
+    assert!(body.contains("\"pkg:a\""));
+    assert!(body.contains("\"pkg:b\""));
 }

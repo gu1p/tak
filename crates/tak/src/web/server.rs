@@ -23,19 +23,7 @@ use super::types_and_assets::WebState;
 /// # }
 /// ```
 pub async fn serve_graph_ui(spec: &WorkspaceSpec, target: Option<&TaskLabel>) -> Result<()> {
-    let payload = build_graph_payload(spec, target)?;
-    let state = WebState {
-        graph_json: serde_json::to_string(&payload).context("failed to encode graph payload")?,
-    };
-
-    let app = Router::new()
-        .route("/", get(index_html_handler))
-        .route("/app.js", get(app_js_handler))
-        .route("/styles.css", get(styles_css_handler))
-        .route("/vendor/vis-network.min.js", get(vis_network_js_handler))
-        .route("/vendor/vis-network.min.css", get(vis_network_css_handler))
-        .route("/graph.json", get(graph_json_handler))
-        .with_state(state);
+    let app = graph_router(graph_state(spec, target)?);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -66,6 +54,24 @@ pub async fn serve_graph_ui(spec: &WorkspaceSpec, target: Option<&TaskLabel>) ->
         .context("web graph server exited with error")?;
 
     Ok(())
+}
+
+pub(super) fn graph_state(spec: &WorkspaceSpec, target: Option<&TaskLabel>) -> Result<WebState> {
+    let payload = build_graph_payload(spec, target)?;
+    Ok(WebState {
+        graph_json: serde_json::to_string(&payload).context("failed to encode graph payload")?,
+    })
+}
+
+pub(super) fn graph_router(state: WebState) -> Router {
+    Router::new()
+        .route("/", get(index_html_handler))
+        .route("/app.js", get(app_js_handler))
+        .route("/styles.css", get(styles_css_handler))
+        .route("/vendor/vis-network.min.js", get(vis_network_js_handler))
+        .route("/vendor/vis-network.min.css", get(vis_network_css_handler))
+        .route("/graph.json", get(graph_json_handler))
+        .with_state(state)
 }
 
 fn should_auto_open_browser() -> bool {
