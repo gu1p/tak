@@ -50,54 +50,27 @@ def Local(id, max_parallel_tasks=1):
         "max_parallel_tasks": max_parallel_tasks,
     }
 
-def Remote(id, endpoint=None, transport=None, workspace=None, result=None, runtime=None):
-    normalized_transport = transport
-    normalized_endpoint = endpoint
-    normalized_workspace = workspace
-    normalized_result = result
-    if isinstance(transport, dict):
-        normalized_endpoint = endpoint if endpoint is not None else transport.get("endpoint")
-        normalized_transport = {"kind": transport.get("kind"), "auth": transport.get("auth")}
-    if isinstance(workspace, str):
-        normalized_workspace = {"transfer": workspace}
-    if isinstance(result, str):
-        normalized_result = {"sync": result}
+def Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
     return {
-        "id": id,
-        "endpoint": normalized_endpoint,
-        "transport": normalized_transport,
-        "workspace": normalized_workspace,
-        "result": normalized_result,
+        "pool": pool,
+        "required_tags": _or_empty_list(required_tags),
+        "required_capabilities": _or_empty_list(required_capabilities),
+        "transport": transport,
         "runtime": runtime,
     }
 
-def DirectHttps(endpoint, auth=None):
+def DirectHttps():
     return {
-        "kind": "direct_https",
-        "endpoint": str(endpoint),
-        "auth": auth,
+        "kind": "direct",
     }
 
-def TorOnionService(endpoint, auth=None):
+def TorOnionService():
     return {
         "kind": "tor",
-        "endpoint": str(endpoint),
-        "auth": auth,
-    }
-
-def ServiceAuth_from_env(env_name):
-    return {
-        "kind": "from_env",
-        "env_name": str(env_name),
     }
 
 REPO_ZIP_SNAPSHOT = "REPO_ZIP_SNAPSHOT"
 OUTPUTS_AND_LOGS = "OUTPUTS_AND_LOGS"
-
-def results(sync=OUTPUTS_AND_LOGS):
-    return {
-        "sync": str(sync),
-    }
 
 def ContainerRuntime(image, command=None, mounts=None, env=None, resources=None):
     return {
@@ -123,37 +96,11 @@ Reason = {
     "DEFAULT_LOCAL_POLICY": REASON_DEFAULT_LOCAL_POLICY,
 }
 
-def RemoteRuntimeView(endpoint=None, healthy=False, queue_eta_s=0.0):
-    return {
-        "endpoint": str(endpoint) if endpoint is not None else None,
-        "healthy": bool(healthy),
-        "queue_eta_s": float(queue_eta_s),
-    }
-
-def PolicyContext(
-    task_side_effecting=False,
-    local_cpu_percent=0.0,
-    remotes=None,
-    remote_any_reachable=None,
-):
-    resolved_remotes = dict(remotes) if remotes is not None else {}
-    if remote_any_reachable is None:
-        reachable = len(resolved_remotes) > 0
-    else:
-        reachable = bool(remote_any_reachable)
-
+def PolicyContext(task_side_effecting=False, local_cpu_percent=0.0):
     return {
         "task": {"side_effecting": bool(task_side_effecting)},
         "local": {"cpu_percent": float(local_cpu_percent)},
-        "remote_any_reachable": reachable,
-        "remotes": resolved_remotes,
     }
-
-def policy_remote(ctx, node_id):
-    remotes = ctx.get("remotes")
-    if not isinstance(remotes, dict):
-        return None
-    return remotes.get(str(node_id))
 
 def Decision_local(reason=REASON_DEFAULT_LOCAL_POLICY):
     return {
@@ -161,17 +108,10 @@ def Decision_local(reason=REASON_DEFAULT_LOCAL_POLICY):
         "reason": str(reason),
     }
 
-def Decision_remote(node_id, reason="DEFAULT_REMOTE_POLICY"):
+def Decision_remote(remote, reason="DEFAULT_REMOTE_POLICY"):
     return {
         "mode": "remote",
-        "node_id": str(node_id),
-        "reason": str(reason),
-    }
-
-def Decision_remote_any(node_ids, reason="DEFAULT_REMOTE_ANY_POLICY"):
-    return {
-        "mode": "remote_any",
-        "node_ids": [str(node_id) for node_id in node_ids],
+        "remote": remote,
         "reason": str(reason),
     }
 
@@ -179,7 +119,7 @@ def _unsupported_policy_builder_api(name):
     raise TypeError(
         "unsupported policy builder API: "
         + str(name)
-        + " (use Decision.local/Decision.remote/Decision.remote_any)"
+        + " (use Decision.local/Decision.remote)"
     )
 
 def Decision_start(*args, **kwargs):
@@ -205,11 +145,7 @@ def _is_local_constructor_value(value):
     )
 
 def _is_remote_constructor_value(value):
-    return (
-        isinstance(value, dict)
-        and "id" in value
-        and "max_parallel_tasks" not in value
-    )
+    return isinstance(value, dict) and "max_parallel_tasks" not in value
 
 def LocalOnly(local):
     if not _is_local_constructor_value(local):
@@ -220,33 +156,17 @@ def LocalOnly(local):
     }
 
 def RemoteOnly(remote):
-    if isinstance(remote, list):
-        for node in remote:
-            if not _is_remote_constructor_value(node):
-                raise TypeError("RemoteOnly expects Remote(...) or list[Remote(...)]")
-    elif not _is_remote_constructor_value(remote):
-        raise TypeError("RemoteOnly expects Remote(...) or list[Remote(...)]")
+    if not _is_remote_constructor_value(remote):
+        raise TypeError("RemoteOnly expects Remote(...)")
     return {
         "kind": "remote_only",
         "remote": remote,
     }
 
-def _resolve_policy_remote(context, node_id):
-    remote_view = policy_remote(context, node_id)
-    if not isinstance(remote_view, dict):
-        raise TypeError("policy decision references unknown remote node: " + str(node_id))
-    endpoint = remote_view.get("endpoint")
-    if endpoint is None or str(endpoint).strip() == "":
-        raise TypeError("policy decision node is missing endpoint: " + str(node_id))
-    return {
-        "id": str(node_id),
-        "endpoint": str(endpoint),
-    }
-
 def _compile_policy_decision(policy, context):
     decision = policy(context)
     if not isinstance(decision, dict):
-        raise TypeError("policy function must return Decision.local/remote/remote_any")
+        raise TypeError("policy function must return Decision.local/remote")
 
     scoring_fields = []
     if "score" in decision:
@@ -268,23 +188,13 @@ def _compile_policy_decision(policy, context):
         }
 
     if mode == "remote":
-        node_id = decision.get("node_id")
-        if node_id is None or str(node_id).strip() == "":
-            raise TypeError("Decision.remote requires non-empty node_id")
+        remote = decision.get("remote")
+        if not _is_remote_constructor_value(remote):
+            raise TypeError("Decision.remote requires Remote(...)")
         return {
             "mode": "remote",
             "reason": reason,
-            "remote": _resolve_policy_remote(context, node_id),
-        }
-
-    if mode == "remote_any":
-        node_ids = decision.get("node_ids")
-        if not isinstance(node_ids, list) or len(node_ids) == 0:
-            raise TypeError("Decision.remote_any requires non-empty node_ids")
-        return {
-            "mode": "remote_any",
-            "reason": reason,
-            "remotes": [_resolve_policy_remote(context, node_id) for node_id in node_ids],
+            "remote": remote,
         }
 
     raise TypeError("unsupported policy decision mode: " + str(mode))

@@ -2,7 +2,12 @@
 # File: apps/web/TASKS.py
 # Scenario: hybrid local + remote test suite (failure path with logs)
 
-REMOTE = Remote(id="remote-hybrid-failure", endpoint="__TAK_REMOTE_ENDPOINT__")
+REMOTE = Remote(
+  pool="test",
+  required_tags=["builder"],
+  required_capabilities=["linux"],
+  transport=DirectHttps(),
+)
 
 SPEC = module_spec(
   tasks=[

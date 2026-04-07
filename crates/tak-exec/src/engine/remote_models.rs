@@ -3,27 +3,8 @@ struct StrictRemoteTarget {
     node_id: String,
     endpoint: String,
     transport_kind: RemoteTransportKind,
-    service_auth_env: Option<String>,
+    bearer_token: String,
     runtime: Option<RemoteRuntimeSpec>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RemoteProtocolMode {
-    LegacyReachability,
-    HandshakeV1 { remote_worker: bool },
-}
-
-impl RemoteProtocolMode {
-    fn is_handshake_v1(self) -> bool {
-        matches!(self, Self::HandshakeV1 { .. })
-    }
-
-    fn remote_worker(self) -> bool {
-        match self {
-            Self::HandshakeV1 { remote_worker } => remote_worker,
-            Self::LegacyReachability => false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -32,7 +13,6 @@ struct TaskPlacement {
     remote_node_id: Option<String>,
     strict_remote_target: Option<StrictRemoteTarget>,
     ordered_remote_targets: Vec<StrictRemoteTarget>,
-    remote_protocol_mode: Option<RemoteProtocolMode>,
     decision_reason: Option<String>,
 }
 
@@ -43,11 +23,6 @@ struct RemoteProtocolResult {
     synced_outputs: Vec<SyncedOutput>,
     runtime_kind: Option<String>,
     runtime_engine: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct RemoteSubmitAck {
-    remote_worker: bool,
 }
 
 #[derive(Debug, Clone)]

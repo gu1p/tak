@@ -7,7 +7,12 @@ Successful systems also need deterministic failure behavior. This example proves
 ## Copy-Paste Starter
 
 ```python
-REMOTE = Remote(id="remote-hybrid-failure", endpoint="https://remote.example")
+REMOTE = Remote(
+    pool="test",
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    transport=DirectHttps(),
+)
 
 SPEC = module_spec(
     tasks=[
@@ -45,6 +50,14 @@ SPEC
 | run strategy | default fail-fast | `tak run ... --keep-going` | Continue running independent targets after failures. |
 
 ## Runbook
+
+Bootstrap a matching direct agent before running locally:
+
+```bash
+takd init --transport direct --base-url http://127.0.0.1:0 --pool test --tag builder --capability linux
+takd serve
+tak remote add "$(takd token show --wait)"
+```
 
 1. `tak list`
 2. `tak explain //apps/web:remote_suite`

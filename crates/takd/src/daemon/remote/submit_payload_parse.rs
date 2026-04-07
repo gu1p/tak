@@ -1,75 +1,54 @@
 use super::*;
+use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 
 pub(super) fn parse_remote_worker_submit_payload(
-    payload: &serde_json::Value,
-) -> Result<Option<RemoteWorkerSubmitPayload>> {
-    let Some(workspace) = payload
-        .get("workspace")
-        .and_then(serde_json::Value::as_object)
-    else {
-        return Ok(None);
-    };
-    let mode = workspace
-        .get("mode")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default();
-    if mode != "REPO_ZIP_SNAPSHOT" {
-        return Ok(None);
-    }
-
-    let workspace_zip_base64 = workspace
-        .get("archive_zip_base64")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow!("invalid_submit_fields: missing workspace.archive_zip_base64"))?
-        .to_string();
-
-    let execution = payload
-        .get("execution")
-        .and_then(serde_json::Value::as_object)
-        .ok_or_else(|| anyhow!("invalid_submit_fields: missing execution"))?;
-    let steps = execution
-        .get("steps")
-        .cloned()
-        .map(serde_json::from_value::<Vec<StepDef>>)
-        .transpose()
-        .context("invalid_submit_fields: execution.steps")?
-        .unwrap_or_default();
-    let timeout_s = execution
-        .get("timeout_s")
-        .and_then(serde_json::Value::as_u64);
-    let runtime = execution
-        .get("runtime")
-        .filter(|value| !value.is_null())
-        .map(parse_remote_worker_runtime_spec)
-        .transpose()
-        .context("invalid_submit_fields: execution.runtime")?;
-
-    Ok(Some(RemoteWorkerSubmitPayload {
-        workspace_zip_base64,
-        steps,
-        timeout_s,
-        runtime,
-    }))
+    request: &tak_proto::SubmitTaskRequest,
+) -> Result<RemoteWorkerSubmitPayload> {
+    Ok(RemoteWorkerSubmitPayload {
+        workspace_zip: request.workspace_zip.clone(),
+        steps: request
+            .steps
+            .iter()
+            .map(parse_remote_worker_step)
+            .collect::<Result<Vec<_>>>()?,
+        timeout_s: request.timeout_s,
+        runtime: request
+            .runtime
+            .as_ref()
+            .map(parse_remote_worker_runtime_spec)
+            .transpose()?,
+    })
 }
 
-fn parse_remote_worker_runtime_spec(value: &serde_json::Value) -> Result<RemoteRuntimeSpec> {
-    let Some(kind) = value.get("kind").and_then(serde_json::Value::as_str) else {
-        bail!("execution.runtime.kind is required");
-    };
-    match kind {
-        "containerized" => {
-            let image = value
-                .get("image")
-                .and_then(serde_json::Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| anyhow!("execution.runtime.image is required"))?;
+fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {
+    match step.kind.as_ref() {
+        Some(step::Kind::Cmd(cmd)) => Ok(StepDef::Cmd {
+            argv: cmd.argv.clone(),
+            cwd: cmd.cwd.clone(),
+            env: cmd.env.clone().into_iter().collect(),
+        }),
+        Some(step::Kind::Script(script)) => Ok(StepDef::Script {
+            path: script.path.clone(),
+            argv: script.argv.clone(),
+            interpreter: script.interpreter.clone(),
+            cwd: script.cwd.clone(),
+            env: script.env.clone().into_iter().collect(),
+        }),
+        None => bail!("invalid_submit_fields: step.kind is required"),
+    }
+}
+
+fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntimeSpec> {
+    match value.kind.as_ref() {
+        Some(runtime_spec::Kind::Container(container)) => {
+            let image = container.image.trim();
+            if image.is_empty() {
+                bail!("invalid_submit_fields: execution.runtime.container.image is required");
+            }
             Ok(RemoteRuntimeSpec::Containerized {
                 image: image.to_string(),
             })
         }
-        _ => bail!("unsupported execution.runtime.kind `{kind}`"),
+        None => bail!("invalid_submit_fields: execution.runtime.kind is required"),
     }
 }

@@ -7,19 +7,23 @@ edition = "2024"
 anyhow.workspace = true
 arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-service"] }
 base64.workspace = true
+clap.workspace = true
 futures.workspace = true
+prost.workspace = true
 rusqlite.workspace = true
 safelog = "0.7"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tak-core = { path = "../tak-core" }
-tak-exec = { path = "../tak-exec" }
-tak-loader = { path = "../tak-loader" }
+tak-proto = { path = "../tak-proto" }
+tak-runner = { path = "../tak-runner" }
 tokio.workspace = true
+toml.workspace = true
 tor-cell = "0.39"
 uuid.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+assert_cmd.workspace = true
 tempfile.workspace = true

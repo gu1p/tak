@@ -4,6 +4,7 @@ pub(super) fn spawn_remote_worker_submit_execution(
     store: SubmitAttemptStore,
     idempotency_key: String,
     selected_node_id: String,
+    transport_kind: String,
     payload: RemoteWorkerSubmitPayload,
 ) {
     let thread_name = format!("takd-remote-worker-{idempotency_key}");
@@ -14,6 +15,7 @@ pub(super) fn spawn_remote_worker_submit_execution(
                 &store,
                 &idempotency_key,
                 &selected_node_id,
+                &transport_kind,
                 &payload,
             )
         });
@@ -26,6 +28,7 @@ fn run_remote_worker_submit_execution(
     store: &SubmitAttemptStore,
     idempotency_key: &str,
     selected_node_id: &str,
+    transport_kind: &str,
     payload: &RemoteWorkerSubmitPayload,
 ) {
     let started_at = unix_epoch_ms();
@@ -55,6 +58,24 @@ fn run_remote_worker_submit_execution(
             let exit_code = result
                 .exit_code
                 .unwrap_or(if result.success { 0 } else { 1 });
+            if let Err(error) = store.set_result_payload(
+                idempotency_key,
+                &serde_json::json!({
+                    "success": result.success,
+                    "exit_code": exit_code,
+                    "started_at": started_at,
+                    "finished_at": finished_at,
+                    "duration_ms": duration_ms,
+                    "transport_kind": transport_kind,
+                    "sync_mode": "OUTPUTS_AND_LOGS",
+                    "outputs": outputs,
+                    "runtime": result.runtime_kind,
+                    "runtime_engine": result.runtime_engine,
+                })
+                .to_string(),
+            ) {
+                eprintln!("failed to persist submit result {idempotency_key}: {error:#}");
+            }
             if let Err(error) = store.append_event(
                 idempotency_key,
                 2,
@@ -70,27 +91,27 @@ fn run_remote_worker_submit_execution(
                     "failed to append terminal event for submit {idempotency_key}: {error:#}"
                 );
             }
-
-            if let Err(error) = store.set_result_payload(
+        }
+        Err(error) => {
+            if let Err(persist_error) = store.set_result_payload(
                 idempotency_key,
                 &serde_json::json!({
-                    "success": result.success,
-                    "exit_code": exit_code,
+                    "success": false,
+                    "exit_code": 1,
                     "started_at": started_at,
                     "finished_at": finished_at,
                     "duration_ms": duration_ms,
-                    "transport_kind": "direct",
+                    "transport_kind": transport_kind,
                     "sync_mode": "OUTPUTS_AND_LOGS",
-                    "outputs": outputs,
-                    "runtime": result.runtime_kind,
-                    "runtime_engine": result.runtime_engine,
+                    "outputs": serde_json::json!([]),
+                    "stderr_tail": error.to_string(),
                 })
                 .to_string(),
             ) {
-                eprintln!("failed to persist submit result {idempotency_key}: {error:#}");
+                eprintln!(
+                    "failed to persist failure submit result {idempotency_key}: {persist_error:#}"
+                );
             }
-        }
-        Err(error) => {
             if let Err(append_error) = store.append_event(
                 idempotency_key,
                 2,
@@ -107,26 +128,6 @@ fn run_remote_worker_submit_execution(
                     "failed to append TASK_FAILED event for submit {idempotency_key}: {append_error:#}"
                 );
             }
-
-            if let Err(persist_error) = store.set_result_payload(
-                idempotency_key,
-                &serde_json::json!({
-                    "success": false,
-                    "exit_code": 1,
-                    "started_at": started_at,
-                    "finished_at": finished_at,
-                    "duration_ms": duration_ms,
-                    "transport_kind": "direct",
-                    "sync_mode": "OUTPUTS_AND_LOGS",
-                    "outputs": serde_json::json!([]),
-                    "stderr_tail": error.to_string(),
-                })
-                .to_string(),
-            ) {
-                eprintln!(
-                    "failed to persist failure submit result {idempotency_key}: {persist_error:#}"
-                );
-            }
         }
     }
 }
@@ -136,7 +137,7 @@ fn execute_remote_worker_submit(
     selected_node_id: &str,
     payload: &RemoteWorkerSubmitPayload,
 ) -> Result<(
-    tak_exec::RemoteWorkerExecutionResult,
+    tak_runner::RemoteWorkerExecutionResult,
     Vec<RemoteWorkerOutputRecord>,
 )> {
     let execution_root = execution_root_for_submit_key(idempotency_key);
@@ -155,7 +156,7 @@ fn execute_remote_worker_submit(
         )
     })?;
 
-    unpack_remote_worker_workspace(&payload.workspace_zip_base64, &execution_root)?;
+    unpack_remote_worker_workspace(&payload.workspace_zip, &execution_root)?;
     let before = snapshot_workspace_files(&execution_root)?;
 
     let runtime = tokio::runtime::Builder::new_current_thread()

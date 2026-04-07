@@ -20,12 +20,8 @@ struct AttemptExecutionOutcome {
 
 async fn execute_task_attempt(
     context: &AttemptExecutionContext<'_>,
-    submit: AttemptSubmitState,
 ) -> Result<AttemptExecutionOutcome> {
-    let delegate_v1_remote_attempt = context.placement.placement_mode == PlacementMode::Remote
-        && submit.protocol_mode.is_handshake_v1()
-        && (submit.submit_ack.remote_worker || context.runtime_metadata.is_none());
-    let run_local_attempt = !delegate_v1_remote_attempt;
+    let run_local_attempt = context.placement.placement_mode != PlacementMode::Remote;
     let run_result = if run_local_attempt {
         run_task_steps_with_runtime(context.task, context.run_root, context.runtime_metadata).await
     } else {
@@ -35,9 +31,7 @@ async fn execute_task_attempt(
         })
     };
 
-    let (remote_logs, protocol_result) = if context.placement.placement_mode == PlacementMode::Remote
-        && submit.protocol_mode.is_handshake_v1()
-    {
+    let (remote_logs, protocol_result) = if context.placement.placement_mode == PlacementMode::Remote {
         let target = context
             .placement
             .strict_remote_target
@@ -74,13 +68,7 @@ async fn execute_task_attempt(
     };
 
     if !synced_outputs.is_empty() {
-        sync_attempt_outputs(
-            context,
-            &synced_outputs,
-            run_local_attempt,
-            submit.submit_ack.remote_worker,
-        )
-        .await?;
+        sync_attempt_outputs(context, &synced_outputs, run_local_attempt).await?;
     }
 
     Ok(AttemptExecutionOutcome {
@@ -97,7 +85,6 @@ async fn sync_attempt_outputs(
     context: &AttemptExecutionContext<'_>,
     synced_outputs: &[SyncedOutput],
     run_local_attempt: bool,
-    submit_remote_worker: bool,
 ) -> Result<()> {
     if run_local_attempt {
         if let Some(staged_workspace) = context.remote_workspace {
@@ -107,10 +94,6 @@ async fn sync_attempt_outputs(
                 synced_outputs,
             )?;
         }
-        return Ok(());
-    }
-
-    if !submit_remote_worker {
         return Ok(());
     }
 

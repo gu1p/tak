@@ -45,11 +45,15 @@ tak web <target>
 tak run <target>
 ```
 
-If the example uses daemon-backed `needs`, start the daemon first:
+If the example uses remote execution, import and run a `takd` agent first:
 
 ```bash
-tak daemon start
+takd init
+takd serve
+tak remote add "$(takd token show --wait)"
 ```
+
+Direct examples need matching init flags, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` or `--pool test`.
 
 ## Reference Scenarios (Complete Matrix)
 

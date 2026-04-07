@@ -21,7 +21,7 @@ const HERO_SECTIONS: [&str; 6] = [
     "## Artifacts",
 ];
 
-const ROOT_TOKENS: [&str; 17] = [
+const ROOT_TOKENS: [&str; 21] = [
     "`tak list`",
     "`tak tree`",
     "`tak explain <label>`",
@@ -30,8 +30,12 @@ const ROOT_TOKENS: [&str; 17] = [
     "`tak run <label...>`",
     "`--keep-going`",
     "`tak status`",
-    "`tak daemon start`",
-    "`tak daemon status`",
+    "`tak remote add <token>`",
+    "`tak remote list`",
+    "`takd init`",
+    "`takd serve`",
+    "`takd token show`",
+    "`get-takd.sh`",
     "placement=",
     "remote_node=",
     "transport=",

@@ -11,6 +11,15 @@ Large tier: hybrid execution where local and remote test phases are both require
 - artifact roundtrip where remote test outputs are consumed by a local summary step
 
 ## Runbook
+
+Bootstrap a matching direct agent before running locally:
+
+```bash
+takd init --transport direct --base-url http://127.0.0.1:0 --pool test --tag builder --capability linux
+takd serve
+tak remote add "$(takd token show --wait)"
+```
+
 1. `tak list`
 2. `tak explain //apps/web:suite_success`
 3. `tak graph //apps/web:suite_success --format dot`
@@ -25,4 +34,4 @@ Large tier: hybrid execution where local and remote test phases are both require
 
 ## Notes
 This example is intended for catalog contract execution where
-`__TAK_REMOTE_ENDPOINT__` is replaced by a deterministic direct-HTTP fixture endpoint.
+client remote inventory is pre-seeded with a deterministic direct-HTTP fixture agent.

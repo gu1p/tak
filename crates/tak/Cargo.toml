@@ -6,17 +6,19 @@ build = "build.rs"
 
 [dependencies]
 anyhow.workspace = true
+arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-client"] }
 axum.workspace = true
 clap.workspace = true
+prost.workspace = true
 ratatui.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tak-core = { path = "../tak-core" }
 tak-exec = { path = "../tak-exec" }
 tak-loader = { path = "../tak-loader" }
-takd = { path = "../takd" }
+tak-proto = { path = "../tak-proto" }
 tokio.workspace = true
-uuid.workspace = true
+toml.workspace = true
 webbrowser.workspace = true
 
 [dev-dependencies]

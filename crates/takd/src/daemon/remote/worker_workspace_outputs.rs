@@ -1,13 +1,10 @@
 use super::*;
 
 pub(super) fn unpack_remote_worker_workspace(
-    workspace_zip_base64: &str,
+    workspace_zip: &[u8],
     execution_root: &Path,
 ) -> Result<()> {
-    let archive_bytes = base64::engine::general_purpose::STANDARD
-        .decode(workspace_zip_base64)
-        .context("invalid_submit_fields: workspace archive base64 decode failed")?;
-    let cursor = std::io::Cursor::new(archive_bytes);
+    let cursor = std::io::Cursor::new(workspace_zip);
     let mut archive = ZipArchive::new(cursor)
         .context("invalid_submit_fields: workspace archive zip decode failed")?;
 

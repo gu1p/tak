@@ -31,15 +31,16 @@ pub(super) enum Commands {
         #[arg(long = "keep-going", default_value_t = false)]
         keep_going: bool,
     },
-    Status,
-    Daemon {
+    Remote {
         #[command(subcommand)]
-        command: DaemonCommands,
+        command: RemoteCommands,
     },
+    Status,
 }
 
 #[derive(Debug, Subcommand)]
-pub(super) enum DaemonCommands {
-    Start,
-    Status,
+pub(super) enum RemoteCommands {
+    Add { token: String },
+    List,
+    Remove { node_id: String },
 }

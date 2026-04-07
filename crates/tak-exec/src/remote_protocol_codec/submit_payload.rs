@@ -1,7 +1,11 @@
-use std::collections::HashSet;
-
-use anyhow::{Context, Result, anyhow, bail};
-use tak_core::model::{RemoteRuntimeSpec, ResolvedTask};
+use anyhow::{Context, Result, bail};
+use base64::Engine;
+use prost::Message;
+use tak_core::model::{RemoteRuntimeSpec, ResolvedTask, StepDef};
+use tak_proto::{
+    CmdStep, ContainerRuntime, GetTaskResultResponse, PollTaskEventsResponse, RuntimeSpec,
+    ScriptStep, Step, SubmitTaskRequest, runtime_spec, step,
+};
 
 use crate::{
     ParsedRemoteEvents, RemoteLogChunk, RemoteWorkspaceStage, StrictRemoteTarget, SyncedOutput,
@@ -11,59 +15,57 @@ pub(crate) fn build_remote_submit_payload(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     attempt: u32,
-    task_label: &str,
     task: &ResolvedTask,
     remote_workspace: &RemoteWorkspaceStage,
-    include_workspace_archive: bool,
-) -> Result<serde_json::Value> {
-    if !include_workspace_archive {
-        return Ok(serde_json::json!({
-            "task_run_id": task_run_id,
-            "attempt": attempt,
-            "task_label": task_label,
-            "selected_node_id": target.node_id,
-            "workspace": {
-                "mode": "REPO_ZIP_SNAPSHOT",
-                "manifest_hash": remote_workspace.manifest_hash,
-            },
-        }));
-    }
-
-    let runtime = target
-        .runtime
-        .as_ref()
-        .map(remote_runtime_submit_value)
-        .unwrap_or(serde_json::Value::Null);
-
-    let steps = serde_json::to_value(&task.steps)
-        .context("failed serializing task steps for remote submit payload")?;
-
-    Ok(serde_json::json!({
-        "task_run_id": task_run_id,
-        "attempt": attempt,
-        "task_label": task_label,
-        "selected_node_id": target.node_id,
-        "workspace": {
-            "mode": "REPO_ZIP_SNAPSHOT",
-            "archive_zip_base64": remote_workspace.archive_zip_base64,
-            "manifest_hash": remote_workspace.manifest_hash,
-        },
-        "execution": {
-            "steps": steps,
-            "timeout_s": task.timeout_s,
-            "runtime": runtime,
-        },
-        "result": {
-            "sync_mode": "OUTPUTS_AND_LOGS",
-        },
-    }))
+) -> Result<SubmitTaskRequest> {
+    let _ = &remote_workspace.manifest_hash;
+    Ok(SubmitTaskRequest {
+        task_run_id: task_run_id.to_string(),
+        attempt,
+        workspace_zip: base64::engine::general_purpose::STANDARD
+            .decode(&remote_workspace.archive_zip_base64)
+            .context("failed decoding staged workspace archive")?,
+        steps: task
+            .steps
+            .iter()
+            .map(step_submit_value)
+            .collect::<Result<Vec<_>>>()?,
+        timeout_s: task.timeout_s,
+        runtime: target.runtime.as_ref().map(remote_runtime_submit_value),
+    })
 }
 
-fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> serde_json::Value {
-    match runtime {
-        RemoteRuntimeSpec::Containerized { image } => serde_json::json!({
-            "kind": "containerized",
-            "image": image,
+fn step_submit_value(step_def: &StepDef) -> Result<Step> {
+    Ok(Step {
+        kind: Some(match step_def {
+            StepDef::Cmd { argv, cwd, env } => step::Kind::Cmd(CmdStep {
+                argv: argv.clone(),
+                cwd: cwd.clone(),
+                env: env.clone().into_iter().collect(),
+            }),
+            StepDef::Script {
+                path,
+                argv,
+                interpreter,
+                cwd,
+                env,
+            } => step::Kind::Script(ScriptStep {
+                path: path.clone(),
+                argv: argv.clone(),
+                interpreter: interpreter.clone(),
+                cwd: cwd.clone(),
+                env: env.clone().into_iter().collect(),
+            }),
         }),
+    })
+}
+
+fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> RuntimeSpec {
+    match runtime {
+        RemoteRuntimeSpec::Containerized { image } => RuntimeSpec {
+            kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
+                image: image.clone(),
+            })),
+        },
     }
 }

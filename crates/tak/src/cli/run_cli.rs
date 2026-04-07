@@ -79,22 +79,6 @@ pub async fn run_cli() -> Result<()> {
                 .iter()
                 .map(|label| parse_input_label(label))
                 .collect::<Result<Vec<_>>>()?;
-
-            let socket_path = resolve_daemon_socket_path();
-            let workspace_root =
-                std::env::current_dir().context("failed to resolve current directory")?;
-            let ran_via_daemon = try_run_via_daemon(
-                socket_path.clone(),
-                workspace_root,
-                &targets,
-                jobs,
-                keep_going,
-            )
-            .await?;
-            if ran_via_daemon {
-                return Ok(());
-            }
-
             let spec = load_workspace_from_cwd()?;
 
             let summary = run_tasks(
@@ -103,9 +87,9 @@ pub async fn run_cli() -> Result<()> {
                 &RunOptions {
                     jobs,
                     keep_going,
-                    lease_socket: Some(socket_path),
-                    lease_ttl_ms: env_u64("TAK_LEASE_TTL_MS", 30_000),
-                    lease_poll_interval_ms: env_u64("TAK_LEASE_POLL_MS", 200),
+                    lease_socket: None,
+                    lease_ttl_ms: 30_000,
+                    lease_poll_interval_ms: 200,
                     session_id: std::env::var("TAK_SESSION_ID").ok(),
                     user: std::env::var("TAK_USER").ok(),
                 },
@@ -130,28 +114,35 @@ pub async fn run_cli() -> Result<()> {
                 );
             }
         }
-        Commands::Status => {
-            let snapshot = query_daemon_status(resolve_daemon_socket_path()).await?;
-            println!("active_leases: {}", snapshot.active_leases);
-            println!("pending_requests: {}", snapshot.pending_requests);
-            for usage in snapshot.usage {
-                println!(
-                    "usage {} {:?} {:?}: {}/{}",
-                    usage.name, usage.scope, usage.scope_key, usage.used, usage.capacity
-                );
+        Commands::Remote { command } => match command {
+            super::command_model::RemoteCommands::Add { token } => {
+                let remote = add_remote(&token).await?;
+                println!("added remote {}", remote.node_id);
             }
-        }
-        Commands::Daemon { command } => match command {
-            DaemonCommands::Start => {
-                let socket = resolve_daemon_socket_path();
-                takd::daemon::runtime::run_daemon(&socket).await?;
+            super::command_model::RemoteCommands::List => {
+                for remote in list_remotes()? {
+                    println!(
+                        "{} {} pools={} tags={} capabilities={} enabled={}",
+                        remote.node_id,
+                        remote.base_url,
+                        remote.pools.join(","),
+                        remote.tags.join(","),
+                        remote.capabilities.join(","),
+                        remote.enabled
+                    );
+                }
             }
-            DaemonCommands::Status => {
-                let snapshot = query_daemon_status(resolve_daemon_socket_path()).await?;
-                println!("active_leases: {}", snapshot.active_leases);
-                println!("pending_requests: {}", snapshot.pending_requests);
+            super::command_model::RemoteCommands::Remove { node_id } => {
+                if remove_remote(&node_id)? {
+                    println!("removed remote {node_id}");
+                } else {
+                    println!("remote not found: {node_id}");
+                }
             }
         },
+        Commands::Status => {
+            bail!("coordination status is unavailable in this client-only build");
+        }
     }
 
     Ok(())

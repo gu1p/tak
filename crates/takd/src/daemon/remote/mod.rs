@@ -4,13 +4,12 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
-use base64::Engine;
 use futures::StreamExt;
 use safelog::DisplayRedacted;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tak_core::model::{RemoteRuntimeSpec, StepDef, normalize_path_ref};
-use tak_exec::{RemoteWorkerExecutionSpec, execute_remote_worker_steps};
+use tak_runner::{RemoteWorkerExecutionSpec, execute_remote_worker_steps};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tor_cell::relaycell::msg::Connected;
@@ -37,13 +36,13 @@ pub use http_server::run_remote_v1_http_server;
 pub use router::handle_remote_v1_request;
 pub use submit_store::{SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key};
 pub use tor_server::run_remote_v1_tor_hidden_service;
-pub use types::RemoteV1Response;
+pub use types::{RemoteNodeContext, RemoteV1Response};
 
-use http_server::handle_remote_v1_http_stream;
+pub(crate) use http_server::handle_remote_v1_http_stream;
 use query_helpers::{
-    execution_root_for_submit_key, json_response, query_param_string, query_param_u64,
-    remote_task_path_arg, resolve_submit_idempotency_key_for_task_run, split_path_and_query,
-    unix_epoch_ms,
+    binary_response, error_response, execution_root_for_submit_key, protobuf_response,
+    query_param_string, query_param_u64, remote_task_path_arg,
+    resolve_submit_idempotency_key_for_task_run, split_path_and_query, unix_epoch_ms,
 };
 use route_events::handle_remote_events_route;
 use route_node::{handle_node_metadata_route, handle_remote_cancel_route};
@@ -59,3 +58,36 @@ use worker_submit_execution::spawn_remote_worker_submit_execution;
 use worker_workspace_outputs::{
     changed_remote_worker_outputs, snapshot_workspace_files, unpack_remote_worker_workspace,
 };
+
+pub(crate) fn remote_node_context_from_env(base_url: Option<String>) -> RemoteNodeContext {
+    RemoteNodeContext::new(
+        tak_proto::NodeInfo {
+            node_id: env_or("TAKD_NODE_ID", "local"),
+            display_name: env_or("TAKD_DISPLAY_NAME", "local"),
+            base_url: base_url
+                .unwrap_or_else(|| env_or("TAKD_ADVERTISE_URL", "http://127.0.0.1:0")),
+            healthy: true,
+            pools: env_list("TAKD_NODE_POOLS", "default"),
+            tags: env_list("TAKD_NODE_TAGS", "builder"),
+            capabilities: env_list("TAKD_NODE_CAPABILITIES", "linux"),
+            transport: env_or("TAKD_NODE_TRANSPORT", "direct"),
+        },
+        std::env::var("TAKD_BEARER_TOKEN").unwrap_or_default(),
+    )
+}
+
+fn env_or(name: &str, default: &str) -> String {
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn env_list(name: &str, default: &str) -> Vec<String> {
+    env_or(name, default)
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}

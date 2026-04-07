@@ -6,20 +6,20 @@
 
 - `tak-loader` for workspace/task graph discovery
 - `tak-exec` for task execution
-- `takd` for machine-wide lease status and daemon lifecycle
+- `takd` for optional standalone remote execution agents
 
 The CLI is query + action oriented: each command answers one operational question and prints a stable text response contract.
 
 ## Runtime Shape
 
 - `src/main.rs`: process entrypoint, delegates to library runtime.
-- `src/lib.rs`: clap parsing, command dispatch, output formatting, and daemon status RPC.
+- `src/lib.rs`: clap parsing, command dispatch, and output formatting.
 
 High-level flow:
 
 1. Parse command with clap.
 2. For workspace commands, load `WorkspaceSpec` from current working directory.
-3. Dispatch to loader/executor/daemon APIs.
+3. Dispatch to loader/executor/remote-inventory APIs.
 4. Print line-oriented response to stdout.
 5. Return non-zero exit on any `Result::Err`.
 
@@ -32,9 +32,9 @@ High-level flow:
 | `tak graph [label] --format dot` | "What dependency graph should I visualize?" | workspace load + optional label parse | DOT graph text (`digraph tak { ... }`). |
 | `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + label parsing + `run_tasks(...)` | One result line per executed label: `<label>: ok|failed (attempts=X, exit_code=Y|none)`. |
-| `tak status` | "What is daemon lease state right now?" | `query_daemon_status(...)` NDJSON RPC | `active_leases`, `pending_requests`, then `usage ...` lines. |
-| `tak daemon start` | "Start a local coordination daemon" | `takd::run_daemon(...)` | No structured success payload; process becomes daemon server loop. |
-| `tak daemon status` | "Is daemon healthy and what is queue pressure?" | same RPC as `status` | `active_leases` + `pending_requests`. |
+| `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
+| `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe + config write | `added remote <node_id>`. |
+| `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
 
 ## Output Details Per Command
 
@@ -72,18 +72,10 @@ High-level flow:
 - Auto-opens browser only in production-style runtime (`!debug_assertions`) and when `TAK_NO_BROWSER_OPEN` is not set.
 - If open fails, command keeps serving and prints the manual URL.
 
-### `status` and `daemon status`
+### `status`
 
-- Both depend on daemon socket connectivity.
-- Output values come from daemon `StatusSnapshot`:
-  - active lease count
-  - pending request count
-  - optional limiter usage rows (only `status` prints full usage rows)
-
-### `daemon start`
-
-- Binds unix socket and runs daemon loop indefinitely.
-- Intended to run in its own terminal/session.
+- Returns an unsupported error in the current client-only build.
+- Exists so the CLI surface can reserve the status verb until live coordination status is restored.
 
 ## Error and Exit Semantics
 
@@ -94,29 +86,27 @@ Common failure classes:
 - Workspace load/parse errors (`TASKS.py`, label resolution).
 - Invalid CLI input (unsupported graph format, missing run labels, bad label syntax).
 - Execution failures (`run` task failure, timeout, retry exhaustion).
-- Daemon RPC failures (socket not reachable, protocol error, daemon-side error response).
+- Remote onboarding/probe failures.
 
 Representative user-facing errors:
 
 - `unsupported format: <format>`
 - `run requires at least one label`
 - `invalid label <value>: ...`
-- `failed to connect to daemon at <socket>`
-- `daemon error: <message>`
+- `node probe failed with HTTP <code>`
 
 ## Environment-Driven Behavior
 
-`run` and daemon-status paths use environment overrides:
+`run` uses environment overrides:
 
-- `TAKD_SOCKET` for daemon socket path
 - `TAK_LEASE_TTL_MS` for lease TTL
 - `TAK_LEASE_POLL_MS` for pending poll interval
 - `TAK_SESSION_ID` optional session identifier
 - `TAK_USER` optional user override
 
-If unset, the CLI uses built-in defaults and daemon default socket resolution.
+Remote inventory is loaded from XDG config when present.
 
 ## Main Files
 
-- `src/lib.rs`: command parser, dispatcher, command output contracts, daemon status RPC.
+- `src/lib.rs`: command parser, dispatcher, and command output contracts.
 - `src/main.rs`: thin binary wrapper that calls `tak::run_cli`.

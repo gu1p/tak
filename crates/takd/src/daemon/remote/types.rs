@@ -1,8 +1,9 @@
 use super::*;
+use tak_proto::NodeInfo;
 
 #[derive(Debug, Clone)]
 pub(super) struct RemoteWorkerSubmitPayload {
-    pub(super) workspace_zip_base64: String,
+    pub(super) workspace_zip: Vec<u8>,
     pub(super) steps: Vec<StepDef>,
     pub(super) timeout_s: Option<u64>,
     pub(super) runtime: Option<RemoteRuntimeSpec>,
@@ -31,5 +32,17 @@ pub struct SubmitEventRecord {
 pub struct RemoteV1Response {
     pub status_code: u16,
     pub content_type: String,
-    pub body: String,
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteNodeContext {
+    pub node: NodeInfo,
+    pub bearer_token: String,
+}
+
+impl RemoteNodeContext {
+    pub fn new(node: NodeInfo, bearer_token: String) -> Self {
+        Self { node, bearer_token }
+    }
 }

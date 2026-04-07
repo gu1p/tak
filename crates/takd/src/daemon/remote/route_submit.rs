@@ -1,75 +1,53 @@
 use super::*;
+use prost::Message;
+use tak_proto::{SubmitTaskRequest, SubmitTaskResponse};
 
 pub(super) fn handle_remote_submit_route(
+    context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
-    body: Option<&str>,
+    body: Option<&[u8]>,
 ) -> Result<RemoteV1Response> {
     let Some(body) = body else {
-        return Ok(json_response(
-            400,
-            serde_json::json!({"accepted": false, "reason": "missing_body"}),
-        ));
+        return Ok(error_response(400, "missing_body"));
     };
-    let payload: serde_json::Value = match serde_json::from_str(body) {
+    let payload = match SubmitTaskRequest::decode(body) {
         Ok(value) => value,
-        Err(_) => {
-            return Ok(json_response(
-                400,
-                serde_json::json!({"accepted": false, "reason": "invalid_json"}),
-            ));
-        }
+        Err(_) => return Ok(error_response(400, "invalid_protobuf")),
     };
-    let task_run_id = payload
-        .get("task_run_id")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
-        .trim();
-    let attempt = payload
-        .get("attempt")
-        .and_then(serde_json::Value::as_u64)
-        .and_then(|value| u32::try_from(value).ok());
-    let selected_node_id = payload
-        .get("selected_node_id")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
-        .trim();
-
-    if task_run_id.is_empty() || attempt.is_none() || selected_node_id.is_empty() {
-        return Ok(json_response(
-            400,
-            serde_json::json!({"accepted": false, "reason": "invalid_submit_fields"}),
-        ));
+    let task_run_id = payload.task_run_id.trim();
+    if task_run_id.is_empty() || payload.attempt == 0 {
+        return Ok(error_response(400, "invalid_submit_fields"));
     }
 
-    let worker_payload = parse_remote_worker_submit_payload(&payload)?;
-    let registration = store.register_submit(task_run_id, attempt, selected_node_id)?;
+    let worker_payload = match parse_remote_worker_submit_payload(&payload) {
+        Ok(worker_payload) => worker_payload,
+        Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
+    };
+    let selected_node_id = context.node.node_id.clone();
+    let registration =
+        store.register_submit(task_run_id, Some(payload.attempt), &selected_node_id)?;
     let (attached, idempotency_key) = match registration {
         SubmitRegistration::Created { idempotency_key } => (false, idempotency_key),
         SubmitRegistration::Attached { idempotency_key } => (true, idempotency_key),
     };
 
-    if !attached && let Some(worker_payload) = worker_payload.clone() {
+    if !attached {
         spawn_remote_worker_submit_execution(
             store.clone(),
             idempotency_key.clone(),
-            selected_node_id.to_string(),
+            selected_node_id,
+            context.node.transport.clone(),
             worker_payload,
         );
     }
 
-    let execution_mode = if worker_payload.is_some() {
-        "remote_worker"
-    } else {
-        "store_only"
-    };
-    Ok(json_response(
+    Ok(protobuf_response(
         200,
-        serde_json::json!({
-            "accepted": true,
-            "attached": attached,
-            "idempotency_key": idempotency_key,
-            "execution_mode": execution_mode,
-            "remote_worker": worker_payload.is_some(),
-        }),
+        &SubmitTaskResponse {
+            accepted: true,
+            attached,
+            idempotency_key,
+            remote_worker: true,
+        },
     ))
 }

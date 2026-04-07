@@ -3,12 +3,14 @@ use super::*;
 pub async fn run_remote_v1_http_server(
     listener: TcpListener,
     store: SubmitAttemptStore,
+    context: RemoteNodeContext,
 ) -> Result<()> {
     loop {
         let (stream, _) = listener.accept().await.context("accept failed")?;
         let store = store.clone();
+        let context = context.clone();
         tokio::spawn(async move {
-            if let Err(err) = handle_remote_v1_http_client(stream, store).await {
+            if let Err(err) = handle_remote_v1_http_client(stream, store, context).await {
                 eprintln!("remote v1 http client handling error: {err}");
             }
         });
@@ -18,13 +20,15 @@ pub async fn run_remote_v1_http_server(
 async fn handle_remote_v1_http_client(
     mut stream: TcpStream,
     store: SubmitAttemptStore,
+    context: RemoteNodeContext,
 ) -> Result<()> {
-    handle_remote_v1_http_stream(&mut stream, &store).await
+    handle_remote_v1_http_stream(&mut stream, &store, &context).await
 }
 
-pub(super) async fn handle_remote_v1_http_stream<S>(
+pub(crate) async fn handle_remote_v1_http_stream<S>(
     stream: &mut S,
     store: &SubmitAttemptStore,
+    context: &RemoteNodeContext,
 ) -> Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -33,18 +37,17 @@ where
         Ok(Some(request)) => request,
         Ok(None) => return Ok(()),
         Err(err) => {
-            let response = json_response(
-                400,
-                serde_json::json!({
-                    "accepted": false,
-                    "reason": request_parse_error_reason(&err),
-                }),
-            );
+            let response = error_response(400, request_parse_error_reason(&err));
             write_http_response(stream, &response).await?;
             return Ok(());
         }
     };
+    if !request_is_authorized(&request, context) {
+        write_http_response(stream, &error_response(401, "auth_failed")).await?;
+        return Ok(());
+    }
     let response = handle_remote_v1_request(
+        context,
         store,
         &request.method,
         &request.path,
@@ -57,7 +60,8 @@ where
 struct ParsedHttpRequest {
     method: String,
     path: String,
-    body: Option<String>,
+    authorization: Option<String>,
+    body: Option<Vec<u8>>,
 }
 
 async fn read_http_request<S>(stream: &mut S) -> Result<Option<ParsedHttpRequest>>
@@ -94,6 +98,7 @@ where
     let method = parts.next().unwrap_or_default().to_string();
     let path = parts.next().unwrap_or("/").to_string();
     let content_length = parse_content_length(&header_text)?;
+    let authorization = parse_authorization(&header_text);
 
     let mut body = request_bytes[header_end..].to_vec();
     while body.len() < content_length {
@@ -104,13 +109,12 @@ where
         body.extend_from_slice(&chunk[..read]);
     }
     body.truncate(content_length);
-    let body = if body.is_empty() {
-        None
-    } else {
-        Some(String::from_utf8_lossy(&body).to_string())
-    };
-
-    Ok(Some(ParsedHttpRequest { method, path, body }))
+    Ok(Some(ParsedHttpRequest {
+        method,
+        path,
+        authorization,
+        body: if body.is_empty() { None } else { Some(body) },
+    }))
 }
 
 fn parse_content_length(header_text: &str) -> Result<usize> {
@@ -137,19 +141,40 @@ fn request_parse_error_reason(err: &anyhow::Error) -> &'static str {
     }
 }
 
+fn parse_authorization(header_text: &str) -> Option<String> {
+    header_text.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        if name.trim().eq_ignore_ascii_case("authorization") {
+            Some(value.trim().to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn request_is_authorized(request: &ParsedHttpRequest, context: &RemoteNodeContext) -> bool {
+    if context.bearer_token.trim().is_empty() {
+        return true;
+    }
+    request.authorization.as_deref() == Some(&format!("Bearer {}", context.bearer_token))
+}
+
 async fn write_http_response<S>(stream: &mut S, response: &RemoteV1Response) -> Result<()>
 where
     S: AsyncWrite + Unpin,
 {
     let status = http_status_line(response.status_code);
-    let encoded = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+    let head = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         response.content_type,
         response.body.len(),
-        response.body
     );
     stream
-        .write_all(encoded.as_bytes())
+        .write_all(head.as_bytes())
+        .await
+        .context("write response head")?;
+    stream
+        .write_all(&response.body)
         .await
         .context("write response bytes")?;
     stream.flush().await.context("flush response bytes")?;

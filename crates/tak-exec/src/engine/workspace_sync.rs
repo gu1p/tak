@@ -72,32 +72,7 @@ async fn sync_remote_outputs_from_remote(
                 status
             );
         }
-
-        let parsed: serde_json::Value =
-            serde_json::from_str(&response_body).with_context(|| {
-                format!(
-                    "infra error: remote node {} output download payload is invalid JSON for {}",
-                    target.node_id, output.path
-                )
-            })?;
-        let encoded = parsed
-            .get("data_base64")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| {
-                anyhow!(
-                    "infra error: remote node {} output download payload is missing data_base64 for {}",
-                    target.node_id,
-                    output.path
-                )
-            })?;
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(encoded)
-            .with_context(|| {
-                format!(
-                    "infra error: remote node {} output download payload has invalid base64 for {}",
-                    target.node_id, output.path
-                )
-            })?;
+        let bytes = response_body;
 
         let destination = workspace_root.join(&relative_path);
         if let Some(parent) = destination.parent() {

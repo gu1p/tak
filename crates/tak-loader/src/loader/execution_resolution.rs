@@ -13,9 +13,9 @@ fn resolve_execution(execution: TaskExecutionDef) -> Result<TaskExecutionSpec> {
                 max_parallel_tasks: local.max_parallel_tasks,
             }))
         }
-        TaskExecutionDef::RemoteOnly { remote } => Ok(TaskExecutionSpec::RemoteOnly(
-            resolve_remote_selection(remote)?,
-        )),
+        TaskExecutionDef::RemoteOnly { remote } => {
+            Ok(TaskExecutionSpec::RemoteOnly(resolve_remote(remote)?))
+        }
         TaskExecutionDef::ByCustomPolicy {
             policy_name,
             decision,
@@ -53,78 +53,17 @@ fn resolve_policy_decision(decision: PolicyDecisionDef) -> Result<PolicyDecision
 
     match decision.mode {
         PolicyDecisionModeDef::Local => {
-            if decision.remote.is_some() || !decision.remotes.is_empty() {
+            if decision.remote.is_some() {
                 bail!("execution ByCustomPolicy.decision local mode cannot include remote targets");
             }
             Ok(PolicyDecisionSpec::Local { reason })
         }
         PolicyDecisionModeDef::Remote => {
-            if !decision.remotes.is_empty() {
-                bail!("execution ByCustomPolicy.decision remote mode cannot include remotes list");
-            }
             let remote = decision.remote.ok_or_else(|| {
                 anyhow!("execution ByCustomPolicy.decision remote mode requires remote")
             })?;
-            let remote = resolve_remote(*remote)?;
-            if remote.endpoint.is_none() {
-                bail!(
-                    "execution ByCustomPolicy.decision remote target {} requires endpoint",
-                    remote.id
-                );
-            }
+            let remote = resolve_remote(remote)?;
             Ok(PolicyDecisionSpec::Remote { reason, remote })
-        }
-        PolicyDecisionModeDef::RemoteAny => {
-            if decision.remote.is_some() {
-                bail!(
-                    "execution ByCustomPolicy.decision remote_any mode cannot include singular remote"
-                );
-            }
-            if decision.remotes.is_empty() {
-                bail!(
-                    "execution ByCustomPolicy.decision remote_any mode requires non-empty remotes"
-                );
-            }
-
-            let mut remotes = Vec::with_capacity(decision.remotes.len());
-            for remote in decision.remotes {
-                let resolved = resolve_remote(remote)?;
-                if resolved.endpoint.is_none() {
-                    bail!(
-                        "execution ByCustomPolicy.decision remote_any target {} requires endpoint",
-                        resolved.id
-                    );
-                }
-                remotes.push(resolved);
-            }
-
-            Ok(PolicyDecisionSpec::RemoteAny { reason, remotes })
-        }
-    }
-}
-
-/// Resolves one remote selection shape while enforcing non-empty node ids.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn resolve_remote_selection(selection: RemoteSelectionDef) -> Result<RemoteSelectionSpec> {
-    match selection {
-        RemoteSelectionDef::Single(remote) => {
-            Ok(RemoteSelectionSpec::Single(resolve_remote(*remote)?))
-        }
-        RemoteSelectionDef::List(remotes) => {
-            if remotes.is_empty() {
-                bail!("execution RemoteOnly.remote list cannot be empty");
-            }
-            let mut resolved = Vec::with_capacity(remotes.len());
-            for remote in remotes {
-                resolved.push(resolve_remote(remote)?);
-            }
-            Ok(RemoteSelectionSpec::List(resolved))
         }
     }
 }
@@ -139,37 +78,32 @@ fn resolve_remote_selection(selection: RemoteSelectionDef) -> Result<RemoteSelec
 /// ```
 fn resolve_remote(remote: RemoteDef) -> Result<RemoteSpec> {
     let RemoteDef {
-        id: raw_id,
-        endpoint: raw_endpoint,
+        pool,
+        required_tags,
+        required_capabilities,
         transport,
-        workspace,
-        result,
         runtime,
     } = remote;
 
-    let id = raw_id.trim().to_string();
-    if id.is_empty() {
-        bail!("execution Remote.id cannot be empty");
-    }
-    let endpoint = raw_endpoint.and_then(|value| {
-        let normalized = value.trim().to_string();
-        if normalized.is_empty() {
-            None
-        } else {
-            Some(normalized)
-        }
-    });
-
-    let (transport_kind, service_auth_env) = validate_remote_transport(transport)?;
-    validate_remote_workspace(workspace)?;
-    validate_remote_result(result)?;
+    let pool = pool.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    let required_tags = required_tags
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect();
+    let required_capabilities = required_capabilities
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect();
+    let transport_kind = validate_remote_transport(transport)?;
     let runtime = validate_remote_runtime(runtime)?;
 
     Ok(RemoteSpec {
-        id,
-        endpoint,
+        pool,
+        required_tags,
+        required_capabilities,
         transport_kind,
-        service_auth_env,
         runtime,
     })
 }

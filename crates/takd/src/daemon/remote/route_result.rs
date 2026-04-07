@@ -1,4 +1,5 @@
 use super::*;
+use tak_proto::{GetTaskResultResponse, OutputFile};
 
 pub(super) fn handle_remote_result_route(
     store: &SubmitAttemptStore,
@@ -15,16 +16,10 @@ pub(super) fn handle_remote_result_route(
 
     let key = resolve_submit_idempotency_key_for_task_run(store, task_run_id, query)?;
     let Some(key) = key else {
-        return Ok(Some(json_response(
-            404,
-            serde_json::json!({"error":"task_not_found"}),
-        )));
+        return Ok(Some(error_response(404, "task_not_found")));
     };
     let Some(payload_json) = store.result_payload(&key)? else {
-        return Ok(Some(json_response(
-            404,
-            serde_json::json!({"error":"result_not_found"}),
-        )));
+        return Ok(Some(error_response(404, "result_not_found")));
     };
 
     let payload_value = serde_json::from_str::<serde_json::Value>(&payload_json)
@@ -37,24 +32,76 @@ pub(super) fn handle_remote_result_route(
     let node_id = store
         .selected_node_id_for_submit(&key)?
         .unwrap_or_else(|| "unknown".to_string());
+    let outputs = payload_value
+        .get("outputs")
+        .and_then(serde_json::Value::as_array)
+        .map(|outputs| {
+            outputs
+                .iter()
+                .map(|output| OutputFile {
+                    path: output
+                        .get("path")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    digest: output
+                        .get("digest")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    size_bytes: output
+                        .get("size")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(0),
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
-    Ok(Some(json_response(
+    Ok(Some(protobuf_response(
         200,
-        serde_json::json!({
-            "success": success,
-            "status": status,
-            "exit_code": payload_value.get("exit_code").cloned().unwrap_or_else(|| serde_json::json!(1)),
-            "started_at": payload_value.get("started_at").cloned().unwrap_or_else(|| serde_json::json!(0)),
-            "finished_at": payload_value.get("finished_at").cloned().unwrap_or_else(|| serde_json::json!(0)),
-            "duration_ms": payload_value.get("duration_ms").cloned().unwrap_or_else(|| serde_json::json!(0)),
-            "node_id": node_id,
-            "transport_kind": payload_value.get("transport_kind").cloned().unwrap_or_else(|| serde_json::json!("direct")),
-            "runtime": payload_value.get("runtime").cloned().unwrap_or(serde_json::Value::Null),
-            "runtime_engine": payload_value.get("runtime_engine").cloned().unwrap_or(serde_json::Value::Null),
-            "log_artifact_uri": payload_value.get("log_artifact_uri").cloned().unwrap_or(serde_json::Value::Null),
-            "outputs": payload_value.get("outputs").cloned().unwrap_or_else(|| serde_json::json!([])),
-            "stdout_tail": payload_value.get("stdout_tail").cloned().unwrap_or(serde_json::Value::Null),
-            "stderr_tail": payload_value.get("stderr_tail").cloned().unwrap_or(serde_json::Value::Null),
-        }),
+        &GetTaskResultResponse {
+            success,
+            exit_code: payload_value
+                .get("exit_code")
+                .and_then(serde_json::Value::as_i64)
+                .and_then(|value| i32::try_from(value).ok()),
+            status: status.to_string(),
+            started_at: payload_value
+                .get("started_at")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0),
+            finished_at: payload_value
+                .get("finished_at")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0),
+            duration_ms: payload_value
+                .get("duration_ms")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0),
+            node_id,
+            transport_kind: payload_value
+                .get("transport_kind")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("direct")
+                .to_string(),
+            runtime: payload_value
+                .get("runtime")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            runtime_engine: payload_value
+                .get("runtime_engine")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            outputs,
+            stdout_tail: payload_value
+                .get("stdout_tail")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            stderr_tail: payload_value
+                .get("stderr_tail")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+        },
     )))
 }

@@ -1,27 +1,13 @@
 use super::*;
+use tak_proto::CancelTaskResponse;
 
 pub(super) fn handle_node_metadata_route(
+    context: &RemoteNodeContext,
     method: &str,
     path_only: &str,
 ) -> Option<RemoteV1Response> {
-    if method == "GET" && path_only == "/v1/node/capabilities" {
-        return Some(json_response(
-            200,
-            serde_json::json!({
-                "compatible": true,
-                "protocol_version": "v1",
-                "remote_worker": true,
-                "execution_mode": "remote_worker",
-            }),
-        ));
-    }
-    if method == "GET" && path_only == "/v1/node/status" {
-        return Some(json_response(
-            200,
-            serde_json::json!({
-                "healthy": true,
-            }),
-        ));
+    if method == "GET" && path_only == "/v1/node/info" {
+        return Some(protobuf_response(200, &context.node));
     }
     None
 }
@@ -33,12 +19,12 @@ pub(super) fn handle_remote_cancel_route(
     if let Some(task_run_id) = remote_task_path_arg(path_only, "/cancel")
         && method == "POST"
     {
-        return Some(json_response(
+        return Some(protobuf_response(
             202,
-            serde_json::json!({
-                "cancelled": true,
-                "task_run_id": task_run_id,
-            }),
+            &CancelTaskResponse {
+                cancelled: true,
+                task_run_id: task_run_id.to_string(),
+            },
         ));
     }
 

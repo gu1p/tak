@@ -2,7 +2,12 @@
 # File: services/api/TASKS.py
 # Scenario: remote direct build and artifact roundtrip
 
-REMOTE = Remote(id="remote-direct-build", endpoint="__TAK_REMOTE_ENDPOINT__")
+REMOTE = Remote(
+  pool="build",
+  required_tags=["builder"],
+  required_capabilities=["linux"],
+  transport=DirectHttps(),
+)
 
 SPEC = module_spec(
   tasks=[

@@ -1,4 +1,6 @@
 use super::*;
+use prost::Message;
+use tak_proto::ErrorResponse;
 
 pub(super) fn resolve_submit_idempotency_key_for_task_run(
     store: &SubmitAttemptStore,
@@ -66,12 +68,33 @@ pub(super) fn remote_task_path_arg<'a>(path: &'a str, suffix: &str) -> Option<&'
     Some(task_run_id)
 }
 
-pub(super) fn json_response(status_code: u16, body: serde_json::Value) -> RemoteV1Response {
+pub(super) fn binary_response(
+    status_code: u16,
+    content_type: &str,
+    body: impl Into<Vec<u8>>,
+) -> RemoteV1Response {
     RemoteV1Response {
         status_code,
-        content_type: "application/json".to_string(),
-        body: body.to_string(),
+        content_type: content_type.to_string(),
+        body: body.into(),
     }
+}
+
+pub(super) fn protobuf_response<M: Message>(status_code: u16, message: &M) -> RemoteV1Response {
+    binary_response(
+        status_code,
+        "application/x-protobuf",
+        message.encode_to_vec(),
+    )
+}
+
+pub(super) fn error_response(status_code: u16, message: &str) -> RemoteV1Response {
+    protobuf_response(
+        status_code,
+        &ErrorResponse {
+            message: message.to_string(),
+        },
+    )
 }
 
 /// Returns the current Unix epoch timestamp in milliseconds.

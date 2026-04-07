@@ -47,11 +47,10 @@ SPEC
 
 ## Runbook
 
-1. Start daemon: `tak daemon start`
-2. `tak list`
-3. `tak explain //apps/qa:release`
-4. `tak graph //apps/qa:release --format dot`
-5. `tak run //apps/qa:release`
+1. `tak list`
+2. `tak explain //apps/qa:release`
+3. `tak graph //apps/qa:release --format dot`
+4. `tak run //apps/qa:release`
 
 ## Expected Signals
 

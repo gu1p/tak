@@ -64,8 +64,5 @@ pub(super) fn dispatch_request(request: Request, manager: &SharedLeaseManager) -
                 status: guard.status(),
             })
         }
-        Request::RunTasks(_) => {
-            bail!("run tasks request must be handled by async client stream handler")
-        }
     }
 }

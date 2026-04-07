@@ -9,20 +9,21 @@ use super::*;
 /// # }
 /// ```
 pub fn handle_remote_v1_request(
+    context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
     method: &str,
     path: &str,
-    body: Option<&str>,
+    body: Option<&[u8]>,
 ) -> Result<RemoteV1Response> {
     let method = method.trim().to_ascii_uppercase();
     let (path_only, query) = split_path_and_query(path);
 
-    if let Some(response) = handle_node_metadata_route(&method, path_only) {
+    if let Some(response) = handle_node_metadata_route(context, &method, path_only) {
         return Ok(response);
     }
 
     if method == "POST" && path_only == "/v1/tasks/submit" {
-        return handle_remote_submit_route(store, body);
+        return handle_remote_submit_route(context, store, body);
     }
 
     if let Some(response) = handle_remote_events_route(store, &method, path_only, query)? {
@@ -39,12 +40,8 @@ pub fn handle_remote_v1_request(
         return Ok(response);
     }
 
-    Ok(json_response(
+    Ok(error_response(
         404,
-        serde_json::json!({
-            "error": "not_found",
-            "method": method,
-            "path": path_only,
-        }),
+        &format!("not_found:{method}:{path_only}"),
     ))
 }

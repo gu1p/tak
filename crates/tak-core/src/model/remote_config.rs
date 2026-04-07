@@ -1,14 +1,13 @@
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteDef {
-    pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub endpoint: Option<String>,
+    pub pool: Option<String>,
+    #[serde(default)]
+    pub required_tags: Vec<String>,
+    #[serde(default)]
+    pub required_capabilities: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<RemoteTransportDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace: Option<RemoteWorkspaceDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub result: Option<RemoteResultDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<RemoteRuntimeDef>,
 }
@@ -16,20 +15,11 @@ pub struct RemoteDef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteTransportDef {
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auth: Option<ServiceAuthDef>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServiceAuthDef {
-    pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub env_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteTransportKind {
-    DirectHttps,
+    Direct,
     Tor,
 }
 
@@ -37,20 +27,10 @@ impl RemoteTransportKind {
     #[must_use]
     pub fn as_result_value(self) -> &'static str {
         match self {
-            Self::DirectHttps => "direct",
+            Self::Direct => "direct",
             Self::Tor => "tor",
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoteWorkspaceDef {
-    pub transfer: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoteResultDef {
-    pub sync: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,4 +63,3 @@ pub struct ContainerResourceLimitsDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_mb: Option<u64>,
 }
-

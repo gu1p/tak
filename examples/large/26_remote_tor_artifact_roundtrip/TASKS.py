@@ -3,8 +3,10 @@
 # Scenario: remote tor artifact roundtrip
 
 REMOTE = Remote(
-  id="remote-tor-artifacts",
-  transport=RemoteTransportMode.TorOnionService(endpoint="__TAK_REMOTE_ENDPOINT__"),
+  pool="build",
+  required_tags=["builder"],
+  required_capabilities=["linux"],
+  transport=TorOnionService(),
 )
 
 SPEC = module_spec(

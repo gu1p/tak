@@ -2,41 +2,23 @@ use std::env;
 
 use anyhow::{Context, Result, anyhow, bail};
 
-pub(crate) fn remote_protocol_request_headers(
-    node_id: &str,
-    service_auth_env: Option<&str>,
-) -> Result<String> {
+pub(crate) fn remote_protocol_request_headers(node_id: &str, bearer_token: &str) -> Result<String> {
     let mut headers = String::from("X-Tak-Protocol-Version: v1\r\n");
-
-    if let Some(env_name) = service_auth_env {
-        let token = env::var(env_name).with_context(|| {
-            format!(
-                "infra error: remote node {} missing service auth token env {}",
-                node_id, env_name
-            )
-        })?;
-        let token = token.trim();
-        if token.is_empty() {
-            bail!(
-                "infra error: remote node {} service auth token env {} is empty",
-                node_id,
-                env_name
-            );
-        }
-        if token.contains(['\r', '\n']) {
-            bail!(
-                "infra error: remote node {} service auth token env {} contains invalid characters",
-                node_id,
-                env_name
-            );
-        }
-        headers.push_str(&format!("X-Tak-Service-Token: {token}\r\n"));
+    let token = bearer_token.trim();
+    if token.is_empty() {
+        bail!("infra error: remote node {} bearer token is empty", node_id);
     }
-
+    if token.contains(['\r', '\n']) {
+        bail!(
+            "infra error: remote node {} bearer token contains invalid characters",
+            node_id
+        );
+    }
+    headers.push_str(&format!("Authorization: Bearer {token}\r\n"));
     Ok(headers)
 }
 
-pub(crate) fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
+pub fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
     let trimmed = endpoint.trim();
     let (scheme, without_scheme) = if let Some(value) = trimmed.strip_prefix("http://") {
         ("http", value)
@@ -70,7 +52,7 @@ pub(crate) fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
     Ok(format!("{authority}:{default_port}"))
 }
 
-pub(crate) fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
+pub fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
     let socket_addr = endpoint_socket_addr(endpoint)?;
     let (host, raw_port) = socket_addr
         .rsplit_once(':')

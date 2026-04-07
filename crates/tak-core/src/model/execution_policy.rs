@@ -1,16 +1,8 @@
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum RemoteSelectionDef {
-    Single(Box<RemoteDef>),
-    List(Vec<RemoteDef>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyDecisionModeDef {
     Local,
     Remote,
-    RemoteAny,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,9 +11,7 @@ pub struct PolicyDecisionDef {
     #[serde(default)]
     pub reason: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remote: Option<Box<RemoteDef>>,
-    #[serde(default)]
-    pub remotes: Vec<RemoteDef>,
+    pub remote: Option<RemoteDef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +21,7 @@ pub enum TaskExecutionDef {
         local: LocalDef,
     },
     RemoteOnly {
-        remote: RemoteSelectionDef,
+        remote: RemoteDef,
     },
     ByCustomPolicy {
         policy_name: String,

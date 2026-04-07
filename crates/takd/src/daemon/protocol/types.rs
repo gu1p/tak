@@ -49,20 +49,6 @@ pub struct StatusRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunTasksRequest {
-    pub request_id: String,
-    pub workspace_root: String,
-    pub labels: Vec<String>,
-    pub jobs: usize,
-    pub keep_going: bool,
-    pub lease_socket: Option<String>,
-    pub lease_ttl_ms: u64,
-    pub lease_poll_interval_ms: u64,
-    pub session_id: Option<String>,
-    pub user: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeaseInfo {
     pub lease_id: String,
     pub ttl_ms: u64,
@@ -81,7 +67,6 @@ pub enum Request {
     RenewLease(RenewLeaseRequest),
     ReleaseLease(ReleaseLeaseRequest),
     Status(StatusRequest),
-    RunTasks(RunTasksRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,26 +90,6 @@ pub enum Response {
     StatusSnapshot {
         request_id: String,
         status: StatusSnapshot,
-    },
-    RunStarted {
-        request_id: String,
-    },
-    RunTaskResult {
-        request_id: String,
-        label: String,
-        attempts: u32,
-        success: bool,
-        exit_code: Option<i32>,
-        placement: String,
-        remote_node: Option<String>,
-        transport: Option<String>,
-        reason: Option<String>,
-        context_hash: Option<String>,
-        runtime: Option<String>,
-        runtime_engine: Option<String>,
-    },
-    RunCompleted {
-        request_id: String,
     },
     Error {
         request_id: String,

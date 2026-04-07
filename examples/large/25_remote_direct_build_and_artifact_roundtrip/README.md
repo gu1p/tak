@@ -7,7 +7,12 @@ This is the core remote-delivery pattern: build remotely, sync artifacts back, t
 ## Copy-Paste Starter
 
 ```python
-REMOTE = Remote(id="remote-direct-build", endpoint="https://remote.example")
+REMOTE = Remote(
+    pool="build",
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    transport=DirectHttps(),
+)
 
 SPEC = module_spec(
     tasks=[
@@ -46,10 +51,18 @@ SPEC
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
 | execution mode | `RemoteOnly(REMOTE)` | `LocalOnly(Local(...))`, `ByCustomPolicy(...)` | Force remote, force local, or pick dynamically with policy logic. |
-| remote transport | direct endpoint | Tor onion transport configuration | Enables private-network routing with transport parity. |
+| remote transport | direct client-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
 | remote runtime | default runtime | `Remote(..., runtime=ContainerRuntime(...))` | Containerized remote runtime gives stronger environment reproducibility. |
 
 ## Runbook
+
+Bootstrap a matching direct agent before running locally:
+
+```bash
+takd init --transport direct --base-url http://127.0.0.1:0 --pool build --tag builder --capability linux
+takd serve
+tak remote add "$(takd token show --wait)"
+```
 
 1. `tak list`
 2. `tak explain //services/api:release`
@@ -59,7 +72,7 @@ SPEC
 ## Expected Signals
 
 - Run summary includes `placement=remote` for the remote build task.
-- Run summary includes `remote_node=remote-direct-build`.
+- Run summary includes `remote_node=` with the configured agent id.
 - Local verify step succeeds using remote-generated artifact.
 
 ## Artifacts

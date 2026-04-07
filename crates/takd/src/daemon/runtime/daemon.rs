@@ -30,8 +30,9 @@ async fn spawn_optional_remote_v1_services(db_path: &Path) -> Result<()> {
             .context("failed to read takd remote v1 local address")?;
         let store = SubmitAttemptStore::with_db_path(db_path.to_path_buf())
             .context("failed to open takd remote v1 sqlite store")?;
+        let context = remote_node_context_from_env(Some(format!("http://{local_addr}")));
         tokio::spawn(async move {
-            if let Err(err) = run_remote_v1_http_server(listener, store).await {
+            if let Err(err) = run_remote_v1_http_server(listener, store, context).await {
                 eprintln!("takd remote v1 http server failed: {err}");
             }
         });

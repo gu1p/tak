@@ -40,7 +40,7 @@ async fn run_single_task(
     loop {
         attempt += 1;
 
-        let submit = resolve_attempt_submit_state(
+        resolve_attempt_submit_state(
             task,
             &mut placement,
             &mut runtime_metadata,
@@ -62,7 +62,7 @@ async fn run_single_task(
             attempt,
         };
         let lease_id = acquire_task_lease(task, attempt, options, lease_context).await?;
-        let attempt_result = execute_task_attempt(&attempt_context, submit).await;
+        let attempt_result = execute_task_attempt(&attempt_context).await;
 
         if let Some(id) = lease_id.as_ref() {
             release_task_lease(id, options)

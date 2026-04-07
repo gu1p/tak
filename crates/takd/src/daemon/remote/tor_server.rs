@@ -5,12 +5,14 @@ pub async fn run_remote_v1_tor_hidden_service(
     store: SubmitAttemptStore,
 ) -> Result<()> {
     if let Some(test_bind_addr) = test_tor_hidden_service_bind_addr() {
+        let context =
+            remote_node_context_from_env(Some(format!("http://{}.onion", config.nickname)));
         let listener = TcpListener::bind(test_bind_addr.as_str())
             .await
             .with_context(|| {
                 format!("failed to bind takd tor test listener at {test_bind_addr}")
             })?;
-        return run_remote_v1_http_server(listener, store).await;
+        return run_remote_v1_http_server(listener, store, context).await;
     }
 
     let tor_client_config = arti_client::config::TorClientConfigBuilder::from_directories(
@@ -34,6 +36,7 @@ pub async fn run_remote_v1_tor_hidden_service(
         .onion_address()
         .map(|hsid| format!("http://{}", hsid.display_unredacted()))
         .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
+    let context = remote_node_context_from_env(Some(onion_endpoint.clone()));
     eprintln!("takd remote v1 onion service ready at {onion_endpoint}");
 
     futures::pin_mut!(rend_requests);
@@ -50,7 +53,9 @@ pub async fn run_remote_v1_tor_hidden_service(
         while let Some(stream_request) = stream_requests.next().await {
             match stream_request.accept(Connected::new_empty()).await {
                 Ok(mut stream) => {
-                    if let Err(err) = handle_remote_v1_http_stream(&mut stream, &store).await {
+                    if let Err(err) =
+                        handle_remote_v1_http_stream(&mut stream, &store, &context).await
+                    {
                         eprintln!("takd onion service stream handling failed: {err}");
                     }
                 }

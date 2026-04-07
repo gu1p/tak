@@ -45,22 +45,16 @@ impl Default for LocalSpec {
 
 #[derive(Debug, Clone)]
 pub struct RemoteSpec {
-    pub id: String,
-    pub endpoint: Option<String>,
+    pub pool: Option<String>,
+    pub required_tags: Vec<String>,
+    pub required_capabilities: Vec<String>,
     pub transport_kind: RemoteTransportKind,
-    pub service_auth_env: Option<String>,
     pub runtime: Option<RemoteRuntimeSpec>,
 }
 
 #[derive(Debug, Clone)]
 pub enum RemoteRuntimeSpec {
     Containerized { image: String },
-}
-
-#[derive(Debug, Clone)]
-pub enum RemoteSelectionSpec {
-    Single(RemoteSpec),
-    List(Vec<RemoteSpec>),
 }
 
 #[derive(Debug, Clone)]
@@ -72,16 +66,12 @@ pub enum PolicyDecisionSpec {
         reason: String,
         remote: RemoteSpec,
     },
-    RemoteAny {
-        reason: String,
-        remotes: Vec<RemoteSpec>,
-    },
 }
 
 #[derive(Debug, Clone)]
 pub enum TaskExecutionSpec {
     LocalOnly(LocalSpec),
-    RemoteOnly(RemoteSelectionSpec),
+    RemoteOnly(RemoteSpec),
     ByCustomPolicy {
         policy_name: String,
         decision: Option<PolicyDecisionSpec>,

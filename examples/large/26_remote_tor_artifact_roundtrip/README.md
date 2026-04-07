@@ -23,4 +23,4 @@ Large tier: remote transport parity and artifact roundtrip flow.
 
 ## Notes
 This example is intended for catalog contract execution where
-`__TAK_REMOTE_ENDPOINT__` is replaced by a deterministic Tor fixture endpoint.
+client remote inventory is pre-seeded with a deterministic Tor fixture agent.

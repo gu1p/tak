@@ -17,7 +17,7 @@ Tak is a task orchestrator for recursive monorepos. It loads distributed `TASKS.
 - Command and script step execution with explicit `cwd` and `env` control.
 - Retry policies with fixed or exponential-jitter backoff.
 - Timeout controls per task.
-- Daemon-backed lease coordination for `needs` (resource/lock/rate/process/queue semantics).
+- Client-side lease coordination for `needs` (resource/lock/rate/process/queue semantics).
 - Remote execution with direct or Tor transport plus artifact roundtrip.
 - Hybrid local+remote pipelines with stable run summaries.
 
@@ -55,11 +55,17 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `--keep-going`
   - Continue independent tasks even after one target fails.
 - `tak status`
-  - Show daemon lease pressure and limiter usage.
-- `tak daemon start`
-  - Start local coordination daemon.
-- `tak daemon status`
-  - Check daemon health and queue pressure.
+  - Report coordination status when supported; the current client-only build returns an unsupported error.
+- `tak remote add <token>`
+  - Import a `takd` agent token into local client config.
+- `tak remote list`
+  - Show configured remote agents in client priority order.
+- `takd init`
+  - Create Tor-first agent identity and hidden-service runtime state.
+- `takd serve`
+  - Start the standalone execution agent service and publish its hidden-service token when ready.
+- `takd token show`
+  - Reprint the persisted onboarding token, or wait for readiness with `--wait`.
 
 ## Run Output Signals
 
@@ -83,11 +89,15 @@ Key fields:
 
 ## Quickstart
 
-1. Optional but recommended for `needs`-driven coordination:
+1. Optional but recommended for remote execution:
 
 ```bash
-tak daemon start
+takd init
+takd serve
+tak remote add "$(takd token show --wait)"
 ```
+
+Direct transport examples need matching agent settings, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` for build pools or `--pool test` for test pools.
 
 2. Explore and run a target:
 
@@ -126,8 +136,8 @@ SPEC
 
 - `crates/tak-core`: canonical model types, labels, DAG planner.
 - `crates/tak-loader`: `TASKS.py` discovery, evaluation, and merge.
-- `crates/tak-exec`: runtime executor, retry/timeout handling, lease client.
-- `crates/takd`: daemon protocol, scheduling, and sqlite persistence.
+- `crates/tak-exec`: runtime executor, retry/timeout handling, and remote placement.
+- `crates/takd`: standalone execution agent and sqlite-backed remote submit store.
 - `crates/tak`: CLI contracts and interactive web graph serving.
 
 ## Installation
@@ -136,17 +146,20 @@ Install the latest release for your platform:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-tak.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-takd.sh | bash
 ```
 
 Install behavior:
 
 - Downloads latest release asset for macOS/Linux (`x86_64` + `aarch64`).
 - Installs `tak` and `takd` to `~/.local/bin` by default.
+- `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.
 - Supports overrides:
   - `TAK_VERSION` to pin a release tag.
   - `TAK_INSTALL_DIR` to change install destination.
   - `TAK_REPO` to install from a different repository.
   - `GH_TOKEN` or `GITHUB_TOKEN` for private repository access.
+  - `TAKD_TRANSPORT`, `TAKD_BASE_URL`, `TAKD_POOLS`, `TAKD_TAGS`, and `TAKD_CAPABILITIES` to customize the initial agent config.
 
 ## Quality Gates
 

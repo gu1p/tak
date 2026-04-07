@@ -30,16 +30,15 @@ SPEC
 
 ## Runbook
 
-1. Start daemon: `tak daemon start`
-2. `tak list`
-3. `tak explain //:ui_test`
-4. `tak graph //:ui_test --format dot`
-5. `tak run //:ui_test`
+1. `tak list`
+2. `tak explain //:ui_test`
+3. `tak graph //:ui_test --format dot`
+4. `tak run //:ui_test`
 
 ## Expected Signals
 
-- `tak run` succeeds with daemon available.
-- `tak status` shows lease activity while the task is running.
+- `tak run` succeeds with local coordination available.
+- `tak status` is currently unsupported in the client-only CLI build.
 
 ## Artifacts
 
