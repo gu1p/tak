@@ -5,6 +5,7 @@ pub async fn run_remote_v1_tor_hidden_service(
     store: SubmitAttemptStore,
 ) -> Result<()> {
     if let Some(test_bind_addr) = test_tor_hidden_service_bind_addr() {
+        tracing::info!("using takd tor hidden-service test bind override at {test_bind_addr}");
         let context =
             remote_node_context_from_env(Some(format!("http://{}.onion", config.nickname)));
         let listener = TcpListener::bind(test_bind_addr.as_str())
@@ -12,6 +13,10 @@ pub async fn run_remote_v1_tor_hidden_service(
             .with_context(|| {
                 format!("failed to bind takd tor test listener at {test_bind_addr}")
             })?;
+        tracing::info!(
+            "takd remote v1 onion service ready at http://{}.onion",
+            config.nickname
+        );
         return run_remote_v1_http_server(listener, store, context).await;
     }
 
@@ -21,6 +26,10 @@ pub async fn run_remote_v1_tor_hidden_service(
     )
     .build()
     .context("invalid Arti client configuration for takd hidden service")?;
+    tracing::info!(
+        "bootstrapping embedded Arti for takd hidden service nickname {}",
+        config.nickname
+    );
     let tor_client = arti_client::TorClient::create_bootstrapped(tor_client_config)
         .await
         .context("failed to bootstrap embedded Arti for takd hidden service")?;
@@ -37,7 +46,7 @@ pub async fn run_remote_v1_tor_hidden_service(
         .map(|hsid| format!("http://{}", hsid.display_unredacted()))
         .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
     let context = remote_node_context_from_env(Some(onion_endpoint.clone()));
-    eprintln!("takd remote v1 onion service ready at {onion_endpoint}");
+    tracing::info!("takd remote v1 onion service ready at {onion_endpoint}");
 
     futures::pin_mut!(rend_requests);
     while let Some(rend_request) = rend_requests.next().await {
@@ -45,7 +54,7 @@ pub async fn run_remote_v1_tor_hidden_service(
         let mut stream_requests = match accepted {
             Ok(stream_requests) => stream_requests,
             Err(err) => {
-                eprintln!("takd onion service rendezvous accept failed: {err}");
+                tracing::error!("takd onion service rendezvous accept failed: {err}");
                 continue;
             }
         };
@@ -56,11 +65,11 @@ pub async fn run_remote_v1_tor_hidden_service(
                     if let Err(err) =
                         handle_remote_v1_http_stream(&mut stream, &store, &context).await
                     {
-                        eprintln!("takd onion service stream handling failed: {err}");
+                        tracing::error!("takd onion service stream handling failed: {err}");
                     }
                 }
                 Err(err) => {
-                    eprintln!("takd onion service stream accept failed: {err}");
+                    tracing::error!("takd onion service stream accept failed: {err}");
                 }
             }
         }

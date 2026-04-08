@@ -56,8 +56,11 @@ Bootstrap a matching direct agent before running locally:
 ```bash
 takd init --transport direct --base-url http://127.0.0.1:0 --pool test --tag builder --capability linux
 takd serve
+takd status
 tak remote add "$(takd token show --wait)"
 ```
+
+If the remote server does not come up cleanly, inspect it in place with `takd logs --lines 50`.
 
 1. `tak list`
 2. `tak explain //apps/web:remote_suite`

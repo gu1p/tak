@@ -21,10 +21,10 @@ impl LeaseManager {
             if let Some(record) = self.leases.remove(&lease_id) {
                 self.deallocate(&record.needs);
                 if let Err(err) = self.delete_active_lease(&lease_id) {
-                    eprintln!("failed to delete expired lease {lease_id} from sqlite: {err}");
+                    tracing::error!("failed to delete expired lease {lease_id} from sqlite: {err}");
                 }
                 if let Err(err) = self.append_history("expire", &lease_id, &record) {
-                    eprintln!("failed to append expire history for {lease_id}: {err}");
+                    tracing::error!("failed to append expire history for {lease_id}: {err}");
                 }
             }
         }

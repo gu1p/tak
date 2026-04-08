@@ -20,7 +20,7 @@ pub(super) fn spawn_remote_worker_submit_execution(
             )
         });
     if let Err(error) = spawn_result {
-        eprintln!("failed to spawn remote worker thread: {error}");
+        tracing::error!("failed to spawn remote worker thread: {error}");
     }
 }
 
@@ -41,7 +41,9 @@ fn run_remote_worker_submit_execution(
         })
         .to_string(),
     ) {
-        eprintln!("failed to append TASK_STARTED event for submit {idempotency_key}: {error:#}");
+        tracing::error!(
+            "failed to append TASK_STARTED event for submit {idempotency_key}: {error:#}"
+        );
     }
 
     let execution_result = execute_remote_worker_submit(idempotency_key, selected_node_id, payload);
@@ -74,7 +76,7 @@ fn run_remote_worker_submit_execution(
                 })
                 .to_string(),
             ) {
-                eprintln!("failed to persist submit result {idempotency_key}: {error:#}");
+                tracing::error!("failed to persist submit result {idempotency_key}: {error:#}");
             }
             if let Err(error) = store.append_event(
                 idempotency_key,
@@ -87,7 +89,7 @@ fn run_remote_worker_submit_execution(
                 })
                 .to_string(),
             ) {
-                eprintln!(
+                tracing::error!(
                     "failed to append terminal event for submit {idempotency_key}: {error:#}"
                 );
             }
@@ -108,7 +110,7 @@ fn run_remote_worker_submit_execution(
                 })
                 .to_string(),
             ) {
-                eprintln!(
+                tracing::error!(
                     "failed to persist failure submit result {idempotency_key}: {persist_error:#}"
                 );
             }
@@ -124,7 +126,7 @@ fn run_remote_worker_submit_execution(
                 })
                 .to_string(),
             ) {
-                eprintln!(
+                tracing::error!(
                     "failed to append TASK_FAILED event for submit {idempotency_key}: {append_error:#}"
                 );
             }

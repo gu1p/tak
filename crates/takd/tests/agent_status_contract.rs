@@ -25,6 +25,8 @@ fn status_reports_pending_tor_readiness_after_init() {
             "status",
             "--config-root",
             &config_root.display().to_string(),
+            "--state-root",
+            &state_root.display().to_string(),
         ])
         .output()
         .expect("run takd status");
@@ -37,5 +39,16 @@ fn status_reports_pending_tor_readiness_after_init() {
     assert!(
         stdout.contains("readiness: pending"),
         "missing readiness:\n{stdout}"
+    );
+    assert!(
+        stdout.contains(&format!(
+            "log_path: {}",
+            state_root.join("service.log").display()
+        )),
+        "missing log path:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("log_state: missing"),
+        "missing log state:\n{stdout}"
     );
 }

@@ -21,7 +21,7 @@ pub async fn run_server(socket_path: &Path, manager: SharedLeaseManager) -> Resu
         let manager = Arc::clone(&manager);
         tokio::spawn(async move {
             if let Err(err) = handle_client(stream, manager).await {
-                eprintln!("client handling error: {err}");
+                tracing::error!("client handling error: {err}");
             }
         });
     }

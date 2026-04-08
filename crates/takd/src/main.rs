@@ -3,6 +3,7 @@
 use anyhow::Result;
 
 mod cli;
+mod logging;
 
 #[tokio::main]
 /// Starts the `takd` CLI.

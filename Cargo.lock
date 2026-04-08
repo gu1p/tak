@@ -5267,6 +5267,8 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tor-cell",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
  "zip 2.4.2",
 ]

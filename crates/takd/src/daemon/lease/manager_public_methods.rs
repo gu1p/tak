@@ -39,7 +39,7 @@ impl LeaseManager {
 
         if let Err(err) = self.persist_acquired_lease(&lease_id, &lease_record) {
             self.deallocate(&request.needs);
-            eprintln!("failed to persist acquired lease {lease_id}: {err}");
+            tracing::error!("failed to persist acquired lease {lease_id}: {err}");
             return self.enqueue_pending_request(request);
         }
 
@@ -66,7 +66,7 @@ impl LeaseManager {
         self.persist_active_lease(lease_id, lease_record)?;
         if let Err(err) = self.append_history("acquire", lease_id, lease_record) {
             if let Err(cleanup_err) = self.delete_active_lease(lease_id) {
-                eprintln!(
+                tracing::error!(
                     "failed to rollback sqlite lease {lease_id} after history failure: {cleanup_err}"
                 );
             }

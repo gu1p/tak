@@ -50,10 +50,13 @@ If the example uses remote execution, import and run a `takd` agent first:
 ```bash
 takd init
 takd serve
+takd status
 tak remote add "$(takd token show --wait)"
 ```
 
 Direct examples need matching init flags, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` or `--pool test`.
+
+If remote onboarding fails, inspect the remote server with `takd status` and `takd logs --lines 50`.
 
 ## Reference Scenarios (Complete Matrix)
 

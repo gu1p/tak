@@ -21,7 +21,7 @@ const HERO_SECTIONS: [&str; 6] = [
     "## Artifacts",
 ];
 
-const ROOT_TOKENS: [&str; 21] = [
+const ROOT_TOKENS: [&str; 23] = [
     "`tak list`",
     "`tak tree`",
     "`tak explain <label>`",
@@ -34,6 +34,8 @@ const ROOT_TOKENS: [&str; 21] = [
     "`tak remote list`",
     "`takd init`",
     "`takd serve`",
+    "`takd status`",
+    "`takd logs`",
     "`takd token show`",
     "`get-takd.sh`",
     "placement=",
@@ -86,14 +88,13 @@ fn hero_readmes_include_copy_paste_and_parameter_alternatives() {
 
 fn repo_root() -> PathBuf {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest
-        .parent()
-        .and_then(Path::parent)
-        .expect("repo root should be two levels above tak crate")
+    let root = manifest.parent().and_then(Path::parent);
+    root.expect("repo root should be two levels above tak crate")
         .to_path_buf()
 }
 
 fn load_text(path: &Path) -> String {
     let display = path.display();
-    fs::read_to_string(path).unwrap_or_else(|err| panic!("failed to read {display}: {err}"))
+    let message = |err| panic!("failed to read {display}: {err}");
+    fs::read_to_string(path).unwrap_or_else(message)
 }

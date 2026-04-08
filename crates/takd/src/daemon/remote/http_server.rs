@@ -11,7 +11,7 @@ pub async fn run_remote_v1_http_server(
         let context = context.clone();
         tokio::spawn(async move {
             if let Err(err) = handle_remote_v1_http_client(stream, store, context).await {
-                eprintln!("remote v1 http client handling error: {err}");
+                tracing::error!("remote v1 http client handling error: {err}");
             }
         });
     }

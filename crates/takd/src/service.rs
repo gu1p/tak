@@ -16,6 +16,7 @@ use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     let config = read_config(config_root)?;
+    tracing::info!("starting takd serve for transport {}", config.transport);
     let db_path = state_root.join("agent.sqlite");
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -57,6 +58,7 @@ async fn serve_direct_agent(
         configured_base_url.to_string()
     };
     persist_ready_base_url(config_root, state_root, &advertised_base_url)?;
+    tracing::info!("takd remote v1 direct service ready at {advertised_base_url}");
     let context = ready_context(&read_config(config_root)?)?;
     run_remote_v1_http_server(listener, store, context).await
 }
@@ -74,7 +76,9 @@ async fn serve_tor_agent(
     };
     if let Some(bind_addr) = test_tor_hidden_service_bind_addr() {
         let base_url = format!("http://{}.onion", runtime.nickname);
+        tracing::info!("using takd tor hidden-service test bind override at {bind_addr}");
         persist_ready_base_url(config_root, state_root, &base_url)?;
+        tracing::info!("takd remote v1 onion service ready at {base_url}");
         let listener = TcpListener::bind(bind_addr.as_str())
             .await
             .with_context(|| format!("bind takd tor test listener at {bind_addr}"))?;
@@ -92,6 +96,10 @@ async fn serve_tor_agent(
     )
     .build()
     .context("invalid Arti client configuration for takd hidden service")?;
+    tracing::info!(
+        "bootstrapping embedded Arti for takd hidden service nickname {}",
+        runtime.nickname
+    );
     let tor_client = arti_client::TorClient::create_bootstrapped(tor_config)
         .await
         .context("failed to bootstrap embedded Arti for takd hidden service")?;
@@ -107,13 +115,18 @@ async fn serve_tor_agent(
         .map(|value| format!("http://{}", value.display_unredacted()))
         .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
     persist_ready_base_url(config_root, state_root, &base_url)?;
-    eprintln!("takd remote v1 onion service ready at {base_url}");
+    tracing::info!("takd remote v1 onion service ready at {base_url}");
     let context = ready_context(&read_config(config_root)?)?;
 
     futures::pin_mut!(rend_requests);
     while let Some(rend_request) = rend_requests.next().await {
-        let Ok(mut stream_requests) = rend_request.accept().await else {
-            continue;
+        let accepted = rend_request.accept().await;
+        let mut stream_requests = match accepted {
+            Ok(stream_requests) => stream_requests,
+            Err(err) => {
+                tracing::error!("takd onion service rendezvous accept failed: {err}");
+                continue;
+            }
         };
         while let Some(stream_request) = stream_requests.next().await {
             match stream_request.accept(Connected::new_empty()).await {
@@ -121,10 +134,10 @@ async fn serve_tor_agent(
                     if let Err(err) =
                         handle_remote_v1_http_stream(&mut stream, &store, &context).await
                     {
-                        eprintln!("takd onion service stream handling failed: {err}");
+                        tracing::error!("takd onion service stream handling failed: {err}");
                     }
                 }
-                Err(err) => eprintln!("takd onion service stream accept failed: {err}"),
+                Err(err) => tracing::error!("takd onion service stream accept failed: {err}"),
             }
         }
     }

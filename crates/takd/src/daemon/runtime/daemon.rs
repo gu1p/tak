@@ -33,10 +33,10 @@ async fn spawn_optional_remote_v1_services(db_path: &Path) -> Result<()> {
         let context = remote_node_context_from_env(Some(format!("http://{local_addr}")));
         tokio::spawn(async move {
             if let Err(err) = run_remote_v1_http_server(listener, store, context).await {
-                eprintln!("takd remote v1 http server failed: {err}");
+                tracing::error!("takd remote v1 http server failed: {err}");
             }
         });
-        eprintln!("takd remote v1 http listening on {local_addr}");
+        tracing::info!("takd remote v1 http listening on {local_addr}");
     }
 
     if let Some(config) = tor_hidden_service_runtime_config_from_env()? {
@@ -44,7 +44,7 @@ async fn spawn_optional_remote_v1_services(db_path: &Path) -> Result<()> {
             .context("failed to open takd tor hidden-service sqlite store")?;
         tokio::spawn(async move {
             if let Err(err) = run_remote_v1_tor_hidden_service(config, store).await {
-                eprintln!("takd remote v1 tor hidden-service failed: {err}");
+                tracing::error!("takd remote v1 tor hidden-service failed: {err}");
             }
         });
     }

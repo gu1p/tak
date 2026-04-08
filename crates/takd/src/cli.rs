@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+use crate::logging::{init_service_logging, read_service_log_tail, service_log_path};
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
     read_token_wait,
@@ -48,6 +49,14 @@ enum Commands {
     Status {
         #[arg(long)]
         config_root: Option<PathBuf>,
+        #[arg(long)]
+        state_root: Option<PathBuf>,
+    },
+    Logs {
+        #[arg(long)]
+        state_root: Option<PathBuf>,
+        #[arg(long, default_value_t = 200)]
+        lines: usize,
     },
     Token {
         #[command(subcommand)]
@@ -102,10 +111,19 @@ pub async fn run_cli() -> Result<()> {
         } => {
             let config_root = config_root.unwrap_or(default_config_root()?);
             let state_root = state_root.unwrap_or(default_state_root()?);
-            serve_agent(&config_root, &state_root).await?;
+            init_service_logging(&state_root)?;
+            if let Err(err) = serve_agent(&config_root, &state_root).await {
+                tracing::error!("takd serve failed: {err:#}");
+                return Err(err);
+            }
         }
-        Commands::Status { config_root } => {
+        Commands::Status {
+            config_root,
+            state_root,
+        } => {
             let config = read_config(&config_root.unwrap_or(default_config_root()?))?;
+            let state_root = state_root.unwrap_or(default_state_root()?);
+            let log_path = service_log_path(&state_root);
             println!("node_id: {}", config.node_id);
             println!("transport: {}", config.transport);
             println!(
@@ -120,6 +138,19 @@ pub async fn run_cli() -> Result<()> {
                 println!("reachability: unverified");
                 println!("base_url: {base_url}");
             }
+            println!("log_path: {}", log_path.display());
+            println!(
+                "log_state: {}",
+                if log_path.exists() {
+                    "present"
+                } else {
+                    "missing"
+                }
+            );
+        }
+        Commands::Logs { state_root, lines } => {
+            let state_root = state_root.unwrap_or(default_state_root()?);
+            print!("{}", read_service_log_tail(&state_root, lines)?);
         }
         Commands::Token { command } => match command {
             TokenCommands::Show {

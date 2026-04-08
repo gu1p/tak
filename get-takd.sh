@@ -68,23 +68,22 @@ state_home() {
 }
 
 install_linux_service() {
-  local takd_bin="$1" unit_dir unit_file log_dir
+  local takd_bin="$1" unit_dir unit_file state_root config_root
   unit_dir="$(config_home)/systemd/user"
   unit_file="$unit_dir/takd.service"
-  log_dir="$(state_home)/takd"
-  mkdir -p "$unit_dir" "$log_dir"
+  config_root="$(config_home)/takd"
+  state_root="$(state_home)/takd"
+  mkdir -p "$unit_dir" "$state_root"
   cat >"$unit_file" <<EOF
 [Unit]
 Description=Tak execution agent
 After=default.target
 
 [Service]
-ExecStart=${takd_bin} serve
+ExecStart=${takd_bin} serve --config-root ${config_root} --state-root ${state_root}
 Restart=always
 RestartSec=2
 WorkingDirectory=%h
-StandardOutput=append:${log_dir}/service.log
-StandardError=append:${log_dir}/service.log
 
 [Install]
 WantedBy=default.target
@@ -103,22 +102,21 @@ EOF
 }
 
 install_macos_service() {
-  local takd_bin="$1" plist_dir plist_file log_dir uid
+  local takd_bin="$1" plist_dir plist_file state_root config_root uid
   plist_dir="$HOME/Library/LaunchAgents"
   plist_file="$plist_dir/dev.tak.takd.plist"
-  log_dir="$(state_home)/takd"
+  config_root="$(config_home)/takd"
+  state_root="$(state_home)/takd"
   uid="$(id -u)"
-  mkdir -p "$plist_dir" "$log_dir"
+  mkdir -p "$plist_dir" "$state_root"
   cat >"$plist_file" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>dev.tak.takd</string>
-<key>ProgramArguments</key><array><string>${takd_bin}</string><string>serve</string></array>
+<key>ProgramArguments</key><array><string>${takd_bin}</string><string>serve</string><string>--config-root</string><string>${config_root}</string><string>--state-root</string><string>${state_root}</string></array>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
-<key>StandardOutPath</key><string>${log_dir}/service.log</string>
-<key>StandardErrorPath</key><string>${log_dir}/service.log</string>
 </dict></plist>
 EOF
   launchctl bootout "gui/${uid}" "$plist_file" >/dev/null 2>&1 || true
@@ -137,6 +135,10 @@ install_service() {
 
 agent_config_path() {
   printf '%s/takd/agent.toml' "$(config_home)"
+}
+
+agent_state_path() {
+  printf '%s/takd' "$(state_home)"
 }
 
 main() {
@@ -192,8 +194,8 @@ main() {
   fi
   if ! install_service "$takd_bin"; then
     printf 'takd installed, but automatic service startup is unavailable on this host.\n'
-    printf 'start manually:\n  %s serve\n' "$takd_bin"
-    printf 'then fetch a token with:\n  %s token show --wait --timeout-secs %s\n' "$takd_bin" "$TAKD_WAIT_TIMEOUT_SECS"
+    printf 'start manually:\n  %s serve --config-root %s --state-root %s\n' "$takd_bin" "$(config_home)/takd" "$(agent_state_path)"
+    printf 'then fetch a token with:\n  %s token show --state-root %s --wait --timeout-secs %s\n' "$takd_bin" "$(agent_state_path)" "$TAKD_WAIT_TIMEOUT_SECS"
     exit 0
   fi
 
