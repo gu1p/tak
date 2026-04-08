@@ -13,7 +13,7 @@ use support::{
 };
 
 #[tokio::test]
-async fn tor_remote_execution_uses_test_onion_dial_addr() {
+async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");

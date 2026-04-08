@@ -135,7 +135,7 @@ pub async fn run_cli() -> Result<()> {
                 }
             );
             if let Some(base_url) = config.base_url {
-                println!("reachability: unverified");
+                println!("reachability: verified");
                 println!("base_url: {base_url}");
             }
             println!("log_path: {}", log_path.display());

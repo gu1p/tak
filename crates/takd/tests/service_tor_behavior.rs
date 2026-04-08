@@ -13,7 +13,7 @@ use support::env::{EnvGuard, env_lock};
 use support::http::fetch_node_info;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn serve_agent_tor_uses_test_bind_addr_and_persists_onion_base_url() {
+async fn serve_agent_simulated_tor_uses_test_bind_addr_and_persists_onion_base_url() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");

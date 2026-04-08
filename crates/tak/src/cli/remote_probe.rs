@@ -1,3 +1,4 @@
+use self::http::read_http_response;
 use super::remote_probe_support::{
     ProbeAttemptError, test_tor_onion_dial_addr, tor_probe_retry_policy,
 };
@@ -11,9 +12,11 @@ use tak_exec::{
     endpoint_socket_addr as shared_endpoint_socket_addr,
 };
 use tak_proto::NodeInfo;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::sleep;
+
+mod http;
 
 pub(super) async fn probe_node(
     base_url: &str,
@@ -133,36 +136,15 @@ async fn probe_once(
         .await
         .context("flush node probe")
         .map_err(ProbeAttemptError::retryable)?;
-
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
+    let (status, body) = read_http_response(&mut stream, base_url)
         .await
-        .context("read node probe")
         .map_err(ProbeAttemptError::retryable)?;
-    let split = response
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .map(|index| index + 4)
-        .ok_or_else(|| {
-            ProbeAttemptError::retryable(anyhow!("malformed HTTP response from {base_url}"))
-        })?;
-    let head = String::from_utf8_lossy(&response[..split]);
-    let body = &response[split..];
-    let status = head
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|code| code.parse::<u16>().ok())
-        .ok_or_else(|| {
-            ProbeAttemptError::retryable(anyhow!("invalid HTTP status from {base_url}"))
-        })?;
     if status != 200 {
         return Err(ProbeAttemptError::final_error(anyhow!(
             "node probe failed with HTTP {status}"
         )));
     }
-    NodeInfo::decode(body)
+    NodeInfo::decode(body.as_slice())
         .context("decode node info protobuf")
         .map_err(ProbeAttemptError::final_error)
 }
@@ -174,3 +156,6 @@ fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
 fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
     shared_endpoint_host_port(endpoint)
 }
+
+#[cfg(test)]
+mod remote_probe_tests;

@@ -43,16 +43,8 @@ async fn preflight_strict_remote_target(target: &StrictRemoteTarget) -> Result<(
     })?;
 
     let preflight_timeout = TransportFactory::preflight_timeout(target);
-    match tokio::time::timeout(preflight_timeout, TransportFactory::connect(target)).await {
-        Ok(Ok(stream)) => {
-            drop(stream);
-            detect_remote_protocol_mode(target).await
-        }
-        Ok(Err(err)) => bail!(
-            "infra error: remote node {} unavailable at {}: {err}",
-            target.node_id,
-            target.endpoint
-        ),
+    match tokio::time::timeout(preflight_timeout, detect_remote_protocol_mode(target)).await {
+        Ok(result) => result,
         Err(_) => bail!(
             "infra error: remote node {} unavailable at {}: preflight timed out",
             target.node_id,

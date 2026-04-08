@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::process::{Command as StdCommand, Stdio};
 
 #[test]
-fn serve_persists_hidden_service_base_url_and_token() {
+fn serve_with_tor_test_bind_override_persists_hidden_service_base_url_and_token() {
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");

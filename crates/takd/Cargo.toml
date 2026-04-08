@@ -23,6 +23,8 @@ toml.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tor-cell = "0.39"
+tor-hsservice = "0.39"
+tor-rtcompat = "0.39"
 uuid.workspace = true
 zip.workspace = true
 

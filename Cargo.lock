@@ -5202,6 +5202,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 0.8.23",
+ "tor-rtcompat",
  "uuid",
  "zip 2.4.2",
 ]
@@ -5267,6 +5268,8 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tor-cell",
+ "tor-hsservice",
+ "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
  "uuid",

@@ -178,6 +178,7 @@ where
         .await
         .context("write response bytes")?;
     stream.flush().await.context("flush response bytes")?;
+    stream.shutdown().await.context("shutdown response bytes")?;
     Ok(())
 }
 

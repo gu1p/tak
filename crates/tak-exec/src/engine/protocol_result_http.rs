@@ -77,13 +77,11 @@ async fn remote_protocol_http_request(
             stream.write_all(payload).await?;
         }
         stream.flush().await?;
-        let mut response = Vec::new();
-        stream.read_to_end(&mut response).await?;
-        Ok::<Vec<u8>, anyhow::Error>(response)
+        read_http_response(&mut stream, target, phase).await
     };
 
     let effective_timeout = TransportFactory::phase_timeout(target, timeout);
-    let response_bytes = tokio::time::timeout(effective_timeout, exchange)
+    tokio::time::timeout(effective_timeout, exchange)
         .await
         .map_err(|_| {
             anyhow!(
@@ -91,19 +89,34 @@ async fn remote_protocol_http_request(
                 target.node_id,
                 phase
             )
-        })??;
-    let split = response_bytes
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .map(|index| index + 4)
-        .ok_or_else(|| {
-            anyhow!(
+        })?
+}
+
+async fn read_http_response<S>(
+    stream: &mut S,
+    target: &StrictRemoteTarget,
+    phase: &str,
+) -> Result<(u16, Vec<u8>)>
+where
+    S: tokio::io::AsyncRead + Unpin + ?Sized,
+{
+    let mut response = Vec::new();
+    let mut chunk = [0_u8; 1024];
+    let split = loop {
+        if let Some(index) = response.windows(4).position(|window| window == b"\r\n\r\n") {
+            break index + 4;
+        }
+        let read = stream.read(&mut chunk).await?;
+        if read == 0 {
+            bail!(
                 "infra error: remote node {} returned malformed HTTP response for {}",
                 target.node_id,
                 phase
-            )
-        })?;
-    let head = String::from_utf8_lossy(&response_bytes[..split]);
+            );
+        }
+        response.extend_from_slice(&chunk[..read]);
+    };
+    let head = String::from_utf8_lossy(&response[..split]);
     let status_code = head
         .lines()
         .next()
@@ -116,6 +129,44 @@ async fn remote_protocol_http_request(
                 phase
             )
         })?;
-
-    Ok((status_code, response_bytes[split..].to_vec()))
+    let content_length = response_content_length(&head, target, phase)?;
+    let mut body = response[split..].to_vec();
+    while body.len() < content_length {
+        let read = stream.read(&mut chunk).await?;
+        if read == 0 {
+            bail!(
+                "infra error: remote node {} returned truncated HTTP body for {}",
+                target.node_id,
+                phase
+            );
+        }
+        body.extend_from_slice(&chunk[..read]);
+    }
+    body.truncate(content_length);
+    Ok((status_code, body))
 }
+
+fn response_content_length(
+    head: &str,
+    target: &StrictRemoteTarget,
+    phase: &str,
+) -> Result<usize> {
+    for line in head.lines() {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if name.trim().eq_ignore_ascii_case("content-length") {
+            return value.trim().parse::<usize>().with_context(|| {
+                format!(
+                    "infra error: remote node {} returned invalid content-length for {}",
+                    target.node_id, phase
+                )
+            });
+        }
+    }
+
+    Ok(0)
+}
+
+#[cfg(test)]
+mod protocol_result_http_tests;

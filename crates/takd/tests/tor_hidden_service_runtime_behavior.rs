@@ -10,7 +10,7 @@ use support::env::{EnvGuard, env_lock};
 use support::http::wait_for_node_info;
 
 #[tokio::test]
-async fn tor_hidden_service_runtime_uses_test_bind_addr_and_serves_node_info() {
+async fn simulated_tor_hidden_service_runtime_uses_test_bind_addr_and_serves_node_info() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");

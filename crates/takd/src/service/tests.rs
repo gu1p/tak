@@ -1,7 +1,9 @@
-use crate::agent::AgentConfig;
+use crate::agent::{AgentConfig, InitAgentOptions, init_agent, read_config, read_token};
 use crate::test_env::{EnvGuard, env_lock};
 
-use super::*;
+use super::tor::{onion_service_config, test_tor_hidden_service_bind_addr};
+use super::{serve_agent, serve_direct_agent};
+use crate::daemon::remote::SubmitAttemptStore;
 
 #[tokio::test]
 async fn direct_transport_requires_http_base_url() {
@@ -51,6 +53,55 @@ fn test_bind_addr_helper_trims_and_ignores_empty_values() {
     );
     env.set("TAKD_TEST_TOR_HS_BIND_ADDR", "   ");
     assert_eq!(test_tor_hidden_service_bind_addr(), None);
+}
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn tor_test_bind_override_keeps_token_pending_until_listener_binds() {
+    let _env_lock = env_lock();
+    let mut env = EnvGuard::default();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let occupied_listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind occupied");
+    let bind_addr = occupied_listener
+        .local_addr()
+        .expect("occupied addr")
+        .to_string();
+    env.set("TAKD_TEST_TOR_HS_BIND_ADDR", &bind_addr);
+
+    let config_root = temp.path().join("config");
+    let state_root = temp.path().join("state");
+    let empty = Vec::<String>::new();
+    init_agent(
+        &config_root,
+        &state_root,
+        InitAgentOptions {
+            node_id: Some("builder-tor"),
+            display_name: None,
+            transport: Some("tor"),
+            base_url: None,
+            pools: &empty,
+            tags: &empty,
+            capabilities: &empty,
+        },
+    )
+    .expect("init tor agent");
+
+    let err = serve_agent(&config_root, &state_root)
+        .await
+        .expect_err("bind should fail while address is occupied");
+    assert!(
+        format!("{err:#}").contains("bind takd tor test listener"),
+        "unexpected error: {err:#}"
+    );
+    assert!(
+        read_token(&state_root).is_err(),
+        "token should stay pending"
+    );
+    assert_eq!(
+        read_config(&config_root).expect("read config").base_url,
+        None,
+        "base_url should stay pending after bind failure"
+    );
 }
 
 fn agent_config(base_url: Option<&str>) -> AgentConfig {

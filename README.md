@@ -104,7 +104,7 @@ tak remote add "$(takd token show --wait)"
 
 Direct transport examples need matching agent settings, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` for build pools or `--pool test` for test pools.
 
-For Tor onboarding, `tak remote add` waits briefly for a fresh onion service to answer `/v1/node/info`. `takd token show --wait` only guarantees that the onboarding token has been published locally; it does not verify that another machine can already reach the onion service.
+For Tor onboarding, `takd token show --wait` now waits until the local `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
 
 If `tak remote add` still times out probing a new onion endpoint, inspect the server directly:
 

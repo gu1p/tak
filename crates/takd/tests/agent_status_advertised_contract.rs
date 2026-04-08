@@ -2,7 +2,7 @@ use std::net::TcpListener;
 use std::process::{Command as StdCommand, Stdio};
 
 #[test]
-fn status_reports_advertised_but_unverified_after_tor_token_is_published() {
+fn status_reports_verified_reachability_after_tor_token_is_published() {
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
@@ -58,6 +58,8 @@ fn status_reports_advertised_but_unverified_after_tor_token_is_published() {
             "status",
             "--config-root",
             &config_root.display().to_string(),
+            "--state-root",
+            &state_root.display().to_string(),
         ])
         .output()
         .expect("run takd status");
@@ -76,11 +78,22 @@ fn status_reports_advertised_but_unverified_after_tor_token_is_published() {
         "missing readiness:\n{stdout}"
     );
     assert!(
-        stdout.contains("reachability: unverified"),
+        stdout.contains("reachability: verified"),
         "missing reachability:\n{stdout}"
     );
     assert!(
         stdout.contains("base_url: http://builder-status.onion"),
         "missing base_url:\n{stdout}"
+    );
+    assert!(
+        stdout.contains(&format!(
+            "log_path: {}",
+            state_root.join("service.log").display()
+        )),
+        "missing log path:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("log_state: present"),
+        "missing log state:\n{stdout}"
     );
 }
