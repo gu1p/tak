@@ -90,7 +90,9 @@ StandardError=append:${log_dir}/service.log
 WantedBy=default.target
 EOF
   if command -v systemctl >/dev/null 2>&1; then
-    if systemctl --user daemon-reload >/dev/null 2>&1 && systemctl --user enable --now takd.service >/dev/null 2>&1; then
+    if systemctl --user daemon-reload >/dev/null 2>&1 \
+      && systemctl --user enable takd.service >/dev/null 2>&1 \
+      && systemctl --user restart takd.service >/dev/null 2>&1; then
       if command -v loginctl >/dev/null 2>&1; then
         loginctl enable-linger "${USER:-$(id -un)}" >/dev/null 2>&1 || true
       fi
