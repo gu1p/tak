@@ -36,14 +36,16 @@ pub(super) fn query_param_u64(query: Option<&str>, key: &str) -> Option<u64> {
 }
 
 pub(super) fn execution_root_for_submit_key(idempotency_key: &str) -> PathBuf {
-    let base = std::env::var("TAKD_REMOTE_EXEC_ROOT")
+    remote_execution_root_base().join(sanitize_submit_idempotency_key(idempotency_key))
+}
+
+pub(super) fn remote_execution_root_base() -> PathBuf {
+    std::env::var("TAKD_REMOTE_EXEC_ROOT")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("takd-remote-exec"));
-
-    base.join(sanitize_submit_idempotency_key(idempotency_key))
+        .unwrap_or_else(|| std::env::temp_dir().join("takd-remote-exec"))
 }
 
 fn sanitize_submit_idempotency_key(idempotency_key: &str) -> String {

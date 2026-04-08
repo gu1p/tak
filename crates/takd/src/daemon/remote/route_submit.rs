@@ -32,13 +32,29 @@ pub(super) fn handle_remote_submit_route(
     };
 
     if !attached {
-        spawn_remote_worker_submit_execution(
+        let execution_root = execution_root_for_submit_key(&idempotency_key);
+        context.register_active_job(
+            idempotency_key.clone(),
+            super::status_state::ActiveJobMetadata::new(
+                task_run_id,
+                payload.attempt,
+                &payload.task_label,
+                &payload.needs,
+                payload.runtime.as_ref().and_then(runtime_label),
+                execution_root,
+            ),
+        )?;
+        if let Err(err) = spawn_remote_worker_submit_execution(
             store.clone(),
+            context.shared_status_state(),
             idempotency_key.clone(),
             selected_node_id,
             context.node.transport.clone(),
             worker_payload,
-        );
+        ) {
+            let _ = context.finish_active_job(&idempotency_key);
+            return Err(err);
+        }
     }
 
     Ok(protobuf_response(
@@ -50,4 +66,10 @@ pub(super) fn handle_remote_submit_route(
             remote_worker: true,
         },
     ))
+}
+
+fn runtime_label(runtime: &tak_proto::RuntimeSpec) -> Option<String> {
+    runtime.kind.as_ref().map(|kind| match kind {
+        tak_proto::runtime_spec::Kind::Container(_) => "containerized".to_string(),
+    })
 }

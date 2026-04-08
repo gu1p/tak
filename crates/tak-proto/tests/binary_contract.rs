@@ -1,6 +1,7 @@
 use prost::Message;
 use tak_proto::{
-    NodeInfo, RemoteTokenPayload, Step, SubmitTaskRequest, decode_remote_token, encode_remote_token,
+    NodeInfo, RemoteTokenPayload, Step, SubmitTaskRequest, SubmittedNeed, decode_remote_token,
+    encode_remote_token,
 };
 
 #[test]
@@ -12,11 +13,20 @@ fn protobuf_messages_and_tokens_round_trip_as_binary() {
         steps: vec![Step::default()],
         timeout_s: Some(30),
         runtime: None,
+        task_label: "//apps/web:build".to_string(),
+        needs: vec![SubmittedNeed {
+            name: "cpu".to_string(),
+            scope: "machine".to_string(),
+            scope_key: None,
+            slots: 2.0,
+        }],
     };
     let encoded = request.encode_to_vec();
     let decoded = SubmitTaskRequest::decode(encoded.as_slice()).expect("decode request");
     assert_eq!(decoded.task_run_id, "task-run-1");
     assert_eq!(decoded.workspace_zip, vec![1, 2, 3]);
+    assert_eq!(decoded.task_label, "//apps/web:build");
+    assert_eq!(decoded.needs.len(), 1);
 
     let token = encode_remote_token(&RemoteTokenPayload {
         version: "v1".to_string(),

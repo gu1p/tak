@@ -35,6 +35,7 @@ High-level flow:
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
 | `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
+| `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each configured remote node doing right now?" | config read + `/v1/node/status` fetch per matching remote | Node summary section plus active-job section; watch mode refreshes the snapshot in place. |
 
 ## Output Details Per Command
 
@@ -76,6 +77,13 @@ High-level flow:
 
 - Returns an unsupported error in the current client-only build.
 - Exists so the CLI surface can reserve the status verb until live coordination status is restored.
+
+### `remote status`
+
+- Queries enabled remotes from client inventory, or the selected subset passed via `--node`.
+- Uses remote v1 authenticated HTTP to fetch running jobs and node resource usage.
+- One-shot mode prints a `Nodes` section and an `Active Jobs` section.
+- Watch mode refreshes stdout in place at the requested interval.
 
 ## Error and Exit Semantics
 

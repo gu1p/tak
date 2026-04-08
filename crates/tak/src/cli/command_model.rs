@@ -40,7 +40,19 @@ pub(super) enum Commands {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum RemoteCommands {
-    Add { token: String },
+    Add {
+        token: String,
+    },
     List,
-    Remove { node_id: String },
+    Remove {
+        node_id: String,
+    },
+    Status {
+        #[arg(long = "node")]
+        node_ids: Vec<String>,
+        #[arg(long, default_value_t = false)]
+        watch: bool,
+        #[arg(long, default_value_t = 1000)]
+        interval_ms: u64,
+    },
 }

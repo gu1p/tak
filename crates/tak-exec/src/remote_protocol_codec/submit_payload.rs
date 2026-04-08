@@ -1,10 +1,10 @@
 use anyhow::{Context, Result, bail};
 use base64::Engine;
 use prost::Message;
-use tak_core::model::{RemoteRuntimeSpec, ResolvedTask, StepDef};
+use tak_core::model::{NeedDef, RemoteRuntimeSpec, ResolvedTask, Scope, StepDef};
 use tak_proto::{
     CmdStep, ContainerRuntime, GetTaskResultResponse, PollTaskEventsResponse, RuntimeSpec,
-    ScriptStep, Step, SubmitTaskRequest, runtime_spec, step,
+    ScriptStep, Step, SubmitTaskRequest, SubmittedNeed, runtime_spec, step,
 };
 
 use crate::{
@@ -32,6 +32,8 @@ pub(crate) fn build_remote_submit_payload(
             .collect::<Result<Vec<_>>>()?,
         timeout_s: task.timeout_s,
         runtime: target.runtime.as_ref().map(remote_runtime_submit_value),
+        task_label: task.label.to_string(),
+        needs: task.needs.iter().map(need_submit_value).collect(),
     })
 }
 
@@ -67,5 +69,23 @@ fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> RuntimeSpec {
                 image: image.clone(),
             })),
         },
+    }
+}
+
+fn need_submit_value(need: &NeedDef) -> SubmittedNeed {
+    SubmittedNeed {
+        name: need.limiter.name.clone(),
+        scope: scope_value(&need.limiter.scope).to_string(),
+        scope_key: need.limiter.scope_key.clone(),
+        slots: need.slots,
+    }
+}
+
+fn scope_value(scope: &Scope) -> &'static str {
+    match scope {
+        Scope::Machine => "machine",
+        Scope::User => "user",
+        Scope::Project => "project",
+        Scope::Worktree => "worktree",
     }
 }

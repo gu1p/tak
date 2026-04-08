@@ -50,6 +50,13 @@ message RuntimeSpec {
   }
 }
 
+message SubmittedNeed {
+  string name = 1;
+  string scope = 2;
+  optional string scope_key = 3;
+  double slots = 4;
+}
+
 message SubmitTaskRequest {
   string task_run_id = 1;
   uint32 attempt = 2;
@@ -57,6 +64,8 @@ message SubmitTaskRequest {
   repeated Step steps = 4;
   optional uint64 timeout_s = 5;
   optional RuntimeSpec runtime = 6;
+  string task_label = 7;
+  repeated SubmittedNeed needs = 8;
 }
 
 message SubmitTaskResponse {
@@ -106,6 +115,51 @@ message GetTaskResultResponse {
 message CancelTaskResponse {
   bool cancelled = 1;
   string task_run_id = 2;
+}
+
+message CpuUsage {
+  optional double utilization_percent = 1;
+  uint32 logical_cores = 2;
+}
+
+message MemoryUsage {
+  uint64 used_bytes = 1;
+  uint64 total_bytes = 2;
+}
+
+message StorageUsage {
+  string path = 1;
+  uint64 total_bytes = 2;
+  uint64 available_bytes = 3;
+  uint64 used_bytes = 4;
+  uint64 tak_execution_bytes = 5;
+}
+
+message AggregatedNeedUsage {
+  string name = 1;
+  string scope = 2;
+  optional string scope_key = 3;
+  double slots = 4;
+}
+
+message ActiveJob {
+  string task_run_id = 1;
+  uint32 attempt = 2;
+  string task_label = 3;
+  int64 started_at_ms = 4;
+  repeated SubmittedNeed needs = 5;
+  uint64 execution_root_bytes = 6;
+  optional string runtime = 7;
+}
+
+message NodeStatusResponse {
+  NodeInfo node = 1;
+  int64 sampled_at_ms = 2;
+  CpuUsage cpu = 3;
+  MemoryUsage memory = 4;
+  StorageUsage storage = 5;
+  repeated AggregatedNeedUsage allocated_needs = 6;
+  repeated ActiveJob active_jobs = 7;
 }
 
 message ErrorResponse {

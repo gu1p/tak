@@ -6,7 +6,7 @@ use takd::serve_agent;
 
 mod support;
 
-use support::http::fetch_node_info;
+use support::http::{fetch_node_info, fetch_node_status};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
@@ -36,16 +36,23 @@ async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
     let server = tokio::spawn(async move {
         let _ = serve_agent(&config_for_task, &state_for_task).await;
     });
-    let payload = decode_remote_token(&read_token_wait(&state_root, 5).expect("wait token"))
-        .expect("decode direct token");
+    let token_state_root = state_root.clone();
+    let token = tokio::task::spawn_blocking(move || read_token_wait(&token_state_root, 5))
+        .await
+        .expect("join wait token")
+        .expect("wait token");
+    let payload = decode_remote_token(&token).expect("decode direct token");
     let node = payload.node.expect("node info");
     let socket_addr = node
         .base_url
         .strip_prefix("http://")
         .expect("direct base url");
     let fetched = fetch_node_info(socket_addr, socket_addr, &payload.bearer_token).await;
+    let status = fetch_node_status(socket_addr, socket_addr, &payload.bearer_token).await;
 
     assert_eq!(fetched.node_id, "builder-direct");
+    assert_eq!(status.node.expect("status node").node_id, "builder-direct");
+    assert!(status.active_jobs.is_empty(), "new agent should be idle");
     assert_eq!(node.transport, "direct");
     assert!(
         node.base_url.starts_with("http://127.0.0.1:") && node.base_url != "http://127.0.0.1:0"

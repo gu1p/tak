@@ -60,6 +60,10 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Import a `takd` agent token into local client config.
 - `tak remote list`
   - Show configured remote agents in client priority order.
+- `tak remote status`
+  - Show running jobs plus CPU, RAM, and storage usage for configured remote agents.
+- `tak remote status --watch --interval-ms <N>`
+  - Refresh remote node status continuously in-place.
 - `takd init`
   - Create Tor-first agent identity and hidden-service runtime state.
 - `takd serve`
@@ -100,6 +104,7 @@ takd init
 takd serve
 takd status
 tak remote add "$(takd token show --wait)"
+tak remote status
 ```
 
 Direct transport examples need matching agent settings, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` for build pools or `--pool test` for test pools.

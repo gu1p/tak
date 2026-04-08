@@ -2,30 +2,32 @@ use super::*;
 
 pub(super) fn spawn_remote_worker_submit_execution(
     store: SubmitAttemptStore,
+    status_state: status_state::SharedNodeStatusState,
     idempotency_key: String,
     selected_node_id: String,
     transport_kind: String,
     payload: RemoteWorkerSubmitPayload,
-) {
+) -> Result<()> {
     let thread_name = format!("takd-remote-worker-{idempotency_key}");
-    let spawn_result = std::thread::Builder::new()
+    std::thread::Builder::new()
         .name(thread_name)
         .spawn(move || {
             run_remote_worker_submit_execution(
                 &store,
+                &status_state,
                 &idempotency_key,
                 &selected_node_id,
                 &transport_kind,
                 &payload,
             )
-        });
-    if let Err(error) = spawn_result {
-        tracing::error!("failed to spawn remote worker thread: {error}");
-    }
+        })
+        .context("failed to spawn remote worker thread")?;
+    Ok(())
 }
 
 fn run_remote_worker_submit_execution(
     store: &SubmitAttemptStore,
+    status_state: &status_state::SharedNodeStatusState,
     idempotency_key: &str,
     selected_node_id: &str,
     transport_kind: &str,
@@ -131,6 +133,12 @@ fn run_remote_worker_submit_execution(
                 );
             }
         }
+    }
+
+    if let Ok(mut guard) = status_state.lock() {
+        guard.finish_job(idempotency_key);
+    } else {
+        tracing::error!("failed to clear active node status entry for submit {idempotency_key}");
     }
 }
 

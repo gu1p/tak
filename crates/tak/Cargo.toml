@@ -9,6 +9,7 @@ anyhow.workspace = true
 arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-client"] }
 axum.workspace = true
 clap.workspace = true
+futures.workspace = true
 prost.workspace = true
 ratatui.workspace = true
 serde.workspace = true

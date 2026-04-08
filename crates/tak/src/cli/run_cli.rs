@@ -139,6 +139,13 @@ pub async fn run_cli() -> Result<()> {
                     println!("remote not found: {node_id}");
                 }
             }
+            super::command_model::RemoteCommands::Status {
+                node_ids,
+                watch,
+                interval_ms,
+            } => {
+                run_remote_status(&node_ids, watch, interval_ms).await?;
+            }
         },
         Commands::Status => {
             bail!("coordination status is unavailable in this client-only build");

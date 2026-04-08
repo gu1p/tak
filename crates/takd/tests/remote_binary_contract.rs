@@ -3,7 +3,7 @@ use std::thread;
 use std::time::Duration;
 use tak_proto::{
     CmdStep, GetTaskResultResponse, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest,
-    SubmitTaskResponse, step,
+    SubmitTaskResponse, SubmittedNeed, step,
 };
 use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
 
@@ -43,6 +43,13 @@ fn remote_routes_serve_binary_protobuf_contracts() {
         }],
         timeout_s: None,
         runtime: None,
+        task_label: "//apps/web:test".to_string(),
+        needs: vec![SubmittedNeed {
+            name: "cpu".to_string(),
+            scope: "machine".to_string(),
+            scope_key: None,
+            slots: 1.0,
+        }],
     };
     let submit = handle_remote_v1_request(
         &context,

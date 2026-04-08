@@ -5,6 +5,7 @@ pub mod installer;
 pub mod live_tor;
 pub mod live_tor_remote;
 pub mod remote_cli;
+pub mod remote_status;
 pub mod run;
 pub mod tasks;
 pub mod tor_smoke;
