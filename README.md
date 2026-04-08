@@ -65,7 +65,7 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `takd serve`
   - Start the standalone execution agent service and publish its hidden-service token when ready.
 - `takd token show`
-  - Reprint the persisted onboarding token, or wait for readiness with `--wait`.
+  - Reprint the persisted onboarding token, or wait until it is advertised with `--wait`.
 
 ## Run Output Signals
 
@@ -98,6 +98,8 @@ tak remote add "$(takd token show --wait)"
 ```
 
 Direct transport examples need matching agent settings, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` for build pools or `--pool test` for test pools.
+
+For Tor onboarding, `tak remote add` waits briefly for a fresh onion service to answer `/v1/node/info`. `takd token show --wait` only guarantees that the onboarding token has been published locally; it does not verify that another machine can already reach the onion service.
 
 2. Explore and run a target:
 

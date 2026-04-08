@@ -31,7 +31,14 @@ pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
     let node = payload
         .node
         .ok_or_else(|| anyhow!("remote token is missing node info"))?;
-    let probed = probe_node(&node.base_url, &node.transport, &payload.bearer_token).await?;
+    let probed = probe_node(&node.base_url, &node.transport, &payload.bearer_token)
+        .await
+        .with_context(|| {
+            format!(
+                "failed to probe remote node {} at {} via {}",
+                node.node_id, node.base_url, node.transport
+            )
+        })?;
     if probed.node_id != node.node_id {
         bail!(
             "remote node id mismatch: token={}, probe={}",

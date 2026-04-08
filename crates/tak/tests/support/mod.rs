@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 pub mod installer;
+pub mod remote_cli;
 pub mod run;
 pub mod tasks;
 

@@ -9,6 +9,7 @@ mod command_model;
 mod graph_output;
 mod remote_inventory;
 mod remote_probe;
+mod remote_probe_support;
 mod run_cli;
 mod workspace_helpers;
 

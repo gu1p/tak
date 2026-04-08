@@ -33,7 +33,7 @@ High-level flow:
 | `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + label parsing + `run_tasks(...)` | One result line per executed label: `<label>: ok|failed (attempts=X, exit_code=Y|none)`. |
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
-| `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe + config write | `added remote <node_id>`. |
+| `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
 
 ## Output Details Per Command
@@ -94,6 +94,7 @@ Representative user-facing errors:
 - `run requires at least one label`
 - `invalid label <value>: ...`
 - `node probe failed with HTTP <code>`
+- `failed to probe remote node <node_id> at <endpoint> via <transport>`
 
 ## Environment-Driven Behavior
 

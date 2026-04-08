@@ -111,12 +111,13 @@ pub async fn run_cli() -> Result<()> {
             println!(
                 "readiness: {}",
                 if config.base_url.is_some() {
-                    "ready"
+                    "advertised"
                 } else {
                     "pending"
                 }
             );
             if let Some(base_url) = config.base_url {
+                println!("reachability: unverified");
                 println!("base_url: {base_url}");
             }
         }

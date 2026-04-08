@@ -92,7 +92,7 @@ main() {
   archive_url="https://github.com/${TAK_REPO}/releases/download/${tag}/${archive_name}"
 
   temp_dir="$(mktemp -d)"
-  trap 'rm -rf "$temp_dir"' EXIT
+  trap "rm -rf -- '$temp_dir'" EXIT
   archive_path="$temp_dir/$archive_name"
 
   printf 'Downloading %s\n' "$archive_url"

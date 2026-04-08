@@ -9,6 +9,8 @@ const _TOR_HIDDEN_SERVICE_CONTRACT_MARKER: &str = "arti_client::TorClient launch
 pub mod agent;
 pub mod daemon;
 pub mod service;
+#[cfg(test)]
+mod test_env;
 
 pub use daemon::lease::{
     AcquireLeaseResponse, LeaseManager, SharedLeaseManager, new_shared_manager,
