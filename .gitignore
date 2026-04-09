@@ -2,3 +2,4 @@
 .idea/
 /.tmp/release-target/
 /dist-manual/
+.tmp
