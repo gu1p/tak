@@ -174,15 +174,25 @@ async fn shared_tor_client(
     > = std::sync::OnceLock::new();
     let client = CELL
         .get_or_init(tokio::sync::OnceCell::const_new)
-        .get_or_try_init(|| async {
-            TorClient::create_bootstrapped(TorClientConfig::default())
-                .await
-                .with_context(|| {
-                    format!(
-                        "infra error: remote node {} unavailable at {}",
-                        target.node_id, target.endpoint
-                    )
-                })
+        .get_or_try_init(|| async move {
+            let deadline = tokio::time::Instant::now() + tor_connect_timeout();
+
+            loop {
+                match TorClient::create_bootstrapped(TorClientConfig::default()).await {
+                    Ok(client) => return Ok(client),
+                    Err(error) if tokio::time::Instant::now() >= deadline => {
+                        return Err(error).with_context(|| {
+                            format!(
+                                "infra error: remote node {} unavailable at {}",
+                                target.node_id, target.endpoint
+                            )
+                        });
+                    }
+                    Err(_) => {}
+                }
+
+                tokio::time::sleep(tor_connect_retry_delay()).await;
+            }
         })
         .await?;
     Ok(client.clone())

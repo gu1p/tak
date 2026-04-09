@@ -6,7 +6,7 @@ mod response;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use tak_proto::NodeInfo;
 use tokio::time::{sleep, timeout};
 
@@ -24,18 +24,12 @@ async fn wait_for_node_info_result(
     base_url: &str,
     bearer_token: &str,
 ) -> Result<NodeInfo> {
-    let config = arti_client::config::TorClientConfigBuilder::from_directories(
-        root.join("client-state"),
-        root.join("client-cache"),
-    )
-    .build()
-    .context("build test Arti config")?;
-    let client = arti_client::TorClient::create_bootstrapped(config)
+    let deadline = Instant::now() + Duration::from_secs(180);
+    let client = bootstrap_client(root, deadline)
         .await
         .context("bootstrap separate test Arti client")?;
     let (host, port) = endpoint_host_port(base_url)?;
     let authority = endpoint_socket_addr(base_url)?;
-    let deadline = Instant::now() + Duration::from_secs(120);
 
     loop {
         if let Ok(Ok(mut stream)) = timeout(
@@ -49,6 +43,35 @@ async fn wait_for_node_info_result(
         }
         if Instant::now() >= deadline {
             bail!("timed out waiting for separate Arti client to reach {base_url}");
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
+async fn bootstrap_client(
+    root: &Path,
+    deadline: Instant,
+) -> Result<arti_client::TorClient<tor_rtcompat::PreferredRuntime>> {
+    let mut last_error = anyhow!("timed out bootstrapping separate test Arti client");
+    loop {
+        let config = arti_client::config::TorClientConfigBuilder::from_directories(
+            root.join("client-state"),
+            root.join("client-cache"),
+        )
+        .build()
+        .context("build test Arti config")?;
+        match timeout(
+            Duration::from_secs(60),
+            arti_client::TorClient::create_bootstrapped(config),
+        )
+        .await
+        {
+            Ok(Ok(client)) => return Ok(client),
+            Ok(Err(error)) => last_error = error.into(),
+            Err(_) => {}
+        }
+        if Instant::now() >= deadline {
+            return Err(last_error);
         }
         sleep(Duration::from_secs(1)).await;
     }
