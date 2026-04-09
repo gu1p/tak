@@ -5,7 +5,7 @@ use tak_proto::NodeInfo;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, duplex};
 use tokio::time::{sleep, timeout};
 
-use super::probe_node_info;
+use super::{http::read_http_response, probe_node_info};
 
 #[tokio::test]
 async fn startup_probe_reads_a_complete_http_body_without_waiting_for_eof() {
@@ -47,5 +47,41 @@ async fn startup_probe_reads_a_complete_http_body_without_waiting_for_eof() {
     .await
     .expect("probe should finish from Content-Length alone")
     .expect("probe should decode node info");
+    server_task.await.expect("server task");
+}
+
+#[tokio::test]
+async fn startup_probe_rejects_invalid_content_length() {
+    let (mut client, mut server) = duplex(256);
+    let server_task = tokio::spawn(async move {
+        server
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: nope\r\n\r\n")
+            .await
+            .expect("write invalid response");
+        server.flush().await.expect("flush invalid response");
+    });
+
+    let err = read_http_response(&mut client, "http://builder-a.onion")
+        .await
+        .expect_err("invalid content-length should fail");
+    assert!(format!("{err:#}").contains("invalid HTTP content-length"));
+    server_task.await.expect("server task");
+}
+
+#[tokio::test]
+async fn startup_probe_rejects_truncated_bodies() {
+    let (mut client, mut server) = duplex(256);
+    let server_task = tokio::spawn(async move {
+        server
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabc")
+            .await
+            .expect("write truncated response");
+        server.flush().await.expect("flush truncated response");
+    });
+
+    let err = read_http_response(&mut client, "http://builder-a.onion")
+        .await
+        .expect_err("truncated body should fail");
+    assert!(format!("{err:#}").contains("truncated HTTP response body"));
     server_task.await.expect("server task");
 }

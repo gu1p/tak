@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use tokio::time::sleep;
 
-use super::run_with_attempt_timeout;
+use super::{endpoint_host_port, endpoint_socket_addr, run_with_attempt_timeout};
 
 #[tokio::test]
 async fn attempt_timeout_caps_long_running_probe_steps() {
@@ -57,4 +57,35 @@ async fn attempt_timeout_returns_successful_results() -> Result<()> {
     .await?;
     assert_eq!(value, 42);
     Ok(())
+}
+
+#[tokio::test]
+async fn attempt_timeout_rejects_expired_deadlines_before_starting() {
+    let err = run_with_attempt_timeout(
+        Instant::now(),
+        Duration::from_millis(10),
+        "startup probe",
+        async { Ok::<(), anyhow::Error>(()) },
+    )
+    .await
+    .expect_err("expired deadlines should fail before running");
+    assert!(format!("{err:#}").contains("startup probe timed out before the attempt started"));
+}
+
+#[test]
+fn endpoint_helpers_normalize_authority_and_validate_ports() {
+    assert_eq!(
+        endpoint_socket_addr("http://builder.example/path").expect("http default port"),
+        "builder.example:80"
+    );
+    assert_eq!(
+        endpoint_socket_addr("https://builder.example").expect("https default port"),
+        "builder.example:443"
+    );
+    assert_eq!(
+        endpoint_host_port("http://builder.example:91").expect("explicit port"),
+        ("builder.example".to_string(), 91)
+    );
+    assert!(endpoint_socket_addr("builder.example").is_err());
+    assert!(endpoint_host_port("http://builder.example:bad").is_err());
 }

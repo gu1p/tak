@@ -89,3 +89,10 @@ fn scope_value(scope: &Scope) -> &'static str {
         Scope::Worktree => "worktree",
     }
 }
+
+#[cfg(test)]
+mod submit_payload_behavior_tests;
+#[cfg(test)]
+mod submit_payload_error_tests;
+#[cfg(test)]
+mod submit_payload_test_support;
