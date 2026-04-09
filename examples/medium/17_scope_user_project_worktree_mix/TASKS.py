@@ -3,6 +3,7 @@
 # Scenario: scope user project worktree mix
 
 SPEC = module_spec(
+  project_id="example_medium_17",
   tasks=[
     task(
       "scoped_task",

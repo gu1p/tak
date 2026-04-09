@@ -22,19 +22,19 @@ pub async fn run_cli() -> Result<()> {
         }
         Commands::Explain { label } => {
             let spec = load_workspace_from_cwd()?;
-            let label = parse_input_label(&label)?;
+            let label = parse_input_label(&spec, &label, "explain")?;
             let task = spec
                 .tasks
                 .get(&label)
                 .ok_or_else(|| anyhow!("task not found: {label}"))?;
 
-            println!("label: {label}");
+            println!("label: {}", canonical_label(&label));
             if task.deps.is_empty() {
                 println!("deps: (none)");
             } else {
                 println!("deps:");
                 for dep in &task.deps {
-                    println!("  - {dep}");
+                    println!("  - {}", canonical_label(dep));
                 }
             }
             println!("steps: {}", task.steps.len());
@@ -52,7 +52,7 @@ pub async fn run_cli() -> Result<()> {
                 bail!("unsupported format: {format}");
             }
             let scope = match label {
-                Some(value) => vec![parse_input_label(&value)?],
+                Some(value) => vec![parse_input_label(&spec, &value, "graph")?],
                 None => spec.tasks.keys().cloned().collect(),
             };
             print_dot_graph(&spec, &scope);
@@ -61,7 +61,7 @@ pub async fn run_cli() -> Result<()> {
             let spec = load_workspace_from_cwd()?;
             let parsed = label
                 .as_deref()
-                .map(parse_input_label)
+                .map(|value| parse_input_label(&spec, value, "web"))
                 .transpose()
                 .context("failed to parse optional web graph label")?;
             crate::web::serve_graph_ui(&spec, parsed.as_ref()).await?;
@@ -75,11 +75,11 @@ pub async fn run_cli() -> Result<()> {
                 bail!("run requires at least one label");
             }
 
+            let spec = load_workspace_from_cwd()?;
             let targets = labels
                 .iter()
-                .map(|label| parse_input_label(label))
+                .map(|label| parse_input_label(&spec, label, "run"))
                 .collect::<Result<Vec<_>>>()?;
-            let spec = load_workspace_from_cwd()?;
 
             let summary = run_tasks(
                 &spec,
@@ -87,7 +87,7 @@ pub async fn run_cli() -> Result<()> {
                 &RunOptions {
                     jobs,
                     keep_going,
-                    lease_socket: None,
+                    lease_socket: std::env::var_os("TAKD_SOCKET").map(std::path::PathBuf::from),
                     lease_ttl_ms: 30_000,
                     lease_poll_interval_ms: 200,
                     session_id: std::env::var("TAK_SESSION_ID").ok(),
@@ -98,7 +98,8 @@ pub async fn run_cli() -> Result<()> {
 
             for (label, result) in summary.results {
                 println!(
-                    "{label}: {} (attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={})",
+                    "{}: {} (attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={})",
+                    canonical_label(&label),
                     if result.success { "ok" } else { "failed" },
                     result.attempts,
                     result

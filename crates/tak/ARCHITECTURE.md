@@ -27,11 +27,11 @@ High-level flow:
 
 | Command | Primary question answered | Backend calls | Output contract |
 |---|---|---|---|
-| `tak list` | "What tasks exist in this workspace?" | `load_workspace_from_cwd()` | One fully-qualified label per line, e.g. `//apps/web:test_ui`. |
-| `tak explain <label>` | "What is this task composed of?" | workspace load + label parse + task lookup | Structured text fields: `label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`. |
-| `tak graph [label] --format dot` | "What dependency graph should I visualize?" | workspace load + optional label parse | DOT graph text (`digraph tak { ... }`). |
-| `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
-| `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + label parsing + `run_tasks(...)` | One result line per executed label: `<label>: ok|failed (attempts=X, exit_code=Y|none)`. |
+| `tak list` | "What tasks exist in this workspace?" | `load_workspace_from_cwd()` | ANSI-decorated list output with fully-qualified labels from the current directory workspace. |
+| `tak explain <label>` | "What is this task composed of?" | workspace load + guided label parse + task lookup | Structured text fields: `label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`. |
+| `tak graph [label] --format dot` | "What dependency graph should I visualize?" | workspace load + optional guided label parse | DOT graph text (`digraph tak { ... }`). |
+| `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional guided label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
+| `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)` | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
 | `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
@@ -41,7 +41,7 @@ High-level flow:
 
 ### `list`
 
-- Success output: newline-separated labels only.
+- Success output: one human-readable line per task with canonical labels and dependency hints.
 - Typical use: scripting (`tak list | rg ...`).
 
 ### `explain`
@@ -62,6 +62,7 @@ High-level flow:
 ### `run`
 
 - Requires at least one label.
+- Rejects path-like inputs such as `.`, `./foo`, or `/tmp/task` and points users to `tak list`.
 - Delegates retry, timeout, and lease behavior to `tak-exec`.
 - Per-task status is printed after execution summary is available.
 
@@ -100,7 +101,7 @@ Representative user-facing errors:
 
 - `unsupported format: <format>`
 - `run requires at least one label`
-- `invalid label <value>: ...`
+- `<value>` is not a valid task label
 - `node probe failed with HTTP <code>`
 - `failed to probe remote node <node_id> at <endpoint> via <transport>`
 
@@ -108,6 +109,7 @@ Representative user-facing errors:
 
 `run` uses environment overrides:
 
+- `TAKD_SOCKET` optional lease daemon socket path
 - `TAK_LEASE_TTL_MS` for lease TTL
 - `TAK_LEASE_POLL_MS` for pending poll interval
 - `TAK_SESSION_ID` optional session identifier

@@ -29,29 +29,26 @@ SPEC
 
     let env = BTreeMap::new();
     let list = run_tak_expect_success(temp.path(), &["list"], &env)?;
-    assert!(list.contains("//apps/web:build"));
-    assert!(list.contains("//apps/web:test"));
+    assert!(list.contains("//:build"));
+    assert!(list.contains("//:test"));
 
-    let explain = run_tak_expect_success(temp.path(), &["explain", "apps/web:test"], &env)?;
-    assert!(explain.contains("label: apps/web:test"));
+    let explain = run_tak_expect_success(temp.path(), &["explain", "//:test"], &env)?;
+    assert!(explain.contains("label: //:test"));
     assert!(explain.contains("deps:"));
-    assert!(explain.contains("apps/web:build"));
+    assert!(explain.contains("//:build"));
 
-    let graph = run_tak_expect_success(
-        temp.path(),
-        &["graph", "apps/web:test", "--format", "dot"],
-        &env,
-    )?;
+    let graph =
+        run_tak_expect_success(temp.path(), &["graph", "//:test", "--format", "dot"], &env)?;
     assert!(graph.contains("digraph tak"));
-    assert!(graph.contains("\"apps/web:build\" -> \"apps/web:test\""));
+    assert!(graph.contains("\"//:build\" -> \"//:test\""));
 
     let tree = run_tak_expect_success(temp.path(), &["tree"], &env)?;
     assert!(tree.contains("Tak Tree"));
-    assert!(tree.contains("//apps/web:test"));
+    assert!(tree.contains("//:test"));
 
-    let run = run_tak_expect_success(temp.path(), &["run", "apps/web:test"], &env)?;
-    assert!(run.contains("apps/web:build: ok"));
-    assert!(run.contains("apps/web:test: ok"));
+    let run = run_tak_expect_success(temp.path(), &["run", "//:test"], &env)?;
+    assert!(run.contains("//:build: ok"));
+    assert!(run.contains("//:test: ok"));
 
     let lines = fs::read_to_string(&run_log)?
         .lines()

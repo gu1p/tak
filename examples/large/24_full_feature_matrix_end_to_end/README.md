@@ -2,7 +2,7 @@
 
 ## Why This Matters
 
-This scenario composes nearly every major Tak primitive in one realistic release flow: defaults, retries, scoped needs, queue priority, scripts, and recursive packages.
+This scenario composes nearly every major Tak primitive in one realistic release flow: defaults, retries, scoped needs, queue priority, scripts, and explicit included packages.
 
 ## Copy-Paste Starter
 

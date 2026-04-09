@@ -3,6 +3,7 @@
 # Scenario: failure no retry unmatched exit
 
 SPEC = module_spec(
+  project_id="example_medium_20",
   tasks=[
     task(
       "failing",

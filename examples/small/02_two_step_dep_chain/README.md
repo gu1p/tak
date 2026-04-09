@@ -28,5 +28,5 @@ Small tier: focused behavior with minimal topology.
 
 ## File Layout
 - `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
-- `TASKS.py`: root definitions used by loader.
-- Nested `TASKS.py` and scripts (if present): recursive modules and step assets.
+- `TASKS.py`: root definitions used by the loader.
+- Included `TASKS.py` files and scripts (if present): extra modules declared through `module_spec(includes=[...])` and step assets.

@@ -5166,6 +5166,7 @@ dependencies = [
  "tak-exec",
  "tak-loader",
  "tak-proto",
+ "takd",
  "tempfile",
  "tokio",
  "toml 0.8.23",

@@ -13,6 +13,8 @@ pub struct ModuleSpec {
     #[serde(default)]
     pub exclude: Vec<String>,
     #[serde(default)]
+    pub includes: Vec<PathInputDef>,
+    #[serde(default)]
     pub defaults: Defaults,
 }
 

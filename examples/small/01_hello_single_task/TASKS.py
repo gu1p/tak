@@ -3,6 +3,7 @@
 # Scenario: hello single task
 
 SPEC = module_spec(
+  project_id="example_small_01",
   tasks=[
     task(
       "hello",

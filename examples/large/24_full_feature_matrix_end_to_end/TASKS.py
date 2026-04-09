@@ -3,6 +3,8 @@
 # Scenario: full feature matrix end to end
 
 SPEC = module_spec(
+  project_id="example_large_24",
+  includes=[path("apps/qa"), path("libs/common")],
   limiters=[
     resource("cpu", 8, unit="slots", scope=MACHINE),
     resource("ram_gib", 32, unit="gib", scope=MACHINE),

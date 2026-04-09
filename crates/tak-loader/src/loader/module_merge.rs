@@ -1,17 +1,27 @@
 fn merge_module(
+    module_path: &Path,
     root: &Path,
     project_id: &str,
     package: &str,
     module: ModuleSpec,
-    tasks: &mut BTreeMap<TaskLabel, ResolvedTask>,
-    limiters: &mut HashMap<LimiterKey, LimiterDef>,
-    queues: &mut HashMap<LimiterKey, QueueDef>,
+    state: &mut MergeState,
 ) -> Result<()> {
     for limiter in module.limiters {
         let key = limiter_key_for_limiter(&limiter, project_id, root);
-        if limiters.insert(key.clone(), limiter).is_some() {
-            bail!("duplicate limiter definition: {}", key.name);
+        if let Some(previous) = state.limiter_origins.get(&key) {
+            bail!(
+                "duplicate limiter definition: {} (scope={} {})\nfirst defined in {}\nconflicts with {}",
+                key.name,
+                scope_label(&key.scope),
+                scope_key_label(&key.scope_key),
+                previous.display(),
+                module_path.display()
+            );
         }
+        state
+            .limiter_origins
+            .insert(key.clone(), module_path.to_path_buf());
+        state.limiters.insert(key, limiter);
     }
 
     for queue in module.queues {
@@ -20,17 +30,32 @@ fn merge_module(
             scope_key: scope_key_for(&queue.scope, project_id, root),
             name: queue.name.clone(),
         };
-        if queues.insert(key.clone(), queue).is_some() {
-            bail!("duplicate queue definition: {}", key.name);
+        if let Some(previous) = state.queue_origins.get(&key) {
+            bail!(
+                "duplicate queue definition: {} (scope={} {})\nfirst defined in {}\nconflicts with {}",
+                key.name,
+                scope_label(&key.scope),
+                scope_key_label(&key.scope_key),
+                previous.display(),
+                module_path.display()
+            );
         }
+        state
+            .queue_origins
+            .insert(key.clone(), module_path.to_path_buf());
+        state.queues.insert(key, queue);
     }
 
     for task in module.tasks {
         let label = parse_label(&format!("{package}:{}", task.name), package)
             .map_err(|e| anyhow!("invalid task label in package {package}: {e}"))?;
 
-        if tasks.contains_key(&label) {
-            bail!("duplicate task label: {label}");
+        if let Some(previous) = state.task_origins.get(&label) {
+            bail!(
+                "duplicate task label: {label}\nfirst defined in {}\nconflicts with {}",
+                previous.display(),
+                module_path.display()
+            );
         }
 
         let mut deps = Vec::with_capacity(task.deps.len());
@@ -80,7 +105,10 @@ fn merge_module(
             tags,
         };
 
-        tasks.insert(label, resolved);
+        state
+            .task_origins
+            .insert(label.clone(), module_path.to_path_buf());
+        state.tasks.insert(label, resolved);
     }
 
     Ok(())
@@ -141,4 +169,20 @@ fn scope_key_for(scope: &Scope, project_id: &str, root: &Path) -> Option<String>
         Scope::Project => Some(project_id.to_string()),
         Scope::Worktree => Some(root.to_string_lossy().into_owned()),
     }
+}
+
+fn scope_label(scope: &Scope) -> &'static str {
+    match scope {
+        Scope::Machine => "machine",
+        Scope::User => "user",
+        Scope::Project => "project",
+        Scope::Worktree => "worktree",
+    }
+}
+
+fn scope_key_label(scope_key: &Option<String>) -> String {
+    scope_key
+        .as_deref()
+        .map(|value| format!("scope_key={value}"))
+        .unwrap_or_else(|| "scope_key=(none)".to_string())
 }

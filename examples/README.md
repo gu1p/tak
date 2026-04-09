@@ -17,7 +17,7 @@ Use these 8 examples first. They are the fastest path to using Tak in real proje
 | [`small/04_cmd_with_env_and_cwd`](small/04_cmd_with_env_and_cwd/README.md) | Reliable shell behavior | step-level `cwd` and `env` control | `//:env_cmd` |
 | [`small/08_retry_fixed_fail_once`](small/08_retry_fixed_fail_once/README.md) | Stable flaky-task handling | retry attempts, `on_exit`, fixed backoff | `//:flaky_fixed` |
 | [`medium/11_machine_lock_shared_ui`](medium/11_machine_lock_shared_ui/README.md) | Safe shared resources | `lock`, `need`, machine scope coordination | `//:ui_test` |
-| [`medium/18_multi_package_monorepo`](medium/18_multi_package_monorepo/README.md) | Real monorepo composition | recursive `TASKS.py`, cross-package deps | `//apps/web:all` |
+| [`medium/18_multi_package_monorepo`](medium/18_multi_package_monorepo/README.md) | Real monorepo composition | explicit `includes=[...]`, cross-package deps | `//apps/web:all` |
 | [`large/24_full_feature_matrix_end_to_end`](large/24_full_feature_matrix_end_to_end/README.md) | Combined high-load flow | limiters, queues, defaults, retries, scripts | `//apps/qa:release` |
 | [`large/25_remote_direct_build_and_artifact_roundtrip`](large/25_remote_direct_build_and_artifact_roundtrip/README.md) | Practical remote build | `RemoteOnly`, artifact sync, local verify | `//services/api:release` |
 | [`large/28_hybrid_local_remote_test_suite_failure_with_logs`](large/28_hybrid_local_remote_test_suite_failure_with_logs/README.md) | Failure diagnostics at scale | hybrid local+remote, non-zero remote suite, log retention | `//apps/web:remote_suite` |
@@ -28,7 +28,7 @@ Use these 8 examples first. They are the fastest path to using Tak in real proje
 - Step environment and working directory control: `small/04`
 - Retries/backoff behavior: `small/08`, `small/09`
 - Daemon coordination and scoped needs: `medium/11` through `medium/17`
-- Recursive multi-package graphs: `medium/18`, `large/21`
+- Explicit multi-package graphs: `medium/18`, `large/21`
 - Full composition with queues + defaults + scripts: `large/24`
 - Remote artifact workflows: `large/25`, `large/26`
 - Hybrid local+remote test suites and diagnostics: `large/27`, `large/28`
@@ -44,6 +44,8 @@ tak graph <target> --format dot
 tak web <target>
 tak run <target>
 ```
+
+All commands are meant to run from the example directory itself. Tak loads only that directory's `TASKS.py`; multi-package examples bring in other modules through explicit `includes=[...]`.
 
 If the example uses remote execution, import and run a `takd` agent first:
 
@@ -66,7 +68,7 @@ The full matrix remains important for regression and feature parity checks.
 |---|---|---|
 | small | 01-10 | isolated DSL/runtime behaviors |
 | medium | 11-20 | multi-feature scenarios + scoped coordination |
-| large | 21-28 | recursive topologies, remote execution, Tor transport, hybrid pipelines |
+| large | 21-28 | explicit include graphs, remote execution, Tor transport, hybrid pipelines |
 
 To inspect every example entry and its contracts, open [`catalog.toml`](catalog.toml).
 

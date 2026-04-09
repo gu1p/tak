@@ -3,6 +3,7 @@
 # Scenario: retry fixed fail once
 
 SPEC = module_spec(
+  project_id="example_small_08",
   tasks=[
     task(
       "flaky_fixed",

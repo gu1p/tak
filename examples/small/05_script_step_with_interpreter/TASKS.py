@@ -3,6 +3,7 @@
 # Scenario: script step with interpreter
 
 SPEC = module_spec(
+  project_id="example_small_05",
   tasks=[
     task(
       "script_gen",

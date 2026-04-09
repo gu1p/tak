@@ -1,6 +1,6 @@
 # Tak
 
-Tak is a task orchestrator for recursive monorepos. It loads distributed `TASKS.py` files, builds one validated dependency graph, and executes local and remote work with consistent retry, timeout, and resource-coordination behavior.
+Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the current directory's `TASKS.py`, follows explicit `module_spec(includes=[...])` links, builds one validated dependency graph, and executes local and remote work with consistent retry, timeout, and resource-coordination behavior.
 
 ## Why Teams Use Tak
 
@@ -11,7 +11,7 @@ Tak is a task orchestrator for recursive monorepos. It loads distributed `TASKS.
 
 ## Core Capabilities
 
-- Recursive workspace loading with gitignore-aware discovery.
+- Current-directory workspace loading with explicit `module_spec(includes=[...])` composition.
 - Strict label parsing for absolute and relative task references.
 - DAG validation (missing dependency and cycle detection) before execution.
 - Command and script step execution with explicit `cwd` and `env` control.
@@ -39,7 +39,7 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 ## CLI Quick Reference
 
 - `tak list`
-  - Enumerate fully-qualified task labels.
+  - Enumerate fully-qualified task labels in the current directory workspace.
 - `tak tree`
   - Render tasks as a tree for quick topology inspection.
 - `tak explain <label>`
@@ -52,6 +52,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Execute targets and dependencies.
 - `tak run <label...> -j <N> --keep-going`
   - Configure parallelism and continue with independent work after failures.
+- `tak run .`
+  - Invalid input. Use `tak list` first, then pass a real label such as `//:task` or `//pkg:task`.
 - `--keep-going`
   - Continue independent tasks even after one target fails.
 - `tak status`
@@ -118,7 +120,7 @@ takd status
 takd logs --lines 50
 ```
 
-2. Explore and run a target:
+2. Change into a project directory that contains `TASKS.py`, then explore and run a target:
 
 ```bash
 tak list
@@ -127,6 +129,13 @@ tak explain //apps/web:test_ui
 tak graph //apps/web:test_ui --format dot
 tak run //apps/web:test_ui -j 4 --keep-going
 ```
+
+Workspace rules:
+
+- Tak loads only the current directory's `TASKS.py`.
+- Tak never widens scope by scanning parent or child directories implicitly.
+- Multi-package projects compose extra modules explicitly with `module_spec(includes=[path("apps/web"), ...])`.
+- `tak run .` is not shorthand for "this project"; use labels returned by `tak list`.
 
 ## Copy-Paste TASKS.py Starter
 
@@ -145,6 +154,7 @@ test = task(
 )
 
 SPEC = module_spec(
+    project_id="hello_project",
     tasks=[build, test],
     limiters=[lock("ci_lock", scope=MACHINE)],
 )

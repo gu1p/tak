@@ -6,10 +6,9 @@ use std::process::Command as StdCommand;
 #[test]
 fn run_command_executes_locally_without_takd() {
     let temp = tempfile::tempdir().expect("tempdir");
-    fs::create_dir_all(temp.path().join("apps/web")).expect("mkdir");
     let marker = temp.path().join("local-run.log");
     fs::write(
-        temp.path().join("apps/web/TASKS.py"),
+        temp.path().join("TASKS.py"),
         format!(
             r#"
 SPEC = module_spec(tasks=[
@@ -23,7 +22,7 @@ SPEC
     .expect("write tasks");
 
     let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
-        .args(["run", "apps/web:local_only"])
+        .args(["run", "//:local_only"])
         .current_dir(temp.path())
         .output()
         .expect("run command");

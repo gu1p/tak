@@ -10,6 +10,7 @@ REMOTE = Remote(
 )
 
 SPEC = module_spec(
+  project_id="example_large_26",
   tasks=[
     task(
       "collect_remote_report",

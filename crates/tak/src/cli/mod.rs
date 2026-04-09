@@ -18,6 +18,6 @@ use command_model::{Cli, Commands};
 use graph_output::print_dot_graph;
 use remote_inventory::{add_remote, list_remotes, remove_remote};
 use remote_status::run_remote_status;
-use workspace_helpers::{load_workspace_from_cwd, parse_input_label};
+use workspace_helpers::{canonical_label, load_workspace_from_cwd, parse_input_label};
 
 pub use run_cli::run_cli;

@@ -1,17 +1,16 @@
 pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpec> {
     let workspace_root = detect_workspace_root(root)?;
-    let files = discover_tasks_files(&workspace_root)?;
-    let mut modules = Vec::<(String, ModuleSpec)>::new();
+    let discovered = discover_tasks_files(&workspace_root, options)?;
+    let mut modules = Vec::<(PathBuf, String, ModuleSpec)>::new();
 
-    for file in files {
-        let module = eval_module_spec(&file, options)?;
+    for (file, module) in discovered {
         let package = package_for_file(&workspace_root, &file)?;
-        modules.push((package, module));
+        modules.push((file, package, module));
     }
 
     let module_project_ids: Vec<Option<&str>> = modules
         .iter()
-        .map(|(_, module)| module.project_id.as_deref())
+        .map(|(_, _, module)| module.project_id.as_deref())
         .collect();
     let project_id = resolve_project_id(
         &workspace_root,
@@ -19,31 +18,29 @@ pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpe
         &module_project_ids,
     )?;
 
-    let mut tasks = BTreeMap::<TaskLabel, ResolvedTask>::new();
-    let mut limiters = HashMap::<LimiterKey, LimiterDef>::new();
-    let mut queues = HashMap::<LimiterKey, QueueDef>::new();
+    let mut state = MergeState::default();
 
-    for (package, module) in modules {
+    for (module_path, package, module) in modules {
         merge_module(
+            &module_path,
             &workspace_root,
             &project_id,
             &package,
             module,
-            &mut tasks,
-            &mut limiters,
-            &mut queues,
+            &mut state,
         )?;
     }
 
-    for (label, task) in &tasks {
+    for (label, task) in &state.tasks {
         for dep in &task.deps {
-            if !tasks.contains_key(dep) {
+            if !state.tasks.contains_key(dep) {
                 bail!("task {label} has unknown dependency {dep}");
             }
         }
     }
 
-    let dep_map: BTreeMap<TaskLabel, Vec<TaskLabel>> = tasks
+    let dep_map: BTreeMap<TaskLabel, Vec<TaskLabel>> = state
+        .tasks
         .iter()
         .map(|(label, task)| (label.clone(), task.deps.clone()))
         .collect();
@@ -52,10 +49,20 @@ pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpe
     Ok(WorkspaceSpec {
         project_id,
         root: workspace_root,
-        tasks,
-        limiters,
-        queues,
+        tasks: state.tasks,
+        limiters: state.limiters,
+        queues: state.queues,
     })
+}
+
+#[derive(Default)]
+struct MergeState {
+    tasks: BTreeMap<TaskLabel, ResolvedTask>,
+    task_origins: BTreeMap<TaskLabel, PathBuf>,
+    limiters: HashMap<LimiterKey, LimiterDef>,
+    limiter_origins: HashMap<LimiterKey, PathBuf>,
+    queues: HashMap<LimiterKey, QueueDef>,
+    queue_origins: HashMap<LimiterKey, PathBuf>,
 }
 
 /// Evaluates a named policy function from one `TASKS.py` file and resolves it to V1 policy IR.

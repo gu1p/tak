@@ -3,6 +3,7 @@
 # Scenario: queue fifo behavior
 
 SPEC = module_spec(
+  project_id="example_medium_13",
   queues=[queue_def("ui_fifo", slots=1, discipline=FIFO, scope=MACHINE)],
   tasks=[
     task(

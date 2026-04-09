@@ -38,12 +38,11 @@ SPEC
     )?;
 
     let env = BTreeMap::new();
-    let run_retry = run_tak_expect_success(temp.path(), &["run", "apps/web:retry_task"], &env)?;
-    assert!(run_retry.contains("apps/web:retry_task: ok (attempts=2"));
+    let run_retry = run_tak_expect_success(temp.path(), &["run", "//:retry_task"], &env)?;
+    assert!(run_retry.contains("//:retry_task: ok (attempts=2"));
     assert_eq!(fs::read_to_string(&retry_out)?.trim(), "recovered");
 
-    let (_stdout, stderr) =
-        run_tak_expect_failure(temp.path(), &["run", "apps/web:timeout_task"], &env)?;
+    let (_stdout, stderr) = run_tak_expect_failure(temp.path(), &["run", "//:timeout_task"], &env)?;
     assert!(
         stderr.contains("timed out") || stderr.contains("timeout"),
         "stderr should surface timeout failure, got: {stderr}"

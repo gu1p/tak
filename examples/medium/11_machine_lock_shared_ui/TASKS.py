@@ -3,6 +3,7 @@
 # Scenario: machine lock shared ui
 
 SPEC = module_spec(
+  project_id="example_medium_11",
   limiters=[lock("ui_lock", scope=MACHINE)],
   tasks=[
     task(

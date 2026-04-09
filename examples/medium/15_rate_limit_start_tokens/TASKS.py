@@ -3,6 +3,7 @@
 # Scenario: rate limit start tokens
 
 SPEC = module_spec(
+  project_id="example_medium_15",
   limiters=[rate_limit("start_rl", burst=2, refill_per_second=10, scope=MACHINE)],
   tasks=[
     task(

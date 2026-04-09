@@ -9,6 +9,16 @@ fn workspace_load_resolves_context_defaults_and_policy_execution() {
     let app_dir = temp.path().join("apps/web");
     fs::create_dir_all(&app_dir).expect("mkdir");
     fs::write(
+        temp.path().join("TASKS.py"),
+        r#"SPEC = module_spec(
+  includes=[path("apps/web")],
+  tasks=[],
+)
+SPEC
+"#,
+    )
+    .expect("write root tasks");
+    fs::write(
         app_dir.join("TASKS.py"),
         r#"POLICY_CONTEXT = PolicyContext(local_cpu_percent=92.5)
 def choose_remote(ctx):

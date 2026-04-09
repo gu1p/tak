@@ -3,6 +3,8 @@
 # Scenario: hybrid local + remote test suite (success path)
 
 SPEC = module_spec(
+  project_id="example_large_27",
+  includes=[path("apps/web")],
   tasks=[
     task(
       "bootstrap_local",

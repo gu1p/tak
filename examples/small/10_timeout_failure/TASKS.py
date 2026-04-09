@@ -3,6 +3,7 @@
 # Scenario: timeout failure
 
 SPEC = module_spec(
+  project_id="example_small_10",
   tasks=[
     task(
       "slow_timeout",

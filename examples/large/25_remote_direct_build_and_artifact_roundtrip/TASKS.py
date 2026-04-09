@@ -3,6 +3,8 @@
 # Scenario: remote direct build and artifact roundtrip
 
 SPEC = module_spec(
+  project_id="example_large_25",
+  includes=[path("services/api")],
   tasks=[
     task(
       "prepare_context",

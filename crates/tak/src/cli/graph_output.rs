@@ -13,10 +13,14 @@ pub(super) fn print_dot_graph(spec: &WorkspaceSpec, scope: &[TaskLabel]) {
     for label in scope {
         if let Some(task) = spec.tasks.get(label) {
             if task.deps.is_empty() {
-                println!("  \"{label}\";");
+                println!("  \"{}\";", canonical_label(label));
             } else {
                 for dep in &task.deps {
-                    println!("  \"{dep}\" -> \"{label}\";");
+                    println!(
+                        "  \"{}\" -> \"{}\";",
+                        canonical_label(dep),
+                        canonical_label(label)
+                    );
                 }
             }
         }

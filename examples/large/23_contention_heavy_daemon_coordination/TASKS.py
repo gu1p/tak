@@ -3,6 +3,8 @@
 # Scenario: contention heavy daemon coordination
 
 SPEC = module_spec(
+  project_id="example_large_23",
+  includes=[path("apps/a"), path("apps/b"), path("apps/c")],
   limiters=[lock("ui_lock", scope=MACHINE)],
   tasks=[
     task(

@@ -3,7 +3,7 @@
 ## Scenario Goal
 Polyglot release orchestration across language service packages.
 
-Large tier: recursive topology and realistic multi-package flow.
+Large tier: explicit include topology and realistic multi-package flow.
 
 ## What This Example Exercises
 - cross-language dependencies
@@ -28,5 +28,5 @@ Large tier: recursive topology and realistic multi-package flow.
 
 ## File Layout
 - `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).
-- `TASKS.py`: root definitions used by loader.
-- Nested `TASKS.py` and scripts (if present): recursive modules and step assets.
+- `TASKS.py`: root definitions plus explicit `includes=[...]` used by the loader.
+- Included package `TASKS.py` files and scripts (if present): task definitions and step assets.

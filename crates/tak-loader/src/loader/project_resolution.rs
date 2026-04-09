@@ -1,10 +1,3 @@
-fn find_ancestor_with(start: &Path, marker: &str) -> Option<PathBuf> {
-    start
-        .ancestors()
-        .find(|p| p.join(marker).exists())
-        .map(Path::to_path_buf)
-}
-
 /// Resolves the project id from options, `TASKS.py` module specs, or a path-based hash fallback.
 ///
 /// ```no_run

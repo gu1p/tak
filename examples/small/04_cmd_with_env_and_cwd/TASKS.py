@@ -3,6 +3,7 @@
 # Scenario: cmd with env and cwd
 
 SPEC = module_spec(
+  project_id="example_small_04",
   tasks=[
     task(
       "env_cmd",

@@ -3,6 +3,7 @@
 # Scenario: queue priority behavior
 
 SPEC = module_spec(
+  project_id="example_medium_14",
   queues=[queue_def("ui_priority", slots=1, discipline=PRIORITY, scope=MACHINE)],
   tasks=[
     task(

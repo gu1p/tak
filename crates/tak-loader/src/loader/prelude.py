@@ -33,7 +33,7 @@ def _normalize_deps(value):
         return [_dep_to_label(item) for item in value]
     return [_dep_to_label(value)]
 
-def module_spec(tasks, limiters=None, queues=None, exclude=None, defaults=None, project_id=None):
+def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None):
     return {
         "spec_version": 1,
         "project_id": project_id,
@@ -41,6 +41,7 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, defaults=None, 
         "limiters": _or_empty_list(limiters),
         "queues": _or_empty_list(queues),
         "exclude": _or_empty_list(exclude),
+        "includes": _or_empty_list(includes),
         "defaults": defaults if defaults is not None else {},
     }
 

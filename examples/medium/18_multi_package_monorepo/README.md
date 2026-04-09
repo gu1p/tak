@@ -7,6 +7,18 @@ This is the first example that looks like a real monorepo: root bootstrap tasks,
 ## Copy-Paste Starter
 
 ```python
+# TASKS.py
+SPEC = module_spec(
+    project_id="example_medium_18",
+    includes=[path("apps/api"), path("apps/web"), path("libs/common")],
+    tasks=[task("bootstrap", steps=[cmd("sh", "-c", "mkdir -p out && echo bootstrap >> out/monorepo.log")])],
+)
+SPEC
+```
+
+Included package modules can keep their own task files:
+
+```python
 # apps/web/TASKS.py
 SPEC = module_spec(
     tasks=[

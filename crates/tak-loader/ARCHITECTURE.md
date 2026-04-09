@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`tak-loader` transforms a recursive set of `TASKS.py` files into one validated `WorkspaceSpec`.
+`tak-loader` transforms the current directory `TASKS.py` plus its explicit include graph into one validated `WorkspaceSpec`.
 
 It is responsible for discovery, evaluation, conversion, merge, and graph-level validation before execution begins.
 
@@ -10,7 +10,7 @@ It is responsible for discovery, evaluation, conversion, merge, and graph-level 
 
 ```mermaid
 flowchart LR
-    Discover[Find TASKS.py files] --> Eval[Monty evaluation]
+    Discover[Resolve local TASKS.py + includes] --> Eval[Monty evaluation]
     Eval --> Convert[Monty object -> strict JSON]
     Convert --> Decode[JSON -> ModuleSpec]
     Decode --> Merge[Resolve labels/defaults/scopes]
@@ -20,8 +20,8 @@ flowchart LR
 
 ## Responsibilities
 
-- Detect workspace root (`.git`, fallback cwd).
-- Discover all `TASKS.py` files using gitignore-aware traversal.
+- Resolve the current directory `TASKS.py`.
+- Discover only explicitly included `TASKS.py` files.
 - Execute each file with DSL prelude under bounded Monty limits.
 - Convert Monty values into strict JSON-compatible structures.
 - Deserialize into `ModuleSpec` and merge into global registries.
@@ -31,13 +31,16 @@ flowchart LR
 ## Key Contracts
 
 - Every merged task label is absolute and unique.
+- Workspace scope never expands implicitly beyond the current directory root.
+- Includes are resolved relative to the including module and must stay under the workspace root.
 - Dependencies must reference existing tasks.
 - Module defaults apply consistently when task-local values are absent.
 - Scope keys are derived from scope type (`machine/user/project/worktree`).
 
 ## Failure Classes
 
-- root detection/path canonicalization errors
+- missing `TASKS.py` in the current directory
+- include resolution or include-cycle errors
 - syntax/runtime/type-checking failures during Monty eval
 - object conversion failures for unsupported runtime values
 - parse failures for module schema

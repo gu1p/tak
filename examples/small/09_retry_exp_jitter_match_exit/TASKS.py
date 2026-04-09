@@ -3,6 +3,7 @@
 # Scenario: retry exp jitter match exit
 
 SPEC = module_spec(
+  project_id="example_small_09",
   tasks=[
     task(
       "flaky_jitter",

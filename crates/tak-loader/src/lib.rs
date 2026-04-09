@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use ignore::WalkBuilder;
 use monty::{LimitedTracker, MontyObject, MontyRun, PrintWriter, ResourceLimits};
 use monty_type_checking::{SourceFile, type_check};
 use serde_json::{Map, Value};
