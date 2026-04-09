@@ -16,23 +16,25 @@ use super::http::{endpoint_host_port, endpoint_socket_addr, fetch_status_once};
 use super::{RemoteRecord, RemoteStatusResult};
 
 pub(super) async fn fetch_snapshot(remotes: &[RemoteRecord]) -> Vec<RemoteStatusResult> {
-    let mut results = join_all(remotes.iter().cloned().map(|remote| async move {
-        match fetch_node_status(&remote.base_url, &remote.transport, &remote.bearer_token).await {
-            Ok(status) => RemoteStatusResult {
-                remote,
-                status: Some(status),
-                error: None,
-            },
-            Err(err) => RemoteStatusResult {
-                remote,
-                status: None,
-                error: Some(err.to_string()),
-            },
-        }
-    }))
-    .await;
+    let mut results = join_all(remotes.iter().map(fetch_remote_status_result)).await;
     results.sort_unstable_by(|left, right| left.remote.node_id.cmp(&right.remote.node_id));
     results
+}
+
+async fn fetch_remote_status_result(remote: &RemoteRecord) -> RemoteStatusResult {
+    let remote = remote.clone();
+    match fetch_node_status(&remote.base_url, &remote.transport, &remote.bearer_token).await {
+        Ok(status) => RemoteStatusResult {
+            remote,
+            status: Some(status),
+            error: None,
+        },
+        Err(err) => RemoteStatusResult {
+            remote,
+            status: None,
+            error: Some(err.to_string()),
+        },
+    }
 }
 
 async fn fetch_node_status(
