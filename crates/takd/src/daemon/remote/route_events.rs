@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine;
 use tak_proto::{PollTaskEventsResponse, RemoteEvent};
 
 pub(super) fn handle_remote_events_route(
@@ -60,6 +61,23 @@ pub(super) fn handle_remote_events_route(
                 .get("chunk")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
+            chunk_bytes: payload_value
+                .get("chunk_base64")
+                .and_then(serde_json::Value::as_str)
+                .and_then(|value| base64::engine::general_purpose::STANDARD.decode(value).ok())
+                .or_else(|| {
+                    payload_value
+                        .get("chunk")
+                        .and_then(serde_json::Value::as_str)
+                        .map(|value| value.as_bytes().to_vec())
+                })
+                .or_else(|| {
+                    payload_value
+                        .get("message")
+                        .and_then(serde_json::Value::as_str)
+                        .map(|value| value.as_bytes().to_vec())
+                })
+                .unwrap_or_default(),
         });
     }
 

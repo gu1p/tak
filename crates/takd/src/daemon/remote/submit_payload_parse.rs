@@ -6,6 +6,8 @@ pub(super) fn parse_remote_worker_submit_payload(
 ) -> Result<RemoteWorkerSubmitPayload> {
     Ok(RemoteWorkerSubmitPayload {
         workspace_zip: request.workspace_zip.clone(),
+        task_label: request.task_label.clone(),
+        attempt: request.attempt,
         steps: request
             .steps
             .iter()

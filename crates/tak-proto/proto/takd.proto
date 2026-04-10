@@ -83,6 +83,7 @@ message RemoteEvent {
   optional int32 exit_code = 5;
   optional string message = 6;
   optional string chunk = 7;
+  bytes chunk_bytes = 8;
 }
 
 message PollTaskEventsResponse {

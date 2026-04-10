@@ -64,6 +64,7 @@ High-level flow:
 - Requires at least one label.
 - Rejects path-like inputs such as `.`, `./foo`, or `/tmp/task` and points users to `tak list`.
 - Delegates retry, timeout, and lease behavior to `tak-exec`.
+- Streams task `stdout` and `stderr` live to the local terminal for local, remote, and containerized execution.
 - Per-task status is printed after execution summary is available.
 
 ### `web`

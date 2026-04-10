@@ -5,13 +5,13 @@ async fn run_step_in_container(
     image: &str,
     step: &ContainerStepSpec,
     timeout_s: Option<u64>,
-    workspace_root: &Path,
+    run_context: &ContainerStepRunContext<'_>,
 ) -> Result<StepRunResult> {
     let container_name = format!("tak-step-{}", Uuid::new_v4());
     let bind_mount = format!(
         "{}:{}:rw",
-        workspace_root.display(),
-        workspace_root.display()
+        run_context.workspace_root.display(),
+        run_context.workspace_root.display()
     );
     let env = step
         .env
@@ -49,6 +49,13 @@ async fn run_step_in_container(
         .start_container(&container_id, None::<StartContainerOptions<String>>)
         .await
         .context("infra error: container lifecycle start failed: start container failed")?;
+    let log_task = spawn_container_log_task(
+        docker.clone(),
+        container_id.clone(),
+        run_context.task_label.clone(),
+        run_context.attempt,
+        run_context.output_observer.cloned(),
+    );
 
     let wait_result =
         wait_for_container_exit_code(docker, engine, podman_wait_socket, &container_id);
@@ -57,6 +64,7 @@ async fn run_step_in_container(
             Ok(result) => result?,
             Err(_) => {
                 let _ = cleanup_container(docker, &container_id).await;
+                let _ = finish_container_log_task(log_task).await;
                 return Ok(StepRunResult {
                     success: false,
                     exit_code: None,
@@ -66,6 +74,7 @@ async fn run_step_in_container(
     } else {
         wait_result.await?
     };
+    finish_container_log_task(log_task).await?;
 
     let _ = cleanup_container(docker, &container_id).await;
     Ok(StepRunResult {

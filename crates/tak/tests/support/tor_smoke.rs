@@ -3,6 +3,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command as StdCommand, Output};
 
+use super::tor_probe_env::apply_live_tor_probe_env;
+
 pub struct ChildGuard {
     pub child: Child,
 }
@@ -50,12 +52,12 @@ pub fn takd_bin() -> PathBuf {
 
 pub fn tak_command(workspace_root: &Path, config_root: &Path) -> StdCommand {
     let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
-    command
-        .current_dir(workspace_root)
-        .env("XDG_CONFIG_HOME", config_root)
-        .env("TAK_TOR_PROBE_TIMEOUT_MS", "300000")
-        .env("TAK_TOR_PROBE_BACKOFF_MS", "1000")
-        .env("TAKD_SOCKET", workspace_root.join(".missing-takd.sock"));
+    apply_live_tor_probe_env(
+        command
+            .current_dir(workspace_root)
+            .env("XDG_CONFIG_HOME", config_root)
+            .env("TAKD_SOCKET", workspace_root.join(".missing-takd.sock")),
+    );
     command
 }
 

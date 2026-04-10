@@ -1,10 +1,16 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use tak_core::model::StepDef;
+use tak_core::model::TaskLabel;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
+
+use crate::{OutputStream, TaskOutputObserver};
 
 #[derive(Debug)]
 pub(crate) struct StepRunResult {
@@ -25,12 +31,34 @@ pub(crate) async fn run_step(
     timeout_s: Option<u64>,
     workspace_root: &Path,
     runtime_env: Option<&BTreeMap<String, String>>,
+    task_label: &TaskLabel,
+    attempt: u32,
+    output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
     let (mut command, cwd) = build_command(step, workspace_root, runtime_env)?;
     command.current_dir(cwd);
     command.kill_on_drop(true);
+    if output_observer.is_some() {
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
+    }
 
     let mut child = command.spawn().context("failed to spawn process")?;
+    let relay_observer = output_observer.cloned();
+    let stdout_task = spawn_output_relay(
+        child.stdout.take(),
+        task_label.clone(),
+        attempt,
+        OutputStream::Stdout,
+        relay_observer.clone(),
+    );
+    let stderr_task = spawn_output_relay(
+        child.stderr.take(),
+        task_label.clone(),
+        attempt,
+        OutputStream::Stderr,
+        relay_observer,
+    );
 
     let wait_result = if let Some(seconds) = timeout_s {
         match tokio::time::timeout(Duration::from_secs(seconds), child.wait()).await {
@@ -38,6 +66,7 @@ pub(crate) async fn run_step(
             Err(_) => {
                 let _ = child.kill().await;
                 let _ = child.wait().await;
+                let _ = finish_output_relays(stdout_task, stderr_task).await;
                 return Ok(StepRunResult {
                     success: false,
                     exit_code: None,
@@ -50,12 +79,16 @@ pub(crate) async fn run_step(
             .await
             .context("failed while waiting for process")?
     };
+    finish_output_relays(stdout_task, stderr_task).await?;
 
     Ok(StepRunResult {
         success: wait_result.success(),
         exit_code: wait_result.code(),
     })
 }
+
+type OutputRelayTask = Option<tokio::task::JoinHandle<Result<()>>>;
+include!("step_runner/output_relay.rs");
 
 /// Builds an executable process command and effective working directory for a step.
 ///

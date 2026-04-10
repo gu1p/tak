@@ -86,7 +86,7 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 
 ## Run Output Signals
 
-`tak run` prints one summary line per executed task. The line is intentionally rich so you can debug placement decisions quickly.
+`tak run` streams task `stdout` and `stderr` live as work executes, then prints one summary line per executed task. Remote and containerized runs use the same local-terminal contract so output stays visible while the task is still running.
 
 Example:
 

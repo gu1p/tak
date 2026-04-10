@@ -23,6 +23,13 @@ impl EnvGuard {
         }
         unsafe { std::env::set_var(key, value.into()) }
     }
+
+    pub fn remove(&mut self, key: &str) {
+        if !self.saved.iter().any(|(saved_key, _)| saved_key == key) {
+            self.saved.push((key.to_string(), std::env::var(key).ok()));
+        }
+        unsafe { std::env::remove_var(key) }
+    }
 }
 
 impl Drop for EnvGuard {

@@ -7,6 +7,7 @@ struct AttemptExecutionContext<'a> {
     remote_workspace: Option<&'a RemoteWorkspaceStage>,
     task_run_id: &'a str,
     attempt: u32,
+    output_observer: Option<&'a std::sync::Arc<dyn TaskOutputObserver>>,
 }
 
 struct AttemptExecutionOutcome {
@@ -23,7 +24,14 @@ async fn execute_task_attempt(
 ) -> Result<AttemptExecutionOutcome> {
     let run_local_attempt = context.placement.placement_mode != PlacementMode::Remote;
     let run_result = if run_local_attempt {
-        run_task_steps_with_runtime(context.task, context.run_root, context.runtime_metadata).await
+        run_task_steps_with_runtime(
+            context.task,
+            context.run_root,
+            context.runtime_metadata,
+            context.attempt,
+            context.output_observer,
+        )
+        .await
     } else {
         Ok(StepRunResult {
             success: true,
@@ -42,7 +50,14 @@ async fn execute_task_attempt(
                     context.task.label
                 )
             })?;
-        let remote_logs = remote_protocol_events(target, context.task_run_id).await?;
+        let remote_logs = remote_protocol_events(
+            target,
+            context.task_run_id,
+            &context.task.label,
+            context.attempt,
+            context.output_observer,
+        )
+        .await?;
         let result = remote_protocol_result(target, context.task_run_id, context.attempt).await?;
         (remote_logs, Some(result))
     } else {

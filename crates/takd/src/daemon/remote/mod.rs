@@ -7,8 +7,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use futures::StreamExt;
 use safelog::DisplayRedacted;
 use sha2::{Digest, Sha256};
+use tak_core::label::parse_label;
 use tak_core::model::{RemoteRuntimeSpec, StepDef, normalize_path_ref};
-use tak_runner::{RemoteWorkerExecutionSpec, execute_remote_worker_steps};
+use tak_runner::{
+    OutputStream, RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver,
+    execute_remote_worker_steps_with_output,
+};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tor_cell::relaycell::msg::Connected;

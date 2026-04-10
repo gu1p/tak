@@ -14,12 +14,25 @@ pub(crate) fn parse_remote_events_response(
     let mut remote_logs = Vec::new();
     for event in parsed.events {
         checkpoint = checkpoint.max(event.seq);
-        if event.seq <= last_seen_seq || event.kind != "TASK_LOG_CHUNK" {
+        if event.seq <= last_seen_seq {
             continue;
         }
+        let stream = match event.kind.as_str() {
+            "TASK_STDOUT_CHUNK" | "TASK_LOG_CHUNK" => Some(OutputStream::Stdout),
+            "TASK_STDERR_CHUNK" => Some(OutputStream::Stderr),
+            _ => None,
+        };
+        let Some(stream) = stream else {
+            continue;
+        };
         remote_logs.push(RemoteLogChunk {
             seq: event.seq,
-            chunk: event.chunk.or(event.message).unwrap_or_default(),
+            stream,
+            bytes: if !event.chunk_bytes.is_empty() {
+                event.chunk_bytes
+            } else {
+                event.chunk.or(event.message).unwrap_or_default().into_bytes()
+            },
         });
     }
     remote_logs.sort_unstable_by_key(|chunk| chunk.seq);

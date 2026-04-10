@@ -21,6 +21,7 @@
 - dependency closure collection
 - cycle-safe traversal guards
 - step process spawning with env/cwd control
+- live stdout/stderr relay for local, remote, and containerized task attempts
 - retry policy evaluation (`on_exit`, attempts, backoff)
 - timeout enforcement per step
 - daemon request/response handling for lease operations

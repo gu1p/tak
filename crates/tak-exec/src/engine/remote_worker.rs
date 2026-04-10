@@ -2,11 +2,16 @@ pub async fn execute_remote_worker_steps(
     workspace_root: &Path,
     spec: &RemoteWorkerExecutionSpec,
 ) -> Result<RemoteWorkerExecutionResult> {
+    execute_remote_worker_steps_with_output(workspace_root, spec, None).await
+}
+
+pub async fn execute_remote_worker_steps_with_output(
+    workspace_root: &Path,
+    spec: &RemoteWorkerExecutionSpec,
+    output_observer: Option<std::sync::Arc<dyn TaskOutputObserver>>,
+) -> Result<RemoteWorkerExecutionResult> {
     let task = ResolvedTask {
-        label: TaskLabel {
-            package: "//".to_string(),
-            name: "remote_worker_task".to_string(),
-        },
+        label: spec.task_label.clone(),
         doc: String::new(),
         deps: Vec::new(),
         steps: spec.steps.clone(),
@@ -29,7 +34,14 @@ pub async fn execute_remote_worker_steps(
     };
 
     let result =
-        run_task_steps_with_runtime(&task, workspace_root, runtime_metadata.as_ref()).await?;
+        run_task_steps_with_runtime(
+            &task,
+            workspace_root,
+            runtime_metadata.as_ref(),
+            spec.attempt,
+            output_observer.as_ref(),
+        )
+        .await?;
     Ok(RemoteWorkerExecutionResult {
         success: result.success,
         exit_code: result.exit_code,

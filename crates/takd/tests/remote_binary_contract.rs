@@ -33,7 +33,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
     let submit = SubmitTaskRequest {
         task_run_id: "task-run-1".to_string(),
         attempt: 1,
-        workspace_zip: Vec::new(),
+        workspace_zip: empty_workspace_zip(),
         steps: vec![Step {
             kind: Some(step::Kind::Cmd(CmdStep {
                 argv: vec!["sh".to_string(), "-c".to_string(), "true".to_string()],
@@ -77,4 +77,13 @@ fn remote_routes_serve_binary_protobuf_contracts() {
         handle_remote_v1_request(&context, &store, "GET", "/v1/tasks/task-run-1/result", None)
             .expect("result response");
     let _ = GetTaskResultResponse::decode(result.body.as_slice()).expect("decode result");
+}
+
+fn empty_workspace_zip() -> Vec<u8> {
+    let cursor = std::io::Cursor::new(Vec::new());
+    let writer = zip::ZipWriter::new(cursor);
+    writer
+        .finish()
+        .expect("finish empty workspace zip")
+        .into_inner()
 }

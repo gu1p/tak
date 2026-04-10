@@ -1,55 +1,48 @@
-# Ergonomics and Distributed Execution Phases
+# Ergonomics and Distributed Execution
 
-This document is the single source of truth for two things:
+This document describes two things:
 
-- what Tak already ships today
-- what we want to add next to make it more ergonomic and more distributed
+- the Tak model that exists today
+- the replacement ergonomics model we want to move toward
 
-The split matters. Tak already has useful remote and hybrid execution behavior, but some of the best UX ideas are still future work.
+The point of the replacement is simple: most users should not need to think about transport,
+tags, capabilities, or placement constructors just to create `TASKS.py` and run work.
 
-## Phase 1: What Tak Already Has Today
+Tak should be opinionated by default, easy for newcomers, and still fully configurable for power
+users.
 
-Phase 1 is shipped behavior. Everything in this section exists now.
+## Today
 
-### 1. Root-package shorthand is already ergonomic
+Tak already ships useful behavior.
 
-What it is:
+### Root shorthand already exists
 
-- At a Tak workspace root, `tak run hello` already works as shorthand for `tak run //:hello`.
-
-What exists now:
+At a workspace root:
 
 ```bash
 tak run hello
 tak run //:hello
 ```
 
-Why it matters:
-
-- Users do not need to type the full root label for simple root tasks.
+Those already mean the same thing.
 
 Current boundary:
 
-- This works at the workspace root for root-package tasks.
-- Tak does not currently reinterpret bare names from arbitrary package directories such as `apps/web/` into `//apps/web:test`.
+- this only works for root-package tasks
+- Tak does not currently reinterpret bare names from arbitrary package directories into
+  package-relative labels
 
-Difficulty:
+### Remote execution already exists
 
-- Already shipped.
+Tak can already run tasks remotely.
 
-### 2. Remote execution already exists
+Today that is mostly task-driven:
 
-What it is:
+- `RemoteOnly(...)`
+- `ByCustomPolicy(...)`
+- explicit `Remote(...)` requirements in `TASKS.py`
 
-- Tak can already execute tasks remotely.
-
-What exists now:
-
-- Remote placement is defined in the task DSL, usually through `RemoteOnly(...)` or a custom policy.
-- Remote agents can be onboarded with `tak remote add`.
-- Remote state can be inspected with `tak remote list` and `tak remote status`.
-
-Current example:
+Remote agents can already be onboarded and inspected:
 
 ```bash
 takd init
@@ -58,61 +51,29 @@ tak remote add "$(takd token show --wait)"
 tak remote status
 ```
 
-Why it matters:
-
-- Teams can already move expensive or isolated work off the local machine.
-
 Current boundary:
 
-- There is no CLI override like `tak run //apps/web:test --remote`.
-- Placement is task-driven today, not CLI-driven.
+- there is no `tak run ... --remote` or `tak run ... --local`
+- placement is mostly encoded in the task definition itself
 
-Difficulty:
+### Distributed flows already exist, but they are explicit
 
-- Already shipped.
-
-### 3. Distributed tests are already possible, but explicit
-
-What it is:
-
-- Tak can already model a distributed test flow as a task graph.
-
-What exists now:
-
-- One local setup task.
-- Multiple explicit remote test tasks.
-- One final local merge or summary task.
+Tak can already model hybrid local and remote pipelines and explicit distributed test graphs.
 
 Good shipped examples:
 
 - [`examples/large/27_hybrid_local_remote_test_suite_success/README.md`](../examples/large/27_hybrid_local_remote_test_suite_success/README.md)
 - [`examples/large/28_hybrid_local_remote_test_suite_failure_with_logs/README.md`](../examples/large/28_hybrid_local_remote_test_suite_failure_with_logs/README.md)
 
-Why it matters:
-
-- Users can already distribute large suites across remote work and still end with one stable summary step.
-
 Current boundary:
 
-- Tak does not automatically split one test target into many shards.
-- Tak does not automatically merge junit, logs, or coverage for you.
-- The distributed pattern is explicit today, not automatic.
+- users write explicit remote tasks themselves
+- users manually define the local setup and local merge steps
+- there is no automatic sharding or result aggregation
 
-Difficulty:
+### Remote runtime configuration already exists
 
-- Already shipped, but manual.
-
-### 4. Remote container runtime already exists
-
-What it is:
-
-- Tak already supports containerized remote execution.
-
-What exists now:
-
-- Remote runtime is image-based through `ContainerRuntime(image=...)`.
-
-Current example:
+Tak already supports remote container runtime configuration:
 
 ```python
 REMOTE = Remote(
@@ -124,228 +85,344 @@ REMOTE = Remote(
 )
 ```
 
-Why it matters:
-
-- Teams can already run remote work in a controlled environment without relying only on the host machine state.
-
 Current boundary:
 
-- Tak does not yet accept `Dockerfile` paths as runtime inputs.
-- Tak does not yet resolve repo-owned base-image definitions directly.
-- Current runtime configuration is image-first.
+- this is still explicit-first
+- even common remote workflows currently ask the user to think about advanced filters early
 
-Difficulty:
+## Replacement Model
 
-- Already shipped, but image-based only.
+The replacement model is not "more knobs." It is "better defaults."
 
-### 5. The current client is useful, but narrow
+The common case should be:
 
-What it is:
+- write a task
+- run the task
+- let Tak decide where it should run using opinionated defaults
 
-- `tak web` already gives a graph UI for understanding the dependency graph.
+The uncommon case should still exist:
 
-What exists now:
+- explicit transport filters
+- explicit tags or capabilities
+- explicit hard placement constructors
+- custom scheduling policies
 
-- Graph visualization for targets and dependencies.
+Those stay available, but they are advanced controls, not the default starting point.
 
-Why it matters:
+### Default behavior
 
-- This helps users understand how tasks compose before running them.
+For most tasks, the user should be able to omit execution details entirely.
 
-Current boundary:
+Conceptually:
 
-- It is not a remote-operations client.
-- It does not currently act as a control plane for remote pools, logs, placement, or run aggregation.
+```python
+SPEC = module_spec(
+    tasks=[
+        task(
+            "test",
+            steps=[cmd("pytest", "-q")],
+        ),
+    ]
+)
+SPEC
+```
 
-Difficulty:
-
-- Already shipped, but intentionally limited.
-
-## Phase 2: Near-Term Ergonomics We Should Add
-
-Phase 2 is the highest-value next layer. These items would make Tak much easier to use without changing its core model.
-
-### 1. Package-relative bare task names
-
-What we want:
-
-- If the user is inside a package directory, allow `tak run test` to resolve to that package's task label.
-
-Target shape:
+Then:
 
 ```bash
-cd apps/web
 tak run test
 ```
 
-Desired meaning:
+Tak should use a default placement policy instead of forcing the author to first decide between
+`LocalOnly(...)`, `RemoteOnly(...)`, transport, tags, and capability filters.
+
+### Default policy: remote first
+
+The default newcomer policy should be `remote_first`.
+
+Meaning:
+
+1. find eligible remote nodes
+2. randomize them fairly using one seeded shuffle per task run
+3. submit to them in sequence
+4. stop at the first node that accepts the work
+5. if all eligible remotes reject or are unavailable, run locally last if local execution is allowed
+
+This keeps Tak simple to use while still favoring remote capacity when it exists.
+
+### Node admission uses EAFP
+
+Tak should not try to perfectly predict whether a node can run the task.
+
+Instead, the node should be the source of truth for admission.
+
+The client behavior should be EAFP:
+
+1. submit to a candidate node
+2. if the node accepts, the placement is done
+3. if the node rejects for capacity-ish reasons, move to the next candidate
+4. if no remote candidate accepts, fall back to local when policy allows
+
+This avoids trying to make the client smarter than the nodes.
+
+### Which failures move to the next candidate
+
+Retry-next-candidate should be limited to the cases that actually mean "try somewhere else":
+
+- node unavailable
+- node busy
+- node policy reject
+- not enough current margin or resources on that node
+
+Tak should fail fast instead of silently falling through when the error is not about capacity:
+
+- auth failures
+- protocol mismatches
+- malformed responses
+- broken configuration
+
+Those are operator errors, not scheduling signals.
+
+### Transport is usually not a filter
+
+Most users do not care whether a remote uses direct transport or Tor transport.
+
+In the replacement model:
+
+- omitted transport means `any`
+- transport should only be specified when the user explicitly needs to constrain it
+
+That makes transport an advanced filter instead of part of the normal path.
+
+### Pool, tags, and capabilities are also advanced filters
+
+Most users should not start from:
+
+- `pool=...`
+- `required_tags=...`
+- `required_capabilities=...`
+
+In the replacement model:
+
+- omitted pool means no pool filter
+- omitted tags mean no tag filter
+- omitted capabilities mean no capability filter
+
+Tak should first try to make the simple path work. Filters remain available when the user needs to
+target a specialized class of nodes.
+
+## User Config
+
+The replacement model needs one concrete place for defaults.
+
+The first version should use one user config file:
 
 ```text
-//apps/web:test
+$HOME/.tak/tak.toml
 ```
 
-Why it matters:
+This file should be auto-created with comments the first time Tak needs it.
 
-- This matches how users naturally think when they are already inside a package directory.
+It should hold both:
 
-Current gap:
+- remote inventory
+- default placement policy
 
-- Today bare-name shorthand is effectively a root-package convenience, not a general package-relative alias system.
+### Proposed file shape
 
-Difficulty:
+```toml
+version = 1
 
-- Medium. It changes label resolution rules and must stay predictable.
+# Built-in placement policies:
+# - remote_first
+# - local_first
+# - force_remote
+# - force_local
+#
+# Soft CLI flags:
+# - tak run ... --remote
+# - tak run ... --local
+#
+# Hard CLI overrides:
+# - tak run ... --force-remote
+# - tak run ... --force-local
+default_policy = "remote_first"
 
-### 2. CLI remote override for runs
+[remote_defaults]
+# Most users should not care about transport.
+# "any" means Tak accepts direct or tor remotes.
+transport = "any"
 
-What we want:
+# Empty means "do not filter".
+pool = ""
+tags = []
+capabilities = []
 
-- Let users ask for remote execution from the CLI when a target can be run remotely.
+[[remotes]]
+node_id = "builder-a"
+display_name = "builder-a"
+base_url = "http://builder-a"
+bearer_token = "secret"
+pools = ["build"]
+tags = ["builder"]
+capabilities = ["linux"]
+transport = "direct"
+enabled = true
 
-Target shape:
+[[remotes]]
+node_id = "builder-b"
+display_name = "builder-b"
+base_url = "http://builder-b.onion"
+bearer_token = "secret"
+pools = ["build"]
+tags = ["builder"]
+capabilities = ["linux"]
+transport = "tor"
+enabled = true
+```
+
+### Why one file
+
+One file keeps the model easy to explain:
+
+- where Tak finds remotes
+- which policy Tak uses by default
+- which advanced defaults exist when the user wants them
+
+The goal is low cognitive load, not perfect separation.
+
+## CLI Semantics
+
+The replacement model should add four placement flags:
 
 ```bash
 tak run //apps/web:test --remote
-tak run hello --remote
+tak run //apps/web:test --local
+tak run //apps/web:test --force-remote
+tak run //apps/web:test --force-local
 ```
 
-Possible later refinements:
+### Soft preference flags
 
-- `--remote=required`
-- `--remote=prefer`
-- `--remote-node <id>`
+`--remote` and `--local` are soft preferences.
 
-Why it matters:
+They should bias placement without pretending to be stronger than every task rule.
 
-- This is the biggest ergonomics gap today.
-- It lets users experiment without rewriting `TASKS.py` first.
-- It makes CI and ad hoc operator workflows simpler.
+Examples:
 
-Current gap:
+- `--remote` means "prefer remote for this run"
+- `--local` means "prefer local for this run"
 
-- Today remote choice lives in the DSL, not in the run command.
+### Hard override flags
 
-Difficulty:
+`--force-remote` and `--force-local` are hard overrides.
 
-- Medium to high. It needs clear precedence between task-defined placement and CLI intent.
+They exist for the cases where the operator explicitly wants to cross the normal placement rule.
 
-### 3. Better visibility into why Tak chose a node
+Examples:
 
-What we want:
+- forcing a remote run for validation
+- forcing a local run while debugging a remote problem
 
-- Make remote selection easier to understand from the CLI and the client.
+### Precedence
 
-Target shape:
+The intended precedence is:
 
-- Clearer node-choice explanations.
-- Better surfacing of pool, tag, capability, and transport filtering.
-- Easier access to recent logs and run context.
+1. `--force-remote` / `--force-local`
+2. explicit task hard constraints
+3. soft flags `--remote` / `--local`
+4. `default_policy` from `$HOME/.tak/tak.toml`
+5. inherited remote defaults when execution details are omitted
 
-Why it matters:
+## Hard Constraints Stay Available
 
-- Distributed systems are only ergonomic when the placement decision is explainable.
+The replacement model does not remove advanced controls.
 
-Current gap:
+These still matter:
 
-- Today the information exists in pieces, but the operator story is still thin.
+- `LocalOnly(...)`
+- `RemoteOnly(...)`
+- `ByCustomPolicy(...)`
+- explicit `Remote(...)` filters
 
-Difficulty:
+But they should be treated as advanced controls.
 
-- Medium. This is mostly product and interface work, not a new execution model.
+The normal path should be "write the task and let the defaults work."
 
-## Phase 3: Bigger Distributed Execution We Want Later
+## Placement Visibility
 
-Phase 3 is the larger vision. These are the features that would make Tak feel like a stronger distributed execution system instead of only a graph executor with remote support.
+If Tak falls through multiple candidates, the CLI should say so.
 
-### 1. Dockerfile and base-image aware remote runtimes
+The operator should be able to see:
 
-What we want:
+- which policy was used
+- which remotes were considered
+- the shuffled candidate order for that task run
+- which node accepted the task
+- why previous candidates were skipped or rejected
+- when local fallback happened and why
 
-- Let users point Tak at repo-owned environment definitions instead of requiring a prebuilt image reference.
+Distributed systems only feel ergonomic when the decision is understandable.
 
-Target shape:
+## Newcomer Path
+
+The newcomer path should look like this:
+
+### 1. Write a simple task
 
 ```python
-runtime=ContainerRuntime(dockerfile="images/test/Dockerfile")
+SPEC = module_spec(
+    tasks=[
+        task(
+            "test",
+            steps=[cmd("pytest", "-q")],
+        ),
+    ]
+)
+SPEC
 ```
 
-or something conceptually similar for shared base images.
-
-Why it matters:
-
-- Many teams already define execution environments in `Dockerfile`s and base-image folders.
-- Reusing those assets directly would make remote execution much easier to adopt.
-
-Current gap:
-
-- Today users must build and publish the image themselves, then reference the final image in Tak.
-
-Difficulty:
-
-- High. This adds build, transfer, caching, and trust questions to the runtime model.
-
-### 2. Automatic test fan-out across multiple nodes
-
-What we want:
-
-- Define one logical test target and let Tak split it across multiple remote nodes, then merge the results.
-
-Target shape:
+### 2. Run it
 
 ```bash
-tak run //apps/web:test --remote --shard auto
+tak run test
 ```
 
-Why it matters:
+### 3. Only reach for advanced filters when needed
 
-- This is the cleanest path to large-scale distributed testing.
-- Users should not have to hand-write every shard forever.
+Examples of advanced situations:
 
-Current gap:
+- "this must run on a linux builder"
+- "this must run only in a specific pool"
+- "this must use a specific transport"
+- "this must never run locally"
 
-- Today users model shards manually as separate tasks and manually add the merge task.
+Those cases are real. They are just not the common starting point.
 
-Difficulty:
+## What This Replaces
 
-- High. It needs sharding strategy, scheduling, artifact aggregation, and failure reporting that still feels deterministic.
+This model replaces the need to treat these concepts as part of the default authoring path:
 
-### 3. A stronger remote client
+- explicit placement constructors for common tasks
+- explicit transport selection for common remote usage
+- explicit tags and capabilities for common remote usage
 
-What we want:
-
-- A client that helps operate distributed execution, not only inspect the graph.
-
-Target shape:
-
-- remote pool and node inventory
-- live and recent runs
-- placement reasons
-- log access
-- aggregated result views
-
-Why it matters:
-
-- If Tak is going to empower distributed work, users need one place to understand what happened across machines.
-
-Current gap:
-
-- Today `tak web` is a graph viewer, not a remote execution console.
-
-Difficulty:
-
-- High. This is product surface area, data plumbing, and UX work.
-
-## Suggested Delivery Order
-
-1. Keep documenting Phase 1 clearly so users understand what is already real.
-2. Add package-relative shorthand and CLI remote overrides from Phase 2.
-3. Improve node-choice and remote visibility surfaces from Phase 2.
-4. Add Dockerfile or base-image aware runtime support from Phase 3.
-5. Add automatic multi-node test fan-out and result merging from Phase 3.
-6. Grow the client into a real distributed execution surface.
+Tak should still support them. It just should not make newcomers carry them mentally from the
+start.
 
 ## Bottom Line
 
-Tak already has real remote execution, hybrid local and remote pipelines, artifact roundtrip, and image-based containerized remote work.
+Tak already has real remote execution.
 
-The main opportunity is not inventing distribution from zero. The main opportunity is making the current power easier to reach, then building the bigger distributed workflow on top of that foundation.
+The replacement ergonomics model is about making that power easy to reach:
+
+- one user config file
+- one default policy
+- remote-first by default
+- seeded fair remote ordering
+- EAFP node admission
+- local last fallback
+- advanced filters only when they are actually needed
+
+That is the path to making `TASKS.py` easy for newcomers without taking control away from power
+users.

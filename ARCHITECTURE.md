@@ -79,6 +79,7 @@ Important loader rules:
 Local execution behavior:
 
 - command and script steps run with explicit `cwd` and `env` controls
+- task `stdout` and `stderr` stream directly to the local CLI while the step is running
 - retry policies apply around whole task attempts
 - task timeouts terminate slow work
 - `needs` coordination is optional and only activates when `TAKD_SOCKET` points at a unix socket
@@ -93,7 +94,7 @@ Remote execution behavior:
 2. probe node identity and protocol compatibility through `/v1/node/info`
 3. stage the normalized workspace context and task payload
 4. submit work over remote v1 HTTP, either directly or through Tor
-5. stream events, fetch terminal result payloads, and materialize returned outputs/artifacts
+5. stream stdout/stderr events, fetch terminal result payloads, and materialize returned outputs/artifacts
 6. print run summary metadata such as `placement`, `remote_node`, `transport`, `reason`,
    `context_hash`, `runtime`, and `runtime_engine`
 

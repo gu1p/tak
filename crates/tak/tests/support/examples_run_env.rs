@@ -9,6 +9,7 @@ use tak_loader::{LoadOptions, load_workspace};
 use super::examples_catalog::ExampleEntry;
 use super::examples_remote_fixture::remote_fixture;
 use super::local_daemon::LocalDaemonGuard;
+use super::tor_probe_env::insert_live_tor_probe_env;
 use super::tor_smoke::ChildGuard;
 
 pub struct ExampleRunContext {
@@ -34,6 +35,9 @@ pub fn setup_example_run(
             "XDG_CONFIG_HOME".to_string(),
             config_root.to_string_lossy().into_owned(),
         );
+    }
+    if entry.remote_fixture.as_deref() == Some("tor_onion_http") {
+        insert_live_tor_probe_env(&mut env);
     }
     Ok(ExampleRunContext {
         env,

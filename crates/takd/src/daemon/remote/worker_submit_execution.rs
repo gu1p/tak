@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Arc;
 
 pub(super) fn spawn_remote_worker_submit_execution(
     store: SubmitAttemptStore,
@@ -34,6 +35,10 @@ fn run_remote_worker_submit_execution(
     payload: &RemoteWorkerSubmitPayload,
 ) {
     let started_at = unix_epoch_ms();
+    let output_observer = Arc::new(RemoteWorkerEventObserver::new(
+        store.clone(),
+        idempotency_key.to_string(),
+    ));
     if let Err(error) = store.append_event(
         idempotency_key,
         1,
@@ -48,9 +53,16 @@ fn run_remote_worker_submit_execution(
         );
     }
 
-    let execution_result = execute_remote_worker_submit(idempotency_key, selected_node_id, payload);
+    let execution_result = execute_remote_worker_submit(
+        idempotency_key,
+        selected_node_id,
+        payload,
+        output_observer.clone(),
+    );
     let finished_at = unix_epoch_ms();
     let duration_ms = finished_at.saturating_sub(started_at);
+    let stdout_tail = output_observer.stdout_tail();
+    let stderr_tail = output_observer.stderr_tail();
 
     match execution_result {
         Ok((result, outputs)) => {
@@ -75,6 +87,8 @@ fn run_remote_worker_submit_execution(
                     "outputs": outputs,
                     "runtime": result.runtime_kind,
                     "runtime_engine": result.runtime_engine,
+                    "stdout_tail": json_tail_value(&stdout_tail),
+                    "stderr_tail": json_tail_value(&stderr_tail),
                 })
                 .to_string(),
             ) {
@@ -82,7 +96,7 @@ fn run_remote_worker_submit_execution(
             }
             if let Err(error) = store.append_event(
                 idempotency_key,
-                2,
+                output_observer.claim_next_seq(),
                 &serde_json::json!({
                     "kind": terminal_kind,
                     "timestamp_ms": finished_at,
@@ -97,6 +111,11 @@ fn run_remote_worker_submit_execution(
             }
         }
         Err(error) => {
+            let stderr_tail = if stderr_tail.is_empty() {
+                error.to_string()
+            } else {
+                stderr_tail
+            };
             if let Err(persist_error) = store.set_result_payload(
                 idempotency_key,
                 &serde_json::json!({
@@ -108,7 +127,8 @@ fn run_remote_worker_submit_execution(
                     "transport_kind": transport_kind,
                     "sync_mode": "OUTPUTS_AND_LOGS",
                     "outputs": serde_json::json!([]),
-                    "stderr_tail": error.to_string(),
+                    "stdout_tail": json_tail_value(&stdout_tail),
+                    "stderr_tail": json_tail_value(&stderr_tail),
                 })
                 .to_string(),
             ) {
@@ -118,7 +138,7 @@ fn run_remote_worker_submit_execution(
             }
             if let Err(append_error) = store.append_event(
                 idempotency_key,
-                2,
+                output_observer.claim_next_seq(),
                 &serde_json::json!({
                     "kind": "TASK_FAILED",
                     "timestamp_ms": finished_at,
@@ -142,47 +162,5 @@ fn run_remote_worker_submit_execution(
     }
 }
 
-fn execute_remote_worker_submit(
-    idempotency_key: &str,
-    selected_node_id: &str,
-    payload: &RemoteWorkerSubmitPayload,
-) -> Result<(
-    tak_runner::RemoteWorkerExecutionResult,
-    Vec<RemoteWorkerOutputRecord>,
-)> {
-    let execution_root = execution_root_for_submit_key(idempotency_key);
-    if execution_root.exists() {
-        fs::remove_dir_all(&execution_root).with_context(|| {
-            format!(
-                "failed to clear existing remote execution root {}",
-                execution_root.display()
-            )
-        })?;
-    }
-    fs::create_dir_all(&execution_root).with_context(|| {
-        format!(
-            "failed to create remote execution root {}",
-            execution_root.display()
-        )
-    })?;
-
-    unpack_remote_worker_workspace(&payload.workspace_zip, &execution_root)?;
-    let before = snapshot_workspace_files(&execution_root)?;
-
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("failed to create tokio runtime for remote worker execution")?;
-    let result = runtime.block_on(execute_remote_worker_steps(
-        &execution_root,
-        &RemoteWorkerExecutionSpec {
-            steps: payload.steps.clone(),
-            timeout_s: payload.timeout_s,
-            runtime: payload.runtime.clone(),
-            node_id: selected_node_id.to_string(),
-        },
-    ))?;
-    let outputs = changed_remote_worker_outputs(&execution_root, &before)?;
-
-    Ok((result, outputs))
-}
+include!("worker_submit_execution/output_observer.rs");
+include!("worker_submit_execution/execute_submit.rs");

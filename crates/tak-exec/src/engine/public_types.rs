@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RunOptions {
     pub jobs: usize,
     pub keep_going: bool,
@@ -7,6 +7,25 @@ pub struct RunOptions {
     pub lease_poll_interval_ms: u64,
     pub session_id: Option<String>,
     pub user: Option<String>,
+    pub output_observer: Option<std::sync::Arc<dyn TaskOutputObserver>>,
+}
+
+impl std::fmt::Debug for RunOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RunOptions")
+            .field("jobs", &self.jobs)
+            .field("keep_going", &self.keep_going)
+            .field("lease_socket", &self.lease_socket)
+            .field("lease_ttl_ms", &self.lease_ttl_ms)
+            .field("lease_poll_interval_ms", &self.lease_poll_interval_ms)
+            .field("session_id", &self.session_id)
+            .field("user", &self.user)
+            .field(
+                "output_observer",
+                &self.output_observer.as_ref().map(|_| "configured"),
+            )
+            .finish()
+    }
 }
 
 impl Default for RunOptions {
@@ -27,8 +46,27 @@ impl Default for RunOptions {
             lease_poll_interval_ms: 200,
             session_id: None,
             user: None,
+            output_observer: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputStream {
+    Stdout,
+    Stderr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskOutputChunk {
+    pub task_label: TaskLabel,
+    pub attempt: u32,
+    pub stream: OutputStream,
+    pub bytes: Vec<u8>,
+}
+
+pub trait TaskOutputObserver: Send + Sync {
+    fn observe_output(&self, chunk: TaskOutputChunk) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +88,8 @@ pub struct TaskRunResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteLogChunk {
     pub seq: u64,
-    pub chunk: String,
+    pub stream: OutputStream,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +101,8 @@ pub struct SyncedOutput {
 
 #[derive(Debug, Clone)]
 pub struct RemoteWorkerExecutionSpec {
+    pub task_label: TaskLabel,
+    pub attempt: u32,
     pub steps: Vec<StepDef>,
     pub timeout_s: Option<u64>,
     pub runtime: Option<RemoteRuntimeSpec>,

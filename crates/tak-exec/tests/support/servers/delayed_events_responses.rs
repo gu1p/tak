@@ -64,6 +64,7 @@ pub fn event_response(call: usize) -> PollTaskEventsResponse {
                 exit_code: None,
                 message: None,
                 chunk: Some("pending\n".into()),
+                chunk_bytes: Vec::new(),
             }],
             done: false,
         }
@@ -77,6 +78,7 @@ pub fn event_response(call: usize) -> PollTaskEventsResponse {
                 exit_code: Some(0),
                 message: None,
                 chunk: None,
+                chunk_bytes: Vec::new(),
             }],
             done: true,
         }

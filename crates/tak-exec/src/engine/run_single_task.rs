@@ -60,6 +60,7 @@ async fn run_single_task(
             remote_workspace: remote_workspace.as_ref(),
             task_run_id: &task_run_id,
             attempt,
+            output_observer: options.output_observer.as_ref(),
         };
         let lease_id = acquire_task_lease(task, attempt, options, lease_context).await?;
         let attempt_result = execute_task_attempt(&attempt_context).await;

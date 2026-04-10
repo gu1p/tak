@@ -17,7 +17,9 @@ pub mod remote_cli;
 pub mod remote_inventory;
 pub mod remote_status;
 pub mod run;
+pub mod streaming;
 pub mod tasks;
+pub mod tor_probe_env;
 pub mod tor_smoke;
 
 pub use remote_inventory::{RemoteRecord, write_remote_inventory};

@@ -9,6 +9,9 @@
 async fn remote_protocol_events(
     target: &StrictRemoteTarget,
     task_run_id: &str,
+    task_label: &TaskLabel,
+    attempt: u32,
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<Vec<RemoteLogChunk>> {
     const MAX_EVENT_RECONNECTS: u32 = 30;
     const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -61,6 +64,15 @@ async fn remote_protocol_events(
 
         let parsed = parse_remote_events_response(target, &response_body, last_seen_seq)?;
         last_seen_seq = parsed.next_seq;
+        for chunk in &parsed.remote_logs {
+            emit_task_output(
+                output_observer,
+                task_label,
+                attempt,
+                chunk.stream,
+                &chunk.bytes,
+            )?;
+        }
         persisted_remote_logs.extend(parsed.remote_logs);
         if parsed.done {
             return Ok(persisted_remote_logs);

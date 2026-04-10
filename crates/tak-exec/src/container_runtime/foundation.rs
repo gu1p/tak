@@ -1,22 +1,24 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use bollard::Docker;
 use bollard::container::{
-    Config as ContainerConfig, CreateContainerOptions, RemoveContainerOptions,
-    StartContainerOptions, WaitContainerOptions,
+    Config as ContainerConfig, CreateContainerOptions, LogOutput, LogsOptions,
+    RemoveContainerOptions, StartContainerOptions, WaitContainerOptions,
 };
 use bollard::image::CreateImageOptions;
 use bollard::models::HostConfig;
 use futures::StreamExt;
-use tak_core::model::{ResolvedTask, StepDef};
+use tak_core::model::{ResolvedTask, StepDef, TaskLabel};
 use uuid::Uuid;
 
 use crate::container_engine::{ContainerEngine, engine_name, podman_socket_candidates_from_env};
 use crate::step_runner::{StepRunResult, resolve_cwd};
+use crate::{OutputStream, TaskOutputObserver};
 
 #[derive(Debug)]
 pub(crate) struct ContainerStepSpec {
@@ -31,15 +33,30 @@ struct ContainerEngineClient {
     podman_wait_socket: Option<String>,
 }
 
+struct ContainerStepRunContext<'a> {
+    workspace_root: &'a Path,
+    task_label: &'a TaskLabel,
+    attempt: u32,
+    output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
+}
+
 pub(crate) async fn run_task_steps_in_container(
     task: &ResolvedTask,
     workspace_root: &Path,
     engine: ContainerEngine,
     image: &str,
     runtime_env: Option<&BTreeMap<String, String>>,
+    attempt: u32,
+    output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
     let client = connect_container_engine(engine).await?;
     ensure_container_image(&client.docker, image).await?;
+    let run_context = ContainerStepRunContext {
+        workspace_root,
+        task_label: &task.label,
+        attempt,
+        output_observer,
+    };
 
     for step in &task.steps {
         let step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
@@ -51,7 +68,7 @@ pub(crate) async fn run_task_steps_in_container(
                 image,
                 &step_spec,
                 task.timeout_s,
-                workspace_root,
+                &run_context,
             )
             .await?;
         if !status.success {

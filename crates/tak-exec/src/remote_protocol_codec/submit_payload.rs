@@ -8,7 +8,8 @@ use tak_proto::{
 };
 
 use crate::{
-    ParsedRemoteEvents, RemoteLogChunk, RemoteWorkspaceStage, StrictRemoteTarget, SyncedOutput,
+    OutputStream, ParsedRemoteEvents, RemoteLogChunk, RemoteWorkspaceStage, StrictRemoteTarget,
+    SyncedOutput,
 };
 
 pub(crate) fn build_remote_submit_payload(

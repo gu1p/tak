@@ -9,6 +9,8 @@ use super::status_state::{ActiveJobMetadata, SharedNodeStatusState, new_shared_n
 #[derive(Debug, Clone)]
 pub(super) struct RemoteWorkerSubmitPayload {
     pub(super) workspace_zip: Vec<u8>,
+    pub(super) task_label: String,
+    pub(super) attempt: u32,
     pub(super) steps: Vec<StepDef>,
     pub(super) timeout_s: Option<u64>,
     pub(super) runtime: Option<RemoteRuntimeSpec>,
