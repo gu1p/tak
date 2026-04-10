@@ -1,6 +1,6 @@
 fn validate_remote_transport(transport: Option<RemoteTransportDef>) -> Result<RemoteTransportKind> {
     let Some(transport) = transport else {
-        return Ok(RemoteTransportKind::Direct);
+        return Ok(RemoteTransportKind::Any);
     };
     let kind = transport.kind.trim();
     if kind.is_empty() {
@@ -8,10 +8,11 @@ fn validate_remote_transport(transport: Option<RemoteTransportDef>) -> Result<Re
     }
 
     match kind {
+        V1_TRANSPORT_ANY => Ok(RemoteTransportKind::Any),
         V1_TRANSPORT_DIRECT => Ok(RemoteTransportKind::Direct),
         V1_TRANSPORT_TOR => Ok(RemoteTransportKind::Tor),
         _ => bail!(
-            "execution Remote.transport.kind `{kind}` is unsupported in V1; expected `{V1_TRANSPORT_DIRECT}` or `{V1_TRANSPORT_TOR}`"
+            "execution Remote.transport.kind `{kind}` is unsupported in V1; expected `{V1_TRANSPORT_ANY}`, `{V1_TRANSPORT_DIRECT}`, or `{V1_TRANSPORT_TOR}`"
         ),
     }
 }

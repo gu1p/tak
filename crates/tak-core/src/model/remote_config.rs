@@ -19,6 +19,7 @@ pub struct RemoteTransportDef {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteTransportKind {
+    Any,
     Direct,
     Tor,
 }
@@ -27,6 +28,7 @@ impl RemoteTransportKind {
     #[must_use]
     pub fn as_result_value(self) -> &'static str {
         match self {
+            Self::Any => "any",
             Self::Direct => "direct",
             Self::Tor => "tor",
         }

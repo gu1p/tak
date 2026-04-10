@@ -21,6 +21,8 @@ pub struct ExampleEntry {
     #[serde(default)]
     pub remote_fixture: Option<String>,
     #[serde(default)]
+    pub simulate_container_runtime: bool,
+    #[serde(default)]
     pub expect_stdout_contains: Vec<String>,
     #[serde(default)]
     pub expect_stderr_contains: Vec<String>,

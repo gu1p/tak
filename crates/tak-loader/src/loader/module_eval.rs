@@ -72,6 +72,7 @@ fn sanitize_canonical_v1_imports(source: &str) -> String {
 
     let mut normalized = output.join("\n");
     normalized = normalized
+        .replace("RemoteTransportMode.AnyTransport(", "AnyTransport(")
         .replace("RemoteTransportMode.DirectHttps(", "DirectHttps(")
         .replace("RemoteTransportMode.TorOnionService(", "TorOnionService(")
         .replace("ServiceAuth.from_env(", "ServiceAuth_from_env(")

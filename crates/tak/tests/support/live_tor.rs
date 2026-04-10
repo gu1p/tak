@@ -48,7 +48,16 @@ pub fn init_tor_agent(takd: &Path, roots: &LiveTorRoots, node_id: &str) {
 }
 
 pub fn spawn_tor_agent(takd: &Path, roots: &LiveTorRoots) -> ChildGuard {
-    let child = StdCommand::new(takd)
+    spawn_tor_agent_with_env(takd, roots, &[])
+}
+
+pub fn spawn_tor_agent_with_env(
+    takd: &Path,
+    roots: &LiveTorRoots,
+    extra_env: &[(String, String)],
+) -> ChildGuard {
+    let mut command = StdCommand::new(takd);
+    command
         .args([
             "serve",
             "--config-root",
@@ -56,12 +65,15 @@ pub fn spawn_tor_agent(takd: &Path, roots: &LiveTorRoots) -> ChildGuard {
             "--state-root",
             &roots.server_state_root.display().to_string(),
         ])
-        .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
-        .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn takd serve");
+        .stderr(Stdio::null());
+    command
+        .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
+        .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000");
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
+    let child = command.spawn().expect("spawn takd serve");
     ChildGuard { child }
 }
 

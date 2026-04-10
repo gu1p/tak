@@ -68,6 +68,9 @@ include!("engine/transport.rs");
 
 fn transport_adapter_for_kind(kind: RemoteTransportKind) -> &'static dyn RemoteTransportAdapter {
     match kind {
+        RemoteTransportKind::Any => {
+            panic!("strict remote targets must resolve to a concrete transport")
+        }
         RemoteTransportKind::Direct => &DIRECT_HTTPS_TRANSPORT_ADAPTER,
         RemoteTransportKind::Tor => &TOR_TRANSPORT_ADAPTER,
     }

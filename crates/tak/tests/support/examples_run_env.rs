@@ -28,7 +28,7 @@ pub fn setup_example_run(
         .with_context(|| format!("load staged workspace for {}", entry.name))?;
     let mut env = BTreeMap::new();
     let local_daemon = daemon_guard(entry, temp_root, &spec, &mut env);
-    let (direct_agent, tor_agent, client_config_root) =
+    let (direct_agent, tor_agent, client_config_root, fixture_env) =
         remote_fixture(entry, temp_root, workspace_root)?;
     if let Some(config_root) = client_config_root {
         env.insert(
@@ -36,6 +36,7 @@ pub fn setup_example_run(
             config_root.to_string_lossy().into_owned(),
         );
     }
+    env.extend(fixture_env);
     if entry.remote_fixture.as_deref() == Some("tor_onion_http") {
         insert_live_tor_probe_env(&mut env);
     }

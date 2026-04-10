@@ -25,6 +25,7 @@ use tak_core::model::{
 };
 
 const TASKS_FILE: &str = "TASKS.py";
+const V1_TRANSPORT_ANY: &str = "any";
 const V1_TRANSPORT_DIRECT: &str = "direct";
 const V1_TRANSPORT_TOR: &str = "tor";
 const PRELUDE: &str = include_str!("loader/prelude.py");

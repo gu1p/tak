@@ -6,10 +6,9 @@ use anyhow::Result;
 
 mod support;
 
-use support::live_direct::{
-    LiveDirectRoots, init_direct_agent, spawn_direct_agent, wait_for_token,
-};
+use support::live_direct::{LiveDirectRoots, init_direct_agent, spawn_direct_agent};
 use support::live_direct_remote::add_remote;
+use support::live_direct_token::wait_for_token;
 use support::streaming::{
     run_streaming_process_and_capture, write_local_streaming_tasks, write_remote_streaming_tasks,
 };

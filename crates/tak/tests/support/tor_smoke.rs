@@ -35,6 +35,9 @@ pub fn takd_bin() -> PathBuf {
     let binary = target_dir
         .join("debug")
         .join(format!("takd{}", std::env::consts::EXE_SUFFIX));
+    if binary.is_file() {
+        return binary;
+    }
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let status = StdCommand::new(cargo)
         .current_dir(workspace_root())

@@ -99,7 +99,10 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
             "tor" => Some(RemoteTransportKind::Tor),
             _ => None,
         };
-        if transport_kind != Some(remote.transport_kind) {
+        if transport_kind.is_none()
+            || (remote.transport_kind != RemoteTransportKind::Any
+                && transport_kind != Some(remote.transport_kind))
+        {
             rejection_reasons.push(RemoteCandidateRejection::TransportMismatch {
                 required: remote.transport_kind,
                 available: candidate.transport.clone(),

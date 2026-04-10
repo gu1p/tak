@@ -65,6 +65,11 @@ def DirectHttps():
         "kind": "direct",
     }
 
+def AnyTransport():
+    return {
+        "kind": "any",
+    }
+
 def TorOnionService():
     return {
         "kind": "tor",

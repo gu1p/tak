@@ -266,3 +266,34 @@ contains = "failure_reason_assertion_mismatch_in_payments_handler"
 [[example.check_file_contains]]
 path = "out/remote-test-output.log"
 contains = "test_payments_fail_expected_200_got_500"
+
+[[example]]
+name = "large/29_remote_any_transport_container_log_storm"
+run_target = "//apps/logstorm:observe_container_log_storm"
+explain_target = "//apps/logstorm:observe_container_log_storm"
+expect_success = true
+requires_daemon = false
+remote_fixture = "direct_http"
+simulate_container_runtime = true
+expect_stdout_contains = [
+  "placement=remote",
+  "transport=direct",
+  "runtime=containerized",
+  "runtime_engine=docker",
+  "remote_node=remote-container-log-storm-direct",
+  "log-storm-stdout-001",
+]
+check_files = [
+  "out/local-input.txt",
+  "out/container-log-storm-summary.txt",
+  "out/container-log-storm-verified.txt",
+  "out/container-log-storm-report.txt",
+]
+
+[[example.check_file_contains]]
+path = "out/container-log-storm-summary.txt"
+contains = "stderr_lines=60"
+
+[[example.check_file_contains]]
+path = "out/container-log-storm-report.txt"
+contains = "runtime=containerized"

@@ -58,7 +58,16 @@ pub fn init_direct_agent(takd: &Path, roots: &LiveDirectRoots, node_id: &str) {
 }
 
 pub fn spawn_direct_agent(takd: &Path, roots: &LiveDirectRoots) -> ChildGuard {
-    let child = StdCommand::new(takd)
+    spawn_direct_agent_with_env(takd, roots, &[])
+}
+
+pub fn spawn_direct_agent_with_env(
+    takd: &Path,
+    roots: &LiveDirectRoots,
+    extra_env: &[(String, String)],
+) -> ChildGuard {
+    let mut command = StdCommand::new(takd);
+    command
         .args([
             "serve",
             "--config-root",
@@ -67,28 +76,12 @@ pub fn spawn_direct_agent(takd: &Path, roots: &LiveDirectRoots) -> ChildGuard {
             &roots.server_state_root.display().to_string(),
         ])
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
+    let child = command
         .spawn()
         .expect("spawn takd serve for direct transport");
     ChildGuard { child }
-}
-
-pub fn wait_for_token(takd: &Path, roots: &LiveDirectRoots) -> String {
-    let output = StdCommand::new(takd)
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &roots.server_state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "60",
-        ])
-        .output()
-        .expect("run takd token show --wait for direct transport");
-    assert_success_with_log(&output, "takd token show --wait", &roots.service_log_path());
-    String::from_utf8(output.stdout)
-        .expect("token stdout utf8")
-        .trim()
-        .to_string()
 }

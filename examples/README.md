@@ -37,6 +37,7 @@ Need more context before jumping into examples?
 - Full composition with queues + defaults + scripts: `large/24`
 - Remote artifact workflows: `large/25`, `large/26`
 - Hybrid local+remote test suites and diagnostics: `large/27`, `large/28`
+- Transport-agnostic remote container execution and heavy log streaming: `large/29`
 
 ## Standard Command Workflow
 
@@ -75,7 +76,7 @@ The full matrix remains important for regression and feature parity checks.
 |---|---|---|
 | small | 01-10 | isolated DSL/runtime behaviors |
 | medium | 11-20 | multi-feature scenarios + scoped coordination |
-| large | 21-28 | explicit include graphs, remote execution, Tor transport, hybrid pipelines |
+| large | 21-29 | explicit include graphs, remote execution, Tor transport, hybrid pipelines |
 
 To inspect every example entry and its contracts, open [`catalog.toml`](catalog.toml).
 
@@ -89,6 +90,7 @@ Each `[[example]]` entry defines:
 - `expect_success`: expected run exit outcome
 - `requires_daemon`: whether daemon is required
 - `remote_fixture` (optional): deterministic remote fixture (`direct_http` or `tor_onion_http`)
+- `simulate_container_runtime` (optional): enable test-only container probe simulation for remote fixtures
 - `expect_stdout_contains` (optional): required substrings in run stdout
 - `expect_stderr_contains` (optional): required substrings in run stderr
 - `check_files`: output files that must exist after run
