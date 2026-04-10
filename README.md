@@ -36,6 +36,11 @@ Start with these 8 examples in order:
 
 For the full matrix (including reference scenarios), see [`examples/README.md`](examples/README.md) and [`examples/catalog.toml`](examples/catalog.toml).
 
+## Phased Ergonomics Guide
+
+- [`docs/ergonomics-and-distribution-phases.md`](docs/ergonomics-and-distribution-phases.md)
+  - One document covering what Tak already ships today, what should come next, and the bigger distributed execution vision.
+
 ## CLI Quick Reference
 
 - `tak list`
@@ -47,9 +52,11 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `tak graph [label] --format dot`
   - Print DOT graph for Graphviz or pipeline tooling.
 - `tak web [label]`
-  - Serve an interactive dependency graph UI locally.
+  - Serve an interactive dependency graph UI locally. This is a graph viewer, not a remote-operations client.
 - `tak run <label...>`
   - Execute targets and dependencies.
+- `tak run hello`
+  - At a workspace root, bare task names are shorthand for root-package labels such as `//:hello`.
 - `tak run <label...> -j <N> --keep-going`
   - Configure parallelism and continue with independent work after failures.
 - `tak run .`
@@ -99,6 +106,8 @@ Key fields:
 
 ## Quickstart
 
+For the current ergonomics story and distributed execution roadmap, see [Ergonomics and Distributed Execution Phases](docs/ergonomics-and-distribution-phases.md).
+
 1. Optional but recommended for remote execution:
 
 ```bash
@@ -135,6 +144,7 @@ Workspace rules:
 - Tak loads only the current directory's `TASKS.py`.
 - Tak never widens scope by scanning parent or child directories implicitly.
 - Multi-package projects compose extra modules explicitly with `module_spec(includes=[path("apps/web"), ...])`.
+- At a workspace root, `tak run hello` is shorthand for `tak run //:hello`.
 - `tak run .` is not shorthand for "this project"; use labels returned by `tak list`.
 
 ## Copy-Paste TASKS.py Starter
@@ -200,6 +210,7 @@ make check
 
 ## Documentation Map
 
+- Phased ergonomics and distribution guide: [`docs/ergonomics-and-distribution-phases.md`](docs/ergonomics-and-distribution-phases.md)
 - System overview: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Core internals: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)
 - Loader internals: [`crates/tak-loader/ARCHITECTURE.md`](crates/tak-loader/ARCHITECTURE.md)

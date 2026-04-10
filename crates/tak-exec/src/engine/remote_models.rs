@@ -8,6 +8,14 @@ struct StrictRemoteTarget {
 }
 
 #[derive(Debug, Clone)]
+struct RemoteTargetSelection {
+    configured_remote_count: usize,
+    enabled_remote_count: usize,
+    enabled_remotes: Vec<RemoteCandidateDiagnostic>,
+    matched_targets: Vec<StrictRemoteTarget>,
+}
+
+#[derive(Debug, Clone)]
 struct TaskPlacement {
     placement_mode: PlacementMode,
     remote_node_id: Option<String>,

@@ -14,10 +14,12 @@ pub mod live_tor;
 pub mod live_tor_remote;
 pub mod local_daemon;
 pub mod remote_cli;
+pub mod remote_inventory;
 pub mod remote_status;
 pub mod run;
 pub mod tasks;
 pub mod tor_smoke;
 
+pub use remote_inventory::{RemoteRecord, write_remote_inventory};
 pub use run::{run_tak_expect_failure, run_tak_expect_success};
 pub use tasks::write_tasks;

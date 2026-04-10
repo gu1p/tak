@@ -22,6 +22,11 @@ Use these 8 examples first. They are the fastest path to using Tak in real proje
 | [`large/25_remote_direct_build_and_artifact_roundtrip`](large/25_remote_direct_build_and_artifact_roundtrip/README.md) | Practical remote build | `RemoteOnly`, artifact sync, local verify | `//services/api:release` |
 | [`large/28_hybrid_local_remote_test_suite_failure_with_logs`](large/28_hybrid_local_remote_test_suite_failure_with_logs/README.md) | Failure diagnostics at scale | hybrid local+remote, non-zero remote suite, log retention | `//apps/web:remote_suite` |
 
+Need more context before jumping into examples?
+
+- One phased guide: [`../docs/ergonomics-and-distribution-phases.md`](../docs/ergonomics-and-distribution-phases.md)
+  - Explains what Tak already has today, what should come next, and the longer-term distributed execution direction.
+
 ## Choose by Capability
 
 - Local baseline task execution: `small/01`
@@ -46,6 +51,8 @@ tak run <target>
 ```
 
 All commands are meant to run from the example directory itself. Tak loads only that directory's `TASKS.py`; multi-package examples bring in other modules through explicit `includes=[...]`.
+
+If the example target lives at the root package, a bare task name also works. Example: `tak run hello` is shorthand for `tak run //:hello`.
 
 If the example uses remote execution, import and run a `takd` agent first:
 

@@ -59,6 +59,7 @@ use step_runner::{StepRunResult, run_step};
 pub use summary::target_set_from_summary;
 
 include!("engine/public_types.rs");
+include!("engine/remote_diagnostics.rs");
 include!("engine/run_tasks.rs");
 include!("engine/lease_context.rs");
 include!("engine/remote_models.rs");

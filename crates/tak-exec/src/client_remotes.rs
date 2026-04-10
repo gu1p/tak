@@ -5,7 +5,9 @@ use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use tak_core::model::{RemoteSpec, RemoteTransportKind};
 
-use crate::StrictRemoteTarget;
+use crate::{
+    RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteTargetSelection, StrictRemoteTarget,
+};
 
 #[derive(Debug, Deserialize)]
 struct RemoteInventoryFile {
@@ -27,52 +29,110 @@ struct RemoteRecord {
     enabled: bool,
 }
 
-pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<Vec<StrictRemoteTarget>> {
+pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTargetSelection> {
     let path = inventory_path()?;
     if !path.exists() {
-        return Ok(Vec::new());
+        return Ok(RemoteTargetSelection {
+            configured_remote_count: 0,
+            enabled_remote_count: 0,
+            enabled_remotes: Vec::new(),
+            matched_targets: Vec::new(),
+        });
     }
     let raw = fs::read_to_string(path)?;
     let inventory: RemoteInventoryFile = toml::from_str(&raw)?;
-    Ok(inventory
+    let configured_remote_count = inventory.remotes.len();
+    let mut enabled_remote_count = 0;
+    let mut enabled_remotes = Vec::new();
+    let mut matched_targets = Vec::new();
+
+    for candidate in inventory
         .remotes
         .into_iter()
         .filter(|candidate| candidate.enabled)
-        .filter(|candidate| {
-            remote
-                .pool
-                .as_ref()
-                .is_none_or(|pool| candidate.pools.iter().any(|value| value == pool))
-        })
-        .filter(|candidate| {
-            remote
-                .required_tags
-                .iter()
-                .all(|tag| candidate.tags.iter().any(|value| value == tag))
-        })
-        .filter(|candidate| {
-            remote.required_capabilities.iter().all(|capability| {
-                candidate
+    {
+        enabled_remote_count += 1;
+        let mut rejection_reasons = Vec::new();
+
+        if let Some(pool) = remote.pool.as_ref()
+            && !candidate.pools.iter().any(|value| value == pool)
+        {
+            rejection_reasons.push(RemoteCandidateRejection::PoolMismatch {
+                required: pool.clone(),
+                available: candidate.pools.clone(),
+            });
+        }
+
+        let missing_tags = remote
+            .required_tags
+            .iter()
+            .filter(|tag| !candidate.tags.iter().any(|value| value == *tag))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_tags.is_empty() {
+            rejection_reasons.push(RemoteCandidateRejection::MissingTags {
+                missing: missing_tags,
+                available: candidate.tags.clone(),
+            });
+        }
+
+        let missing_capabilities = remote
+            .required_capabilities
+            .iter()
+            .filter(|capability| {
+                !candidate
                     .capabilities
                     .iter()
-                    .any(|value| value == capability)
+                    .any(|value| value == *capability)
             })
-        })
-        .filter_map(|candidate| {
-            let transport_kind = match candidate.transport.as_str() {
-                "direct" => RemoteTransportKind::Direct,
-                "tor" => RemoteTransportKind::Tor,
-                _ => return None,
-            };
-            (transport_kind == remote.transport_kind).then_some(StrictRemoteTarget {
-                node_id: candidate.node_id,
-                endpoint: candidate.base_url,
-                transport_kind,
-                bearer_token: candidate.bearer_token,
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_capabilities.is_empty() {
+            rejection_reasons.push(RemoteCandidateRejection::MissingCapabilities {
+                missing: missing_capabilities,
+                available: candidate.capabilities.clone(),
+            });
+        }
+
+        let transport_kind = match candidate.transport.as_str() {
+            "direct" => Some(RemoteTransportKind::Direct),
+            "tor" => Some(RemoteTransportKind::Tor),
+            _ => None,
+        };
+        if transport_kind != Some(remote.transport_kind) {
+            rejection_reasons.push(RemoteCandidateRejection::TransportMismatch {
+                required: remote.transport_kind,
+                available: candidate.transport.clone(),
+            });
+        }
+
+        if rejection_reasons.is_empty() {
+            matched_targets.push(StrictRemoteTarget {
+                node_id: candidate.node_id.clone(),
+                endpoint: candidate.base_url.clone(),
+                transport_kind: transport_kind.expect("matching candidate transport kind"),
+                bearer_token: candidate.bearer_token.clone(),
                 runtime: remote.runtime.clone(),
-            })
-        })
-        .collect::<Vec<_>>())
+            });
+        }
+
+        enabled_remotes.push(RemoteCandidateDiagnostic {
+            node_id: candidate.node_id,
+            endpoint: candidate.base_url,
+            pools: candidate.pools,
+            tags: candidate.tags,
+            capabilities: candidate.capabilities,
+            transport: candidate.transport,
+            rejection_reasons,
+        });
+    }
+
+    Ok(RemoteTargetSelection {
+        configured_remote_count,
+        enabled_remote_count,
+        enabled_remotes,
+        matched_targets,
+    })
 }
 
 fn inventory_path() -> Result<PathBuf> {

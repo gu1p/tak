@@ -66,22 +66,26 @@ fn remote_task_placement(
     remote: &RemoteSpec,
     reason: Option<String>,
 ) -> Result<TaskPlacement> {
-    let ordered_remote_targets = configured_remote_targets(remote)?;
-    if ordered_remote_targets.is_empty() {
-        bail!(
-            "infra error: task {} has no configured remote matching pool={:?} tags={:?} capabilities={:?} transport={}",
-            task.label,
-            remote.pool,
-            remote.required_tags,
-            remote.required_capabilities,
-            remote.transport_kind.as_result_value()
-        );
+    let selection = configured_remote_targets(remote)?;
+    if selection.matched_targets.is_empty() {
+        return Err(NoMatchingRemoteError::new(
+            canonical_task_label(&task.label),
+            remote,
+            selection.configured_remote_count,
+            selection.enabled_remote_count,
+            selection.enabled_remotes,
+        )
+        .into());
     }
     Ok(TaskPlacement {
         placement_mode: PlacementMode::Remote,
         remote_node_id: None,
         strict_remote_target: None,
-        ordered_remote_targets,
+        ordered_remote_targets: selection.matched_targets,
         decision_reason: reason,
     })
+}
+
+fn canonical_task_label(label: &TaskLabel) -> String {
+    format!("{}:{}", label.package, label.name)
 }
