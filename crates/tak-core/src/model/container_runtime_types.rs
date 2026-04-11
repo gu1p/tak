@@ -38,8 +38,17 @@ pub struct ContainerResourceLimitsSpec {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ContainerRuntimeSourceInputSpec {
+    Image { image: String },
+    Dockerfile {
+        dockerfile: PathInputDef,
+        build_context: Option<PathInputDef>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ContainerRuntimeExecutionSpec {
-    pub image: String,
+    pub source: ContainerRuntimeSourceInputSpec,
     pub command: Vec<String>,
     pub mounts: Vec<ContainerMountSpec>,
     pub env: BTreeMap<String, String>,
@@ -50,10 +59,18 @@ pub struct ContainerRuntimeExecutionSpec {
 pub enum ContainerRuntimeExecutionSpecError {
     #[error("runtime.kind `{kind}` is unsupported; expected `containerized`")]
     UnsupportedKind { kind: String },
-    #[error("runtime.image is required for containerized runtime")]
-    MissingImage,
+    #[error("runtime must specify exactly one source: `image` or `dockerfile`")]
+    MissingSource,
+    #[error("runtime must not specify both `image` and `dockerfile`")]
+    MultipleSources,
     #[error("runtime.image {0}")]
     InvalidImage(ContainerImageReferenceError),
+    #[error("runtime.dockerfile is required for dockerfile runtime")]
+    MissingDockerfile,
+    #[error("runtime.dockerfile path must be declared with path(...)")]
+    InvalidDockerfilePathType,
+    #[error("runtime.build_context path must be declared with path(...)")]
+    InvalidBuildContextPathType,
     #[error("runtime.command cannot be empty when provided")]
     EmptyCommand,
     #[error("runtime.command[{index}] cannot be empty")]

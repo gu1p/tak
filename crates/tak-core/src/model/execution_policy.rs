@@ -11,6 +11,8 @@ pub struct PolicyDecisionDef {
     #[serde(default)]
     pub reason: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local: Option<LocalDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<RemoteDef>,
 }
 
@@ -26,7 +28,7 @@ pub enum TaskExecutionDef {
     ByCustomPolicy {
         policy_name: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        decision: Option<PolicyDecisionDef>,
+        decision: Option<Box<PolicyDecisionDef>>,
     },
 }
 

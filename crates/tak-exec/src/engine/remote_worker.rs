@@ -20,6 +20,7 @@ pub async fn execute_remote_worker_steps_with_output(
         retry: RetryDef::default(),
         timeout_s: spec.timeout_s,
         context: tak_core::model::CurrentStateSpec::default(),
+        container_runtime: None,
         execution: TaskExecutionSpec::LocalOnly(tak_core::model::LocalSpec::default()),
         tags: Vec::new(),
     };

@@ -46,6 +46,7 @@ pub fn remote_task_spec(
         retry: RetryDef::default(),
         timeout_s: None,
         context: CurrentStateSpec::default(),
+        container_runtime: None,
         execution: TaskExecutionSpec::RemoteOnly(remote),
         tags: Vec::new(),
     };

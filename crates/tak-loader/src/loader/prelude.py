@@ -45,10 +45,11 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, 
         "defaults": defaults if defaults is not None else {},
     }
 
-def Local(id, max_parallel_tasks=1):
+def Local(id, max_parallel_tasks=1, runtime=None):
     return {
         "id": id,
         "max_parallel_tasks": max_parallel_tasks,
+        "runtime": runtime,
     }
 
 def Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
@@ -82,6 +83,22 @@ def ContainerRuntime(image, command=None, mounts=None, env=None, resources=None)
     return {
         "kind": "containerized",
         "image": str(image),
+        "dockerfile": None,
+        "build_context": None,
+        "command": _or_empty_list(command) if command is not None else None,
+        "mounts": _or_empty_list(mounts),
+        "env": _or_empty_dict(env),
+        "resource_limits": resources,
+    }
+
+def DockerfileRuntime(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
+    return {
+        "kind": "containerized",
+        "image": None,
+        "dockerfile": dockerfile if isinstance(dockerfile, dict) else path(dockerfile),
+        "build_context": (
+            build_context if isinstance(build_context, dict) or build_context is None else path(build_context)
+        ),
         "command": _or_empty_list(command) if command is not None else None,
         "mounts": _or_empty_list(mounts),
         "env": _or_empty_dict(env),
@@ -108,11 +125,27 @@ def PolicyContext(task_side_effecting=False, local_cpu_percent=0.0):
         "local": {"cpu_percent": float(local_cpu_percent)},
     }
 
-def Decision_local(reason=REASON_DEFAULT_LOCAL_POLICY):
-    return {
+def _is_local_constructor_value(value):
+    return (
+        isinstance(value, dict)
+        and "id" in value
+        and "max_parallel_tasks" in value
+        and "endpoint" not in value
+    )
+
+def _is_remote_constructor_value(value):
+    return isinstance(value, dict) and "max_parallel_tasks" not in value
+
+def Decision_local(local=None, reason=REASON_DEFAULT_LOCAL_POLICY):
+    if local is not None and not _is_local_constructor_value(local):
+        raise TypeError("Decision.local requires Local(...)")
+    decision = {
         "mode": "local",
         "reason": str(reason),
     }
+    if local is not None:
+        decision["local"] = local
+    return decision
 
 def Decision_remote(remote, reason="DEFAULT_REMOTE_POLICY"):
     return {
@@ -141,17 +174,6 @@ def Decision_resolve(*args, **kwargs):
     _unsupported_policy_builder_api("Decision.resolve")
 
 POLICY_CONTEXT = PolicyContext()
-
-def _is_local_constructor_value(value):
-    return (
-        isinstance(value, dict)
-        and "id" in value
-        and "max_parallel_tasks" in value
-        and "endpoint" not in value
-    )
-
-def _is_remote_constructor_value(value):
-    return isinstance(value, dict) and "max_parallel_tasks" not in value
 
 def LocalOnly(local):
     if not _is_local_constructor_value(local):
@@ -188,10 +210,16 @@ def _compile_policy_decision(policy, context):
     reason = str(decision.get("reason", REASON_DEFAULT_LOCAL_POLICY))
 
     if mode == "local":
-        return {
+        local = decision.get("local")
+        if local is not None and not _is_local_constructor_value(local):
+            raise TypeError("Decision.local requires Local(...)")
+        compiled = {
             "mode": "local",
             "reason": reason,
         }
+        if local is not None:
+            compiled["local"] = local
+        return compiled
 
     if mode == "remote":
         remote = decision.get("remote")

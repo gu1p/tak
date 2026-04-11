@@ -1,5 +1,5 @@
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::symlink;
 
 use prost::Message;
 use tak_proto::{CmdStep, ErrorResponse, NodeInfo, Step, SubmitTaskRequest, step};
@@ -58,13 +58,12 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
     let submit_key = build_submit_idempotency_key("task-run-1", Some(1)).expect("submit key");
     let execution_root = exec_root_base.join(submit_key.replace(':', "_"));
     fs::create_dir_all(execution_root.join("nested")).expect("create execution root");
-    fs::set_permissions(&execution_root, fs::Permissions::from_mode(0o000))
-        .expect("chmod execution root");
+    fs::remove_dir_all(&execution_root).expect("remove execution root");
+    symlink(&execution_root, &execution_root).expect("self-referential execution root symlink");
 
     let response = handle_remote_v1_request(&context, &store, "GET", "/v1/node/status", None)
         .expect("status response");
-    fs::set_permissions(&execution_root, fs::Permissions::from_mode(0o755))
-        .expect("restore execution root perms");
+    fs::remove_file(&execution_root).expect("remove execution root symlink");
     unsafe {
         std::env::remove_var("TAKD_REMOTE_EXEC_ROOT");
     }

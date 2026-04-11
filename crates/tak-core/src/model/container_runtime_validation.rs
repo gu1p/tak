@@ -66,13 +66,7 @@ pub fn validate_container_runtime_execution_spec(
         });
     }
 
-    let image = runtime.image.clone().unwrap_or_default();
-    if image.trim().is_empty() {
-        return Err(ContainerRuntimeExecutionSpecError::MissingImage);
-    }
-    let image = normalize_container_image_reference(&image)
-        .map_err(ContainerRuntimeExecutionSpecError::InvalidImage)?
-        .canonical;
+    let source = validate_container_runtime_source(runtime)?;
 
     let command = normalize_runtime_command(runtime.command.as_ref())?;
     let mounts = normalize_runtime_mounts(&runtime.mounts)?;
@@ -80,10 +74,46 @@ pub fn validate_container_runtime_execution_spec(
     let resource_limits = normalize_runtime_resource_limits(runtime.resource_limits.as_ref())?;
 
     Ok(ContainerRuntimeExecutionSpec {
-        image,
+        source,
         command,
         mounts,
         env,
         resource_limits,
     })
+}
+
+fn validate_container_runtime_source(
+    runtime: &RemoteRuntimeDef,
+) -> Result<ContainerRuntimeSourceInputSpec, ContainerRuntimeExecutionSpecError> {
+    let image = runtime.image.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty());
+    let dockerfile = runtime.dockerfile.as_ref();
+
+    match (image, dockerfile) {
+        (Some(_), Some(_)) => Err(ContainerRuntimeExecutionSpecError::MultipleSources),
+        (None, None) => Err(ContainerRuntimeExecutionSpecError::MissingSource),
+        (Some(image), None) => Ok(ContainerRuntimeSourceInputSpec::Image {
+            image: normalize_container_image_reference(image)
+                .map_err(ContainerRuntimeExecutionSpecError::InvalidImage)?
+                .canonical,
+        }),
+        (None, Some(dockerfile)) => {
+            let dockerfile = match dockerfile {
+                PathInputDef::Path { value } if !value.trim().is_empty() => dockerfile.clone(),
+                PathInputDef::Path { .. } => {
+                    return Err(ContainerRuntimeExecutionSpecError::MissingDockerfile);
+                }
+            };
+            if runtime
+                .build_context
+                .as_ref()
+                .is_some_and(|path| matches!(path, PathInputDef::Path { value } if value.trim().is_empty()))
+            {
+                return Err(ContainerRuntimeExecutionSpecError::InvalidBuildContextPathType);
+            }
+            Ok(ContainerRuntimeSourceInputSpec::Dockerfile {
+                dockerfile,
+                build_context: runtime.build_context.clone(),
+            })
+        }
+    }
 }

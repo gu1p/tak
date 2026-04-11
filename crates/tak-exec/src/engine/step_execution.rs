@@ -48,8 +48,7 @@ async fn run_task_steps_with_runtime(
         return run_task_steps_in_container(
             task,
             workspace_root,
-            plan.engine,
-            &plan.image,
+            plan,
             Some(&metadata.env_overrides),
             attempt,
             output_observer,

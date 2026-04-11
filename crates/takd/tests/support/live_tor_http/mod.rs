@@ -13,6 +13,14 @@ use tokio::time::{sleep, timeout};
 use self::endpoint::{endpoint_host_port, endpoint_socket_addr};
 use self::response::fetch_node_info;
 
+pub fn live_tor_test_timeout() -> Duration {
+    std::env::var("TAK_LIVE_TOR_TEST_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or_else(|| Duration::from_secs(180))
+}
+
 pub async fn wait_for_onion_node_info(root: &Path, base_url: &str, bearer_token: &str) -> NodeInfo {
     wait_for_node_info_result(root, base_url, bearer_token)
         .await
@@ -24,7 +32,7 @@ async fn wait_for_node_info_result(
     base_url: &str,
     bearer_token: &str,
 ) -> Result<NodeInfo> {
-    let deadline = Instant::now() + Duration::from_secs(180);
+    let deadline = Instant::now() + live_tor_test_timeout();
     let client = bootstrap_client(root, deadline)
         .await
         .context("bootstrap separate test Arti client")?;

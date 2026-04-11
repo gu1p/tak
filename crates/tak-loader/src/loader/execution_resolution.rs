@@ -1,4 +1,4 @@
-fn resolve_execution(execution: TaskExecutionDef) -> Result<TaskExecutionSpec> {
+fn resolve_execution(execution: TaskExecutionDef, package: &str) -> Result<TaskExecutionSpec> {
     match execution {
         TaskExecutionDef::LocalOnly { local } => {
             let id = local.id.trim().to_string();
@@ -8,13 +8,15 @@ fn resolve_execution(execution: TaskExecutionDef) -> Result<TaskExecutionSpec> {
             if local.max_parallel_tasks == 0 {
                 bail!("execution LocalOnly.local.max_parallel_tasks must be >= 1");
             }
+            let runtime = validate_runtime(local.runtime, package, "LocalOnly.local")?;
             Ok(TaskExecutionSpec::LocalOnly(LocalSpec {
                 id,
                 max_parallel_tasks: local.max_parallel_tasks,
+                runtime,
             }))
         }
         TaskExecutionDef::RemoteOnly { remote } => {
-            Ok(TaskExecutionSpec::RemoteOnly(resolve_remote(remote)?))
+            Ok(TaskExecutionSpec::RemoteOnly(resolve_remote(remote, package)?))
         }
         TaskExecutionDef::ByCustomPolicy {
             policy_name,
@@ -24,7 +26,9 @@ fn resolve_execution(execution: TaskExecutionDef) -> Result<TaskExecutionSpec> {
             if policy_name.is_empty() {
                 bail!("execution ByCustomPolicy.policy_name cannot be empty");
             }
-            let decision = decision.map(resolve_policy_decision).transpose()?;
+            let decision = decision
+                .map(|decision| resolve_policy_decision(*decision, package))
+                .transpose()?;
             Ok(TaskExecutionSpec::ByCustomPolicy {
                 policy_name,
                 decision,
@@ -41,7 +45,7 @@ fn resolve_execution(execution: TaskExecutionDef) -> Result<TaskExecutionSpec> {
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_policy_decision(decision: PolicyDecisionDef) -> Result<PolicyDecisionSpec> {
+fn resolve_policy_decision(decision: PolicyDecisionDef, package: &str) -> Result<PolicyDecisionSpec> {
     let reason = {
         let normalized = decision.reason.trim().to_string();
         if normalized.is_empty() {
@@ -56,13 +60,20 @@ fn resolve_policy_decision(decision: PolicyDecisionDef) -> Result<PolicyDecision
             if decision.remote.is_some() {
                 bail!("execution ByCustomPolicy.decision local mode cannot include remote targets");
             }
-            Ok(PolicyDecisionSpec::Local { reason })
+            let local = decision
+                .local
+                .map(|local| resolve_local(local, package, "execution ByCustomPolicy.decision.local"))
+                .transpose()?;
+            Ok(PolicyDecisionSpec::Local { reason, local })
         }
         PolicyDecisionModeDef::Remote => {
             let remote = decision.remote.ok_or_else(|| {
                 anyhow!("execution ByCustomPolicy.decision remote mode requires remote")
             })?;
-            let remote = resolve_remote(remote)?;
+            if decision.local.is_some() {
+                bail!("execution ByCustomPolicy.decision remote mode cannot include local targets");
+            }
+            let remote = resolve_remote(remote, package)?;
             Ok(PolicyDecisionSpec::Remote { reason, remote })
         }
     }
@@ -76,7 +87,24 @@ fn resolve_policy_decision(decision: PolicyDecisionDef) -> Result<PolicyDecision
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_remote(remote: RemoteDef) -> Result<RemoteSpec> {
+fn resolve_local(local: LocalDef, package: &str, field: &str) -> Result<LocalSpec> {
+    let id = local.id.trim().to_string();
+    if id.is_empty() {
+        bail!("{field}.id cannot be empty");
+    }
+    if local.max_parallel_tasks == 0 {
+        bail!("{field}.max_parallel_tasks must be >= 1");
+    }
+    let runtime = validate_runtime(local.runtime, package, field)?;
+
+    Ok(LocalSpec {
+        id,
+        max_parallel_tasks: local.max_parallel_tasks,
+        runtime,
+    })
+}
+
+fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
     let RemoteDef {
         pool,
         required_tags,
@@ -97,7 +125,7 @@ fn resolve_remote(remote: RemoteDef) -> Result<RemoteSpec> {
         .filter(|value| !value.is_empty())
         .collect();
     let transport_kind = validate_remote_transport(transport)?;
-    let runtime = validate_remote_runtime(runtime)?;
+    let runtime = validate_runtime(runtime, package, "Remote")?;
 
     Ok(RemoteSpec {
         pool,

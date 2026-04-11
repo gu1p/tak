@@ -62,6 +62,7 @@ pub(super) fn task_with_steps_and_needs() -> ResolvedTask {
         retry: RetryDef::default(),
         timeout_s: Some(30),
         context: CurrentStateSpec::default(),
+        container_runtime: None,
         execution: TaskExecutionSpec::default(),
         tags: Vec::new(),
     }

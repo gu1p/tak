@@ -3,7 +3,7 @@
 use std::env;
 use std::fs;
 
-use tak_core::model::{RemoteRuntimeSpec, TaskLabel};
+use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, TaskLabel};
 use tak_exec::{RemoteWorkerExecutionSpec, execute_remote_worker_steps};
 
 mod support;
@@ -29,7 +29,9 @@ async fn remote_worker_reports_injected_container_lifecycle_failure() {
         steps: vec![shell_step("true")],
         timeout_s: None,
         runtime: Some(RemoteRuntimeSpec::Containerized {
-            image: "alpine:3.20".to_string(),
+            source: ContainerRuntimeSourceSpec::Image {
+                image: "alpine:3.20".to_string(),
+            },
         }),
         node_id: "builder-a".to_string(),
     };

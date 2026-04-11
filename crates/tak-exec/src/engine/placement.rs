@@ -18,6 +18,7 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                 strict_remote_target: None,
                 ordered_remote_targets: Vec::new(),
                 decision_reason: None,
+                local: Some(local.clone()),
             })
         }
         TaskExecutionSpec::RemoteOnly(remote) => remote_task_placement(task, remote, None),
@@ -29,7 +30,8 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                 decision.clone()
             } else {
                 let tasks_file = tasks_file_for_label(workspace_root, &task.label);
-                evaluate_named_policy_decision(&tasks_file, policy_name).with_context(|| {
+                evaluate_named_policy_decision(&tasks_file, &task.label.package, policy_name)
+                    .with_context(|| {
                     format!(
                         "runtime policy evaluation failed for task {} (policy={policy_name})",
                         task.label
@@ -37,12 +39,13 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                 })?
             };
             match &resolved_decision {
-                PolicyDecisionSpec::Local { reason } => Ok(TaskPlacement {
+                PolicyDecisionSpec::Local { reason, local } => Ok(TaskPlacement {
                     placement_mode: PlacementMode::Local,
                     remote_node_id: None,
                     strict_remote_target: None,
                     ordered_remote_targets: Vec::new(),
                     decision_reason: Some(reason.clone()),
+                    local: Some(local.clone().unwrap_or_default()),
                 }),
                 PolicyDecisionSpec::Remote { reason, remote } => {
                     remote_task_placement(task, remote, Some(reason.clone()))
@@ -83,6 +86,7 @@ fn remote_task_placement(
         strict_remote_target: None,
         ordered_remote_targets: selection.matched_targets,
         decision_reason: reason,
+        local: None,
     })
 }
 

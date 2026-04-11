@@ -15,7 +15,9 @@ fn evaluates_named_policy_to_remote_selector() {
     )
     .expect("write tasks");
 
-    match evaluate_named_policy_decision(&tasks_file, "choose_remote").expect("evaluate policy") {
+    match evaluate_named_policy_decision(&tasks_file, "//", "choose_remote")
+        .expect("evaluate policy")
+    {
         PolicyDecisionSpec::Remote { reason, remote } => {
             assert_eq!(reason, "LOCAL_CPU_HIGH");
             assert_eq!(remote.pool.as_deref(), Some("build"));
@@ -34,7 +36,8 @@ fn rejects_invalid_policy_identifiers() {
         "def choose_remote(ctx):\n  return Decision.local()\n",
     )
     .expect("write tasks");
-    let err = evaluate_named_policy_decision(&tasks_file, "not-valid!").expect_err("invalid name");
+    let err =
+        evaluate_named_policy_decision(&tasks_file, "//", "not-valid!").expect_err("invalid name");
     assert!(
         err.to_string()
             .contains("policy_name must be a valid identifier")

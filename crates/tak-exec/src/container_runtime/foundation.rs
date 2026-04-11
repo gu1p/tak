@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::container_engine::{ContainerEngine, engine_name, podman_socket_candidates_from_env};
 use crate::step_runner::{StepRunResult, resolve_cwd};
-use crate::{OutputStream, TaskOutputObserver};
+use crate::{ContainerExecutionPlan, OutputStream, TaskOutputObserver};
 
 #[derive(Debug)]
 pub(crate) struct ContainerStepSpec {
@@ -43,14 +43,13 @@ struct ContainerStepRunContext<'a> {
 pub(crate) async fn run_task_steps_in_container(
     task: &ResolvedTask,
     workspace_root: &Path,
-    engine: ContainerEngine,
-    image: &str,
+    plan: &ContainerExecutionPlan,
     runtime_env: Option<&BTreeMap<String, String>>,
     attempt: u32,
     output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
-    let client = connect_container_engine(engine).await?;
-    ensure_container_image(&client.docker, image).await?;
+    let client = connect_container_engine(plan.engine).await?;
+    ensure_container_runtime_source(&client.docker, workspace_root, plan).await?;
     let run_context = ContainerStepRunContext {
         workspace_root,
         task_label: &task.label,
@@ -60,17 +59,16 @@ pub(crate) async fn run_task_steps_in_container(
 
     for step in &task.steps {
         let step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
-        let status =
-            run_step_in_container(
-                &client.docker,
-                engine,
-                client.podman_wait_socket.as_deref(),
-                image,
-                &step_spec,
-                task.timeout_s,
-                &run_context,
-            )
-            .await?;
+        let status = run_step_in_container(
+            &client.docker,
+            plan.engine,
+            client.podman_wait_socket.as_deref(),
+            &plan.image,
+            &step_spec,
+            task.timeout_s,
+            &run_context,
+        )
+        .await?;
         if !status.success {
             return Ok(status);
         }
@@ -85,15 +83,14 @@ pub(crate) async fn run_task_steps_in_container(
 async fn connect_container_engine(engine: ContainerEngine) -> Result<ContainerEngineClient> {
     match engine {
         ContainerEngine::Docker => {
-            let docker = Docker::connect_with_local_defaults().context(
-            "infra error: container lifecycle start failed: docker client connect failed",
-        )?;
+            let docker = Docker::connect_with_local_defaults()
+                .context("infra error: container lifecycle start failed: docker client connect failed")?;
             docker.ping().await.with_context(|| {
-            format!(
-                "infra error: container lifecycle start failed: {} ping failed",
-                engine_name(engine)
-            )
-        })?;
+                format!(
+                    "infra error: container lifecycle start failed: {} ping failed",
+                    engine_name(engine)
+                )
+            })?;
             Ok(ContainerEngineClient {
                 docker,
                 podman_wait_socket: None,

@@ -16,8 +16,9 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use tak_core::label::parse_label;
 use tak_core::model::{
-    CurrentStateDef, CurrentStateSpec, IgnoreSourceDef, IgnoreSourceSpec, LimiterDef, LimiterKey,
-    LimiterRef, LocalSpec, ModuleSpec, PathInputDef, PolicyDecisionDef, PolicyDecisionModeDef,
+    ContainerRuntimeSourceInputSpec, ContainerRuntimeSourceSpec, CurrentStateDef, CurrentStateSpec,
+    IgnoreSourceDef, IgnoreSourceSpec, LimiterDef, LimiterKey, LimiterRef, LocalDef, LocalSpec,
+    ModuleSpec, PathInputDef, PathRef, PolicyDecisionDef, PolicyDecisionModeDef,
     PolicyDecisionSpec, QueueDef, RemoteDef, RemoteRuntimeDef, RemoteRuntimeSpec, RemoteSpec,
     RemoteTransportDef, RemoteTransportKind, ResolvedTask, RetryDef, Scope, TaskExecutionDef,
     TaskExecutionSpec, TaskLabel, WorkspaceSpec, normalize_path_ref,

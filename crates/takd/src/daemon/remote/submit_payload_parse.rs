@@ -1,4 +1,5 @@
 use super::*;
+use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef, normalize_path_ref};
 use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 
 pub(super) fn parse_remote_worker_submit_payload(
@@ -43,14 +44,56 @@ fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {
 fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntimeSpec> {
     match value.kind.as_ref() {
         Some(runtime_spec::Kind::Container(container)) => {
-            let image = container.image.trim();
-            if image.is_empty() {
-                bail!("invalid_submit_fields: execution.runtime.container.image is required");
+            match (
+                container
+                    .image
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty()),
+                container
+                    .dockerfile
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty()),
+            ) {
+                (Some(_), Some(_)) => bail!(
+                    "invalid_submit_fields: execution.runtime.container must specify exactly one source"
+                ),
+                (None, None) => bail!(
+                    "invalid_submit_fields: execution.runtime.container must specify exactly one source"
+                ),
+                (Some(image), None) => Ok(RemoteRuntimeSpec::Containerized {
+                    source: ContainerRuntimeSourceSpec::Image {
+                        image: image.to_string(),
+                    },
+                }),
+                (None, Some(dockerfile)) => {
+                    let dockerfile = normalize_workspace_submit_path(
+                        dockerfile,
+                        "execution.runtime.container.dockerfile",
+                    )?;
+                    let build_context = normalize_workspace_submit_path(
+                        container.build_context.as_deref().unwrap_or("."),
+                        "execution.runtime.container.build_context",
+                    )?;
+                    Ok(RemoteRuntimeSpec::Containerized {
+                        source: ContainerRuntimeSourceSpec::Dockerfile {
+                            dockerfile,
+                            build_context,
+                        },
+                    })
+                }
             }
-            Ok(RemoteRuntimeSpec::Containerized {
-                image: image.to_string(),
-            })
         }
         None => bail!("invalid_submit_fields: execution.runtime.kind is required"),
     }
+}
+
+fn normalize_workspace_submit_path(value: &str, field: &str) -> Result<PathRef> {
+    let normalized = normalize_path_ref("workspace", value)
+        .map_err(|err| anyhow!("invalid_submit_fields: {field} {err}"))?;
+    if normalized.anchor != PathAnchor::Workspace {
+        bail!("invalid_submit_fields: {field} must be workspace-anchored");
+    }
+    Ok(normalized)
 }

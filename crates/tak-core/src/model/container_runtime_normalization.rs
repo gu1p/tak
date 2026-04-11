@@ -131,7 +131,13 @@ fn is_valid_runtime_env_key(key: &str) -> bool {
 fn is_reserved_runtime_env_key(key: &str) -> bool {
     matches!(
         key,
-        "TAK_REMOTE_RUNTIME" | "TAK_REMOTE_ENGINE" | "TAK_REMOTE_CONTAINER_IMAGE"
+        "TAK_RUNTIME"
+            | "TAK_RUNTIME_ENGINE"
+            | "TAK_RUNTIME_SOURCE"
+            | "TAK_CONTAINER_IMAGE"
+            | "TAK_REMOTE_RUNTIME"
+            | "TAK_REMOTE_ENGINE"
+            | "TAK_REMOTE_CONTAINER_IMAGE"
     )
 }
 

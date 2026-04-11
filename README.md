@@ -19,6 +19,7 @@ Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the
 - Timeout controls per task.
 - Client-side lease coordination for `needs` (resource/lock/rate/process/queue semantics).
 - Remote execution with direct or Tor transport plus artifact roundtrip.
+- Containerized runtimes from either a prebuilt image or a workspace `Dockerfile`.
 - Hybrid local+remote pipelines with stable run summaries.
 
 ## Hero Example Path
@@ -119,6 +120,22 @@ tak remote status
 ```
 
 Direct transport examples need matching agent settings, for example `takd init --transport direct --base-url http://127.0.0.1:0 --pool build` for build pools or `--pool test` for test pools.
+
+Containerized tasks can point at either a prebuilt image or a checked-in Dockerfile:
+
+```python
+LOCAL = Local(
+    id="dev",
+    runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")),
+)
+
+REMOTE = Remote(
+    pool="build",
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    runtime=ContainerRuntime(image="alpine:3.20"),
+)
+```
 
 For Tor onboarding, `takd token show --wait` now waits until the local `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
 

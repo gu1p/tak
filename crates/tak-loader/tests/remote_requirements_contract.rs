@@ -1,6 +1,8 @@
 use std::fs;
 
-use tak_core::model::{RemoteRuntimeSpec, RemoteTransportKind, TaskExecutionSpec};
+use tak_core::model::{
+    ContainerRuntimeSourceSpec, RemoteRuntimeSpec, RemoteTransportKind, TaskExecutionSpec,
+};
 use tak_loader::{LoadOptions, load_workspace};
 
 #[test]
@@ -51,7 +53,9 @@ SPEC
             assert_eq!(remote.transport_kind, RemoteTransportKind::Tor);
             assert!(matches!(
                 remote.runtime,
-                Some(RemoteRuntimeSpec::Containerized { ref image }) if image == "alpine:3.20"
+                Some(RemoteRuntimeSpec::Containerized {
+                    source: ContainerRuntimeSourceSpec::Image { ref image }
+                }) if image == "alpine:3.20"
             ));
         }
         other => panic!("expected requirements-based remote execution, got {other:?}"),

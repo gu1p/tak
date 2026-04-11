@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use base64::Engine;
 use prost::Message;
-use tak_core::model::{NeedDef, RemoteRuntimeSpec, ResolvedTask, Scope, StepDef};
+use tak_core::model::{ContainerRuntimeSourceSpec, NeedDef, RemoteRuntimeSpec, ResolvedTask, Scope, StepDef};
 use tak_proto::{
     CmdStep, ContainerRuntime, GetTaskResultResponse, PollTaskEventsResponse, RuntimeSpec,
     ScriptStep, Step, SubmitTaskRequest, SubmittedNeed, runtime_spec, step,
@@ -65,9 +65,24 @@ fn step_submit_value(step_def: &StepDef) -> Result<Step> {
 
 fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> RuntimeSpec {
     match runtime {
-        RemoteRuntimeSpec::Containerized { image } => RuntimeSpec {
+        RemoteRuntimeSpec::Containerized { source } => RuntimeSpec {
             kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
-                image: image.clone(),
+                image: match source {
+                    ContainerRuntimeSourceSpec::Image { image } => Some(image.clone()),
+                    ContainerRuntimeSourceSpec::Dockerfile { .. } => None,
+                },
+                dockerfile: match source {
+                    ContainerRuntimeSourceSpec::Image { .. } => None,
+                    ContainerRuntimeSourceSpec::Dockerfile { dockerfile, .. } => {
+                        Some(dockerfile.path.clone())
+                    }
+                },
+                build_context: match source {
+                    ContainerRuntimeSourceSpec::Image { .. } => None,
+                    ContainerRuntimeSourceSpec::Dockerfile { build_context, .. } => {
+                        Some(build_context.path.clone())
+                    }
+                },
             })),
         },
     }

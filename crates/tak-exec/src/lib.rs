@@ -18,9 +18,9 @@ use arti_client::TorClientConfig;
 use base64::Engine;
 use sha2::{Digest, Sha256};
 use tak_core::model::{
-    PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec, RemoteTransportKind,
-    ResolvedTask, RetryDef, StepDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
-    build_current_state_manifest, normalize_path_ref,
+    ContainerRuntimeSourceSpec, LocalSpec, PathAnchor, PathRef, PolicyDecisionSpec,
+    RemoteRuntimeSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, RetryDef, StepDef,
+    TaskExecutionSpec, TaskLabel, WorkspaceSpec, build_current_state_manifest, normalize_path_ref,
 };
 use tak_loader::evaluate_named_policy_decision;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

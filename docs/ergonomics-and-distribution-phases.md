@@ -85,6 +85,25 @@ REMOTE = Remote(
 )
 ```
 
+It also supports Dockerfile-backed runtimes for local or remote execution:
+
+```python
+LOCAL = Local(
+    id="dev",
+    runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")),
+)
+
+REMOTE = Remote(
+    pool="build",
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    runtime=DockerfileRuntime(
+        dockerfile=path("docker/Dockerfile"),
+        build_context=path("."),
+    ),
+)
+```
+
 Current boundary:
 
 - this is still explicit-first

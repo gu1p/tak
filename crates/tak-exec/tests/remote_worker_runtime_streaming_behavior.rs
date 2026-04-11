@@ -3,7 +3,7 @@
 use std::fs;
 use std::sync::Arc;
 
-use tak_core::model::RemoteRuntimeSpec;
+use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_exec::{OutputStream, TaskOutputChunk, execute_remote_worker_steps_with_output};
 use tokio::time::{Duration, timeout};
 
@@ -29,7 +29,9 @@ async fn remote_worker_container_runtime_streams_logs_to_output_observer_while_r
         vec![shell_step("printf 'containerized execution'")],
         None,
         Some(RemoteRuntimeSpec::Containerized {
-            image: "alpine:3.20".to_string(),
+            source: ContainerRuntimeSourceSpec::Image {
+                image: "alpine:3.20".to_string(),
+            },
         }),
         "builder-a",
     );

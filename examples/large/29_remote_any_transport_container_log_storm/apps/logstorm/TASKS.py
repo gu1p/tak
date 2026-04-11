@@ -3,8 +3,7 @@
 # Scenario: transport-agnostic remote container log storm
 
 REMOTE = Remote(
-  pool="build",
-  required_tags=["builder"],
+  required_tags=[],
   required_capabilities=["linux"],
   runtime=ContainerRuntime(image="alpine:3.20"),
 )

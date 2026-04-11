@@ -22,6 +22,7 @@ struct TaskPlacement {
     strict_remote_target: Option<StrictRemoteTarget>,
     ordered_remote_targets: Vec<StrictRemoteTarget>,
     decision_reason: Option<String>,
+    local: Option<LocalSpec>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +59,7 @@ struct RuntimeExecutionMetadata {
 #[derive(Debug, Clone)]
 struct ContainerExecutionPlan {
     engine: ContainerEngine,
+    source: ContainerRuntimeSourceSpec,
     image: String,
 }
 

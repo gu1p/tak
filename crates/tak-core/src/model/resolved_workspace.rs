@@ -16,6 +16,7 @@ pub struct ResolvedTask {
     pub retry: RetryDef,
     pub timeout_s: Option<u64>,
     pub context: CurrentStateSpec,
+    pub container_runtime: Option<RemoteRuntimeSpec>,
     pub execution: TaskExecutionSpec,
     pub tags: Vec<String>,
 }
@@ -24,6 +25,7 @@ pub struct ResolvedTask {
 pub struct LocalSpec {
     pub id: String,
     pub max_parallel_tasks: u32,
+    pub runtime: Option<RemoteRuntimeSpec>,
 }
 
 impl Default for LocalSpec {
@@ -39,6 +41,7 @@ impl Default for LocalSpec {
         Self {
             id: "local".to_string(),
             max_parallel_tasks: default_local_parallelism(),
+            runtime: None,
         }
     }
 }
@@ -52,15 +55,22 @@ pub struct RemoteSpec {
     pub runtime: Option<RemoteRuntimeSpec>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainerRuntimeSourceSpec {
+    Image { image: String },
+    Dockerfile { dockerfile: PathRef, build_context: PathRef },
+}
+
 #[derive(Debug, Clone)]
 pub enum RemoteRuntimeSpec {
-    Containerized { image: String },
+    Containerized { source: ContainerRuntimeSourceSpec },
 }
 
 #[derive(Debug, Clone)]
 pub enum PolicyDecisionSpec {
     Local {
         reason: String,
+        local: Option<LocalSpec>,
     },
     Remote {
         reason: String,

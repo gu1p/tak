@@ -75,6 +75,7 @@ struct MergeState {
 /// ```
 pub fn evaluate_named_policy_decision(
     tasks_file: &Path,
+    package: &str,
     policy_name: &str,
 ) -> Result<PolicyDecisionSpec> {
     let policy_name = policy_name.trim();
@@ -118,5 +119,5 @@ _compile_policy_decision({policy_name}, __TAK_RUNTIME_POLICY_CONTEXT__)
     let json = monty_to_json(value)?;
     let decision: PolicyDecisionDef = serde_json::from_value(json)
         .map_err(|e| anyhow!("invalid policy decision in {}: {e}", tasks_file.display()))?;
-    resolve_policy_decision(decision)
+    resolve_policy_decision(decision, package)
 }

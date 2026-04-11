@@ -81,12 +81,18 @@ fn merge_module(
             .or_else(|| module.defaults.retry.clone())
             .unwrap_or_else(RetryDef::default);
 
+        let container_runtime = validate_runtime(
+            module.defaults.container_runtime.clone(),
+            package,
+            "defaults.container_runtime",
+        )?;
+
         let mut tags = module.defaults.tags.clone();
         tags.extend(task.tags);
 
         let execution = task
             .execution
-            .map(resolve_execution)
+            .map(|execution| resolve_execution(execution, package))
             .transpose()?
             .unwrap_or_default();
         let context = resolve_current_state(task.context, package)?;
@@ -101,6 +107,7 @@ fn merge_module(
             retry,
             timeout_s: task.timeout_s,
             context,
+            container_runtime,
             execution,
             tags,
         };

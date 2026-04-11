@@ -41,6 +41,10 @@ pub struct RemoteRuntimeDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dockerfile: Option<PathInputDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_context: Option<PathInputDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<Vec<String>>,
     #[serde(default)]
     pub mounts: Vec<ContainerMountDef>,

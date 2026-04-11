@@ -3,10 +3,12 @@
 #[test]
 fn container_runtime_embeds_bollard_lifecycle_calls() {
     let source = format!(
-        "{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
         include_str!("../src/lib.rs"),
         include_str!("../src/container_runtime.rs"),
         include_str!("../src/container_runtime/foundation.rs"),
+        include_str!("../src/container_runtime/build_context.rs"),
+        include_str!("../src/container_runtime/tar_archive.rs"),
         include_str!("../src/container_runtime/execution.rs"),
         include_str!("../src/container_runtime/log_stream.rs")
     );
@@ -21,6 +23,10 @@ fn container_runtime_embeds_bollard_lifecycle_calls() {
     assert!(
         source.contains("inspect_image("),
         "container runtime must inspect local image availability before pulling"
+    );
+    assert!(
+        source.contains("build_image("),
+        "container runtime must build Dockerfile-backed images through bollard APIs"
     );
     assert!(
         source.contains("start_container("),

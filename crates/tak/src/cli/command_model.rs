@@ -30,6 +30,18 @@ pub(super) enum Commands {
         jobs: usize,
         #[arg(long = "keep-going", default_value_t = false)]
         keep_going: bool,
+        #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
+        local: bool,
+        #[arg(long = "remote", default_value_t = false)]
+        remote: bool,
+        #[arg(long = "container", default_value_t = false)]
+        container: bool,
+        #[arg(long = "container-image")]
+        container_image: Option<String>,
+        #[arg(long = "container-dockerfile")]
+        container_dockerfile: Option<String>,
+        #[arg(long = "container-build-context")]
+        container_build_context: Option<String>,
     },
     Remote {
         #[command(subcommand)]

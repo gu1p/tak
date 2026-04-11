@@ -1,30 +1,36 @@
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use tokio::net::UnixListener;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
+mod query;
 mod request;
 mod response;
 mod server;
-
+mod tar;
 const CONTAINER_ID: &str = "container-123";
 const IMAGE_ID: &str = "sha256:test-image";
 const LOG_MESSAGE: &[u8] = b"hello from container\n";
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildRecord {
+    pub dockerfile: String,
+    pub context_entries: Vec<String>,
+}
 pub struct FakeDockerDaemon {
     socket_path: PathBuf,
     state: Arc<FakeDockerDaemonState>,
     accept_task: JoinHandle<()>,
 }
-
 struct FakeDockerDaemonState {
     release_requested: AtomicBool,
     release_notify: Notify,
+    builds: Mutex<Vec<BuildRecord>>,
 }
 
 impl FakeDockerDaemon {
@@ -38,6 +44,7 @@ impl FakeDockerDaemon {
         let state = Arc::new(FakeDockerDaemonState {
             release_requested: AtomicBool::new(false),
             release_notify: Notify::new(),
+            builds: Mutex::new(Vec::new()),
         });
         let accept_task =
             tokio::spawn(server::run_fake_docker_daemon(listener, Arc::clone(&state)));
@@ -48,7 +55,6 @@ impl FakeDockerDaemon {
             accept_task,
         }
     }
-
     pub fn socket_path(&self) -> &Path {
         &self.socket_path
     }
@@ -57,8 +63,16 @@ impl FakeDockerDaemon {
         self.state.release_requested.store(true, Ordering::SeqCst);
         self.state.release_notify.notify_waiters();
     }
-}
 
+    pub fn single_build(&self) -> Option<BuildRecord> {
+        self.state
+            .builds
+            .lock()
+            .expect("build records lock")
+            .first()
+            .cloned()
+    }
+}
 impl Drop for FakeDockerDaemon {
     fn drop(&mut self) {
         self.release_container_exit();
@@ -75,5 +89,9 @@ impl FakeDockerDaemonState {
             }
             self.release_notify.notified().await;
         }
+    }
+
+    fn record_build(&self, build: BuildRecord) {
+        self.builds.lock().expect("build records lock").push(build);
     }
 }

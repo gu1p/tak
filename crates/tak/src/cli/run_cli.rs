@@ -1,39 +1,5 @@
 use super::*;
-use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
-use tak_exec::{TaskOutputChunk, TaskOutputObserver};
-
-#[derive(Default)]
-struct StdStreamOutputObserver {
-    stdout_lock: Mutex<()>,
-    stderr_lock: Mutex<()>,
-}
-
-impl TaskOutputObserver for StdStreamOutputObserver {
-    fn observe_output(&self, chunk: TaskOutputChunk) -> Result<()> {
-        match chunk.stream {
-            tak_exec::OutputStream::Stdout => {
-                let _guard = self
-                    .stdout_lock
-                    .lock()
-                    .map_err(|_| anyhow!("stdout observer lock poisoned"))?;
-                let mut stdout = io::stdout().lock();
-                stdout.write_all(&chunk.bytes)?;
-                stdout.flush()?;
-            }
-            tak_exec::OutputStream::Stderr => {
-                let _guard = self
-                    .stderr_lock
-                    .lock()
-                    .map_err(|_| anyhow!("stderr observer lock poisoned"))?;
-                let mut stderr = io::stderr().lock();
-                stderr.write_all(&chunk.bytes)?;
-                stderr.flush()?;
-            }
-        }
-        Ok(())
-    }
-}
+use std::sync::Arc;
 
 /// Parses CLI input and dispatches Tak commands.
 ///
@@ -105,6 +71,12 @@ pub async fn run_cli() -> Result<()> {
             labels,
             jobs,
             keep_going,
+            local,
+            remote,
+            container,
+            container_image,
+            container_dockerfile,
+            container_build_context,
         } => {
             if labels.is_empty() {
                 bail!("run requires at least one label");
@@ -115,6 +87,18 @@ pub async fn run_cli() -> Result<()> {
                 .iter()
                 .map(|label| parse_input_label(&spec, label, "run"))
                 .collect::<Result<Vec<_>>>()?;
+            let spec = apply_run_execution_overrides(
+                &spec,
+                &targets,
+                RunExecutionOverrideArgs {
+                    local,
+                    remote,
+                    container,
+                    container_image: container_image.as_deref(),
+                    container_dockerfile: container_dockerfile.as_deref(),
+                    container_build_context: container_build_context.as_deref(),
+                },
+            )?;
 
             let summary = run_tasks(
                 &spec,

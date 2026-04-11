@@ -77,7 +77,10 @@ pub(super) fn aggregate_need_usage(active_jobs: &[ActiveJob]) -> Vec<AggregatedN
 }
 
 fn dir_size_bytes(path: &Path) -> Result<u64> {
-    if !path.exists() {
+    if !path
+        .try_exists()
+        .with_context(|| format!("inspect {}", path.display()))?
+    {
         return Ok(0);
     }
 

@@ -17,14 +17,88 @@ fn validate_remote_transport(transport: Option<RemoteTransportDef>) -> Result<Re
     }
 }
 
-fn validate_remote_runtime(runtime: Option<RemoteRuntimeDef>) -> Result<Option<RemoteRuntimeSpec>> {
+fn validate_runtime(
+    runtime: Option<RemoteRuntimeDef>,
+    package: &str,
+    owner: &str,
+) -> Result<Option<RemoteRuntimeSpec>> {
     let Some(runtime) = runtime else {
         return Ok(None);
     };
 
     let validated = validate_container_runtime_execution_spec(&runtime)
-        .map_err(|err| anyhow!("execution Remote.{err}"))?;
-    let image = validated.image;
+        .map_err(|err| anyhow!("execution {owner}.runtime {err}"))?;
+    let source = resolve_container_runtime_source(validated.source, package, owner)?;
 
-    Ok(Some(RemoteRuntimeSpec::Containerized { image }))
+    Ok(Some(RemoteRuntimeSpec::Containerized { source }))
+}
+
+fn resolve_container_runtime_source(
+    source: ContainerRuntimeSourceInputSpec,
+    package: &str,
+    owner: &str,
+) -> Result<ContainerRuntimeSourceSpec> {
+    match source {
+        ContainerRuntimeSourceInputSpec::Image { image } => {
+            Ok(ContainerRuntimeSourceSpec::Image { image })
+        }
+        ContainerRuntimeSourceInputSpec::Dockerfile {
+            dockerfile,
+            build_context,
+        } => {
+            let dockerfile =
+                resolve_runtime_path(dockerfile, package, owner, "dockerfile")?;
+            let build_context = match build_context {
+                Some(build_context) => {
+                    resolve_runtime_path(build_context, package, owner, "build_context")?
+                }
+                None => package_root_path(package)?,
+            };
+
+            if !is_path_within(&dockerfile, &build_context) {
+                bail!("execution {owner}.runtime.dockerfile must be within build_context");
+            }
+
+            Ok(ContainerRuntimeSourceSpec::Dockerfile {
+                dockerfile,
+                build_context,
+            })
+        }
+    }
+}
+
+fn resolve_runtime_path(
+    path: PathInputDef,
+    package: &str,
+    owner: &str,
+    field: &str,
+) -> Result<PathRef> {
+    resolve_context_path(path, package)
+        .map_err(|err| anyhow!("execution {owner}.runtime.{field} {err}"))
+}
+
+fn package_root_path(package: &str) -> Result<PathRef> {
+    let package_relative = package.trim_start_matches("//");
+    let raw = if package_relative.is_empty() {
+        "."
+    } else {
+        package_relative
+    };
+    normalize_path_ref("workspace", raw)
+        .map_err(|err| anyhow!("invalid default package build context: {err}"))
+}
+
+fn is_path_within(path: &PathRef, root: &PathRef) -> bool {
+    if path.anchor != root.anchor {
+        return false;
+    }
+    if root.path == "." {
+        return true;
+    }
+    if path.path == root.path {
+        return true;
+    }
+    path.path
+        .strip_prefix(&root.path)
+        .is_some_and(|suffix| suffix.starts_with('/'))
 }

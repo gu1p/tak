@@ -41,7 +41,9 @@ message Step {
 }
 
 message ContainerRuntime {
-  string image = 1;
+  optional string image = 1;
+  optional string dockerfile = 2;
+  optional string build_context = 3;
 }
 
 message RuntimeSpec {

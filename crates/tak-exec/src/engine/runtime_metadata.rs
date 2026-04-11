@@ -2,8 +2,15 @@ fn resolve_runtime_execution_metadata(
     task: &ResolvedTask,
     placement: &TaskPlacement,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
-    if placement.placement_mode != PlacementMode::Remote {
-        return Ok(None);
+    if placement.placement_mode == PlacementMode::Local {
+        return resolve_runtime_execution_metadata_for_node_runtime(
+            task,
+            "local",
+            placement
+                .local
+                .as_ref()
+                .and_then(|local| local.runtime.as_ref()),
+        );
     }
 
     let Some(target) = placement.strict_remote_target.as_ref() else {
@@ -33,7 +40,7 @@ fn resolve_runtime_execution_metadata_for_node_runtime(
     };
 
     match runtime {
-        RemoteRuntimeSpec::Containerized { image } => {
+        RemoteRuntimeSpec::Containerized { source } => {
             maybe_fail_injected_container_lifecycle_stage(
                 task,
                 node_id,
@@ -66,7 +73,21 @@ fn resolve_runtime_execution_metadata_for_node_runtime(
                 ContainerEngine::Podman => "podman".to_string(),
             };
 
+            let (runtime_source, image) = match source {
+                ContainerRuntimeSourceSpec::Image { image } => ("image", image.clone()),
+                ContainerRuntimeSourceSpec::Dockerfile { .. } => {
+                    ("dockerfile", format!("tak-runtime-{}", Uuid::new_v4()))
+                }
+            };
+
             let mut env_overrides = BTreeMap::new();
+            env_overrides.insert("TAK_RUNTIME".to_string(), "containerized".to_string());
+            env_overrides.insert("TAK_RUNTIME_ENGINE".to_string(), engine_name.clone());
+            env_overrides.insert(
+                "TAK_RUNTIME_SOURCE".to_string(),
+                runtime_source.to_string(),
+            );
+            env_overrides.insert("TAK_CONTAINER_IMAGE".to_string(), image.clone());
             env_overrides.insert(
                 "TAK_REMOTE_RUNTIME".to_string(),
                 "containerized".to_string(),
@@ -85,6 +106,7 @@ fn resolve_runtime_execution_metadata_for_node_runtime(
             } else {
                 Some(ContainerExecutionPlan {
                     engine,
+                    source: source.clone(),
                     image: image.clone(),
                 })
             };

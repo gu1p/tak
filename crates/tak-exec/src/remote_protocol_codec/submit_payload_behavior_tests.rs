@@ -1,4 +1,4 @@
-use tak_core::model::RemoteRuntimeSpec;
+use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_proto::{runtime_spec, step};
 
 use super::submit_payload_test_support::{
@@ -9,7 +9,9 @@ use super::*;
 #[test]
 fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
     let target = direct_target(Some(RemoteRuntimeSpec::Containerized {
-        image: "ghcr.io/acme/web:latest".into(),
+        source: ContainerRuntimeSourceSpec::Image {
+            image: "ghcr.io/acme/web:latest".into(),
+        },
     }));
     let payload = build_remote_submit_payload(
         &target,
@@ -40,7 +42,9 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
     );
     match payload.runtime.expect("runtime").kind.expect("runtime kind") {
         runtime_spec::Kind::Container(container) => {
-            assert_eq!(container.image, "ghcr.io/acme/web:latest")
+            assert_eq!(container.image.as_deref(), Some("ghcr.io/acme/web:latest"));
+            assert_eq!(container.dockerfile, None);
+            assert_eq!(container.build_context, None);
         }
     }
     match payload.steps[0].kind.as_ref().expect("cmd step") {
