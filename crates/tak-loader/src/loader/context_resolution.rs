@@ -31,6 +31,7 @@ fn resolve_current_state(
         roots,
         ignored,
         include,
+        origin: tak_core::model::CurrentStateOrigin::Explicit,
     })
 }
 

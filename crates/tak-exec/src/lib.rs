@@ -18,10 +18,10 @@ use arti_client::TorClientConfig;
 use base64::Engine;
 use sha2::{Digest, Sha256};
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, CurrentStateSpec, IgnoreSourceSpec, LocalSpec, PathAnchor, PathRef,
-    PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, RetryDef,
-    StepDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec, build_current_state_manifest,
-    normalize_path_ref,
+    ContainerRuntimeSourceSpec, CurrentStateOrigin, CurrentStateSpec, IgnoreSourceSpec, LocalSpec,
+    PathAnchor, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec, RemoteTransportKind,
+    ResolvedTask, RetryDef, StepDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
+    build_current_state_manifest, normalize_path_ref,
 };
 use tak_loader::evaluate_named_policy_decision;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -35,7 +35,6 @@ mod container_runtime;
 mod execution_graph;
 mod lease_client;
 mod remote_endpoint;
-mod remote_events_wait;
 mod remote_protocol_codec;
 mod retry;
 mod step_runner;
@@ -49,7 +48,6 @@ use container_runtime::run_task_steps_in_container;
 use execution_graph::collect_required_labels;
 use lease_client::{acquire_task_lease, release_task_lease};
 use remote_endpoint::{remote_protocol_request_headers, test_tor_onion_dial_addr};
-use remote_events_wait::remote_events_max_wait_duration;
 use remote_protocol_codec::{
     build_remote_submit_payload, parse_remote_events_response, parse_remote_result_outputs,
 };

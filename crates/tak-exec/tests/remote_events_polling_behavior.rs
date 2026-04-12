@@ -35,7 +35,7 @@ impl TaskOutputObserver for CollectingObserver {
 }
 
 #[tokio::test]
-async fn waits_for_terminal_protobuf_events_without_duplicate_logs() {
+async fn completes_without_duplicate_logs_when_events_go_idle() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -92,5 +92,5 @@ async fn waits_for_terminal_protobuf_events_without_duplicate_logs() {
             bytes: b"pending\n".to_vec(),
         }]
     );
-    assert!(server.events_calls.load(Ordering::SeqCst) >= 3);
+    assert!(server.events_calls.load(Ordering::SeqCst) >= 2);
 }

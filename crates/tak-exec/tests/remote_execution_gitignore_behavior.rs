@@ -3,7 +3,7 @@
 use std::fs;
 
 use tak_core::model::{
-    CurrentStateSpec, IgnoreSourceSpec, PathAnchor, PathRef, normalize_path_ref,
+    CurrentStateOrigin, CurrentStateSpec, IgnoreSourceSpec, PathAnchor, PathRef, normalize_path_ref,
 };
 use tak_exec::{PlacementMode, RunOptions, run_tasks};
 
@@ -82,6 +82,7 @@ async fn remote_execution_uses_workspace_gitignores_and_readds_included_subtree(
                 normalize_path_ref("workspace", "apps/web/generated/reinclude")
                     .expect("include path"),
             ],
+            origin: CurrentStateOrigin::Explicit,
         },
     );
 

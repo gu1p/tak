@@ -50,7 +50,7 @@ async fn execute_task_attempt(
                     context.task.label
                 )
             })?;
-        let remote_logs = remote_protocol_events(
+        let (remote_logs, protocol_result) = remote_protocol_events(
             target,
             context.task_run_id,
             &context.task.label,
@@ -58,7 +58,10 @@ async fn execute_task_attempt(
             context.output_observer,
         )
         .await?;
-        let result = remote_protocol_result(target, context.task_run_id, context.attempt).await?;
+        let result = match protocol_result {
+            Some(result) => result,
+            None => remote_protocol_result(target, context.task_run_id, context.attempt).await?,
+        };
         (remote_logs, Some(result))
     } else {
         (Vec::new(), None)

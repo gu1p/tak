@@ -94,11 +94,18 @@ pub enum IgnoreSourceSpec {
     GitIgnore,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurrentStateOrigin {
+    ImplicitDefault,
+    Explicit,
+}
+
 #[derive(Debug, Clone)]
 pub struct CurrentStateSpec {
     pub roots: Vec<PathRef>,
     pub ignored: Vec<IgnoreSourceSpec>,
     pub include: Vec<PathRef>,
+    pub origin: CurrentStateOrigin,
 }
 
 impl Default for CurrentStateSpec {
@@ -118,6 +125,7 @@ impl Default for CurrentStateSpec {
             }],
             ignored: Vec::new(),
             include: Vec::new(),
+            origin: CurrentStateOrigin::ImplicitDefault,
         }
     }
 }

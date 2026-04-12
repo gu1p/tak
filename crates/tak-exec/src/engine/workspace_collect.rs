@@ -7,7 +7,7 @@
 /// # }
 /// ```
 fn collect_workspace_files(workspace_root: &Path, state: &CurrentStateSpec) -> Result<Vec<PathRef>> {
-    let mut files = if uses_gitignore_ignore_source(state) {
+    let mut files = if uses_workspace_gitignore(state) {
         collect_workspace_files_with_gitignore(workspace_root)?
     } else {
         let mut files = Vec::new();
@@ -16,6 +16,10 @@ fn collect_workspace_files(workspace_root: &Path, state: &CurrentStateSpec) -> R
     };
     collect_explicit_include_files(workspace_root, &state.include, &mut files)?;
     Ok(files)
+}
+
+fn uses_workspace_gitignore(state: &CurrentStateSpec) -> bool {
+    state.origin == CurrentStateOrigin::ImplicitDefault || uses_gitignore_ignore_source(state)
 }
 
 fn uses_gitignore_ignore_source(state: &CurrentStateSpec) -> bool {
@@ -52,16 +56,7 @@ fn collect_workspace_files_with_gitignore(workspace_root: &Path) -> Result<Vec<P
         }
 
         let path = entry.path();
-        let relative = path.strip_prefix(workspace_root).with_context(|| {
-            format!(
-                "failed to compute relative path for workspace file {}",
-                path.display()
-            )
-        })?;
-        files.push(PathRef {
-            anchor: PathAnchor::Workspace,
-            path: normalize_filesystem_relative_path(relative),
-        });
+        push_workspace_file(workspace_root, path, &mut files)?;
     }
 
     Ok(files)
@@ -100,18 +95,23 @@ fn collect_workspace_files_recursive(
             continue;
         }
 
-        let relative = path.strip_prefix(workspace_root).with_context(|| {
-            format!(
-                "failed to compute relative path for workspace file {}",
-                path.display()
-            )
-        })?;
-        files.push(PathRef {
-            anchor: PathAnchor::Workspace,
-            path: normalize_filesystem_relative_path(relative),
-        });
+        push_workspace_file(workspace_root, &path, files)?;
     }
 
+    Ok(())
+}
+
+fn push_workspace_file(workspace_root: &Path, path: &Path, files: &mut Vec<PathRef>) -> Result<()> {
+    let relative = path.strip_prefix(workspace_root).with_context(|| {
+        format!(
+            "failed to compute relative path for workspace file {}",
+            path.display()
+        )
+    })?;
+    files.push(PathRef {
+        anchor: PathAnchor::Workspace,
+        path: normalize_filesystem_relative_path(relative),
+    });
     Ok(())
 }
 

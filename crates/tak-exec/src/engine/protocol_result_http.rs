@@ -11,12 +11,29 @@ use tak_proto::GetTaskResultResponse;
 async fn remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,
-    _attempt: u32,
+    attempt: u32,
 ) -> Result<RemoteProtocolResult> {
+    let Some(result) = try_remote_protocol_result(target, task_run_id, attempt).await? else {
+        bail!(
+            "infra error: remote node {} result fetch failed with HTTP 404",
+            target.node_id
+        );
+    };
+    Ok(result)
+}
+
+async fn try_remote_protocol_result(
+    target: &StrictRemoteTarget,
+    task_run_id: &str,
+    _attempt: u32,
+) -> Result<Option<RemoteProtocolResult>> {
     let path = format!("/v1/tasks/{task_run_id}/result");
     let (status, response_body) =
         remote_protocol_http_request(target, "GET", &path, None, "result", Duration::from_secs(1))
             .await?;
+    if status == 404 {
+        return Ok(None);
+    }
     if status != 200 {
         bail!(
             "infra error: remote node {} result fetch failed with HTTP {}",
@@ -24,8 +41,14 @@ async fn remote_protocol_result(
             status
         );
     }
+    Ok(Some(parse_remote_protocol_result(target, &response_body)?))
+}
 
-    let parsed = GetTaskResultResponse::decode(response_body.as_slice()).with_context(|| {
+fn parse_remote_protocol_result(
+    target: &StrictRemoteTarget,
+    response_body: &[u8],
+) -> Result<RemoteProtocolResult> {
+    let parsed = GetTaskResultResponse::decode(response_body).with_context(|| {
         format!(
             "infra error: remote node {} returned invalid protobuf for result",
             target.node_id

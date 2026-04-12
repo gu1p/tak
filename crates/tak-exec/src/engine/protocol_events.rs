@@ -12,18 +12,16 @@ async fn remote_protocol_events(
     task_label: &TaskLabel,
     attempt: u32,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
-) -> Result<Vec<RemoteLogChunk>> {
+) -> Result<(Vec<RemoteLogChunk>, Option<RemoteProtocolResult>)> {
     const MAX_EVENT_RECONNECTS: u32 = 30;
     const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
     const EVENT_RECONNECT_DELAY: Duration = Duration::from_millis(500);
-    let max_event_wait = remote_events_max_wait_duration();
 
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
     let mut persisted_remote_logs = Vec::new();
-    let deadline = tokio::time::Instant::now() + max_event_wait;
 
-    while tokio::time::Instant::now() < deadline {
+    loop {
         let path = format!("/v1/tasks/{task_run_id}/events?after_seq={last_seen_seq}");
         let response = remote_protocol_http_request(
             target,
@@ -62,6 +60,7 @@ async fn remote_protocol_events(
             );
         }
 
+        let previous_seq = last_seen_seq;
         let parsed = parse_remote_events_response(target, &response_body, last_seen_seq)?;
         last_seen_seq = parsed.next_seq;
         for chunk in &parsed.remote_logs {
@@ -75,14 +74,13 @@ async fn remote_protocol_events(
         }
         persisted_remote_logs.extend(parsed.remote_logs);
         if parsed.done {
-            return Ok(persisted_remote_logs);
+            return Ok((persisted_remote_logs, None));
+        }
+        if last_seen_seq == previous_seq
+            && let Some(result) = try_remote_protocol_result(target, task_run_id, attempt).await?
+        {
+            return Ok((persisted_remote_logs, Some(result)));
         }
         tokio::time::sleep(EVENT_POLL_INTERVAL).await;
     }
-
-    bail!(
-        "infra error: remote node {} events stream exceeded {}s without terminal completion",
-        target.node_id,
-        max_event_wait.as_secs()
-    );
 }

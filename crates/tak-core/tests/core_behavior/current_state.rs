@@ -1,6 +1,6 @@
 use tak_core::model::{
-    CurrentStateSpec, IgnoreSourceSpec, PathAnchor, PathRef, build_current_state_manifest,
-    normalize_path_ref,
+    CurrentStateOrigin, CurrentStateSpec, IgnoreSourceSpec, PathAnchor, PathRef,
+    build_current_state_manifest, normalize_path_ref,
 };
 
 #[test]
@@ -35,6 +35,7 @@ fn current_state_boundary_roots_then_ignored_then_include() {
             normalize_path_ref("workspace", "apps/web/project/ignored/reinclude.txt")
                 .expect("include"),
         ],
+        origin: CurrentStateOrigin::Explicit,
     };
     let manifest = build_current_state_manifest(available_files, &state);
     assert_eq!(
@@ -69,11 +70,13 @@ fn current_state_boundary_hash_is_stable_for_equivalent_state() {
             normalize_path_ref("workspace", "apps/web/project/ignored/reinclude.txt")
                 .expect("include"),
         ],
+        origin: CurrentStateOrigin::Explicit,
     };
     let second = CurrentStateSpec {
         roots: vec![normalize_path_ref("workspace", "apps/web/./project").expect("root")],
         ignored: first.ignored.clone(),
         include: first.include.clone(),
+        origin: CurrentStateOrigin::Explicit,
     };
     let manifest_a = build_current_state_manifest(available_files.clone(), &first);
     let manifest_b = build_current_state_manifest(available_files, &second);
