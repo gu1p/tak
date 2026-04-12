@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -21,6 +22,7 @@ const LOG_MESSAGE: &[u8] = b"hello from container\n";
 pub struct BuildRecord {
     pub dockerfile: String,
     pub context_entries: Vec<String>,
+    pub context_modes: BTreeMap<String, u32>,
 }
 pub struct FakeDockerDaemon {
     socket_path: PathBuf,

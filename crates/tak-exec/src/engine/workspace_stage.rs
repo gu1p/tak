@@ -10,7 +10,7 @@ fn stage_remote_workspace(
     task: &ResolvedTask,
     workspace_root: &Path,
 ) -> Result<RemoteWorkspaceStage> {
-    let available_files = collect_workspace_files(workspace_root)?;
+    let available_files = collect_workspace_files(workspace_root, &task.context)?;
     let manifest = build_current_state_manifest(available_files, &task.context);
     let staged_dir = tempfile::tempdir().context("failed to create staged remote workspace")?;
     materialize_manifest_files(workspace_root, staged_dir.path(), &manifest.entries)?;

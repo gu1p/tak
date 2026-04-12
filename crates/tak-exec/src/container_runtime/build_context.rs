@@ -92,11 +92,11 @@ fn build_context_archive(build_context_root: &Path) -> Result<Vec<u8>> {
     files.sort_by(|left, right| left.0.cmp(&right.0));
 
     let mut archive = Vec::new();
-    for (relative, absolute) in files {
+    for (relative, absolute, mode) in files {
         let bytes = fs::read(&absolute).with_context(|| {
             format!("failed to read build context file {}", absolute.display())
         })?;
-        append_tar_entry(&mut archive, &relative, &bytes)?;
+        append_tar_entry(&mut archive, &relative, &bytes, mode)?;
     }
     archive.extend([0_u8; 1024]);
     Ok(archive)
@@ -105,7 +105,7 @@ fn build_context_archive(build_context_root: &Path) -> Result<Vec<u8>> {
 fn collect_build_context_files(
     build_context_root: &Path,
     current_dir: &Path,
-    files: &mut Vec<(String, PathBuf)>,
+    files: &mut Vec<(String, PathBuf, u32)>,
 ) -> Result<()> {
     for entry in fs::read_dir(current_dir).with_context(|| {
         format!(
@@ -141,9 +141,24 @@ fn collect_build_context_files(
                 path.display()
             )
         })?;
-        files.push((normalize_archive_path(relative), path));
+        let metadata = entry.metadata().with_context(|| {
+            format!("failed to read build context metadata for {}", path.display())
+        })?;
+        files.push((normalize_archive_path(relative), path, archive_mode(&metadata)));
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn archive_mode(metadata: &fs::Metadata) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+
+    metadata.permissions().mode() & 0o7777
+}
+
+#[cfg(not(unix))]
+fn archive_mode(_metadata: &fs::Metadata) -> u32 {
+    0o644
 }
 
 fn normalize_archive_path(path: &Path) -> String {

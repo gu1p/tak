@@ -51,10 +51,10 @@ pub(super) fn resolve_container_runtime_for_task(
     if let Some(runtime) = explicit_runtime {
         return Ok(runtime.clone());
     }
-    if let Some(runtime) = task.container_runtime.clone() {
+    if let Some(runtime) = declared_container_runtime(&task.execution) {
         return Ok(runtime);
     }
-    if let Some(runtime) = declared_container_runtime(&task.execution) {
+    if let Some(runtime) = task.container_runtime.clone() {
         return Ok(runtime);
     }
 
@@ -64,7 +64,9 @@ pub(super) fn resolve_container_runtime_for_task(
     )
 }
 
-fn declared_container_runtime(execution: &TaskExecutionSpec) -> Option<RemoteRuntimeSpec> {
+pub(super) fn declared_container_runtime(
+    execution: &TaskExecutionSpec,
+) -> Option<RemoteRuntimeSpec> {
     match execution {
         TaskExecutionSpec::LocalOnly(local) => local.runtime.clone(),
         TaskExecutionSpec::RemoteOnly(remote) => remote.runtime.clone(),

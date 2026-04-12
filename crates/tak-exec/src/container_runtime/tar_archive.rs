@@ -1,8 +1,8 @@
-fn append_tar_entry(archive: &mut Vec<u8>, path: &str, bytes: &[u8]) -> Result<()> {
+fn append_tar_entry(archive: &mut Vec<u8>, path: &str, bytes: &[u8], mode: u32) -> Result<()> {
     let mut header = [0_u8; 512];
     let (prefix, name) = split_tar_path(path)?;
     write_tar_bytes(&mut header[0..100], name)?;
-    write_tar_octal(&mut header[100..108], 0o644)?;
+    write_tar_octal(&mut header[100..108], u64::from(mode))?;
     write_tar_octal(&mut header[108..116], 0)?;
     write_tar_octal(&mut header[116..124], 0)?;
     write_tar_octal(&mut header[124..136], bytes.len() as u64)?;

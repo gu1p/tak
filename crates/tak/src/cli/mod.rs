@@ -14,7 +14,15 @@ mod remote_status;
 mod run_cli;
 mod run_output;
 mod run_override_runtime;
+#[cfg(test)]
+mod run_override_runtime_tests;
 mod run_overrides;
+#[cfg(test)]
+mod run_overrides_local_tests;
+#[cfg(test)]
+mod run_overrides_remote_tests;
+#[cfg(test)]
+mod run_overrides_test_support;
 mod workspace_helpers;
 
 use command_model::{Cli, Commands};

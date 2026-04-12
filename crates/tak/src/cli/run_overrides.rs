@@ -1,10 +1,12 @@
 use std::collections::BTreeSet;
 use tak_core::model::{
-    LocalSpec, RemoteSpec, RemoteTransportKind, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
+    LocalSpec, PolicyDecisionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask,
+    TaskExecutionSpec, TaskLabel, WorkspaceSpec,
 };
 
 use super::run_override_runtime::{
-    explicit_container_runtime_override, resolve_container_runtime_for_task,
+    declared_container_runtime, explicit_container_runtime_override,
+    resolve_container_runtime_for_task,
 };
 use super::*;
 
@@ -53,26 +55,70 @@ pub(super) fn apply_run_execution_overrides(
             .tasks
             .get_mut(&label)
             .ok_or_else(|| anyhow!("task not found: {}", canonical_label(&label)))?;
-        let runtime = args
-            .container
-            .then(|| resolve_container_runtime_for_task(task, explicit_runtime.as_ref()))
-            .transpose()?;
+        let runtime =
+            resolved_runtime_for_override(task, args.container, explicit_runtime.as_ref())?;
         task.execution = match placement.expect("placement validated") {
-            RunPlacementSelector::Local => TaskExecutionSpec::LocalOnly(LocalSpec {
-                runtime,
-                ..LocalSpec::default()
-            }),
-            RunPlacementSelector::Remote => TaskExecutionSpec::RemoteOnly(RemoteSpec {
-                pool: None,
-                required_tags: Vec::new(),
-                required_capabilities: Vec::new(),
-                transport_kind: RemoteTransportKind::Any,
-                runtime,
-            }),
+            RunPlacementSelector::Local => {
+                let mut local = existing_local_spec(&task.execution).unwrap_or_default();
+                local.runtime = runtime;
+                TaskExecutionSpec::LocalOnly(local)
+            }
+            RunPlacementSelector::Remote => {
+                let mut remote =
+                    existing_remote_spec(&task.execution).unwrap_or_else(default_remote_spec);
+                remote.runtime = runtime;
+                TaskExecutionSpec::RemoteOnly(remote)
+            }
         };
     }
 
     Ok(overridden)
+}
+
+fn resolved_runtime_for_override(
+    task: &ResolvedTask,
+    container: bool,
+    explicit_runtime: Option<&tak_core::model::RemoteRuntimeSpec>,
+) -> Result<Option<tak_core::model::RemoteRuntimeSpec>> {
+    if container {
+        return resolve_container_runtime_for_task(task, explicit_runtime).map(Some);
+    }
+    Ok(declared_container_runtime(&task.execution))
+}
+
+fn existing_local_spec(execution: &TaskExecutionSpec) -> Option<LocalSpec> {
+    match execution {
+        TaskExecutionSpec::LocalOnly(local) => Some(local.clone()),
+        TaskExecutionSpec::ByCustomPolicy {
+            decision:
+                Some(PolicyDecisionSpec::Local {
+                    local: Some(local), ..
+                }),
+            ..
+        } => Some(local.clone()),
+        TaskExecutionSpec::RemoteOnly(_) | TaskExecutionSpec::ByCustomPolicy { .. } => None,
+    }
+}
+
+fn existing_remote_spec(execution: &TaskExecutionSpec) -> Option<RemoteSpec> {
+    match execution {
+        TaskExecutionSpec::RemoteOnly(remote) => Some(remote.clone()),
+        TaskExecutionSpec::ByCustomPolicy {
+            decision: Some(PolicyDecisionSpec::Remote { remote, .. }),
+            ..
+        } => Some(remote.clone()),
+        TaskExecutionSpec::LocalOnly(_) | TaskExecutionSpec::ByCustomPolicy { .. } => None,
+    }
+}
+
+fn default_remote_spec() -> RemoteSpec {
+    RemoteSpec {
+        pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        transport_kind: RemoteTransportKind::Any,
+        runtime: None,
+    }
 }
 
 fn resolve_run_placement_selector(

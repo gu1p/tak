@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io;
 use std::sync::Arc;
 
@@ -5,7 +6,7 @@ use tokio::net::{UnixListener, UnixStream};
 
 use super::request::{FakeDockerRequest, read_request};
 use super::response::{write_empty_response, write_logs_response, write_response};
-use super::tar::tar_file_entries;
+use super::tar::{tar_file_entries, tar_file_modes};
 use super::{BuildRecord, CONTAINER_ID, FakeDockerDaemonState, IMAGE_ID};
 
 pub(super) async fn run_fake_docker_daemon(
@@ -87,5 +88,8 @@ fn parse_build_request(request: &FakeDockerRequest) -> io::Result<BuildRecord> {
             .query_param("dockerfile")
             .unwrap_or_else(|| "Dockerfile".to_string()),
         context_entries: tar_file_entries(&request.body)?,
+        context_modes: tar_file_modes(&request.body)?
+            .into_iter()
+            .collect::<BTreeMap<_, _>>(),
     })
 }

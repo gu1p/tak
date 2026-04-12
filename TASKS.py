@@ -50,6 +50,7 @@ SPEC = module_spec(
         task("docs-check", steps=DOCS_CHECK_STEPS),
         task(
             "check",
+            context=CurrentState(ignored=[gitignore()]),
             steps=FMT_CHECK_STEPS
             + LINE_LIMITS_CHECK_STEPS
             + SRC_TEST_SEPARATION_CHECK_STEPS

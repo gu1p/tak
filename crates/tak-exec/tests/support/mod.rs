@@ -21,4 +21,6 @@ pub use remote_worker_runtime::{
     CollectingObserver, configure_fake_docker_env, configure_real_docker_env, worker_spec,
 };
 pub use servers::{AuthRejectingSubmitServer, DelayedEventsServer, RunningTakdServer};
-pub use task_spec::{remote_builder_spec, remote_task_spec, shell_step};
+pub use task_spec::{
+    remote_builder_spec, remote_task_spec, remote_task_spec_with_context, shell_step,
+};

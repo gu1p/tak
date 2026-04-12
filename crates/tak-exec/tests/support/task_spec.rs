@@ -32,6 +32,22 @@ pub fn remote_task_spec(
     steps: Vec<StepDef>,
     remote: RemoteSpec,
 ) -> (WorkspaceSpec, TaskLabel) {
+    remote_task_spec_with_context(
+        workspace_root,
+        name,
+        steps,
+        remote,
+        CurrentStateSpec::default(),
+    )
+}
+
+pub fn remote_task_spec_with_context(
+    workspace_root: &Path,
+    name: &str,
+    steps: Vec<StepDef>,
+    remote: RemoteSpec,
+    context: CurrentStateSpec,
+) -> (WorkspaceSpec, TaskLabel) {
     let label = TaskLabel {
         package: "//apps/web".into(),
         name: name.into(),
@@ -45,7 +61,7 @@ pub fn remote_task_spec(
         queue: None,
         retry: RetryDef::default(),
         timeout_s: None,
-        context: CurrentStateSpec::default(),
+        context,
         container_runtime: None,
         execution: TaskExecutionSpec::RemoteOnly(remote),
         tags: Vec::new(),
