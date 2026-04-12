@@ -18,6 +18,7 @@ use support::{run_tak_expect_success, write_tasks};
 fn run_command_uses_tasks_default_container_runtime_with_remote_container_flags() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let workspace_root = temp.path().join("workspace");
+    let remote_exec_root = temp.path().join("remote-exec");
     let roots = LiveDirectRoots::new(temp.path());
     fs::create_dir_all(workspace_root.join("docker"))?;
     fs::write(
@@ -33,9 +34,13 @@ SPEC
 
     let takd = takd_bin();
     init_direct_agent(&takd, &roots, "override-remote-container-builder");
-    let serve_env = simulated_container_runtime_env(temp.path())
+    let mut serve_env = simulated_container_runtime_env(temp.path())
         .into_iter()
         .collect::<Vec<_>>();
+    serve_env.push((
+        "TAKD_REMOTE_EXEC_ROOT".to_string(),
+        remote_exec_root.display().to_string(),
+    ));
     let _agent = spawn_direct_agent_with_env(&takd, &roots, &serve_env);
     let token = wait_for_token(&takd, &roots);
     add_remote(&workspace_root, &roots, &token);
@@ -63,6 +68,11 @@ SPEC
     assert_eq!(
         fs::read_to_string(workspace_root.join("out/runtime-source.txt"))?.trim(),
         "dockerfile"
+    );
+    assert!(
+        !remote_exec_root.exists() || remote_exec_root.read_dir()?.next().is_none(),
+        "finished remote execution roots should be cleaned: {}",
+        remote_exec_root.display()
     );
     Ok(())
 }

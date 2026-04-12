@@ -78,6 +78,10 @@ impl NodeStatusState {
         self.active_jobs.remove(idempotency_key);
     }
 
+    pub(crate) fn active_job_keys(&self) -> Vec<String> {
+        self.active_jobs.keys().cloned().collect()
+    }
+
     pub(crate) fn snapshot(&mut self, node: &NodeInfo) -> Result<NodeStatusResponse> {
         self.system.refresh_memory();
         self.system.refresh_cpu_usage();

@@ -60,6 +60,7 @@ pub(super) async fn serve_tor_agent(
         .map(|value| format!("http://{}", value.display_unredacted()))
         .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
     let context = ready_context(&ready_config(&config, &base_url))?;
+    crate::daemon::remote::spawn_remote_cleanup_janitor(context.shared_status_state());
     let readiness_client = tor_client.isolated_client();
     let startup_probe_retry_policy = startup_probe_retry_policy();
     let readiness = probe::wait_for_tor_hidden_service_startup(

@@ -24,6 +24,18 @@ pub(super) fn handle_remote_outputs_route(
         Ok(path_ref) if path_ref.path != "." => path_ref.path,
         _ => return Ok(Some(error_response(400, "invalid_output_path"))),
     };
+    let artifact_root = artifact_root_for_submit_key(&key);
+    if artifact_root.exists() {
+        let Some(bytes) = consume_staged_remote_output(&key, &normalized)? else {
+            return Ok(Some(error_response(404, "output_not_found")));
+        };
+        return Ok(Some(binary_response(
+            200,
+            "application/octet-stream",
+            bytes,
+        )));
+    }
+
     let execution_root = execution_root_for_submit_key(&key);
     let output_path = execution_root.join(&normalized);
     let Ok(bytes) = fs::read(&output_path) else {

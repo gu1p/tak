@@ -20,6 +20,7 @@ use zip::read::ZipArchive;
 
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
+mod cleanup_janitor;
 mod http_server;
 mod query_helpers;
 mod route_events;
@@ -34,6 +35,7 @@ mod submit_payload_parse;
 mod submit_store;
 mod tor_server;
 mod types;
+mod worker_output_artifacts;
 mod worker_submit_execution;
 mod worker_workspace_outputs;
 
@@ -43,11 +45,13 @@ pub use submit_store::{SubmitAttemptStore, SubmitRegistration, build_submit_idem
 pub use tor_server::run_remote_v1_tor_hidden_service;
 pub use types::{RemoteNodeContext, RemoteV1Response};
 
+pub(crate) use cleanup_janitor::spawn_remote_cleanup_janitor;
 pub(crate) use http_server::handle_remote_v1_http_stream;
 use query_helpers::{
-    binary_response, error_response, execution_root_for_submit_key, protobuf_response,
-    query_param_string, query_param_u64, remote_task_path_arg,
-    resolve_submit_idempotency_key_for_task_run, split_path_and_query, unix_epoch_ms,
+    artifact_root_for_submit_key, binary_response, error_response, execution_root_for_submit_key,
+    protobuf_response, query_param_string, query_param_u64, remote_artifact_root_base,
+    remote_execution_root_base, remote_task_path_arg, resolve_submit_idempotency_key_for_task_run,
+    sanitize_submit_idempotency_key, split_path_and_query, unix_epoch_ms,
 };
 use route_events::handle_remote_events_route;
 use route_node::{handle_node_metadata_route, handle_remote_cancel_route};
@@ -59,6 +63,7 @@ pub(crate) use tor_server::{
     remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,
 };
 use types::{RemoteWorkerOutputRecord, RemoteWorkerSubmitPayload, WorkspaceFileFingerprint};
+use worker_output_artifacts::{consume_staged_remote_output, stage_remote_worker_outputs};
 use worker_submit_execution::spawn_remote_worker_submit_execution;
 use worker_workspace_outputs::{
     changed_remote_worker_outputs, snapshot_workspace_files, unpack_remote_worker_workspace,

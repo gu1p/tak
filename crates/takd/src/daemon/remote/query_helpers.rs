@@ -39,6 +39,10 @@ pub(super) fn execution_root_for_submit_key(idempotency_key: &str) -> PathBuf {
     remote_execution_root_base().join(sanitize_submit_idempotency_key(idempotency_key))
 }
 
+pub(super) fn artifact_root_for_submit_key(idempotency_key: &str) -> PathBuf {
+    remote_artifact_root_base().join(sanitize_submit_idempotency_key(idempotency_key))
+}
+
 pub(super) fn remote_execution_root_base() -> PathBuf {
     std::env::var("TAKD_REMOTE_EXEC_ROOT")
         .ok()
@@ -48,7 +52,15 @@ pub(super) fn remote_execution_root_base() -> PathBuf {
         .unwrap_or_else(|| std::env::temp_dir().join("takd-remote-exec"))
 }
 
-fn sanitize_submit_idempotency_key(idempotency_key: &str) -> String {
+pub(super) fn remote_artifact_root_base() -> PathBuf {
+    remote_execution_root_base()
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("takd-remote-artifacts")
+}
+
+pub(super) fn sanitize_submit_idempotency_key(idempotency_key: &str) -> String {
     idempotency_key
         .chars()
         .map(|value| {
