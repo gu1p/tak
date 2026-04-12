@@ -8,6 +8,7 @@ pub mod inventory;
 pub mod remote_mismatch;
 pub mod remote_worker_runtime;
 pub mod servers;
+pub mod status_observer;
 pub mod task_spec;
 
 pub use env::{EnvGuard, env_lock};
@@ -23,6 +24,7 @@ pub use remote_worker_runtime::{
 pub use servers::{
     AuthRejectingSubmitServer, DelayedEventsServer, NonTerminalEventsServer, RunningTakdServer,
 };
+pub use status_observer::CollectingStatusObserver;
 pub use task_spec::{
     remote_builder_spec, remote_task_spec, remote_task_spec_with_context, shell_step,
 };

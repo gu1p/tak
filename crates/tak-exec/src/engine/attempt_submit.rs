@@ -1,10 +1,16 @@
-async fn preflight_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<TaskPlacement> {
+async fn preflight_task_placement(
+    task: &ResolvedTask,
+    workspace_root: &Path,
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+) -> Result<TaskPlacement> {
     let mut placement = resolve_task_placement(task, workspace_root)?;
     if placement.ordered_remote_targets.is_empty() {
         return Ok(placement);
     }
 
-    let selected = preflight_ordered_remote_target(task, &placement.ordered_remote_targets).await?;
+    let selected =
+        preflight_ordered_remote_target(task, &placement.ordered_remote_targets, output_observer)
+            .await?;
     placement.remote_node_id = Some(selected.node_id.clone());
     placement.strict_remote_target = Some(selected);
     Ok(placement)
@@ -23,11 +29,11 @@ async fn resolve_initial_runtime_metadata(
 async fn resolve_attempt_submit_state(
     task: &ResolvedTask,
     placement: &mut TaskPlacement,
-    _runtime_metadata: &mut Option<RuntimeExecutionMetadata>,
     remote_workspace: Option<&RemoteWorkspaceStage>,
     task_run_id: &str,
     task_label: &str,
     attempt: u32,
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<()> {
     if placement.placement_mode != PlacementMode::Remote {
         return Ok(());
@@ -45,6 +51,14 @@ async fn resolve_attempt_submit_state(
             task.label
         )
     })?;
+    emit_task_status_message(
+        output_observer,
+        &task.label,
+        attempt,
+        TaskStatusPhase::RemoteSubmit,
+        Some(target.node_id.as_str()),
+        format!("submitting to remote node {}", target.node_id),
+    )?;
 
     match remote_protocol_submit(
         &target,
@@ -56,7 +70,16 @@ async fn resolve_attempt_submit_state(
     )
     .await
     {
-        Ok(()) => {}
+        Ok(()) => {
+            emit_task_status_message(
+                output_observer,
+                &task.label,
+                attempt,
+                TaskStatusPhase::RemoteSubmit,
+                Some(target.node_id.as_str()),
+                format!("remote task accepted by {}", target.node_id),
+            )?;
+        }
         Err(submit_error) => {
             if !placement.ordered_remote_targets.is_empty() && is_auth_submit_failure(&submit_error)
             {
@@ -72,6 +95,7 @@ async fn resolve_attempt_submit_state(
                         remote_workspace,
                     },
                     submit_error.to_string(),
+                    output_observer,
                 )
                 .await?;
                 placement.remote_node_id = Some(fallback_target.node_id.clone());

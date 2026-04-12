@@ -9,12 +9,29 @@
 fn stage_remote_workspace(
     task: &ResolvedTask,
     workspace_root: &Path,
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<RemoteWorkspaceStage> {
+    emit_task_status_message(
+        output_observer,
+        &task.label,
+        1,
+        TaskStatusPhase::RemoteStageWorkspace,
+        None,
+        "staging remote workspace",
+    )?;
     let available_files = collect_workspace_files(workspace_root, &task.context)?;
     let manifest = build_current_state_manifest(available_files, &task.context);
     let staged_dir = tempfile::tempdir().context("failed to create staged remote workspace")?;
     materialize_manifest_files(workspace_root, staged_dir.path(), &manifest.entries)?;
     let archive_zip_base64 = build_zip_snapshot_base64(staged_dir.path())?;
+    emit_task_status_message(
+        output_observer,
+        &task.label,
+        1,
+        TaskStatusPhase::RemoteStageWorkspace,
+        None,
+        format!("staged remote workspace ({} files)", manifest.entries.len()),
+    )?;
 
     Ok(RemoteWorkspaceStage {
         temp_dir: staged_dir,

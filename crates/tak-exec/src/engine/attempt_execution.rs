@@ -86,6 +86,16 @@ async fn execute_task_attempt(
     };
 
     if !synced_outputs.is_empty() {
+        if context.placement.placement_mode == PlacementMode::Remote {
+            emit_task_status_message(
+                context.output_observer,
+                &context.task.label,
+                context.attempt,
+                TaskStatusPhase::RemoteSyncOutputs,
+                context.placement.remote_node_id.as_deref(),
+                format!("syncing remote outputs ({} files)", synced_outputs.len()),
+            )?;
+        }
         sync_attempt_outputs(context, &synced_outputs, run_local_attempt).await?;
     }
 

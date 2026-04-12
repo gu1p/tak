@@ -16,12 +16,38 @@ async fn remote_protocol_events(
     const MAX_EVENT_RECONNECTS: u32 = 30;
     const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
     const EVENT_RECONNECT_DELAY: Duration = Duration::from_millis(500);
+    const EVENT_WAIT_HEARTBEAT: Duration = Duration::from_secs(5);
 
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
     let mut persisted_remote_logs = Vec::new();
+    let mut silent_since = tokio::time::Instant::now();
+    let mut next_wait_heartbeat = silent_since + EVENT_WAIT_HEARTBEAT;
+    emit_task_status_message(
+        output_observer,
+        task_label,
+        attempt,
+        TaskStatusPhase::RemoteWait,
+        Some(target.node_id.as_str()),
+        format!("waiting for remote logs from {}", target.node_id),
+    )?;
 
     loop {
+        while tokio::time::Instant::now() >= next_wait_heartbeat {
+            emit_task_status_message(
+                output_observer,
+                task_label,
+                attempt,
+                TaskStatusPhase::RemoteWait,
+                Some(target.node_id.as_str()),
+                format!(
+                    "still waiting for remote activity from {} ({}s elapsed)",
+                    target.node_id,
+                    silent_since.elapsed().as_secs()
+                ),
+            )?;
+            next_wait_heartbeat += EVENT_WAIT_HEARTBEAT;
+        }
         let path = format!("/v1/tasks/{task_run_id}/events?after_seq={last_seen_seq}");
         let response = remote_protocol_http_request(
             target,
@@ -62,6 +88,7 @@ async fn remote_protocol_events(
 
         let previous_seq = last_seen_seq;
         let parsed = parse_remote_events_response(target, &response_body, last_seen_seq)?;
+        let saw_remote_output = !parsed.remote_logs.is_empty();
         last_seen_seq = parsed.next_seq;
         for chunk in &parsed.remote_logs {
             emit_task_output(
@@ -73,6 +100,10 @@ async fn remote_protocol_events(
             )?;
         }
         persisted_remote_logs.extend(parsed.remote_logs);
+        if saw_remote_output {
+            silent_since = tokio::time::Instant::now();
+            next_wait_heartbeat = silent_since + EVENT_WAIT_HEARTBEAT;
+        }
         if parsed.done {
             return Ok((persisted_remote_logs, None));
         }

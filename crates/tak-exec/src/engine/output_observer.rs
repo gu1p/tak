@@ -19,3 +19,33 @@ fn emit_task_output(
         bytes: bytes.to_vec(),
     })
 }
+
+fn emit_task_status(
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    event: TaskStatusEvent,
+) -> Result<()> {
+    let Some(observer) = output_observer else {
+        return Ok(());
+    };
+    observer.observe_status(event)
+}
+
+fn emit_task_status_message(
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    task_label: &TaskLabel,
+    attempt: u32,
+    phase: TaskStatusPhase,
+    remote_node_id: Option<&str>,
+    message: impl Into<String>,
+) -> Result<()> {
+    emit_task_status(
+        output_observer,
+        TaskStatusEvent {
+            task_label: task_label.clone(),
+            attempt,
+            phase,
+            remote_node_id: remote_node_id.map(str::to_string),
+            message: message.into(),
+        },
+    )
+}

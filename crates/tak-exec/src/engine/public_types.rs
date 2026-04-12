@@ -65,8 +65,31 @@ pub struct TaskOutputChunk {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskStatusPhase {
+    RemoteProbe,
+    RemoteStageWorkspace,
+    RemoteSubmit,
+    RemoteWait,
+    RemoteSyncOutputs,
+    RetryWait,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskStatusEvent {
+    pub task_label: TaskLabel,
+    pub attempt: u32,
+    pub phase: TaskStatusPhase,
+    pub remote_node_id: Option<String>,
+    pub message: String,
+}
+
 pub trait TaskOutputObserver: Send + Sync {
     fn observe_output(&self, chunk: TaskOutputChunk) -> Result<()>;
+
+    fn observe_status(&self, _event: TaskStatusEvent) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]

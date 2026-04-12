@@ -12,10 +12,14 @@ async fn run_single_task(
     options: &RunOptions,
     lease_context: &LeaseContext,
 ) -> Result<TaskRunResult> {
-    let mut placement = preflight_task_placement(task, workspace_root).await?;
-    let mut runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
+    let mut placement = preflight_task_placement(task, workspace_root, options.output_observer.as_ref()).await?;
+    let runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
     let remote_workspace = if placement.placement_mode == PlacementMode::Remote {
-        Some(stage_remote_workspace(task, workspace_root)?)
+        Some(stage_remote_workspace(
+            task,
+            workspace_root,
+            options.output_observer.as_ref(),
+        )?)
     } else {
         None
     };
@@ -43,11 +47,11 @@ async fn run_single_task(
         resolve_attempt_submit_state(
             task,
             &mut placement,
-            &mut runtime_metadata,
             remote_workspace.as_ref(),
             &task_run_id,
             &task_label,
             attempt,
+            options.output_observer.as_ref(),
         )
         .await?;
 
@@ -97,8 +101,32 @@ async fn run_single_task(
         }
 
         let wait = retry_backoff_delay(&task.retry.backoff, attempt);
+        if placement.placement_mode == PlacementMode::Remote {
+            let message = if wait.is_zero() {
+                "retrying after failure immediately".to_string()
+            } else {
+                format!("retrying after failure in {}", format_status_duration(wait))
+            };
+            emit_task_status_message(
+                options.output_observer.as_ref(),
+                &task.label,
+                attempt + 1,
+                TaskStatusPhase::RetryWait,
+                placement.remote_node_id.as_deref(),
+                message,
+            )?;
+        }
         if !wait.is_zero() {
             tokio::time::sleep(wait).await;
         }
+    }
+}
+
+fn format_status_duration(duration: Duration) -> String {
+    let whole_seconds = duration.as_secs();
+    if duration.subsec_nanos() == 0 {
+        format!("{whole_seconds}s")
+    } else {
+        format!("{:.1}s", duration.as_secs_f64())
     }
 }

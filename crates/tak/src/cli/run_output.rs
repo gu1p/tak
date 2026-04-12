@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::sync::Mutex;
 
-use tak_exec::{TaskOutputChunk, TaskOutputObserver};
+use tak_exec::{TaskOutputChunk, TaskOutputObserver, TaskStatusEvent};
 
 use super::*;
 
@@ -33,6 +33,23 @@ impl TaskOutputObserver for StdStreamOutputObserver {
                 stderr.flush()?;
             }
         }
+        Ok(())
+    }
+
+    fn observe_status(&self, event: TaskStatusEvent) -> Result<()> {
+        let _guard = self
+            .stderr_lock
+            .lock()
+            .map_err(|_| anyhow!("stderr observer lock poisoned"))?;
+        let mut stderr = io::stderr().lock();
+        writeln!(
+            stderr,
+            "{} [attempt {}] {}",
+            canonical_label(&event.task_label),
+            event.attempt,
+            event.message
+        )?;
+        stderr.flush()?;
         Ok(())
     }
 }

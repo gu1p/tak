@@ -49,3 +49,31 @@ SPEC
 "#,
     )
 }
+
+pub fn write_remote_waiting_tasks(root: &std::path::Path) -> Result<()> {
+    write_tasks(
+        root,
+        r#"
+REMOTE = Remote(
+  pool="build",
+  required_tags=["builder"],
+  required_capabilities=["linux"],
+  transport=DirectHttps(),
+)
+
+remote_wait = task(
+  "remote_wait",
+  execution=RemoteOnly(REMOTE),
+  steps=[
+    cmd(
+      "sh",
+      "-c",
+      "sleep 6; printf 'remote-stdout\n'; printf 'remote-stderr\n' >&2; sleep 2",
+    )
+  ],
+)
+SPEC = module_spec(tasks=[remote_wait])
+SPEC
+"#,
+    )
+}

@@ -32,6 +32,7 @@ fn run_streams_local_stdout_and_stderr_before_summary() -> Result<()> {
     assert!(stderr.contains("local-stderr\n"));
     assert!(stdout.contains("//:stream_local: ok"));
     assert!(stdout.find("local-stdout\n") < stdout.find("//:stream_local: ok"));
+    assert!(!stderr.contains("probing remote node"));
     Ok(())
 }
 
@@ -59,5 +60,6 @@ fn run_streams_remote_stdout_and_stderr_before_summary() -> Result<()> {
     assert!(stderr.contains("remote-stderr\n"));
     assert!(stdout.contains("//:remote_stream: ok"));
     assert!(stdout.find("remote-stdout\n") < stdout.find("//:remote_stream: ok"));
+    assert!(!stdout.contains("probing remote node"));
     Ok(())
 }

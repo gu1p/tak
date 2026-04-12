@@ -3,5 +3,9 @@ name = "tak-runner"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+# Cargo rustdoc currently fails to resolve `tak-runner`'s re-export dependency graph under `cargo test`.
+doctest = false
+
 [dependencies]
 tak-exec = { path = "../tak-exec" }

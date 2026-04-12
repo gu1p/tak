@@ -1,7 +1,7 @@
 //! Tak command-line interface library.
 //!
 //! This crate exposes the CLI runtime used by the `tak` binary. Moving behavior
-//! into the library keeps command logic testable and doctestable.
+//! into the library keeps command logic testable.
 
 mod cli;
 mod diagnostics;

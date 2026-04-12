@@ -3,6 +3,10 @@ name = "tak-exec"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+# Cargo rustdoc currently fails to resolve `tak-exec`'s private dependency graph under `cargo test`.
+doctest = false
+
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true
