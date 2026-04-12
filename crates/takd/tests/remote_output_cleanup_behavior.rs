@@ -1,16 +1,16 @@
-use std::thread;
-use std::time::Duration;
-
 use prost::Message;
-use tak_proto::{ErrorResponse, GetTaskResultResponse, PollTaskEventsResponse};
+use tak_proto::GetTaskResultResponse;
 use takd::{SubmitAttemptStore, build_submit_idempotency_key, handle_remote_v1_request};
 
 #[path = "support/remote_output.rs"]
 mod remote_output;
 mod support;
+#[path = "support/wait_for_terminal_events.rs"]
+mod wait_for_terminal_events;
 
 use remote_output::{submit_shell_task, test_context};
 use support::env::{EnvGuard, env_lock};
+use wait_for_terminal_events::wait_for_terminal_events;
 
 #[test]
 fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
@@ -33,7 +33,6 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
         "mkdir -p dist && printf 'hello remote\\n' > dist/out.txt",
     );
     assert!(submit_ack.accepted);
-
     wait_for_terminal_events(&context, &store, "task-run-1");
 
     let submit_key = build_submit_idempotency_key("task-run-1", Some(1)).expect("submit key");
@@ -43,7 +42,6 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
         "finished remote execution root should be removed: {}",
         execution_root.display()
     );
-
     let result =
         handle_remote_v1_request(&context, &store, "GET", "/v1/tasks/task-run-1/result", None)
             .expect("result response");
@@ -61,35 +59,25 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
     .expect("output response");
     assert_eq!(output.status_code, 200);
     assert_eq!(output.body, b"hello remote\n");
-
-    let missing = handle_remote_v1_request(
+    let retry = handle_remote_v1_request(
         &context,
         &store,
         "GET",
         "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
         None,
     )
-    .expect("missing output response");
-    assert_eq!(missing.status_code, 404);
-    let error = ErrorResponse::decode(missing.body.as_slice()).expect("decode output error");
-    assert_eq!(error.message, "output_not_found");
-}
+    .expect("retry output response");
+    assert_eq!(retry.status_code, 200);
+    assert_eq!(retry.body, b"hello remote\n");
 
-fn wait_for_terminal_events(
-    context: &takd::RemoteNodeContext,
-    store: &SubmitAttemptStore,
-    task_run_id: &str,
-) {
-    let path = format!("/v1/tasks/{task_run_id}/events");
-    for _ in 0..50 {
-        let events =
-            handle_remote_v1_request(context, store, "GET", &path, None).expect("events response");
-        let events = PollTaskEventsResponse::decode(events.body.as_slice()).expect("decode events");
-        if events.done {
-            return;
-        }
-        thread::sleep(Duration::from_millis(20));
-    }
-
-    panic!("timed out waiting for terminal remote events");
+    let third_fetch = handle_remote_v1_request(
+        &context,
+        &store,
+        "GET",
+        "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
+        None,
+    )
+    .expect("third output response");
+    assert_eq!(third_fetch.status_code, 200);
+    assert_eq!(third_fetch.body, b"hello remote\n");
 }

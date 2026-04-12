@@ -63,7 +63,7 @@ pub(crate) use tor_server::{
     remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,
 };
 use types::{RemoteWorkerOutputRecord, RemoteWorkerSubmitPayload, WorkspaceFileFingerprint};
-use worker_output_artifacts::{consume_staged_remote_output, stage_remote_worker_outputs};
+use worker_output_artifacts::{read_staged_remote_output, stage_remote_worker_outputs};
 use worker_submit_execution::spawn_remote_worker_submit_execution;
 use worker_workspace_outputs::{
     changed_remote_worker_outputs, snapshot_workspace_files, unpack_remote_worker_workspace,

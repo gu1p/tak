@@ -42,7 +42,11 @@ fn run_reports_remote_progress_on_stderr_while_waiting_for_logs() -> Result<()> 
         "stderr:\n{stderr}"
     );
     assert!(
-        stderr.contains("waiting for remote logs"),
+        stderr.contains("waiting for remote activity"),
+        "stderr:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("waiting for remote logs"),
         "stderr:\n{stderr}"
     );
     assert!(

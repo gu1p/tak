@@ -26,7 +26,7 @@ pub(super) fn handle_remote_outputs_route(
     };
     let artifact_root = artifact_root_for_submit_key(&key);
     if artifact_root.exists() {
-        let Some(bytes) = consume_staged_remote_output(&key, &normalized)? else {
+        let Some(bytes) = read_staged_remote_output(&key, &normalized)? else {
             return Ok(Some(error_response(404, "output_not_found")));
         };
         return Ok(Some(binary_response(

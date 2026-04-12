@@ -45,7 +45,7 @@ pub(super) fn stage_remote_worker_outputs(
     Ok(())
 }
 
-pub(super) fn consume_staged_remote_output(
+pub(super) fn read_staged_remote_output(
     idempotency_key: &str,
     relative_path: &str,
 ) -> Result<Option<Vec<u8>>> {
@@ -67,16 +67,6 @@ pub(super) fn consume_staged_remote_output(
             });
         }
     };
-    if let Err(err) = fs::remove_file(&output_path)
-        && err.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(
-            "failed to remove served staged remote output {}: {err}",
-            output_path.display()
-        );
-    }
-    prune_empty_ancestor_dirs(&output_path, &artifact_root);
-
     Ok(Some(bytes))
 }
 
@@ -86,39 +76,5 @@ fn clear_remote_output_artifacts(artifact_root: &Path) -> Result<()> {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(err)
             .with_context(|| format!("failed to clear artifact root {}", artifact_root.display())),
-    }
-}
-
-fn prune_empty_ancestor_dirs(path: &Path, root: &Path) {
-    let mut current = path.parent();
-    while let Some(dir) = current {
-        if dir == root {
-            match fs::remove_dir(dir) {
-                Ok(()) => {}
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-                Err(err) if err.kind() == std::io::ErrorKind::DirectoryNotEmpty => break,
-                Err(err) => {
-                    tracing::warn!(
-                        "failed to prune artifact directory {}: {err}",
-                        dir.display()
-                    );
-                    break;
-                }
-            }
-            return;
-        }
-
-        match fs::remove_dir(dir) {
-            Ok(()) => current = dir.parent(),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => current = dir.parent(),
-            Err(err) if err.kind() == std::io::ErrorKind::DirectoryNotEmpty => break,
-            Err(err) => {
-                tracing::warn!(
-                    "failed to prune artifact directory {}: {err}",
-                    dir.display()
-                );
-                break;
-            }
-        }
     }
 }

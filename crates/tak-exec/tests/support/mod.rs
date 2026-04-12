@@ -22,7 +22,8 @@ pub use remote_worker_runtime::{
     CollectingObserver, configure_fake_docker_env, configure_real_docker_env, worker_spec,
 };
 pub use servers::{
-    AuthRejectingSubmitServer, DelayedEventsServer, NonTerminalEventsServer, RunningTakdServer,
+    AuthRejectingSubmitServer, DelayedEventsServer, EventPollPlan, NonTerminalEventsServer,
+    RunningTakdServer, ScriptedEventsServer,
 };
 pub use status_observer::CollectingStatusObserver;
 pub use task_spec::{
