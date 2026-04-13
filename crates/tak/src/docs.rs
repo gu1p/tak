@@ -32,6 +32,18 @@ struct ExampleEntry {
     avoid_when: Vec<String>,
 }
 
+struct EmbeddedExampleSources {
+    name: &'static str,
+    source_files: &'static [EmbeddedSourceFile],
+}
+
+struct EmbeddedSourceFile {
+    path: &'static str,
+    body: &'static str,
+}
+
+include!(concat!(env!("OUT_DIR"), "/docs_dump_examples.rs"));
+
 pub(crate) fn render_docs_dump() -> Result<String> {
     let catalog: Catalog =
         toml::from_str(CATALOG_TOML).context("failed to parse embedded examples catalog")?;
@@ -58,6 +70,10 @@ pub(crate) fn render_docs_dump() -> Result<String> {
     if documented_examples.is_empty() {
         bail!("embedded examples catalog does not expose any authoring metadata");
     }
+    let example_sources = DOCUMENTED_EXAMPLE_SOURCES
+        .iter()
+        .map(|entry| (entry.name, entry))
+        .collect::<BTreeMap<_, _>>();
 
     let mut project_shapes = BTreeMap::<String, Vec<&str>>::new();
     for entry in &documented_examples {
@@ -107,6 +123,10 @@ Start from the nearest example, then adapt the smallest pattern that matches the
 
     output.push_str("## Example Chooser\n\n");
     for entry in documented_examples {
+        let sources = example_sources
+            .get(entry.name.as_str())
+            .with_context(|| format!("missing embedded source files for `{}`", entry.name))?;
+
         let _ = writeln!(output, "### `{}`\n", entry.name);
         let _ = writeln!(output, "- Use when: {}", entry.use_when.trim());
         let _ = writeln!(
@@ -118,6 +138,15 @@ Start from the nearest example, then adapt the smallest pattern that matches the
         let _ = writeln!(output, "- Run target: `{}`", entry.run_target);
         if !entry.avoid_when.is_empty() {
             let _ = writeln!(output, "- Avoid when: {}", entry.avoid_when.join(", "));
+        }
+        output.push('\n');
+
+        output.push_str("#### Source Files\n\n");
+        for source in sources.source_files {
+            let _ = writeln!(output, "##### `{}`\n", source.path);
+            output.push_str("```python\n");
+            output.push_str(source.body.trim());
+            output.push_str("\n```\n\n");
         }
         output.push('\n');
     }

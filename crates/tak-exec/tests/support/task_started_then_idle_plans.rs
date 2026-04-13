@@ -6,7 +6,7 @@ use crate::support::EventPollPlan;
 
 pub fn task_started_then_idle_plans() -> Vec<EventPollPlan> {
     let mut plans = vec![EventPollPlan {
-        delay: Duration::from_millis(4500),
+        delay: Duration::from_millis(1000),
         events: vec![RemoteEvent {
             seq: 1,
             kind: "TASK_STARTED".into(),

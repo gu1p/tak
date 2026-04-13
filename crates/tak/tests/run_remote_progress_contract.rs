@@ -25,6 +25,7 @@ fn run_reports_remote_progress_on_stderr_while_waiting_for_logs() -> Result<()> 
 
     let mut command = tak_command(&workspace_root, &roots.client_config_root);
     command
+        .env("TAK_TEST_REMOTE_WAIT_HEARTBEAT_MS", "1000")
         .args(["run", "//:remote_wait"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -42,15 +43,19 @@ fn run_reports_remote_progress_on_stderr_while_waiting_for_logs() -> Result<()> 
         "stderr:\n{stderr}"
     );
     assert!(
-        stderr.contains("waiting for remote activity"),
+        stderr.contains("waiting for remote output from"),
         "stderr:\n{stderr}"
     );
     assert!(
-        !stderr.contains("waiting for remote logs"),
+        !stderr.contains("waiting for remote activity"),
         "stderr:\n{stderr}"
     );
     assert!(
-        stderr.contains("still waiting for remote activity"),
+        stderr.contains("remote task still running on"),
+        "stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("jobs=") && stderr.contains("cpu=") && stderr.contains("ram="),
         "stderr:\n{stderr}"
     );
     assert!(stderr.contains("remote-stderr\n"), "stderr:\n{stderr}");

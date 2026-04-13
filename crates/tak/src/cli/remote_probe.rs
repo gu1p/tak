@@ -3,12 +3,12 @@ use super::remote_probe_support::{
     ProbeAttemptError, test_tor_onion_dial_addr, tor_probe_retry_policy,
 };
 use anyhow::{Context, Result, anyhow, bail};
-use arti_client::{TorClient, TorClientConfig};
+use arti_client::TorClient;
 use prost::Message;
 use std::time::Instant;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{
-    endpoint_host_port as shared_endpoint_host_port,
+    default_client_tor_config, endpoint_host_port as shared_endpoint_host_port,
     endpoint_socket_addr as shared_endpoint_socket_addr,
 };
 use tak_proto::NodeInfo;
@@ -45,7 +45,9 @@ pub(super) async fn probe_node(
 
     loop {
         if test_dial_addr.is_none() && tor_client.is_none() {
-            match TorClient::create_bootstrapped(TorClientConfig::default())
+            let config =
+                default_client_tor_config().context("build tor node probe client config")?;
+            match TorClient::create_bootstrapped(config)
                 .await
                 .context("bootstrap tor node probe client")
             {
@@ -113,7 +115,7 @@ async fn connect(endpoint: &str, kind: RemoteTransportKind) -> Result<RemoteStre
     if let Some(test_dial_addr) = test_tor_onion_dial_addr() {
         return Ok(Box::new(TcpStream::connect(test_dial_addr).await?));
     }
-    let client = TorClient::create_bootstrapped(TorClientConfig::default()).await?;
+    let client = TorClient::create_bootstrapped(default_client_tor_config()?).await?;
     Ok(Box::new(client.connect((host.as_str(), port)).await?))
 }
 

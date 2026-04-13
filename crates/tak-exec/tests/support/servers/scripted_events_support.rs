@@ -1,13 +1,15 @@
-use std::net::TcpStream;
-
-use tak_proto::{
-    ErrorResponse, GetTaskResultResponse, NodeInfo, PollTaskEventsResponse, SubmitTaskResponse,
-};
+use tak_proto::{ErrorResponse, PollTaskEventsResponse, SubmitTaskResponse};
 
 use super::super::super::http::{read_request_path, write_protobuf_response};
-use super::ScriptedEventsState;
+use super::{
+    scripted_events_state::ScriptedEventsState,
+    scripted_node_status::{node_info, node_status, status_unavailable},
+};
 
-pub(super) fn serve_request(stream: &mut TcpStream, state: &mut ScriptedEventsState) -> bool {
+pub(super) fn serve_request(
+    stream: &mut std::net::TcpStream,
+    state: &mut ScriptedEventsState,
+) -> bool {
     let Some(path) = read_request_path(stream) else {
         return true;
     };
@@ -18,6 +20,14 @@ pub(super) fn serve_request(stream: &mut TcpStream, state: &mut ScriptedEventsSt
         }
         "/v1/node/info" => {
             write_protobuf_response(stream, "200 OK", &node_info(&state.node_id, state.port));
+            true
+        }
+        "/v1/node/status" => {
+            if state.status_available {
+                write_protobuf_response(stream, "200 OK", &node_status(&state.node_id, state.port));
+            } else {
+                write_protobuf_response(stream, "500 Internal Server Error", &status_unavailable());
+            }
             true
         }
         "/v1/tasks/submit" => {
@@ -48,7 +58,13 @@ pub(super) fn serve_request(stream: &mut TcpStream, state: &mut ScriptedEventsSt
             if state.event_calls >= state.result_ready_after_event_calls {
                 write_protobuf_response(stream, "200 OK", &state.result);
             } else {
-                write_protobuf_response(stream, "404 Not Found", &result_not_ready());
+                write_protobuf_response(
+                    stream,
+                    "404 Not Found",
+                    &ErrorResponse {
+                        message: "result_not_ready".into(),
+                    },
+                );
             }
             true
         }
@@ -65,24 +81,5 @@ fn submit_response(idempotency_key: &str) -> SubmitTaskResponse {
         attached: false,
         idempotency_key: idempotency_key.into(),
         remote_worker: true,
-    }
-}
-
-fn node_info(node_id: &str, port: u16) -> NodeInfo {
-    NodeInfo {
-        node_id: node_id.into(),
-        display_name: node_id.into(),
-        base_url: format!("http://127.0.0.1:{port}"),
-        healthy: true,
-        pools: vec!["build".into()],
-        tags: vec!["builder".into()],
-        capabilities: vec!["linux".into()],
-        transport: "direct".into(),
-    }
-}
-
-fn result_not_ready() -> ErrorResponse {
-    ErrorResponse {
-        message: "result_not_ready".into(),
     }
 }

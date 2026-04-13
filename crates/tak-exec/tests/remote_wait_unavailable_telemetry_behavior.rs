@@ -18,7 +18,7 @@ use support::{
 };
 
 #[tokio::test]
-async fn emits_wait_heartbeat_while_first_events_request_is_still_blocked() {
+async fn wait_heartbeat_reports_unavailable_telemetry_without_failing_the_run() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -28,20 +28,21 @@ async fn emits_wait_heartbeat_while_first_events_request_is_still_blocked() {
     env.set("XDG_CONFIG_HOME", config_root.display().to_string());
     env.set("TAK_TEST_REMOTE_WAIT_HEARTBEAT_MS", "1500");
 
-    let server = ScriptedEventsServer::spawn(
-        "builder-heartbeat",
+    let server = ScriptedEventsServer::spawn_with_status(
+        "builder-heartbeat-missing-status",
         vec![EventPollPlan {
             delay: Duration::from_secs(2),
             events: Vec::new(),
             done: true,
         }],
         0,
-        success_result("builder-heartbeat"),
+        success_result("builder-heartbeat-missing-status"),
+        false,
     );
     write_remote_inventory(
         &config_root,
         &[RemoteInventoryRecord::builder(
-            "builder-heartbeat",
+            "builder-heartbeat-missing-status",
             &server.base_url,
             "secret",
             "direct",
@@ -71,15 +72,7 @@ async fn emits_wait_heartbeat_while_first_events_request_is_still_blocked() {
     assert!(statuses.iter().any(|event| {
         event
             .message
-            .contains("remote task still running on builder-heartbeat")
-            && event.message.contains("no new output for 1s")
-            && event.message.contains("jobs=1")
-            && event.message.contains("cpu=12.5%/8c")
-            && event.message.contains("ram=2.0KiB/8.0KiB")
+            .contains("remote task still running on builder-heartbeat-missing-status")
+            && event.message.contains("node telemetry unavailable")
     }));
-    assert!(
-        !statuses
-            .iter()
-            .any(|event| event.message.contains("remote activity"))
-    );
 }

@@ -1,8 +1,9 @@
 use anyhow::{Context, Result, anyhow, bail};
-use arti_client::{TorClient, TorClientConfig};
+use arti_client::TorClient;
 use futures::future::join_all;
 use std::time::Instant;
 use tak_core::model::RemoteTransportKind;
+use tak_exec::default_client_tor_config;
 use tak_proto::NodeStatusResponse;
 use tokio::io::AsyncRead;
 use tokio::net::TcpStream;
@@ -63,7 +64,9 @@ async fn fetch_node_status(
     let mut last_error = anyhow!("node status failed without a retryable error");
     loop {
         if test_dial_addr.is_none() && tor_client.is_none() {
-            match TorClient::create_bootstrapped(TorClientConfig::default())
+            let config =
+                default_client_tor_config().context("build tor node status client config")?;
+            match TorClient::create_bootstrapped(config)
                 .await
                 .context("bootstrap tor node status client")
             {
@@ -129,8 +132,9 @@ async fn connect(endpoint: &str, kind: RemoteTransportKind) -> Result<RemoteStre
     if let Some(test_dial_addr) = test_tor_onion_dial_addr() {
         return Ok(Box::new(TcpStream::connect(test_dial_addr).await?));
     }
+    let config = default_client_tor_config()?;
     Ok(Box::new(
-        TorClient::create_bootstrapped(TorClientConfig::default())
+        TorClient::create_bootstrapped(config)
             .await?
             .connect((host.as_str(), port))
             .await?,

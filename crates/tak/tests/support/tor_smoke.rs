@@ -52,10 +52,15 @@ pub fn takd_bin() -> PathBuf {
 
 pub fn tak_command(workspace_root: &Path, config_root: &Path) -> StdCommand {
     let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    let state_root = config_root
+        .parent()
+        .expect("client config root should have a parent")
+        .join("client-state");
     apply_live_tor_probe_env(
         command
             .current_dir(workspace_root)
             .env("XDG_CONFIG_HOME", config_root)
+            .env("XDG_STATE_HOME", state_root)
             .env("TAKD_SOCKET", workspace_root.join(".missing-takd.sock")),
     );
     command

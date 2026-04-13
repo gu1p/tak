@@ -26,11 +26,9 @@ impl RemoteTransportAdapter for DirectHttpsTransportAdapter {
     fn name(&self) -> &'static str {
         "direct"
     }
-
     fn socket_addr(&self, endpoint: &str) -> Result<String> {
         endpoint_socket_addr(endpoint)
     }
-
     fn connect_stream<'a>(
         &'a self,
         target: &'a StrictRemoteTarget,
@@ -48,19 +46,15 @@ impl RemoteTransportAdapter for TorTransportAdapter {
     fn name(&self) -> &'static str {
         "tor"
     }
-
     fn socket_addr(&self, endpoint: &str) -> Result<String> {
         endpoint_socket_addr(endpoint)
     }
-
     fn preflight_timeout(&self) -> Duration {
         tor_connect_timeout()
     }
-
     fn min_phase_timeout(&self) -> Duration {
         tor_connect_timeout()
     }
-
     fn connect_stream<'a>(
         &'a self,
         target: &'a StrictRemoteTarget,
@@ -73,7 +67,6 @@ impl RemoteTransportAdapter for TorTransportAdapter {
                 let stream: RemoteIoStream = Box::new(stream);
                 return Ok(stream);
             }
-
             if let Some(test_dial_addr) = test_tor_onion_dial_addr() {
                 loop {
                     match TcpStream::connect(&test_dial_addr).await.with_context(|| {
@@ -87,7 +80,6 @@ impl RemoteTransportAdapter for TorTransportAdapter {
                     }
                 }
             }
-
             let tor_client = shared_tor_client(target).await?;
             loop {
                 match tor_client
@@ -176,9 +168,15 @@ async fn shared_tor_client(
         .get_or_init(tokio::sync::OnceCell::const_new)
         .get_or_try_init(|| async move {
             let deadline = tokio::time::Instant::now() + tor_connect_timeout();
+            let config = default_client_tor_config().with_context(|| {
+                format!(
+                    "infra error: remote node {} unavailable at {}",
+                    target.node_id, target.endpoint
+                )
+            })?;
 
             loop {
-                match TorClient::create_bootstrapped(TorClientConfig::default()).await {
+                match TorClient::create_bootstrapped(config.clone()).await {
                     Ok(client) => return Ok(client),
                     Err(error) if tokio::time::Instant::now() >= deadline => {
                         return Err(error).with_context(|| {

@@ -33,3 +33,7 @@ tempfile.workspace = true
 serde.workspace = true
 toml.workspace = true
 takd = { path = "../takd" }
+
+[build-dependencies]
+serde.workspace = true
+toml.workspace = true

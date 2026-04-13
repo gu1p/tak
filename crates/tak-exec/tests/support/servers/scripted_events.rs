@@ -7,26 +7,20 @@ use std::time::Duration;
 
 use tak_proto::{GetTaskResultResponse, RemoteEvent};
 
-use self::scripted_events_support::serve_request;
+use self::{scripted_events_state::ScriptedEventsState, scripted_events_support::serve_request};
 
+#[path = "scripted_events_state.rs"]
+mod scripted_events_state;
 #[path = "scripted_events_support.rs"]
 mod scripted_events_support;
+#[path = "scripted_node_status.rs"]
+mod scripted_node_status;
 
 #[derive(Clone)]
 pub struct EventPollPlan {
     pub delay: Duration,
     pub events: Vec<RemoteEvent>,
     pub done: bool,
-}
-
-pub(super) struct ScriptedEventsState {
-    pub node_id: String,
-    pub port: u16,
-    pub plans: Vec<EventPollPlan>,
-    pub fallback_plan: EventPollPlan,
-    pub event_calls: usize,
-    pub result_ready_after_event_calls: usize,
-    pub result: GetTaskResultResponse,
 }
 
 pub struct ScriptedEventsServer {
@@ -42,6 +36,16 @@ impl ScriptedEventsServer {
         result_ready_after_event_calls: usize,
         result: GetTaskResultResponse,
     ) -> Self {
+        Self::spawn_with_status(node_id, plans, result_ready_after_event_calls, result, true)
+    }
+
+    pub fn spawn_with_status(
+        node_id: &str,
+        plans: Vec<EventPollPlan>,
+        result_ready_after_event_calls: usize,
+        result: GetTaskResultResponse,
+        status_available: bool,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind scripted event server");
         let port = listener
             .local_addr()
@@ -52,6 +56,7 @@ impl ScriptedEventsServer {
             let mut state = ScriptedEventsState {
                 node_id,
                 port,
+                status_available,
                 fallback_plan: plans
                     .last()
                     .cloned()

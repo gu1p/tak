@@ -16,20 +16,20 @@ async fn remote_protocol_events(
     const MAX_EVENT_RECONNECTS: u32 = 30;
     const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
     const EVENT_RECONNECT_DELAY: Duration = Duration::from_millis(500);
-    const EVENT_WAIT_HEARTBEAT: Duration = Duration::from_secs(5);
+    let event_wait_heartbeat = remote_wait_heartbeat_interval();
 
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
     let mut persisted_remote_logs = Vec::new();
     let mut silent_since = tokio::time::Instant::now();
-    let mut next_wait_heartbeat = silent_since + EVENT_WAIT_HEARTBEAT;
+    let mut next_wait_heartbeat = silent_since + event_wait_heartbeat;
     emit_task_status_message(
         output_observer,
         task_label,
         attempt,
         TaskStatusPhase::RemoteWait,
         Some(target.node_id.as_str()),
-        format!("waiting for remote activity from {}", target.node_id),
+        format!("waiting for remote output from {}", target.node_id),
     )?;
 
     loop {
@@ -50,19 +50,20 @@ async fn remote_protocol_events(
             tokio::select! {
                 response = &mut response => break response,
                 _ = &mut wait_heartbeat => {
+                    let heartbeat_message = render_remote_wait_heartbeat(
+                        target,
+                        silent_since.elapsed().as_secs(),
+                    )
+                    .await;
                     emit_task_status_message(
                         output_observer,
                         task_label,
                         attempt,
                         TaskStatusPhase::RemoteWait,
                         Some(target.node_id.as_str()),
-                        format!(
-                            "still waiting for remote activity from {} ({}s elapsed)",
-                            target.node_id,
-                            silent_since.elapsed().as_secs()
-                        ),
+                        heartbeat_message,
                     )?;
-                    next_wait_heartbeat += EVENT_WAIT_HEARTBEAT;
+                    next_wait_heartbeat += event_wait_heartbeat;
                 }
             }
         };
@@ -110,7 +111,7 @@ async fn remote_protocol_events(
         persisted_remote_logs.extend(parsed.remote_logs);
         if saw_new_activity {
             silent_since = tokio::time::Instant::now();
-            next_wait_heartbeat = silent_since + EVENT_WAIT_HEARTBEAT;
+            next_wait_heartbeat = silent_since + event_wait_heartbeat;
         }
         if parsed.done {
             return Ok((persisted_remote_logs, None));

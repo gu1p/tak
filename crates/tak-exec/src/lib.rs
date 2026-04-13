@@ -14,7 +14,6 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use arti_client::TorClient;
-use arti_client::TorClientConfig;
 use base64::Engine;
 use sha2::{Digest, Sha256};
 use tak_core::model::{
@@ -30,6 +29,7 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
 mod client_remotes;
+mod client_tor;
 mod container_engine;
 mod container_runtime;
 mod execution_graph;
@@ -40,6 +40,7 @@ mod retry;
 mod step_runner;
 mod summary;
 use client_remotes::configured_remote_targets;
+pub use client_tor::default_client_tor_config;
 use container_engine::{
     ContainerEngine, ShellContainerEngineProbe, resolve_container_engine_host_platform,
     select_container_engine_with_probe,
@@ -87,6 +88,7 @@ include!("engine/placement.rs");
 include!("engine/preflight_fallback.rs");
 include!("engine/protocol_detection.rs");
 include!("engine/protocol_submit.rs");
+include!("engine/remote_wait_status.rs");
 include!("engine/protocol_events.rs");
 include!("engine/protocol_result_http.rs");
 include!("engine/step_execution.rs");

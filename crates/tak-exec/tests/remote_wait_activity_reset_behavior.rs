@@ -28,6 +28,7 @@ async fn task_started_event_resets_remote_inactivity_before_warning_is_due() {
     let config_root = temp.path().join("config");
     fs::create_dir_all(&workspace_root).expect("create workspace");
     env.set("XDG_CONFIG_HOME", config_root.display().to_string());
+    env.set("TAK_TEST_REMOTE_WAIT_HEARTBEAT_MS", "1500");
 
     let server = ScriptedEventsServer::spawn(
         "builder-task-started",
@@ -69,7 +70,7 @@ async fn task_started_event_resets_remote_inactivity_before_warning_is_due() {
         !statuses.iter().any(|event| {
             event
                 .message
-                .contains("still waiting for remote activity from builder-task-started")
+                .contains("remote task still running on builder-task-started")
         }),
         "statuses:\n{statuses:#?}"
     );

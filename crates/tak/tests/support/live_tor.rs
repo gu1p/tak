@@ -1,29 +1,10 @@
 #![allow(dead_code)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command as StdCommand, Stdio};
 
+pub use super::live_tor_roots::LiveTorRoots;
 use super::tor_smoke::{ChildGuard, assert_success, assert_success_with_log, tak_command};
-
-pub struct LiveTorRoots {
-    pub server_config_root: PathBuf,
-    pub server_state_root: PathBuf,
-    pub client_config_root: PathBuf,
-}
-
-impl LiveTorRoots {
-    pub fn new(base: &Path) -> Self {
-        Self {
-            server_config_root: base.join("server-config"),
-            server_state_root: base.join("server-state"),
-            client_config_root: base.join("client-config"),
-        }
-    }
-
-    pub fn service_log_path(&self) -> PathBuf {
-        self.server_state_root.join("service.log")
-    }
-}
 
 pub fn init_tor_agent(takd: &Path, roots: &LiveTorRoots, node_id: &str) {
     let output = StdCommand::new(takd)
