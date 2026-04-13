@@ -21,6 +21,11 @@ pub async fn run_cli() -> Result<()> {
             let spec = load_workspace_from_cwd()?;
             print!("{}", crate::list_tui::render_tree(&spec)?);
         }
+        Commands::Docs { command } => match command {
+            super::command_model::DocsCommands::Dump => {
+                print!("{}", crate::docs::render_docs_dump()?);
+            }
+        },
         Commands::Explain { label } => {
             let spec = load_workspace_from_cwd()?;
             let label = parse_input_label(&spec, &label, "explain")?;

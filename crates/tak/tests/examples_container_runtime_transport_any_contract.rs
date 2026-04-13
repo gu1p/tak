@@ -39,6 +39,10 @@ fn example_entry(remote_fixture: &str, transport: &str, remote_node: &str) -> Ex
                 contains: "container-log-storm-verified".into(),
             },
         ],
+        capabilities: Vec::new(),
+        use_when: String::new(),
+        project_shapes: Vec::new(),
+        avoid_when: Vec::new(),
     }
 }
 

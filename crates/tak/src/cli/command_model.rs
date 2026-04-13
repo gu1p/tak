@@ -13,6 +13,10 @@ pub(super) struct Cli {
 pub(super) enum Commands {
     List,
     Tree,
+    Docs {
+        #[command(subcommand)]
+        command: DocsCommands,
+    },
     Explain {
         label: String,
     },
@@ -48,6 +52,11 @@ pub(super) enum Commands {
         command: RemoteCommands,
     },
     Status,
+}
+
+#[derive(Debug, Subcommand)]
+pub(super) enum DocsCommands {
+    Dump,
 }
 
 #[derive(Debug, Subcommand)]

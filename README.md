@@ -48,6 +48,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Enumerate fully-qualified task labels in the current directory workspace.
 - `tak tree`
   - Render tasks as a tree for quick topology inspection.
+- `tak docs dump`
+  - Print the embedded agent-oriented Tak authoring bundle with DSL surface and example chooser.
 - `tak explain <label>`
   - Show task composition (`deps`, `steps`, `needs`, timeout, retry).
 - `tak graph [label] --format dot`
@@ -227,6 +229,7 @@ make check
 
 ## Documentation Map
 
+- Agent authoring bundle: `tak docs dump`
 - Phased ergonomics and distribution guide: [`docs/ergonomics-and-distribution-phases.md`](docs/ergonomics-and-distribution-phases.md)
 - System overview: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Core internals: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)

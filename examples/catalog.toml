@@ -5,6 +5,10 @@ explain_target = "//:hello"
 expect_success = true
 requires_daemon = false
 check_files = ["out/hello.txt"]
+capabilities = ["basic-task", "single-step", "output-artifact"]
+use_when = "You need the smallest possible starting point for a new TASKS.py."
+project_shapes = ["starter", "single-package"]
+avoid_when = ["You need retries, coordination, or multi-package composition."]
 
 [[example]]
 name = "small/02_two_step_dep_chain"
@@ -29,6 +33,10 @@ explain_target = "//:env_cmd"
 expect_success = true
 requires_daemon = false
 check_files = ["out/marker.txt"]
+capabilities = ["cwd", "env", "local-command-steps"]
+use_when = "Your task steps need explicit working-directory or environment control."
+project_shapes = ["single-package", "shell-heavy"]
+avoid_when = ["Retry policy or remote placement is the main concern."]
 
 [[example]]
 name = "small/05_script_step_with_interpreter"
@@ -61,6 +69,10 @@ explain_target = "//:flaky_fixed"
 expect_success = true
 requires_daemon = false
 check_files = ["out/retry_fixed.txt"]
+capabilities = ["retry", "fixed-backoff", "exit-code-matching"]
+use_when = "A task is flaky and should retry only for selected exit codes."
+project_shapes = ["single-package", "ci-retry"]
+avoid_when = ["Failures should stay terminal with no retry."]
 
 [[example]]
 name = "small/09_retry_exp_jitter_match_exit"
@@ -85,6 +97,10 @@ explain_target = "//:ui_test"
 expect_success = true
 requires_daemon = true
 check_files = ["out/ui_lock.txt"]
+capabilities = ["machine-lock", "needs-coordination", "shared-ui-resource"]
+use_when = "Multiple tasks share an exclusive local resource such as UI automation or a browser session."
+project_shapes = ["desktop-ui", "shared-machine"]
+avoid_when = ["No daemon-backed coordination is available."]
 
 [[example]]
 name = "medium/12_resource_cpu_ram_pool"
@@ -141,6 +157,10 @@ explain_target = "//apps/web:all"
 expect_success = true
 requires_daemon = false
 check_files = ["out/monorepo.log"]
+capabilities = ["includes", "cross-package-deps", "monorepo"]
+use_when = "One root TASKS.py needs to compose tasks from apps or libs with explicit includes."
+project_shapes = ["monorepo", "multi-package"]
+avoid_when = ["Everything fits cleanly in one package."]
 
 [[example]]
 name = "medium/19_parallel_independent_targets"
@@ -189,6 +209,10 @@ explain_target = "//apps/qa:release"
 expect_success = true
 requires_daemon = true
 check_files = ["out/full_matrix_release.txt"]
+capabilities = ["defaults", "queues", "scripts", "full-pipeline"]
+use_when = "You need a realistic end-to-end pipeline with multiple Tak features working together."
+project_shapes = ["complex-pipeline", "monorepo"]
+avoid_when = ["You only need a minimal starter or one isolated feature."]
 
 [[example]]
 name = "large/25_remote_direct_build_and_artifact_roundtrip"
@@ -205,6 +229,10 @@ check_files = [
   "out/local-verify.log",
   "out/release-summary.txt",
 ]
+capabilities = ["remote-only", "artifact-roundtrip", "direct-remote", "local-verify"]
+use_when = "Build should run remotely and return declared outputs for local follow-up or verification."
+project_shapes = ["remote-build", "artifact-pipeline"]
+avoid_when = ["All work should stay local or remote infrastructure is unavailable."]
 
 [[example.check_file_contains]]
 path = "out/release-summary.txt"
@@ -258,6 +286,10 @@ check_files = [
   "out/remote-test-output.log",
   "out/remote-failure-reason.txt",
 ]
+capabilities = ["hybrid-local-remote", "failure-diagnostics", "log-retention"]
+use_when = "A pipeline mixes local prep with remote test execution and you need strong failure artifacts."
+project_shapes = ["hybrid-test-suite", "remote-ci"]
+avoid_when = ["You need only a success-path remote example."]
 
 [[example.check_file_contains]]
 path = "out/remote-failure-reason.txt"

@@ -51,6 +51,7 @@ SPEC = module_spec(
         task(
             "check",
             context=CurrentState(ignored=[gitignore()]),
+            outputs=[],
             steps=FMT_CHECK_STEPS
             + LINE_LIMITS_CHECK_STEPS
             + SRC_TEST_SEPARATION_CHECK_STEPS

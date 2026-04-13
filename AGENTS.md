@@ -12,6 +12,15 @@ For Rust-specific coding style and guidelines, also read RUST_GUIDELINES.md
 - Changes must be **small, reviewable, and reversible**.
 - Always keep the product UX stable: the UI must not “silently degrade” through refactors.
 
+## Agent Knowledge Extraction
+
+- Before authoring or revising `TASKS.py`, run `tak docs dump`.
+- Treat that bundle as the canonical extraction path for:
+  - Tak capabilities
+  - the shipped `TASKS.py` DSL surface
+  - example selection for similar project shapes
+- Prefer adapting the closest shipped example from the bundle instead of inventing a new pattern first.
+
 ## Required Workflow (Red → Green → Refactor)
 
 Work proceeds in this exact order:

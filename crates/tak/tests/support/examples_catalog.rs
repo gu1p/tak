@@ -30,6 +30,14 @@ pub struct ExampleEntry {
     pub check_files: Vec<String>,
     #[serde(default)]
     pub check_file_contains: Vec<CheckFileContains>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub use_when: String,
+    #[serde(default)]
+    pub project_shapes: Vec<String>,
+    #[serde(default)]
+    pub avoid_when: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

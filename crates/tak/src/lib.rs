@@ -7,6 +7,7 @@ mod cli;
 mod diagnostics;
 #[cfg(test)]
 mod diagnostics_tests;
+mod docs;
 mod list_tui;
 pub mod web;
 
