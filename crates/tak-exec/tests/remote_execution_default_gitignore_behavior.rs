@@ -9,7 +9,7 @@ mod support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_builder_spec,
-    remote_task_spec, shell_step, write_remote_inventory,
+    remote_task_spec_with_outputs, shell_step, workspace_output_path, write_remote_inventory,
 };
 
 #[tokio::test]
@@ -41,13 +41,14 @@ async fn implicit_default_remote_context_honors_workspace_gitignore() {
         )],
     );
 
-    let (spec, label) = remote_task_spec(
+    let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
         "default_gitignore",
         vec![shell_step(
             "test ! -e target/ignored.txt && cp src/input.txt out.txt",
         )],
         remote_builder_spec(RemoteTransportKind::Direct),
+        vec![workspace_output_path("out.txt")],
     );
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

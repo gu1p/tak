@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use serde::Serialize;
-use tak_core::model::{RemoteRuntimeSpec, StepDef};
+use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef};
 use tak_proto::{NodeInfo, NodeStatusResponse};
 
 use super::query_helpers::remote_execution_root_base;
@@ -14,17 +14,12 @@ pub(super) struct RemoteWorkerSubmitPayload {
     pub(super) steps: Vec<StepDef>,
     pub(super) timeout_s: Option<u64>,
     pub(super) runtime: Option<RemoteRuntimeSpec>,
+    pub(super) outputs: Vec<OutputSelectorSpec>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct RemoteWorkerOutputRecord {
     pub(super) path: String,
-    pub(super) digest: String,
-    pub(super) size: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct WorkspaceFileFingerprint {
     pub(super) digest: String,
     pub(super) size: u64,
 }

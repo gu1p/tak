@@ -44,6 +44,7 @@ pub(super) fn resolved_task(label: TaskLabel, execution: TaskExecutionSpec) -> R
         retry: RetryDef::default(),
         timeout_s: None,
         context: CurrentStateSpec::default(),
+        outputs: Vec::new(),
         container_runtime: None,
         execution,
         tags: Vec::new(),

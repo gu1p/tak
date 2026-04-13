@@ -50,6 +50,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
             scope_key: None,
             slots: 1.0,
         }],
+        outputs: Vec::new(),
     };
     let submit = handle_remote_v1_request(
         &context,

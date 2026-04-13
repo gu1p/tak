@@ -44,6 +44,7 @@ fn resolved_task(
         retry: RetryDef::default(),
         timeout_s: None,
         context: CurrentStateSpec::default(),
+        outputs: Vec::new(),
         container_runtime,
         execution,
         tags: Vec::new(),

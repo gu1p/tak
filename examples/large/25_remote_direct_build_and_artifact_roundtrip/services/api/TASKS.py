@@ -14,6 +14,7 @@ SPEC = module_spec(
     task(
       "build_remote",
       deps=["//:prepare_context"],
+      outputs=[path("//out")],
       steps=[
         cmd(
           "sh",

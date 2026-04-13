@@ -97,6 +97,7 @@ pub struct TaskRunResult {
     pub attempts: u32,
     pub success: bool,
     pub exit_code: Option<i32>,
+    pub failure_detail: Option<String>,
     pub placement_mode: PlacementMode,
     pub remote_node_id: Option<String>,
     pub remote_transport_kind: Option<String>,

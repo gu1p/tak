@@ -9,7 +9,8 @@ mod support;
 
 use support::{
     AuthRejectingSubmitServer, EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock,
-    remote_builder_spec, remote_task_spec, shell_step, write_remote_inventory,
+    remote_builder_spec, remote_task_spec_with_outputs, shell_step, workspace_output_path,
+    write_remote_inventory,
 };
 
 #[tokio::test]
@@ -46,13 +47,14 @@ async fn remote_execution_retries_submit_on_auth_failure_with_next_candidate() {
         ],
     );
 
-    let (spec, label) = remote_task_spec(
+    let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
         "remote_auth_fallback",
         vec![shell_step(
             "mkdir -p dist && echo auth-fallback > dist/out.txt",
         )],
         remote_builder_spec(RemoteTransportKind::Direct),
+        vec![workspace_output_path("dist/out.txt")],
     );
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

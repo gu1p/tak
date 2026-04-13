@@ -25,7 +25,6 @@ fn execute_remote_worker_submit(
 
     let execution_result = (|| -> Result<_> {
         unpack_remote_worker_workspace(&payload.workspace_zip, &execution_root)?;
-        let before = snapshot_workspace_files(&execution_root)?;
 
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -45,7 +44,11 @@ fn execute_remote_worker_submit(
             },
             Some(output_observer),
         ))?;
-        let outputs = changed_remote_worker_outputs(&execution_root, &before)?;
+        let outputs = collect_declared_remote_worker_outputs(
+            &execution_root,
+            &payload.outputs,
+            result.success,
+        )?;
         stage_remote_worker_outputs(idempotency_key, &execution_root, &outputs)?;
 
         Ok((result, outputs))

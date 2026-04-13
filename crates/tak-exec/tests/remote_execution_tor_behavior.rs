@@ -9,7 +9,7 @@ mod support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_builder_spec,
-    remote_task_spec, shell_step, write_remote_inventory,
+    remote_task_spec_with_outputs, shell_step, workspace_output_path, write_remote_inventory,
 };
 
 #[tokio::test]
@@ -38,11 +38,12 @@ async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
         )],
     );
 
-    let (spec, label) = remote_task_spec(
+    let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
         "remote_tor",
         vec![shell_step("mkdir -p dist && echo tor > dist/out.txt")],
         remote_builder_spec(RemoteTransportKind::Tor),
+        vec![workspace_output_path("dist/out.txt")],
     );
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use ignore::gitignore::GitignoreBuilder;
 use monty::{LimitedTracker, MontyObject, MontyRun, PrintWriter, ResourceLimits};
 use monty_type_checking::{SourceFile, type_check};
 use serde_json::{Map, Value};
@@ -18,10 +19,10 @@ use tak_core::label::parse_label;
 use tak_core::model::{
     ContainerRuntimeSourceInputSpec, ContainerRuntimeSourceSpec, CurrentStateDef, CurrentStateSpec,
     IgnoreSourceDef, IgnoreSourceSpec, LimiterDef, LimiterKey, LimiterRef, LocalDef, LocalSpec,
-    ModuleSpec, PathInputDef, PathRef, PolicyDecisionDef, PolicyDecisionModeDef,
-    PolicyDecisionSpec, QueueDef, RemoteDef, RemoteRuntimeDef, RemoteRuntimeSpec, RemoteSpec,
-    RemoteTransportDef, RemoteTransportKind, ResolvedTask, RetryDef, Scope, TaskExecutionDef,
-    TaskExecutionSpec, TaskLabel, WorkspaceSpec, normalize_path_ref,
+    ModuleSpec, OutputSelectorDef, OutputSelectorSpec, PathInputDef, PathRef, PolicyDecisionDef,
+    PolicyDecisionModeDef, PolicyDecisionSpec, QueueDef, RemoteDef, RemoteRuntimeDef,
+    RemoteRuntimeSpec, RemoteSpec, RemoteTransportDef, RemoteTransportKind, ResolvedTask, RetryDef,
+    Scope, TaskExecutionDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec, normalize_path_ref,
     validate_container_runtime_execution_spec,
 };
 
@@ -38,6 +39,7 @@ include!("loader/workspace_load_and_policy_eval.rs");
 include!("loader/project_resolution.rs");
 include!("loader/module_merge.rs");
 include!("loader/context_resolution.rs");
+include!("loader/output_resolution.rs");
 include!("loader/execution_resolution.rs");
 include!("loader/remote_validation.rs");
 include!("loader/module_eval.rs");

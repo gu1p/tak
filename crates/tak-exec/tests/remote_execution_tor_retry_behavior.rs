@@ -13,8 +13,8 @@ use tokio::net::TcpListener;
 mod support;
 
 use support::{
-    EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec, shell_step,
-    write_remote_inventory,
+    EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec_with_outputs,
+    shell_step, workspace_output_path, write_remote_inventory,
 };
 
 #[tokio::test]
@@ -64,13 +64,14 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
             .expect("submit store");
         let _ = run_remote_v1_http_server(listener, store, context).await;
     });
-    let (spec, label) = remote_task_spec(
+    let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
         "remote_tor_delayed",
         vec![shell_step(
             "mkdir -p dist && echo tor-delayed > dist/out.txt",
         )],
         remote_builder_spec(RemoteTransportKind::Tor),
+        vec![workspace_output_path("dist/out.txt")],
     );
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

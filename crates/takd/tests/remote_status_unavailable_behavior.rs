@@ -45,6 +45,7 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
         runtime: None,
         task_label: "//apps/web:build".to_string(),
         needs: Vec::new(),
+        outputs: Vec::new(),
     };
     let _ = handle_remote_v1_request(
         &context,

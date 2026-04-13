@@ -1,5 +1,7 @@
 use super::*;
-use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef, normalize_path_ref};
+use tak_core::model::{
+    ContainerRuntimeSourceSpec, OutputSelectorSpec, PathAnchor, PathRef, normalize_path_ref,
+};
 use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 
 pub(super) fn parse_remote_worker_submit_payload(
@@ -20,6 +22,11 @@ pub(super) fn parse_remote_worker_submit_payload(
             .as_ref()
             .map(parse_remote_worker_runtime_spec)
             .transpose()?,
+        outputs: request
+            .outputs
+            .iter()
+            .map(parse_remote_worker_output_selector)
+            .collect::<Result<Vec<_>>>()?,
     })
 }
 
@@ -95,5 +102,41 @@ fn normalize_workspace_submit_path(value: &str, field: &str) -> Result<PathRef> 
     if normalized.anchor != PathAnchor::Workspace {
         bail!("invalid_submit_fields: {field} must be workspace-anchored");
     }
+    Ok(normalized)
+}
+
+fn parse_remote_worker_output_selector(
+    selector: &tak_proto::OutputSelector,
+) -> Result<OutputSelectorSpec> {
+    match selector.kind.as_ref() {
+        Some(tak_proto::output_selector::Kind::Path(path)) => Ok(OutputSelectorSpec::Path(
+            normalize_workspace_submit_path(path, "outputs.path")?,
+        )),
+        Some(tak_proto::output_selector::Kind::Glob(pattern)) => Ok(OutputSelectorSpec::Glob {
+            pattern: normalize_workspace_submit_glob(pattern)?,
+        }),
+        None => bail!("invalid_submit_fields: outputs.kind is required"),
+    }
+}
+
+fn normalize_workspace_submit_glob(value: &str) -> Result<String> {
+    let normalized = value.trim();
+    if normalized.is_empty() {
+        bail!("invalid_submit_fields: outputs.glob cannot be empty");
+    }
+    if normalized.starts_with('@') {
+        bail!("invalid_submit_fields: outputs repo anchors are not supported in V1");
+    }
+    if normalized.starts_with("//") || normalized.starts_with('/') {
+        bail!("invalid_submit_fields: outputs glob must be workspace-relative");
+    }
+    if normalized.split('/').any(|segment| segment == "..") {
+        bail!("invalid_submit_fields: outputs glob cannot escape workspace");
+    }
+    let normalized = normalized.replace('\\', "/");
+    let mut builder = GitignoreBuilder::new(".");
+    builder
+        .add_line(None, &normalized)
+        .map_err(|err| anyhow!("invalid_submit_fields: outputs.glob {err}"))?;
     Ok(normalized)
 }

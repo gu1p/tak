@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use base64::Engine;
 use tak_core::model::{
-    CurrentStateSpec, Hold, LimiterRef, NeedDef, RemoteRuntimeSpec, RemoteTransportKind,
-    ResolvedTask, RetryDef, Scope, StepDef, TaskExecutionSpec, TaskLabel,
+    CurrentStateSpec, Hold, LimiterRef, NeedDef, OutputSelectorSpec, PathAnchor, PathRef,
+    RemoteRuntimeSpec, RemoteTransportKind, ResolvedTask, RetryDef, Scope, StepDef,
+    TaskExecutionSpec, TaskLabel,
 };
 
 use super::*;
@@ -62,6 +63,15 @@ pub(super) fn task_with_steps_and_needs() -> ResolvedTask {
         retry: RetryDef::default(),
         timeout_s: Some(30),
         context: CurrentStateSpec::default(),
+        outputs: vec![
+            OutputSelectorSpec::Path(PathRef {
+                anchor: PathAnchor::Workspace,
+                path: "dist/out.txt".into(),
+            }),
+            OutputSelectorSpec::Glob {
+                pattern: "reports/**/*.txt".into(),
+            },
+        ],
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
         tags: Vec::new(),

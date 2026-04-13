@@ -255,6 +255,12 @@ def path(value):
         "value": str(value),
     }
 
+def glob(value):
+    return {
+        "kind": "glob",
+        "value": str(value),
+    }
+
 def gitignore():
     return {
         "kind": "gitignore",
@@ -267,7 +273,7 @@ def CurrentState(roots=None, ignored=None, include=None):
         "include": _or_empty_list(include),
     }
 
-def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, execution=None, tags=None, doc=None):
+def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, tags=None, doc=None):
     return {
         "name": name,
         "deps": _normalize_deps(deps),
@@ -277,6 +283,7 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         "retry": retry,
         "timeout_s": timeout_s,
         "context": context,
+        "outputs": _or_empty_list(outputs),
         "execution": execution,
         "tags": _or_empty_list(tags),
         "doc": doc if doc is not None else "",

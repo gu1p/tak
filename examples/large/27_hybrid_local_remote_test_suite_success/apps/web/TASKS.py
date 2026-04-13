@@ -19,6 +19,7 @@ SPEC = module_spec(
     task(
       "integration_remote",
       deps=[":unit_local"],
+      outputs=[path("//out")],
       steps=[
         cmd(
           "sh",

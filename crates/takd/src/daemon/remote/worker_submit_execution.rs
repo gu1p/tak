@@ -111,11 +111,7 @@ fn run_remote_worker_submit_execution(
             }
         }
         Err(error) => {
-            let stderr_tail = if stderr_tail.is_empty() {
-                error.to_string()
-            } else {
-                stderr_tail
-            };
+            let stderr_tail = failure_stderr_tail(&error, &stderr_tail);
             if let Err(persist_error) = store.set_result_payload(
                 idempotency_key,
                 &serde_json::json!({
@@ -160,6 +156,18 @@ fn run_remote_worker_submit_execution(
     } else {
         tracing::error!("failed to clear active node status entry for submit {idempotency_key}");
     }
+}
+
+fn failure_stderr_tail(error: &anyhow::Error, stderr_tail: &str) -> String {
+    let error_message = error.to_string();
+    if stderr_tail.is_empty() || stderr_tail.contains(&error_message) {
+        return if stderr_tail.is_empty() {
+            error_message
+        } else {
+            stderr_tail.to_string()
+        };
+    }
+    format!("{error_message}\n{stderr_tail}")
 }
 
 include!("worker_submit_execution/output_observer.rs");

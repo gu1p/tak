@@ -61,6 +61,8 @@ pub struct TaskDef {
     pub timeout_s: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<CurrentStateDef>,
+    #[serde(default)]
+    pub outputs: Vec<OutputSelectorDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<TaskExecutionDef>,
     #[serde(default)]
@@ -88,6 +90,13 @@ pub struct CurrentStateDef {
     pub ignored: Vec<IgnoreSourceDef>,
     #[serde(default)]
     pub include: Vec<PathInputDef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum OutputSelectorDef {
+    Path { value: String },
+    Glob { value: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -8,7 +8,7 @@ mod support;
 #[path = "support/wait_for_terminal_events.rs"]
 mod wait_for_terminal_events;
 
-use remote_output::{submit_shell_task, test_context};
+use remote_output::{submit_shell_task_with_outputs, test_context};
 use support::env::{EnvGuard, env_lock};
 use wait_for_terminal_events::wait_for_terminal_events;
 
@@ -26,11 +26,16 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
     let context = test_context();
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 
-    let submit_ack = submit_shell_task(
+    let submit_ack = submit_shell_task_with_outputs(
         &context,
         &store,
         "task-run-1",
         "mkdir -p dist && printf 'hello remote\\n' > dist/out.txt",
+        vec![tak_proto::OutputSelector {
+            kind: Some(tak_proto::output_selector::Kind::Path(
+                "dist/out.txt".to_string(),
+            )),
+        }],
     );
     assert!(submit_ack.accepted);
     wait_for_terminal_events(&context, &store, "task-run-1");

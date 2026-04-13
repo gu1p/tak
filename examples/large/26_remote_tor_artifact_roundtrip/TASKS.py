@@ -14,6 +14,7 @@ SPEC = module_spec(
   tasks=[
     task(
       "collect_remote_report",
+      outputs=[path("out")],
       steps=[
         cmd(
           "sh",

@@ -10,6 +10,7 @@ fn build_task_run_result(
         attempts: attempt,
         success,
         exit_code: outcome.last_exit_code,
+        failure_detail: outcome.failure_detail,
         placement_mode: placement.placement_mode,
         remote_node_id: placement.remote_node_id.clone(),
         remote_transport_kind: placement

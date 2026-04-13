@@ -11,7 +11,8 @@ mod support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_builder_spec,
-    remote_task_spec_with_context, shell_step, write_remote_inventory,
+    remote_task_spec_with_context_and_outputs, shell_step, workspace_output_path,
+    write_remote_inventory,
 };
 
 #[tokio::test]
@@ -41,7 +42,7 @@ async fn explicit_context_without_gitignore_keeps_gitignored_files() {
         )],
     );
 
-    let (spec, label) = remote_task_spec_with_context(
+    let (spec, label) = remote_task_spec_with_context_and_outputs(
         &workspace_root,
         "explicit_context",
         vec![shell_step(
@@ -57,6 +58,7 @@ async fn explicit_context_without_gitignore_keeps_gitignored_files() {
             include: Vec::new(),
             origin: CurrentStateOrigin::Explicit,
         },
+        vec![workspace_output_path("out.txt")],
     );
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

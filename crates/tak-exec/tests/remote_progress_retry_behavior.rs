@@ -10,7 +10,8 @@ mod support;
 
 use support::{
     CollectingStatusObserver, EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock,
-    remote_builder_spec, remote_task_spec, shell_step, write_remote_inventory,
+    remote_builder_spec, remote_task_spec_with_outputs, shell_step, workspace_output_path,
+    write_remote_inventory,
 };
 
 #[tokio::test]
@@ -44,11 +45,12 @@ async fn remote_status_reports_retry_backoff_before_the_next_attempt() {
         retry_state.display()
     );
     let observer = Arc::new(CollectingStatusObserver::default());
-    let (mut spec, label) = remote_task_spec(
+    let (mut spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
         "remote_retry",
         vec![shell_step(&script)],
         remote_builder_spec(RemoteTransportKind::Direct),
+        vec![workspace_output_path("out.txt")],
     );
     spec.tasks.get_mut(&label).expect("task").retry = RetryDef {
         attempts: 2,

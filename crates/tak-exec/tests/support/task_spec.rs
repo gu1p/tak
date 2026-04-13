@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use tak_core::model::{
-    CurrentStateSpec, LimiterKey, QueueDef, RemoteSpec, RemoteTransportKind, ResolvedTask,
-    RetryDef, StepDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
+    CurrentStateSpec, OutputSelectorSpec, RemoteSpec, RemoteTransportKind, StepDef, TaskLabel,
 };
+
+use super::workspace_task_spec::build_remote_task_spec;
 
 pub fn shell_step(script: &str) -> StepDef {
     StepDef::Cmd {
@@ -31,13 +32,14 @@ pub fn remote_task_spec(
     name: &str,
     steps: Vec<StepDef>,
     remote: RemoteSpec,
-) -> (WorkspaceSpec, TaskLabel) {
-    remote_task_spec_with_context(
+) -> (tak_core::model::WorkspaceSpec, TaskLabel) {
+    remote_task_spec_with_context_and_outputs(
         workspace_root,
         name,
         steps,
         remote,
         CurrentStateSpec::default(),
+        Vec::new(),
     )
 }
 
@@ -47,35 +49,41 @@ pub fn remote_task_spec_with_context(
     steps: Vec<StepDef>,
     remote: RemoteSpec,
     context: CurrentStateSpec,
-) -> (WorkspaceSpec, TaskLabel) {
-    let label = TaskLabel {
-        package: "//apps/web".into(),
-        name: name.into(),
-    };
-    let task = ResolvedTask {
-        label: label.clone(),
-        doc: String::new(),
-        deps: Vec::new(),
+) -> (tak_core::model::WorkspaceSpec, TaskLabel) {
+    remote_task_spec_with_context_and_outputs(
+        workspace_root,
+        name,
         steps,
-        needs: Vec::new(),
-        queue: None,
-        retry: RetryDef::default(),
-        timeout_s: None,
+        remote,
         context,
-        container_runtime: None,
-        execution: TaskExecutionSpec::RemoteOnly(remote),
-        tags: Vec::new(),
-    };
-    let mut tasks = BTreeMap::new();
-    tasks.insert(label.clone(), task);
-    (
-        WorkspaceSpec {
-            project_id: "tak-test".into(),
-            root: workspace_root.to_path_buf(),
-            tasks,
-            limiters: HashMap::<LimiterKey, _>::new(),
-            queues: HashMap::<LimiterKey, QueueDef>::new(),
-        },
-        label,
+        Vec::new(),
     )
+}
+
+pub fn remote_task_spec_with_outputs(
+    workspace_root: &Path,
+    name: &str,
+    steps: Vec<StepDef>,
+    remote: RemoteSpec,
+    outputs: Vec<OutputSelectorSpec>,
+) -> (tak_core::model::WorkspaceSpec, TaskLabel) {
+    remote_task_spec_with_context_and_outputs(
+        workspace_root,
+        name,
+        steps,
+        remote,
+        CurrentStateSpec::default(),
+        outputs,
+    )
+}
+
+pub fn remote_task_spec_with_context_and_outputs(
+    workspace_root: &Path,
+    name: &str,
+    steps: Vec<StepDef>,
+    remote: RemoteSpec,
+    context: CurrentStateSpec,
+    outputs: Vec<OutputSelectorSpec>,
+) -> (tak_core::model::WorkspaceSpec, TaskLabel) {
+    build_remote_task_spec(workspace_root, name, steps, remote, context, outputs)
 }

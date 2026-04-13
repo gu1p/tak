@@ -13,6 +13,7 @@ SPEC = module_spec(
     task(
       "container_log_storm",
       deps=["//:prepare_local_input"],
+      outputs=[path("//out/container-log-storm-summary.txt")],
       steps=[
         cmd(
           "sh",

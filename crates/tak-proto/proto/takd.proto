@@ -59,6 +59,13 @@ message SubmittedNeed {
   double slots = 4;
 }
 
+message OutputSelector {
+  oneof kind {
+    string path = 1;
+    string glob = 2;
+  }
+}
+
 message SubmitTaskRequest {
   string task_run_id = 1;
   uint32 attempt = 2;
@@ -68,6 +75,7 @@ message SubmitTaskRequest {
   optional RuntimeSpec runtime = 6;
   string task_label = 7;
   repeated SubmittedNeed needs = 8;
+  repeated OutputSelector outputs = 9;
 }
 
 message SubmitTaskResponse {

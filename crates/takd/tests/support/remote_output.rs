@@ -1,5 +1,7 @@
+#![allow(dead_code)]
+
 use prost::Message;
-use tak_proto::{CmdStep, Step, SubmitTaskRequest, SubmitTaskResponse, step};
+use tak_proto::{CmdStep, OutputSelector, Step, SubmitTaskRequest, SubmitTaskResponse, step};
 use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
 
 pub fn test_context() -> RemoteNodeContext {
@@ -24,6 +26,16 @@ pub fn submit_shell_task(
     task_run_id: &str,
     command: &str,
 ) -> SubmitTaskResponse {
+    submit_shell_task_with_outputs(context, store, task_run_id, command, Vec::new())
+}
+
+pub fn submit_shell_task_with_outputs(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+    command: &str,
+    outputs: Vec<OutputSelector>,
+) -> SubmitTaskResponse {
     let submit = SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt: 1,
@@ -39,6 +51,7 @@ pub fn submit_shell_task(
         runtime: None,
         task_label: "//apps/web:test".to_string(),
         needs: Vec::new(),
+        outputs,
     };
     let submit = handle_remote_v1_request(
         context,

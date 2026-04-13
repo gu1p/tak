@@ -40,6 +40,17 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
             ("disk".into(), "worktree".into(), None),
         ]
     );
+    assert_eq!(payload.outputs.len(), 2);
+    match payload.outputs[0].kind.as_ref().expect("path output") {
+        tak_proto::output_selector::Kind::Path(path) => assert_eq!(path, "dist/out.txt"),
+        other => panic!("expected path output, got {other:?}"),
+    }
+    match payload.outputs[1].kind.as_ref().expect("glob output") {
+        tak_proto::output_selector::Kind::Glob(pattern) => {
+            assert_eq!(pattern, "reports/**/*.txt")
+        }
+        other => panic!("expected glob output, got {other:?}"),
+    }
     match payload.runtime.expect("runtime").kind.expect("runtime kind") {
         runtime_spec::Kind::Container(container) => {
             assert_eq!(container.image.as_deref(), Some("ghcr.io/acme/web:latest"));

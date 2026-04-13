@@ -58,6 +58,11 @@ fn parse_remote_protocol_result(
     Ok(RemoteProtocolResult {
         success: parsed.success,
         exit_code: parsed.exit_code,
+        failure_detail: (!parsed.success)
+            .then_some(parsed.stderr_tail)
+            .flatten()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
         synced_outputs,
         runtime_kind: parsed.runtime,
         runtime_engine: parsed.runtime_engine,

@@ -5,10 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
 use futures::StreamExt;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use safelog::DisplayRedacted;
 use sha2::{Digest, Sha256};
 use tak_core::label::parse_label;
-use tak_core::model::{RemoteRuntimeSpec, StepDef, normalize_path_ref};
+use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef, normalize_path_ref};
 use tak_runner::{
     OutputStream, RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver,
     execute_remote_worker_steps_with_output,
@@ -62,11 +63,11 @@ use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tor_server::{
     remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,
 };
-use types::{RemoteWorkerOutputRecord, RemoteWorkerSubmitPayload, WorkspaceFileFingerprint};
+use types::{RemoteWorkerOutputRecord, RemoteWorkerSubmitPayload};
 use worker_output_artifacts::{read_staged_remote_output, stage_remote_worker_outputs};
 use worker_submit_execution::spawn_remote_worker_submit_execution;
 use worker_workspace_outputs::{
-    changed_remote_worker_outputs, snapshot_workspace_files, unpack_remote_worker_workspace,
+    collect_declared_remote_worker_outputs, unpack_remote_worker_workspace,
 };
 
 pub(crate) fn remote_node_context_from_env(base_url: Option<String>) -> RemoteNodeContext {

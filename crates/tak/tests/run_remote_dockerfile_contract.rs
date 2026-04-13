@@ -36,6 +36,7 @@ REMOTE = Remote(
 SPEC = module_spec(tasks=[
   task(
     "remote_container",
+    outputs=[path("out")],
     steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")],
     execution=RemoteOnly(REMOTE),
   ),

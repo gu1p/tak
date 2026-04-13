@@ -34,6 +34,7 @@ fn task(label: TaskLabel, deps: Vec<TaskLabel>) -> ResolvedTask {
         retry: RetryDef::default(),
         timeout_s: None,
         context: CurrentStateSpec::default(),
+        outputs: Vec::new(),
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
         tags: Vec::new(),

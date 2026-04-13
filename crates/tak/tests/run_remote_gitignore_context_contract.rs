@@ -38,6 +38,7 @@ fn run_remote_context_uses_gitignore_and_readds_included_subtree() -> Result<()>
     ignored=[gitignore()],
     include=[path("target/reinclude")],
   ),
+  outputs=[path("out")],
   steps=[cmd("sh", "-ceu", """
 test -f src/input.txt
 test -f target/reinclude/one.txt

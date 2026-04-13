@@ -47,6 +47,13 @@ pub async fn run_tasks(
         summary.results.insert(label.clone(), task_result);
 
         if failed && !options.keep_going {
+            let failure_detail = summary
+                .results
+                .get(&label)
+                .and_then(|result| result.failure_detail.as_deref());
+            if let Some(detail) = failure_detail {
+                bail!("task {label} failed: {detail}");
+            }
             bail!("task {label} failed");
         }
     }

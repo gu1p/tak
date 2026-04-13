@@ -29,6 +29,7 @@ struct TaskPlacement {
 struct RemoteProtocolResult {
     success: bool,
     exit_code: Option<i32>,
+    failure_detail: Option<String>,
     synced_outputs: Vec<SyncedOutput>,
     runtime_kind: Option<String>,
     runtime_engine: Option<String>,

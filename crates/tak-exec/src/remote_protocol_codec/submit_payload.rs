@@ -1,7 +1,10 @@
 use anyhow::{Context, Result, bail};
 use base64::Engine;
 use prost::Message;
-use tak_core::model::{ContainerRuntimeSourceSpec, NeedDef, RemoteRuntimeSpec, ResolvedTask, Scope, StepDef};
+use tak_core::model::{
+    ContainerRuntimeSourceSpec, NeedDef, OutputSelectorSpec, RemoteRuntimeSpec, ResolvedTask,
+    Scope, StepDef,
+};
 use tak_proto::{
     CmdStep, ContainerRuntime, GetTaskResultResponse, PollTaskEventsResponse, RuntimeSpec,
     ScriptStep, Step, SubmitTaskRequest, SubmittedNeed, runtime_spec, step,
@@ -35,6 +38,7 @@ pub(crate) fn build_remote_submit_payload(
         runtime: target.runtime.as_ref().map(remote_runtime_submit_value),
         task_label: task.label.to_string(),
         needs: task.needs.iter().map(need_submit_value).collect(),
+        outputs: task.outputs.iter().map(output_selector_submit_value).collect(),
     })
 }
 
@@ -94,6 +98,17 @@ fn need_submit_value(need: &NeedDef) -> SubmittedNeed {
         scope: scope_value(&need.limiter.scope).to_string(),
         scope_key: need.limiter.scope_key.clone(),
         slots: need.slots,
+    }
+}
+
+fn output_selector_submit_value(selector: &OutputSelectorSpec) -> tak_proto::OutputSelector {
+    tak_proto::OutputSelector {
+        kind: Some(match selector {
+            OutputSelectorSpec::Path(path) => tak_proto::output_selector::Kind::Path(path.path.clone()),
+            OutputSelectorSpec::Glob { pattern } => {
+                tak_proto::output_selector::Kind::Glob(pattern.clone())
+            }
+        }),
     }
 }
 

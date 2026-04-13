@@ -13,6 +13,7 @@ struct AttemptExecutionContext<'a> {
 struct AttemptExecutionOutcome {
     attempt_success: bool,
     last_exit_code: Option<i32>,
+    failure_detail: Option<String>,
     synced_outputs: Vec<SyncedOutput>,
     remote_runtime_kind: Option<String>,
     remote_runtime_engine: Option<String>,
@@ -71,6 +72,7 @@ async fn execute_task_attempt(
     let (
         attempt_success,
         last_exit_code,
+        failure_detail,
         synced_outputs,
         remote_runtime_kind,
         remote_runtime_engine,
@@ -78,11 +80,12 @@ async fn execute_task_attempt(
         Some(remote_result) => (
             remote_result.success,
             remote_result.exit_code.or(run.exit_code),
+            remote_result.failure_detail,
             remote_result.synced_outputs,
             remote_result.runtime_kind,
             remote_result.runtime_engine,
         ),
-        None => (run.success, run.exit_code, Vec::new(), None, None),
+        None => (run.success, run.exit_code, None, Vec::new(), None, None),
     };
 
     if !synced_outputs.is_empty() {
@@ -102,6 +105,7 @@ async fn execute_task_attempt(
     Ok(AttemptExecutionOutcome {
         attempt_success,
         last_exit_code,
+        failure_detail,
         synced_outputs,
         remote_runtime_kind,
         remote_runtime_engine,

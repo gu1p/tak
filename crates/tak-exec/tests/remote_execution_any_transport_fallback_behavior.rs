@@ -8,8 +8,8 @@ use tak_exec::{RunOptions, run_tasks};
 mod support;
 
 use support::{
-    EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_task_spec, shell_step,
-    write_remote_inventory,
+    EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_task_spec_with_outputs,
+    shell_step, workspace_output_path, write_remote_inventory,
 };
 
 fn any_transport_remote_spec() -> RemoteSpec {
@@ -56,11 +56,12 @@ async fn remote_execution_with_any_transport_falls_through_unreachable_direct_to
         ],
     );
 
-    let (spec, label) = remote_task_spec(
+    let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
         "remote_any_transport_tor",
         vec![shell_step("mkdir -p dist && echo tor > dist/out.txt")],
         any_transport_remote_spec(),
+        vec![workspace_output_path("dist/out.txt")],
     );
     let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

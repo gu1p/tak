@@ -96,6 +96,7 @@ fn merge_module(
             .transpose()?
             .unwrap_or_default();
         let context = resolve_current_state(task.context, package)?;
+        let outputs = resolve_output_selectors(task.outputs, package)?;
 
         let resolved = ResolvedTask {
             label: label.clone(),
@@ -107,6 +108,7 @@ fn merge_module(
             retry,
             timeout_s: task.timeout_s,
             context,
+            outputs,
             container_runtime,
             execution,
             tags,

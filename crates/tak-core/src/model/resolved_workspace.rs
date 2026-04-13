@@ -16,6 +16,7 @@ pub struct ResolvedTask {
     pub retry: RetryDef,
     pub timeout_s: Option<u64>,
     pub context: CurrentStateSpec,
+    pub outputs: Vec<OutputSelectorSpec>,
     pub container_runtime: Option<RemoteRuntimeSpec>,
     pub execution: TaskExecutionSpec,
     pub tags: Vec<String>,
@@ -106,6 +107,12 @@ pub struct CurrentStateSpec {
     pub ignored: Vec<IgnoreSourceSpec>,
     pub include: Vec<PathRef>,
     pub origin: CurrentStateOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OutputSelectorSpec {
+    Path(PathRef),
+    Glob { pattern: String },
 }
 
 impl Default for CurrentStateSpec {

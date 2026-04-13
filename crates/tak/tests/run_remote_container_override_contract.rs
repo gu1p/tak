@@ -27,7 +27,7 @@ fn run_command_uses_tasks_default_container_runtime_with_remote_container_flags(
     )?;
     write_tasks(
         &workspace_root,
-        r#"SPEC = module_spec(defaults={"container_runtime": DockerfileRuntime(dockerfile=path("docker/Dockerfile"))}, tasks=[task("check", steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
+        r#"SPEC = module_spec(defaults={"container_runtime": DockerfileRuntime(dockerfile=path("docker/Dockerfile"))}, tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
 SPEC
 "#,
     )?;

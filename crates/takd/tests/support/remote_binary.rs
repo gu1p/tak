@@ -42,6 +42,7 @@ pub fn streaming_submit_request() -> SubmitTaskRequest {
         runtime: None,
         task_label: "//apps/web:stream".to_string(),
         needs: Vec::new(),
+        outputs: Vec::new(),
     }
 }
 

@@ -28,6 +28,7 @@ fn run_command_remote_flag_preserves_declared_local_container_runtime() -> Resul
 
 SPEC = module_spec(tasks=[task(
   "check",
+  outputs=[path("out")],
   steps=[cmd(
     "sh",
     "-c",
