@@ -45,6 +45,9 @@ require_match "$CI_WORKFLOW" 'timeout-minutes:\s*240' "CI extended binary build 
 require_match "$CI_WORKFLOW" 'cargo build --release --locked --target "\$\{\{ matrix\.target \}\}" -p tak -p takd' "CI native build command for tak and takd"
 require_match "$CI_WORKFLOW" 'cargo zigbuild --release --locked --target "\$\{\{ matrix\.target \}\}" -p tak -p takd' "CI zigbuild command for tak and takd"
 require_no_match "$CI_WORKFLOW" 'os:\s*macos-13' "CI deprecated macOS x64 runner"
+require_match "$CI_WORKFLOW" 'name:\s*Reclaim disk before coverage' "CI disk-reclaim step before coverage"
+require_match "$CI_WORKFLOW" 'rm -rf target' "CI target cleanup before coverage"
+require_match "$CI_WORKFLOW" 'cargo llvm-cov clean --workspace' "CI llvm-cov cleanup before coverage"
 
 require_match "$RELEASE_WORKFLOW" "push:" "Release push trigger"
 require_match "$RELEASE_WORKFLOW" "branches:" "Release push branch filter"

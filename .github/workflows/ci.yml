@@ -45,6 +45,14 @@ jobs:
       - name: Install coverage tool
         run: cargo install cargo-llvm-cov --locked
 
+      - name: Reclaim disk before coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo llvm-cov clean --workspace
+          rm -rf target
+          df -h .
+
       - name: Enforce 75% line coverage
         run: |
           mkdir -p coverage
