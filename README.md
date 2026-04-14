@@ -70,6 +70,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Report coordination status when supported; the current client-only build returns an unsupported error.
 - `tak remote add <token>`
   - Import a `takd` agent token into local client config.
+- `tak remote scan`
+  - Pick a camera, preview its feed in the terminal, and add a remote from a scanned QR token.
 - `tak remote list`
   - Show configured remote agents in client priority order.
 - `tak remote status`
@@ -86,6 +88,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Print the most recent server-side `takd` log lines from the agent state directory.
 - `takd token show`
   - Reprint the persisted onboarding token, or wait until it is advertised with `--wait`.
+- `takd token show --qr`
+  - Render the onboarding token as a terminal QR code plus the exact `tak remote add '...'` command.
 
 ## Run Output Signals
 
@@ -118,6 +122,7 @@ takd init
 takd serve
 takd status
 tak remote add "$(takd token show --wait)"
+tak remote scan
 tak remote status
 ```
 
@@ -212,6 +217,7 @@ Install behavior:
 - Downloads latest release asset for macOS/Linux (`x86_64` + `aarch64`).
 - Installs `tak` and `takd` to `~/.local/bin` by default.
 - `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.
+- `get-takd.sh` prints a terminal QR code for the onboarding token after the agent is ready.
 - Supports overrides:
   - `TAK_VERSION` to pin a release tag.
   - `TAK_INSTALL_DIR` to change install destination.

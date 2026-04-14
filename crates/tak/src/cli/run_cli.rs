@@ -10,6 +10,7 @@ use std::sync::Arc;
 /// # }
 /// ```
 pub async fn run_cli() -> Result<()> {
+    tak_core::crypto_provider::ensure_rustls_crypto_provider();
     let cli = Cli::parse();
 
     match cli.command {
@@ -144,6 +145,9 @@ pub async fn run_cli() -> Result<()> {
             super::command_model::RemoteCommands::Add { token } => {
                 let remote = add_remote(&token).await?;
                 println!("added remote {}", remote.node_id);
+            }
+            super::command_model::RemoteCommands::Scan => {
+                run_remote_scan().await?;
             }
             super::command_model::RemoteCommands::List => {
                 for remote in list_remotes()? {

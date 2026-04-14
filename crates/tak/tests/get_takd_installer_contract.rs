@@ -37,6 +37,14 @@ fn linux_installer_bootstraps_takd_user_service_and_prints_token() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("takd:v1:"), "missing token:\n{stdout}");
     assert!(stdout.contains(".onion"), "missing onion url:\n{stdout}");
+    assert!(
+        stdout.contains("Scan this QR code"),
+        "missing QR onboarding label:\n{stdout}"
+    );
+    assert!(
+        stdout.lines().filter(|line| line.contains('█')).count() >= 4,
+        "missing QR block render:\n{stdout}"
+    );
 }
 
 #[test]
@@ -61,5 +69,9 @@ fn linux_installer_falls_back_to_manual_start_without_usable_systemctl_user() {
     assert!(
         !stdout.contains("token: "),
         "manual fallback should not print a token:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("Scan this QR code"),
+        "manual fallback should stay plain text:\n{stdout}"
     );
 }

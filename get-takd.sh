@@ -142,7 +142,7 @@ agent_state_path() {
 }
 
 main() {
-  local target tag archive_name archive_url temp_dir archive_path takd_bin token base_url
+  local target tag archive_name archive_url temp_dir archive_path takd_bin base_url
   local -a init_args
   target="$(detect_target)"
   tag="$(resolve_tag)"
@@ -199,11 +199,9 @@ main() {
     exit 0
   fi
 
-  token="$("$takd_bin" token show --wait --timeout-secs "$TAKD_WAIT_TIMEOUT_SECS")"
   base_url="$("$takd_bin" status | sed -n 's/^base_url: //p' | head -n1)"
   printf 'takd ready at %s\n' "${base_url:-unknown}"
-  printf 'token: %s\n' "$token"
-  printf "add this remote on a client:\n  tak remote add '%s'\n" "$token"
+  "$takd_bin" token show --wait --timeout-secs "$TAKD_WAIT_TIMEOUT_SECS" --qr
 }
 
 main "$@"

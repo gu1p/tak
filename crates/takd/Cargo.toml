@@ -11,6 +11,8 @@ clap.workspace = true
 futures.workspace = true
 ignore.workspace = true
 prost.workspace = true
+qrcode.workspace = true
+ratatui.workspace = true
 rusqlite.workspace = true
 safelog = "0.7"
 serde.workspace = true
@@ -27,6 +29,7 @@ sysinfo.workspace = true
 tor-cell = "0.39"
 tor-hsservice = "0.39"
 tor-rtcompat = "0.39"
+tui-qrcode.workspace = true
 uuid.workspace = true
 zip.workspace = true
 

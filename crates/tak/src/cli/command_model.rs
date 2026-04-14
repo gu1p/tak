@@ -64,6 +64,7 @@ pub(super) enum RemoteCommands {
     Add {
         token: String,
     },
+    Scan,
     List,
     Remove {
         node_id: String,

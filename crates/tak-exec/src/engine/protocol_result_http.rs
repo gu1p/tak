@@ -113,8 +113,10 @@ async fn remote_protocol_http_request(
         .await
         .map_err(|_| {
             anyhow!(
-                "infra error: remote node {} {} request timed out",
+                "infra error: remote node {} at {} via {} {} request timed out",
                 target.node_id,
+                target.endpoint,
+                target.transport_kind.as_result_value(),
                 phase
             )
         })?

@@ -21,6 +21,7 @@ pub mod local_daemon;
 pub mod remote_cli;
 pub mod remote_declared_outputs;
 pub mod remote_inventory;
+pub mod remote_scan;
 pub mod remote_status;
 pub mod run;
 pub mod streaming;

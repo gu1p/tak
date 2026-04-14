@@ -60,3 +60,20 @@ fn generic_errors_render_through_the_same_framework() {
     );
     assert!(!rendered.contains("\u{1b}["));
 }
+
+#[test]
+fn remote_node_info_timeouts_render_actionable_next_steps() {
+    let rendered = render_error_report_with_mode(
+        &Error::msg(
+            "infra error: no reachable remote fallback candidates for task check: infra error: remote node builder-a at http://builder-a.onion via tor node info request timed out",
+        ),
+        RenderMode::Plain,
+    );
+
+    assert!(rendered.contains("Error: Remote node info probe timed out for check"));
+    assert!(rendered.contains(
+        "Tak could not get /v1/node/info from any candidate remote before the preflight timeout."
+    ));
+    assert!(rendered.contains("tak remote status"));
+    assert!(rendered.contains("takd logs --lines 100"));
+}

@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::logging::{init_service_logging, read_service_log_tail, service_log_path};
+use crate::qr_render::render_onboarding_view;
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
     read_token_wait,
@@ -73,10 +74,13 @@ enum TokenCommands {
         wait: bool,
         #[arg(long, default_value_t = 60)]
         timeout_secs: u64,
+        #[arg(long, default_value_t = false)]
+        qr: bool,
     },
 }
 
 pub async fn run_cli() -> Result<()> {
+    tak_core::crypto_provider::ensure_rustls_crypto_provider();
     match Cli::parse().command {
         Commands::Init {
             config_root,
@@ -157,16 +161,19 @@ pub async fn run_cli() -> Result<()> {
                 state_root,
                 wait,
                 timeout_secs,
+                qr,
             } => {
                 let state_root = state_root.unwrap_or(default_state_root()?);
-                println!(
-                    "{}",
-                    if wait {
-                        read_token_wait(&state_root, timeout_secs)?
-                    } else {
-                        read_token(&state_root)?
-                    }
-                );
+                let token = if wait {
+                    read_token_wait(&state_root, timeout_secs)?
+                } else {
+                    read_token(&state_root)?
+                };
+                if qr {
+                    print!("{}", render_onboarding_view(&token)?);
+                } else {
+                    println!("{token}");
+                }
             }
         },
     }

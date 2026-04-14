@@ -4,6 +4,7 @@ use anyhow::Result;
 
 mod cli;
 mod logging;
+mod qr_render;
 
 #[tokio::main]
 /// Starts the `takd` CLI.

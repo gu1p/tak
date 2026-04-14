@@ -34,6 +34,7 @@ High-level flow:
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)` | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
 | `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
+| `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
 | `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each configured remote node doing right now?" | config read + `/v1/node/status` fetch per matching remote | Node summary section plus active-job section; watch mode refreshes the snapshot in place. |
 
@@ -86,6 +87,12 @@ High-level flow:
 - Uses remote v1 authenticated HTTP to fetch running jobs and node resource usage.
 - One-shot mode prints a `Nodes` section and an `Active Jobs` section.
 - Watch mode refreshes stdout in place at the requested interval.
+
+### `remote scan`
+
+- Linux-first camera onboarding flow with a pick-camera screen, live terminal preview, and confirmation step before config writes.
+- Reuses the same token decode, node probe, and inventory persistence contract as `tak remote add`.
+- Non-interactive terminals are rejected with a clear error.
 
 ## Error and Exit Semantics
 
