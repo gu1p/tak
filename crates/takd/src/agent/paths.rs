@@ -12,6 +12,10 @@ pub fn token_path(state_root: &Path) -> PathBuf {
     state_root.join(TOKEN_FILE)
 }
 
+pub fn transport_health_path(state_root: &Path) -> PathBuf {
+    state_root.join("transport-health.toml")
+}
+
 pub fn default_config_root() -> Result<PathBuf> {
     Ok(xdg_root("XDG_CONFIG_HOME", ".config")?.join("takd"))
 }

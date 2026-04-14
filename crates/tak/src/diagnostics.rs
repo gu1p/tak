@@ -1,3 +1,4 @@
+mod remote_timeout;
 mod render;
 
 use std::io::IsTerminal;
@@ -7,6 +8,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use tak_exec::{NoMatchingRemoteError, RemoteCandidateDiagnostic, RemoteCandidateRejection};
 
+use remote_timeout::remote_node_info_timeout_lines;
 pub(crate) use render::render_lines;
 
 const STYLE_ERROR: Style = Style::new().fg(Color::Red).add_modifier(Modifier::BOLD);

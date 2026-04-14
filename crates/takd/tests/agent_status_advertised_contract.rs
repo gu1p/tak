@@ -70,30 +70,18 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
     let stdout = String::from_utf8_lossy(&status.stdout);
     assert!(status.status.success(), "takd status should succeed");
     assert!(
-        stdout.contains("transport: tor"),
-        "missing transport:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("readiness: advertised"),
-        "missing readiness:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("reachability: verified"),
-        "missing reachability:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("base_url: http://builder-status.onion"),
-        "missing base_url:\n{stdout}"
+        stdout.contains("transport: tor")
+            && stdout.contains("readiness: advertised")
+            && stdout.contains("transport_state: ready")
+            && stdout.contains("reachability: verified")
+            && stdout.contains("base_url: http://builder-status.onion"),
+        "missing ready status fields:\n{stdout}"
     );
     assert!(
         stdout.contains(&format!(
             "log_path: {}",
             state_root.join("service.log").display()
-        )),
-        "missing log path:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("log_state: present"),
-        "missing log state:\n{stdout}"
+        )) && stdout.contains("log_state: present"),
+        "missing log metadata:\n{stdout}"
     );
 }

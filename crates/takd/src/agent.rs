@@ -17,8 +17,13 @@ const TOKEN_FILE: &str = "agent.token";
 
 mod helpers;
 mod paths;
+mod transport_health;
 
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
+pub use transport_health::{
+    TorRecoveryBackoff, TorRecoveryTracker, TransportHealth, TransportState, read_transport_health,
+    write_transport_health,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {

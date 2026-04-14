@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use tak_core::model::RemoteTransportKind;
 use tak_proto::GetTaskResultResponse;
+use prost::Message;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use prost::Message;
 
 use super::{StrictRemoteTarget, parse_remote_protocol_result, remote_protocol_http_request};
 

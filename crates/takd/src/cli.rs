@@ -3,13 +3,15 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use crate::logging::{init_service_logging, read_service_log_tail, service_log_path};
+use crate::logging::{init_service_logging, read_service_log_tail};
 use crate::qr_render::render_onboarding_view;
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
     read_token_wait,
 };
 use takd::serve_agent;
+
+mod status_output;
 
 #[derive(Debug, Parser)]
 #[command(name = "takd")]
@@ -127,30 +129,7 @@ pub async fn run_cli() -> Result<()> {
         } => {
             let config = read_config(&config_root.unwrap_or(default_config_root()?))?;
             let state_root = state_root.unwrap_or(default_state_root()?);
-            let log_path = service_log_path(&state_root);
-            println!("node_id: {}", config.node_id);
-            println!("transport: {}", config.transport);
-            println!(
-                "readiness: {}",
-                if config.base_url.is_some() {
-                    "advertised"
-                } else {
-                    "pending"
-                }
-            );
-            if let Some(base_url) = config.base_url {
-                println!("reachability: verified");
-                println!("base_url: {base_url}");
-            }
-            println!("log_path: {}", log_path.display());
-            println!(
-                "log_state: {}",
-                if log_path.exists() {
-                    "present"
-                } else {
-                    "missing"
-                }
-            );
+            status_output::print_status(&config, &state_root)?;
         }
         Commands::Logs { state_root, lines } => {
             let state_root = state_root.unwrap_or(default_state_root()?);

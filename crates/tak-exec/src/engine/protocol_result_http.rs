@@ -197,6 +197,3 @@ fn response_content_length(
 
     Ok(0)
 }
-
-#[cfg(test)]
-mod protocol_result_http_tests;

@@ -1,22 +1,25 @@
-use anyhow::{Context, Result, anyhow, bail};
-use futures::StreamExt;
-use safelog::DisplayRedacted;
+use anyhow::{Context, Result};
 use std::path::Path;
-use tokio::net::TcpListener;
-use tor_cell::relaycell::msg::Connected;
+use tokio::time::sleep;
 
 use crate::agent::{
-    arti_cache_dir, arti_state_dir, persist_ready_base_url, read_config, ready_context,
+    TorRecoveryBackoff, TransportHealth, arti_cache_dir, arti_state_dir, read_config,
+    write_transport_health,
 };
-use crate::daemon::remote::{
-    SubmitAttemptStore, handle_remote_v1_http_stream, run_remote_v1_http_server,
-};
+use crate::daemon::remote::SubmitAttemptStore;
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
+mod health;
+mod live;
+mod monitor;
 mod probe;
+mod rend;
 mod startup_policy;
+mod test_bind;
 
-use startup_policy::startup_probe_retry_policy;
+use health::tor_recovery_config;
+use live::serve_live_tor_session;
+use test_bind::{RetryableTestBindStartupFailure, serve_test_bind_session};
 
 pub(super) async fn serve_tor_agent(
     config_root: &Path,
@@ -29,107 +32,119 @@ pub(super) async fn serve_tor_agent(
         state_dir: arti_state_dir(state_root),
         cache_dir: arti_cache_dir(state_root),
     };
-    if let Some(bind_addr) = test_tor_hidden_service_bind_addr() {
-        return serve_test_bind(
-            config_root,
+    let recovery = tor_recovery_config();
+    let mut relaunch_backoff =
+        TorRecoveryBackoff::new(recovery.initial_backoff, recovery.max_backoff);
+    let mut last_base_url = config.base_url.clone();
+
+    if last_base_url.is_some() {
+        write_transport_health(
             state_root,
-            &config,
-            &runtime.nickname,
-            store,
-            &bind_addr,
-        )
-        .await;
+            &TransportHealth::recovering(
+                last_base_url.clone(),
+                Some("re-establishing takd onion service".to_string()),
+            ),
+        )?;
+    } else {
+        write_transport_health(state_root, &TransportHealth::pending(None))?;
     }
 
-    tracing::info!(
-        "bootstrapping embedded Arti for takd hidden service nickname {}",
-        runtime.nickname
-    );
-    let tor_client = arti_client::TorClient::create_bootstrapped(tor_client_config(&runtime)?)
-        .await
-        .context("failed to bootstrap embedded Arti for takd hidden service")?;
-    let Some((running_service, rend_requests)) = tor_client
-        .launch_onion_service(onion_service_config(&runtime.nickname)?)
-        .context("failed to launch takd onion service via embedded Arti")?
-    else {
-        bail!("takd onion service launch was skipped because the service is disabled");
-    };
-
-    let base_url = running_service
-        .onion_address()
-        .map(|value| format!("http://{}", value.display_unredacted()))
-        .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
-    let context = ready_context(&ready_config(&config, &base_url))?;
-    crate::daemon::remote::spawn_remote_cleanup_janitor(context.shared_status_state());
-    let readiness_client = tor_client.isolated_client();
-    let startup_probe_retry_policy = startup_probe_retry_policy();
-    let readiness = probe::wait_for_tor_hidden_service_startup(
-        &readiness_client,
-        &base_url,
-        &config.bearer_token,
-        startup_probe_retry_policy.timeout,
-        startup_probe_retry_policy.backoff,
-    );
-    tokio::pin!(readiness);
-    futures::pin_mut!(rend_requests);
-    let spawn_rend_request =
-        |rend_request: tor_hsservice::RendRequest,
-         store: SubmitAttemptStore,
-         context: crate::daemon::remote::RemoteNodeContext| {
-            std::mem::drop(tokio::spawn(async move {
-                let accepted = rend_request.accept().await;
-                let mut stream_requests = match accepted {
-                    Ok(stream_requests) => stream_requests,
-                    Err(err) => {
-                        tracing::error!("takd onion service rendezvous accept failed: {err}");
-                        return;
-                    }
-                };
-                while let Some(stream_request) = stream_requests.next().await {
-                    match stream_request.accept(Connected::new_empty()).await {
-                        Ok(mut stream) => {
-                            let store = store.clone();
-                            let context = context.clone();
-                            std::mem::drop(tokio::spawn(async move {
-                                if let Err(err) =
-                                    handle_remote_v1_http_stream(&mut stream, &store, &context)
-                                        .await
-                                {
-                                    tracing::error!(
-                                        "takd onion service stream handling failed: {err}"
-                                    );
-                                }
-                            }));
-                        }
-                        Err(err) => {
-                            tracing::error!("takd onion service stream accept failed: {err}")
-                        }
-                    }
+    if let Some(bind_addr) = test_tor_hidden_service_bind_addr() {
+        loop {
+            match serve_test_bind_session(
+                config_root,
+                state_root,
+                &config,
+                &runtime.nickname,
+                store.clone(),
+                &bind_addr,
+            )
+            .await
+            {
+                Ok(exit) => {
+                    write_transport_health(
+                        state_root,
+                        &TransportHealth::recovering(
+                            Some(exit.base_url.clone()),
+                            Some(exit.reason.clone()),
+                        ),
+                    )?;
+                    let delay = relaunch_backoff.next_delay();
+                    tracing::warn!(
+                        "restarting takd tor test-bind session after {}ms: {}",
+                        delay.as_millis(),
+                        exit.reason
+                    );
+                    sleep(delay).await;
                 }
-            }));
-        };
-
-    loop {
-        tokio::select! {
-            ready = &mut readiness => {
-                ready?;
-                persist_ready_base_url(config_root, state_root, &base_url)?;
-                tracing::info!("takd remote v1 onion service ready at {base_url}");
-                break;
-            }
-            maybe_rend_request = rend_requests.next() => {
-                let Some(rend_request) = maybe_rend_request else {
-                    bail!("takd onion service stopped before readiness probe completed");
-                };
-                spawn_rend_request(rend_request, store.clone(), context.clone());
+                Err(err) => {
+                    if err
+                        .downcast_ref::<RetryableTestBindStartupFailure>()
+                        .is_none()
+                    {
+                        return Err(err);
+                    }
+                    let detail = format!("{err:#}");
+                    write_transport_health(
+                        state_root,
+                        &TransportHealth::recovering(last_base_url.clone(), Some(detail.clone())),
+                    )?;
+                    let delay = relaunch_backoff.next_delay();
+                    tracing::warn!(
+                        "retrying takd tor test-bind startup after {}ms: {}",
+                        delay.as_millis(),
+                        detail
+                    );
+                    sleep(delay).await;
+                }
             }
         }
     }
 
-    while let Some(rend_request) = rend_requests.next().await {
-        spawn_rend_request(rend_request, store.clone(), context.clone());
+    loop {
+        match serve_live_tor_session(
+            config_root,
+            state_root,
+            &config,
+            &runtime,
+            store.clone(),
+            &recovery,
+        )
+        .await
+        {
+            Ok(exit) => {
+                last_base_url = Some(exit.base_url.clone());
+                write_transport_health(
+                    state_root,
+                    &TransportHealth::recovering(
+                        Some(exit.base_url.clone()),
+                        Some(exit.reason.clone()),
+                    ),
+                )?;
+                let delay = relaunch_backoff.next_delay();
+                tracing::warn!(
+                    "restarting takd onion service after {}ms: {}",
+                    delay.as_millis(),
+                    exit.reason
+                );
+                sleep(delay).await;
+            }
+            Err(err) => {
+                let detail = format!("{err:#}");
+                write_transport_health(
+                    state_root,
+                    &TransportHealth::recovering(last_base_url.clone(), Some(detail.clone())),
+                )?;
+                let delay = relaunch_backoff.next_delay();
+                tracing::warn!(
+                    "retrying takd onion service bootstrap after {}ms: {}",
+                    delay.as_millis(),
+                    detail
+                );
+                sleep(delay).await;
+            }
+        }
     }
-    Ok(())
 }
 
 pub(super) fn onion_service_config(
@@ -152,13 +167,16 @@ pub(super) fn test_tor_hidden_service_bind_addr() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn ready_config(config: &crate::agent::AgentConfig, base_url: &str) -> crate::agent::AgentConfig {
+pub(super) fn ready_config(
+    config: &crate::agent::AgentConfig,
+    base_url: &str,
+) -> crate::agent::AgentConfig {
     let mut ready = config.clone();
     ready.base_url = Some(base_url.to_string());
     ready
 }
 
-fn tor_client_config(
+pub(super) fn tor_client_config(
     runtime: &TorHiddenServiceRuntimeConfig,
 ) -> Result<arti_client::config::TorClientConfig> {
     arti_client::config::TorClientConfigBuilder::from_directories(
@@ -169,28 +187,7 @@ fn tor_client_config(
     .context("invalid Arti client configuration for takd hidden service")
 }
 
-async fn serve_test_bind(
-    config_root: &Path,
-    state_root: &Path,
-    config: &crate::agent::AgentConfig,
-    nickname: &str,
-    store: SubmitAttemptStore,
-    bind_addr: &str,
-) -> Result<()> {
-    let base_url = format!("http://{nickname}.onion");
-    tracing::info!("using takd tor hidden-service test bind override at {bind_addr}");
-    let listener = TcpListener::bind(bind_addr)
-        .await
-        .with_context(|| format!("bind takd tor test listener at {bind_addr}"))?;
-    persist_ready_base_url(config_root, state_root, &base_url)?;
-    tracing::info!("takd remote v1 onion service ready at {base_url}");
-    run_remote_v1_http_server(
-        listener,
-        store,
-        ready_context(&ready_config(config, &base_url))?,
-    )
-    .await
+pub(super) struct TorSessionExit {
+    pub(super) base_url: String,
+    pub(super) reason: String,
 }
-
-#[cfg(test)]
-mod tests;
