@@ -23,6 +23,10 @@ use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 mod cleanup_janitor;
 mod http_server;
+#[cfg(test)]
+mod http_server_test_support;
+#[cfg(test)]
+mod http_server_unit_tests;
 mod query_helpers;
 mod route_events;
 mod route_node;
