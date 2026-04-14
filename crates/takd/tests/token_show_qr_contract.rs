@@ -26,6 +26,8 @@ fn token_show_qr_renders_onboarding_command_and_qr_block() {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "tor".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         }),
         bearer_token: "secret".into(),
     })

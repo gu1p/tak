@@ -19,6 +19,8 @@ fn remote_routes_serve_binary_protobuf_contracts() {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "direct".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         "secret".into(),
     );

@@ -28,6 +28,7 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
+mod client_observations;
 mod client_remotes;
 mod client_tor;
 mod container_engine;
@@ -39,6 +40,10 @@ mod remote_protocol_codec;
 mod retry;
 mod step_runner;
 mod summary;
+pub use client_observations::{
+    RemoteObservation, load_remote_observation, load_remote_observation_at,
+    record_remote_observation, write_remote_observation, write_remote_observation_at,
+};
 use client_remotes::configured_remote_targets;
 pub use client_tor::default_client_tor_config;
 use container_engine::{
@@ -64,6 +69,7 @@ include!("engine/remote_diagnostics.rs");
 include!("engine/run_tasks.rs");
 include!("engine/lease_context.rs");
 include!("engine/remote_models.rs");
+include!("engine/preflight_failure.rs");
 include!("engine/transport.rs");
 
 fn transport_adapter_for_kind(kind: RemoteTransportKind) -> &'static dyn RemoteTransportAdapter {
@@ -85,6 +91,7 @@ include!("engine/workspace_collect.rs");
 include!("engine/workspace_sync.rs");
 include!("engine/runtime_metadata.rs");
 include!("engine/placement.rs");
+include!("engine/preflight_status_output.rs");
 include!("engine/preflight_fallback.rs");
 include!("engine/protocol_detection.rs");
 include!("engine/protocol_submit.rs");

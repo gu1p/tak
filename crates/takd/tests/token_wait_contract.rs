@@ -22,6 +22,8 @@ fn token_show_waits_for_hidden_service_token() {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "tor".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         }),
         bearer_token: "secret".into(),
     })

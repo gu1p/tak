@@ -25,6 +25,8 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "direct".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         "secret".into(),
     );

@@ -19,6 +19,8 @@ async fn remote_v1_http_server_serves_protobuf_node_info() {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "direct".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         "secret".into(),
     );

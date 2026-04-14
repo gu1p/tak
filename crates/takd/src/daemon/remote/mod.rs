@@ -82,6 +82,8 @@ pub(crate) fn remote_node_context_from_env(base_url: Option<String>) -> RemoteNo
             tags: env_list("TAKD_NODE_TAGS", "builder"),
             capabilities: env_list("TAKD_NODE_CAPABILITIES", "linux"),
             transport: env_or("TAKD_NODE_TRANSPORT", "direct"),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         std::env::var("TAKD_BEARER_TOKEN").unwrap_or_default(),
     )

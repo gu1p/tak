@@ -7,7 +7,13 @@ pub(super) fn handle_node_metadata_route(
     path_only: &str,
 ) -> Option<RemoteV1Response> {
     if method == "GET" && path_only == "/v1/node/info" {
-        return Some(protobuf_response(200, &context.node));
+        return Some(match context.node_info() {
+            Ok(node) => protobuf_response(200, &node),
+            Err(err) => {
+                tracing::error!("failed to build node info response: {err:#}");
+                error_response(500, "status_unavailable")
+            }
+        });
     }
     if method == "GET" && path_only == "/v1/node/status" {
         return Some(match context.node_status() {

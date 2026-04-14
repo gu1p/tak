@@ -11,10 +11,21 @@ pub(super) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
             .and_then(|status| status.node.as_ref().map(|node| node.transport.as_str()))
             .unwrap_or(result.remote.transport.as_str());
         if let Some(status) = &result.status {
+            let node = status.node.as_ref();
+            let state = node
+                .map(|node| node.transport_state.as_str())
+                .filter(|value| !value.is_empty())
+                .unwrap_or("ready");
+            let detail = node
+                .map(|node| node.transport_detail.as_str())
+                .filter(|value| !value.is_empty())
+                .map(|value| format!(" detail={value}"))
+                .unwrap_or_default();
             output.push_str(&format!(
-                "{} transport={} jobs={} cpu={} ram={} storage={} tak_exec={} status=ok\n",
+                "{} transport={} state={} jobs={} cpu={} ram={} storage={} tak_exec={} status=ok{}\n",
                 result.remote.node_id,
                 transport,
+                state,
                 status.active_jobs.len(),
                 format_cpu(status.cpu.as_ref()),
                 format_memory(status.memory.as_ref()),
@@ -24,6 +35,7 @@ pub(super) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
                     .as_ref()
                     .map(|value| human_bytes(value.tak_execution_bytes))
                     .unwrap_or_else(|| "n/a".to_string()),
+                detail,
             ));
         } else {
             output.push_str(&format!(

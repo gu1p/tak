@@ -20,6 +20,8 @@ async fn invalid_content_length_returns_explicit_bad_request_reason() {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "direct".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         "secret".into(),
     );

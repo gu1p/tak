@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::{Result, anyhow};
 use serde::Serialize;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef};
@@ -39,7 +41,7 @@ pub struct RemoteV1Response {
 
 #[derive(Clone)]
 pub struct RemoteNodeContext {
-    pub node: NodeInfo,
+    node: Arc<Mutex<NodeInfo>>,
     pub bearer_token: String,
     status_state: SharedNodeStatusState,
 }
@@ -47,10 +49,42 @@ pub struct RemoteNodeContext {
 impl RemoteNodeContext {
     pub fn new(node: NodeInfo, bearer_token: String) -> Self {
         Self {
-            node,
+            node: Arc::new(Mutex::new(node)),
             bearer_token,
             status_state: new_shared_node_status_state(remote_execution_root_base()),
         }
+    }
+
+    pub fn node_info(&self) -> Result<NodeInfo> {
+        self.node
+            .lock()
+            .map(|guard| guard.clone())
+            .map_err(|_| anyhow!("remote node lock poisoned"))
+    }
+
+    pub fn mark_transport_ready(&self) -> Result<()> {
+        self.set_transport_state("ready", None)
+    }
+
+    pub fn set_transport_state(
+        &self,
+        transport_state: &str,
+        transport_detail: Option<&str>,
+    ) -> Result<()> {
+        let mut guard = self
+            .node
+            .lock()
+            .map_err(|_| anyhow!("remote node lock poisoned"))?;
+        if guard.transport != "tor" {
+            guard.healthy = true;
+            guard.transport_state = "ready".to_string();
+            guard.transport_detail.clear();
+            return Ok(());
+        }
+        guard.healthy = transport_state == "ready";
+        guard.transport_state = transport_state.to_string();
+        guard.transport_detail = transport_detail.unwrap_or_default().to_string();
+        Ok(())
     }
 
     pub(crate) fn register_active_job(
@@ -76,11 +110,12 @@ impl RemoteNodeContext {
     }
 
     pub(crate) fn node_status(&self) -> Result<NodeStatusResponse> {
+        let node = self.node_info()?;
         let mut guard = self
             .status_state
             .lock()
             .map_err(|_| anyhow!("node status state lock poisoned"))?;
-        guard.snapshot(&self.node)
+        guard.snapshot(&node)
     }
 
     pub(crate) fn shared_status_state(&self) -> SharedNodeStatusState {

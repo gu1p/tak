@@ -6,7 +6,8 @@ use std::process::Command as StdCommand;
 use std::thread;
 
 use prost::Message;
-use support::remote_cli::{node_info, read_request, remote_token};
+use support::remote_cli::{node_info, read_request};
+use tak_proto::{RemoteTokenPayload, encode_remote_token};
 
 #[test]
 fn remote_add_imports_takd_token_and_lists_remote() {
@@ -15,6 +16,15 @@ fn remote_add_imports_takd_token_and_lists_remote() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind node info server");
     let port = listener.local_addr().expect("listener addr").port();
     let base_url = "http://builder-a-hidden-service.onion";
+    let token = encode_remote_token(&RemoteTokenPayload {
+        version: "v1".into(),
+        node: Some(tak_proto::NodeInfo {
+            pools: vec!["stale".into()],
+            ..node_info("builder-a", base_url, "tor")
+        }),
+        bearer_token: "secret".into(),
+    })
+    .expect("encode remote token");
 
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept probe");
@@ -30,7 +40,7 @@ fn remote_add_imports_takd_token_and_lists_remote() {
     });
 
     let add = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
-        .args(["remote", "add", &remote_token("builder-a", base_url, "tor")])
+        .args(["remote", "add", &token])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_TOR_ONION_DIAL_ADDR", format!("127.0.0.1:{port}"))
         .output()
@@ -49,6 +59,10 @@ fn remote_add_imports_takd_token_and_lists_remote() {
         "missing node id in list: {stdout}"
     );
     assert!(stdout.contains("default"), "missing pool in list: {stdout}");
+    assert!(
+        !stdout.contains("stale"),
+        "list should use probed node info:\n{stdout}"
+    );
 
     server.join().expect("probe server should exit");
 }

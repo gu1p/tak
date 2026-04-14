@@ -19,6 +19,8 @@ async fn node_probe_reads_a_complete_http_body_without_waiting_for_eof() {
         tags: vec!["builder".into()],
         capabilities: vec!["linux".into()],
         transport: "tor".into(),
+        transport_state: "ready".into(),
+        transport_detail: String::new(),
     };
     let body = expected.encode_to_vec();
 

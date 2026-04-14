@@ -9,7 +9,7 @@ use tak_proto::NodeInfo;
 /// #     Ok(())
 /// # }
 /// ```
-async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<()> {
+async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<NodeInfo> {
     let (status, body) = remote_protocol_http_request(
         target,
         "GET",
@@ -40,13 +40,5 @@ async fn detect_remote_protocol_mode(target: &StrictRemoteTarget) -> Result<()> 
             target.node_id
         )
     })?;
-    if !node.healthy {
-        bail!(
-            "infra error: remote node {} reported unhealthy status at {}",
-            target.node_id,
-            target.endpoint
-        );
-    }
-
-    Ok(())
+    Ok(node)
 }

@@ -23,7 +23,8 @@ pub(super) fn handle_remote_submit_route(
         Ok(worker_payload) => worker_payload,
         Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
     };
-    let selected_node_id = context.node.node_id.clone();
+    let node = context.node_info()?;
+    let selected_node_id = node.node_id.clone();
     let registration =
         store.register_submit(task_run_id, Some(payload.attempt), &selected_node_id)?;
     let (attached, idempotency_key) = match registration {
@@ -49,7 +50,7 @@ pub(super) fn handle_remote_submit_route(
             context.shared_status_state(),
             idempotency_key.clone(),
             selected_node_id,
-            context.node.transport.clone(),
+            node.transport,
             worker_payload,
         ) {
             let _ = context.finish_active_job(&idempotency_key);

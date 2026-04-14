@@ -15,6 +15,8 @@ pub fn node_info(node_id: &str, base_url: &str, transport: &str) -> NodeInfo {
         tags: vec!["builder".into()],
         capabilities: vec!["linux".into()],
         transport: transport.into(),
+        transport_state: "ready".into(),
+        transport_detail: String::new(),
     }
 }
 

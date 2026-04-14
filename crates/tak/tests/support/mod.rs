@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+pub mod auth_fallback_servers;
 pub mod container_runtime;
 pub mod example_workspace;
 pub mod examples_catalog;
@@ -29,6 +30,9 @@ pub mod tasks;
 pub mod tor_probe_env;
 pub mod tor_smoke;
 
+pub use auth_fallback_servers::{
+    spawn_auth_rejecting_submit_server, spawn_timeout_node_info_server,
+};
 pub use remote_inventory::{RemoteRecord, write_remote_inventory};
 pub use run::{run_tak_expect_failure, run_tak_expect_success};
 pub use tasks::write_tasks;

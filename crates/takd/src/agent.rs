@@ -19,6 +19,7 @@ mod helpers;
 mod paths;
 mod transport_health;
 
+pub(crate) use helpers::node_info_with_transport;
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
 pub use transport_health::{
     TorRecoveryBackoff, TorRecoveryTracker, TransportHealth, TransportState, read_transport_health,

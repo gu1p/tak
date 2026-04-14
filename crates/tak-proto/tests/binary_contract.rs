@@ -40,10 +40,15 @@ fn protobuf_messages_and_tokens_round_trip_as_binary() {
             tags: vec!["builder".to_string()],
             capabilities: vec!["linux".to_string()],
             transport: "direct".to_string(),
+            transport_state: "ready".to_string(),
+            transport_detail: String::new(),
         }),
         bearer_token: "secret-token".to_string(),
     })
     .expect("encode token");
     let decoded = decode_remote_token(&token).expect("decode token");
-    assert_eq!(decoded.node.unwrap().node_id, "builder-a");
+    let node = decoded.node.expect("node");
+    assert_eq!(node.node_id, "builder-a");
+    assert_eq!(node.transport_state, "ready");
+    assert!(node.transport_detail.is_empty());
 }

@@ -11,6 +11,7 @@ use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 mod health;
 mod live;
+mod live_state;
 mod monitor;
 mod probe;
 mod rend;
@@ -19,6 +20,7 @@ mod test_bind;
 
 use health::tor_recovery_config;
 use live::serve_live_tor_session;
+pub(crate) use rend::handle_accepted_stream_side_effects;
 use test_bind::{RetryableTestBindStartupFailure, serve_test_bind_session};
 
 pub(super) async fn serve_tor_agent(

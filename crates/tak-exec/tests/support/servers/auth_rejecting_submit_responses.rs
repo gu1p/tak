@@ -30,5 +30,7 @@ pub fn node_info(node_id: &str, port: u16) -> NodeInfo {
         tags: vec!["builder".into()],
         capabilities: vec!["linux".into()],
         transport: "direct".into(),
+        transport_state: "ready".into(),
+        transport_detail: String::new(),
     }
 }

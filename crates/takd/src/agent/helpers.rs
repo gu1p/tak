@@ -29,14 +29,30 @@ pub fn normalize_values(values: &[String], default: &str) -> Vec<String> {
 }
 
 pub fn node_info(config: &AgentConfig, base_url: &str) -> NodeInfo {
+    node_info_with_transport(config, base_url, "ready", None)
+}
+
+pub fn node_info_with_transport(
+    config: &AgentConfig,
+    base_url: &str,
+    transport_state: &str,
+    transport_detail: Option<&str>,
+) -> NodeInfo {
+    let transport_state = if config.transport == "tor" {
+        transport_state
+    } else {
+        "ready"
+    };
     NodeInfo {
         node_id: config.node_id.clone(),
         display_name: config.display_name.clone(),
         base_url: base_url.to_string(),
-        healthy: true,
+        healthy: transport_state == "ready",
         pools: config.pools.clone(),
         tags: config.tags.clone(),
         capabilities: config.capabilities.clone(),
         transport: config.transport.clone(),
+        transport_state: transport_state.to_string(),
+        transport_detail: transport_detail.unwrap_or_default().to_string(),
     }
 }

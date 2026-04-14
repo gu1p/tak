@@ -18,6 +18,8 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "direct".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         "secret".into(),
     );

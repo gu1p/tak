@@ -24,6 +24,11 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     }
 }
 
+#[doc(hidden)]
+pub fn observe_live_tor_client_stream(context: &crate::daemon::remote::RemoteNodeContext) {
+    tor::handle_accepted_stream_side_effects(context);
+}
+
 async fn serve_direct_agent(
     config_root: &Path,
     state_root: &Path,

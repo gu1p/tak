@@ -90,3 +90,64 @@ impl std::fmt::Display for NoMatchingRemoteError {
 }
 
 impl std::error::Error for NoMatchingRemoteError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemotePreflightFailureKind {
+    Timeout,
+    Auth,
+    HttpStatus,
+    InvalidMetadata,
+    Unhealthy,
+    Connect,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemotePreflightFailure {
+    pub node_id: String,
+    pub endpoint: String,
+    pub transport: String,
+    pub kind: RemotePreflightFailureKind,
+    pub message: String,
+    pub live_transport_state: Option<String>,
+    pub live_transport_detail: Option<String>,
+    pub last_observation: Option<RemoteObservation>,
+}
+
+impl std::fmt::Display for RemotePreflightFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemotePreflightExhaustedError {
+    pub task_label: String,
+    pub failures: Vec<RemotePreflightFailure>,
+}
+
+impl std::fmt::Display for RemotePreflightExhaustedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.failures.is_empty() {
+            write!(
+                f,
+                "infra error: no reachable remote fallback candidates for task {}",
+                self.task_label
+            )
+        } else {
+            let failures = self
+                .failures
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("; ");
+            write!(
+                f,
+                "infra error: no reachable remote fallback candidates for task {}: {}",
+                self.task_label, failures
+            )
+        }
+    }
+}
+
+impl std::error::Error for RemotePreflightExhaustedError {}

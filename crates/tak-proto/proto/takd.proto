@@ -11,6 +11,8 @@ message NodeInfo {
   repeated string tags = 6;
   repeated string capabilities = 7;
   string transport = 8;
+  string transport_state = 9;
+  string transport_detail = 10;
 }
 
 message RemoteTokenPayload {

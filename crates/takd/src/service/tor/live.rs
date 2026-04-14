@@ -4,18 +4,19 @@ use safelog::DisplayRedacted;
 use tokio::sync::mpsc;
 
 use crate::agent::{
-    TorRecoveryBackoff, TorRecoveryTracker, TransportHealth, persist_ready_base_url, ready_context,
+    TorRecoveryBackoff, TorRecoveryTracker, TransportHealth, persist_ready_base_url,
     write_transport_health,
 };
 use crate::daemon::remote::SubmitAttemptStore;
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 use super::health::{TorRecoveryConfig, startup_session_timeout};
+use super::live_state::{mark_transport_ready, mark_transport_recovering, pending_context};
 use super::monitor::{TorHealthEvent, handle_health_event, run_periodic_self_probe};
 use super::probe;
 use super::rend::spawn_rend_request;
 use super::startup_policy::startup_probe_retry_policy;
-use super::{TorSessionExit, onion_service_config, ready_config, tor_client_config};
+use super::{TorSessionExit, onion_service_config, tor_client_config};
 
 pub(super) async fn serve_live_tor_session(
     config_root: &std::path::Path,
@@ -48,7 +49,7 @@ pub(super) async fn serve_live_tor_session(
             .onion_address()
             .map(|value| format!("http://{}", value.display_unredacted()))
             .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
-        let context = ready_context(&ready_config(config, &base_url))?;
+        let context = pending_context(config, &base_url);
         persist_ready_base_url(config_root, state_root, &base_url)?;
         write_transport_health(
             state_root,
@@ -74,10 +75,7 @@ pub(super) async fn serve_live_tor_session(
                 ready = &mut readiness => {
                     match ready {
                         Ok(()) => {
-                            write_transport_health(
-                                state_root,
-                                &TransportHealth::ready(Some(base_url.clone())),
-                            )?;
+                            mark_transport_ready(&context, state_root, &base_url)?;
                             crate::daemon::remote::spawn_remote_cleanup_janitor(
                                 context.shared_status_state()
                             );
@@ -85,6 +83,7 @@ pub(super) async fn serve_live_tor_session(
                             break;
                         }
                         Err(err) => {
+                            mark_transport_recovering(&context, state_root, &base_url, format!("{err:#}"))?;
                             let delay = startup_backoff.next_delay();
                             tracing::warn!(
                                 "relaunching takd onion service on existing Tor client after {}ms: {err:#}",
@@ -116,10 +115,7 @@ pub(super) async fn serve_live_tor_session(
                 }
                 maybe_event = health_rx.recv() => {
                     if matches!(maybe_event, Some(TorHealthEvent::ProbeSucceeded)) {
-                        write_transport_health(
-                            state_root,
-                            &TransportHealth::ready(Some(base_url.clone())),
-                        )?;
+                        mark_transport_ready(&context, state_root, &base_url)?;
                         crate::daemon::remote::spawn_remote_cleanup_janitor(
                             context.shared_status_state()
                         );
@@ -172,6 +168,12 @@ pub(super) async fn serve_live_tor_session(
                             reason: "takd onion service health monitor stopped".to_string(),
                         });
                     };
+                    if let TorHealthEvent::Failure(reason) = &event {
+                        mark_transport_recovering(&context, state_root, &base_url, reason.clone())?;
+                    }
+                    if matches!(&event, TorHealthEvent::ProbeSucceeded) {
+                        mark_transport_ready(&context, state_root, &base_url)?;
+                    }
                     if let Some(reason) = handle_health_event(&mut tracker, event) {
                         health_task.abort();
                         return Ok(TorSessionExit { base_url, reason });

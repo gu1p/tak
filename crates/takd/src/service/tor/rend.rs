@@ -26,7 +26,7 @@ pub(super) fn spawn_rend_request(
         while let Some(stream_request) = stream_requests.next().await {
             match stream_request.accept(Connected::new_empty()).await {
                 Ok(mut stream) => {
-                    let _ = health_tx.send(TorHealthEvent::ProbeSucceeded);
+                    handle_accepted_stream_side_effects(&context);
                     let store = store.clone();
                     let context = context.clone();
                     std::mem::drop(tokio::spawn(async move {
@@ -45,4 +45,12 @@ pub(super) fn spawn_rend_request(
             }
         }
     }));
+}
+
+pub(crate) fn handle_accepted_stream_side_effects(
+    _context: &crate::daemon::remote::RemoteNodeContext,
+) {
+    // Accepted client streams are observational only. Transport readiness should
+    // advance only from takd's self-probe so client requests cannot clear a
+    // recovering state before `/v1/node/info` or `tak remote status` observes it.
 }

@@ -16,6 +16,8 @@ fn node_status_messages_round_trip_as_binary() {
             tags: vec!["builder".to_string()],
             capabilities: vec!["linux".to_string()],
             transport: "direct".to_string(),
+            transport_state: "ready".to_string(),
+            transport_detail: String::new(),
         }),
         sampled_at_ms: 1_734_000_000_000,
         cpu: Some(CpuUsage {
@@ -56,7 +58,9 @@ fn node_status_messages_round_trip_as_binary() {
     };
     let encoded = status.encode_to_vec();
     let decoded = NodeStatusResponse::decode(encoded.as_slice()).expect("decode node status");
-    assert_eq!(decoded.node.unwrap().node_id, "builder-a");
+    let node = decoded.node.expect("node");
+    assert_eq!(node.node_id, "builder-a");
+    assert_eq!(node.transport_state, "ready");
     assert_eq!(decoded.active_jobs.len(), 1);
     assert_eq!(decoded.active_jobs[0].task_label, "//apps/web:build");
 }

@@ -57,6 +57,8 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
                 tags: vec!["builder".into()],
                 capabilities: vec!["linux".into()],
                 transport: "tor".into(),
+                transport_state: "ready".into(),
+                transport_detail: String::new(),
             },
             "secret".into(),
         );

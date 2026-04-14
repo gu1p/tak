@@ -3,7 +3,7 @@ use arti_client::TorClient;
 use futures::future::join_all;
 use std::time::Instant;
 use tak_core::model::RemoteTransportKind;
-use tak_exec::default_client_tor_config;
+use tak_exec::{default_client_tor_config, write_remote_observation};
 use tak_proto::NodeStatusResponse;
 use tokio::io::AsyncRead;
 use tokio::net::TcpStream;
@@ -25,11 +25,16 @@ pub(super) async fn fetch_snapshot(remotes: &[RemoteRecord]) -> Vec<RemoteStatus
 async fn fetch_remote_status_result(remote: &RemoteRecord) -> RemoteStatusResult {
     let remote = remote.clone();
     match fetch_node_status(&remote.base_url, &remote.transport, &remote.bearer_token).await {
-        Ok(status) => RemoteStatusResult {
-            remote,
-            status: Some(status),
-            error: None,
-        },
+        Ok(status) => {
+            if let Some(node) = status.node.as_ref() {
+                let _ = write_remote_observation(node, status.sampled_at_ms);
+            }
+            RemoteStatusResult {
+                remote,
+                status: Some(status),
+                error: None,
+            }
+        }
         Err(err) => RemoteStatusResult {
             remote,
             status: None,

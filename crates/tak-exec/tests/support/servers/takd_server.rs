@@ -36,6 +36,8 @@ impl RunningTakdServer {
                 tags: vec!["builder".into()],
                 capabilities: vec!["linux".into()],
                 transport: transport.into(),
+                transport_state: "ready".into(),
+                transport_detail: String::new(),
             },
             "secret".into(),
         );

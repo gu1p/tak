@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
+use tak_exec::record_remote_observation;
 use tak_proto::decode_remote_token;
 
 use super::remote_probe::probe_node;
@@ -51,15 +52,16 @@ pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
     inventory
         .remotes
         .retain(|remote| remote.node_id != node.node_id);
+    let _ = record_remote_observation(&probed);
     let record = RemoteRecord {
-        node_id: node.node_id,
-        display_name: node.display_name,
-        base_url: node.base_url,
+        node_id: probed.node_id,
+        display_name: probed.display_name,
+        base_url: probed.base_url,
         bearer_token: payload.bearer_token,
-        pools: node.pools,
-        tags: node.tags,
-        capabilities: node.capabilities,
-        transport: node.transport,
+        pools: probed.pools,
+        tags: probed.tags,
+        capabilities: probed.capabilities,
+        transport: probed.transport,
         enabled: true,
     };
     inventory.remotes.push(record.clone());

@@ -46,6 +46,8 @@ pub fn status_payload_for(
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: transport.into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         }),
         sampled_at_ms: 1_734_000_000_000,
         cpu: Some(CpuUsage {

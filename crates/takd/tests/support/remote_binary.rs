@@ -17,6 +17,8 @@ pub fn streaming_context() -> RemoteNodeContext {
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
             transport: "direct".into(),
+            transport_state: "ready".into(),
+            transport_detail: String::new(),
         },
         "secret".into(),
     )

@@ -43,6 +43,10 @@ fn remote_status_lists_running_jobs_and_resources() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Nodes"), "missing nodes section:\n{stdout}");
     assert!(stdout.contains("builder-a"), "missing node id:\n{stdout}");
+    assert!(
+        stdout.contains("state=ready"),
+        "missing transport state:\n{stdout}"
+    );
     assert!(stdout.contains("cpu="), "missing cpu usage:\n{stdout}");
     assert!(stdout.contains("ram="), "missing ram usage:\n{stdout}");
     assert!(
