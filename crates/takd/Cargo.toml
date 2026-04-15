@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
-arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-service"] }
+arti-client = { version = "0.41", default-features = false, features = ["tokio", "rustls", "onion-service-service"] }
 base64.workspace = true
 bytes.workspace = true
 clap.workspace = true
@@ -18,7 +18,7 @@ prost.workspace = true
 qrcode.workspace = true
 ratatui.workspace = true
 rusqlite.workspace = true
-safelog = "0.7"
+safelog = "0.8"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -31,9 +31,9 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 sysinfo.workspace = true
 url.workspace = true
-tor-cell = "0.39"
-tor-hsservice = "0.39"
-tor-rtcompat = "0.39"
+tor-cell = "0.41"
+tor-hsservice = "0.41"
+tor-rtcompat = "0.41"
 tui-qrcode.workspace = true
 uuid.workspace = true
 zip.workspace = true
