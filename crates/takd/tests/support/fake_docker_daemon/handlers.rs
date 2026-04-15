@@ -20,6 +20,17 @@ pub(super) async fn write_image_status(
     write_response(stream, status, "application/json", body).await
 }
 
+pub(super) async fn write_version_response(
+    stream: &mut UnixStream,
+    state: &FakeDockerDaemonState,
+) -> io::Result<()> {
+    let body = format!(
+        r#"{{"Version":"test","ApiVersion":"1.47","Arch":"{}","Os":"linux"}}"#,
+        state.daemon_arch()
+    );
+    write_response(stream, "200 OK", "application/json", body.as_bytes()).await
+}
+
 pub(super) async fn write_pull_response(
     stream: &mut UnixStream,
     state: &FakeDockerDaemonState,

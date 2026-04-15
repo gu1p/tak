@@ -48,6 +48,7 @@ async fn containerized_remote_tasks_retry_probe_after_transient_probe_failure() 
         FakeDockerConfig {
             visible_roots: vec![visible_root.clone()],
             image_present: true,
+            ..Default::default()
         },
     );
 

@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 use takd::SubmitAttemptStore;
 
@@ -18,20 +17,20 @@ use support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
 use wait_for_terminal_events::wait_for_terminal_events;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_validate_candidates()
- {
+async fn containerized_remote_tasks_choose_arm64_probe_helper_for_arm64_daemon() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let tmpdir = temp.path().join("tmp-root");
     fs::create_dir_all(&tmpdir).expect("create tmpdir");
+    let visible_root = tmpdir.join("takd-remote-exec");
 
     let daemon = FakeDockerDaemon::spawn(
         temp.path(),
         FakeDockerConfig {
-            visible_roots: Vec::new(),
+            visible_roots: vec![visible_root],
             image_present: true,
-            ..Default::default()
+            arch: "arm64".to_string(),
         },
     );
     configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env);
@@ -40,42 +39,27 @@ async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_
 
     let context = test_context();
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let ack = submit_container_task(&context, &store, "task-run-fallback", "true");
+    let ack = submit_container_task(&context, &store, "task-run-probed-arm64", "true");
     assert!(ack.accepted);
-    wait_for_terminal_events(&context, &store, "task-run-fallback");
+    wait_for_terminal_events(&context, &store, "task-run-probed-arm64");
 
-    let result = fetch_result(&context, &store, "task-run-fallback");
-    assert!(
-        !result.success,
-        "fallback root should remain unusable in fake docker"
-    );
+    let result = fetch_result(&context, &store, "task-run-probed-arm64");
+    assert!(result.success);
 
     let creates = daemon.create_records();
-    assert!(
-        creates.iter().any(|record| record.is_probe()),
-        "expected probe attempts before fallback: {creates:?}"
-    );
     let execution = creates
         .iter()
         .find(|record| !record.is_probe())
         .expect("execution container");
-    for probe in creates.iter().filter(|record| record.is_probe()) {
-        assert_ne!(
-            probe.image, execution.image,
-            "probe should use a dedicated helper image instead of the task runtime image"
-        );
-    }
-    assert!(
-        execution
-            .bind_source()
-            .expect("execution bind source")
-            .starts_with(Path::new("/var/tmp/takd-remote-exec")),
-        "execution bind should fall back to unix default root: {:?}",
-        execution
-    );
+    let probe = creates
+        .iter()
+        .find(|record| record.is_probe())
+        .expect("probe container");
     assert_eq!(
-        daemon.pull_count(),
-        0,
-        "probe fallback should not need any registry pull when the task image is already present"
+        probe.image.as_deref(),
+        Some("takd-exec-root-probe:aarch64-v1"),
+        "probe should follow the daemon architecture instead of the takd build architecture"
     );
+    assert_ne!(probe.image, execution.image);
+    assert_eq!(daemon.pull_count(), 0);
 }

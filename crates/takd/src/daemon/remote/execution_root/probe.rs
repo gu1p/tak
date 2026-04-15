@@ -16,7 +16,7 @@ use super::client::{
     ContainerEngineClient, cleanup_container, connect_container_engine, ensure_probe_image,
     wait_for_container_exit_code,
 };
-use super::{PROBE_IMAGE, PROBE_MOUNT, PROBE_SENTINEL, candidate_remote_execution_root_bases};
+use super::{PROBE_MOUNT, PROBE_SENTINEL, candidate_remote_execution_root_bases};
 
 struct ShellContainerEngineProbe;
 
@@ -67,11 +67,11 @@ async fn probe_remote_execution_root_candidates_async(
     let engine = select_container_engine(&mut engine_probe)
         .context("container engine selection failed during exec-root probe")?;
     let client = connect_container_engine(engine).await?;
-    ensure_probe_image(&client.docker).await?;
+    let probe_image = ensure_probe_image(&client.docker).await?;
 
     let mut failures = Vec::new();
     for candidate in candidate_remote_execution_root_bases(key) {
-        match probe_candidate(&client, engine, &candidate).await {
+        match probe_candidate(&client, engine, probe_image.image(), &candidate).await {
             Ok(()) => return Ok(candidate),
             Err(err) => failures.push(format!("{}: {err}", candidate.display())),
         }
@@ -86,6 +86,7 @@ async fn probe_remote_execution_root_candidates_async(
 async fn probe_candidate(
     client: &ContainerEngineClient,
     engine: ContainerEngine,
+    probe_image: &str,
     candidate: &Path,
 ) -> Result<()> {
     fs::create_dir_all(candidate)
@@ -100,7 +101,7 @@ async fn probe_candidate(
     let container_name = format!("tak-exec-root-probe-{}", Uuid::new_v4());
     let bind_mount = format!("{}:{PROBE_MOUNT}:ro", probe_root.display());
     let config = ContainerConfig {
-        image: Some(PROBE_IMAGE.to_string()),
+        image: Some(probe_image.to_string()),
         cmd: Some(vec![
             "test".to_string(),
             "-f".to_string(),

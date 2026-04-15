@@ -30,6 +30,7 @@ async fn explicit_remote_exec_root_skips_probe_for_containerized_remote_tasks() 
         FakeDockerConfig {
             visible_roots: vec![explicit_root.clone()],
             image_present: false,
+            ..Default::default()
         },
     );
     configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env);

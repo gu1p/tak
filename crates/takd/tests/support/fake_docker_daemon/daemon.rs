@@ -25,6 +25,7 @@ impl FakeDockerDaemon {
         let state = Arc::new(FakeDockerDaemonState::new(
             config.visible_roots,
             config.image_present,
+            config.arch,
         ));
         let accept_task = tokio::spawn(run_fake_docker_daemon(listener, Arc::clone(&state)));
 

@@ -28,6 +28,7 @@ impl CreateRecord {
 pub struct FakeDockerConfig {
     pub visible_roots: Vec<PathBuf>,
     pub image_present: bool,
+    pub arch: String,
 }
 
 impl Default for FakeDockerConfig {
@@ -35,6 +36,7 @@ impl Default for FakeDockerConfig {
         Self {
             visible_roots: Vec::new(),
             image_present: true,
+            arch: "x86_64".to_string(),
         }
     }
 }

@@ -5,7 +5,7 @@ use tokio::net::{UnixListener, UnixStream};
 
 use super::handlers::{
     write_build_response, write_create_response, write_image_status, write_pull_response,
-    write_wait_response,
+    write_version_response, write_wait_response,
 };
 use super::request::{FakeDockerRequest, read_request};
 use super::response::{write_empty_response, write_logs_response, write_response};
@@ -37,6 +37,7 @@ async fn handle_connection(
         "GET" if path.ends_with("/_ping") => {
             write_response(&mut stream, "200 OK", "text/plain", b"OK").await?
         }
+        "GET" if path.ends_with("/version") => write_version_response(&mut stream, &state).await?,
         "GET" if path.contains("/images/") && path.ends_with("/json") => {
             let Some(image) = requested_image_name(&request) else {
                 write_response(&mut stream, "404 Not Found", "text/plain", b"not found").await?;
