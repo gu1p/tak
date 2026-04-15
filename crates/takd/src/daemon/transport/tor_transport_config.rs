@@ -91,11 +91,15 @@ fn ensure_present(field: &str, value: &str) -> Result<()> {
 
 fn is_valid_onion_endpoint(endpoint: &str) -> bool {
     let endpoint = endpoint.trim();
-    let without_scheme = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-    let host_port = without_scheme.split('/').next().unwrap_or_default();
-    let host = host_port.split(':').next().unwrap_or_default();
-    host.ends_with(".onion")
+    let candidate = if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+        endpoint.to_string()
+    } else {
+        format!("http://{endpoint}")
+    };
+    let Ok(parsed) = url::Url::parse(&candidate) else {
+        return false;
+    };
+    parsed
+        .host_str()
+        .is_some_and(|host| host.ends_with(".onion"))
 }

@@ -15,10 +15,12 @@ use paths::{config_path, token_path};
 const CONFIG_FILE: &str = "agent.toml";
 const TOKEN_FILE: &str = "agent.token";
 
+mod direct_base_url;
 mod helpers;
 mod paths;
 mod transport_health;
 
+pub(crate) use direct_base_url::{DirectBaseUrlError, parse_direct_base_url};
 pub(crate) use helpers::node_info_with_transport;
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
 pub use transport_health::{
@@ -170,12 +172,21 @@ fn write_config(config_root: &Path, config: &AgentConfig) -> Result<()> {
 }
 
 fn validate_direct_base_url(base_url: Option<&str>) -> Result<String> {
-    let base_url = base_url
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow!("base_url is required for direct transport"))?;
-    if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
-        bail!("base_url must start with http:// or https:// for direct transport");
-    }
-    Ok(base_url.to_string())
+    parse_direct_base_url(base_url)
+        .map(|parsed| parsed.canonical_base_url())
+        .map_err(|err| match err {
+            DirectBaseUrlError::Missing => anyhow!("base_url is required for direct transport"),
+            DirectBaseUrlError::InvalidScheme => {
+                anyhow!("base_url must start with http:// or https:// for direct transport")
+            }
+            DirectBaseUrlError::MissingHost => {
+                anyhow!("base_url must include a host for direct transport")
+            }
+            DirectBaseUrlError::MissingPort => {
+                anyhow!("base_url must include a port for direct transport")
+            }
+            DirectBaseUrlError::UnsupportedComponents => anyhow!(
+                "base_url must not include userinfo, path, query, or fragment for direct transport"
+            ),
+        })
 }

@@ -1,3 +1,4 @@
+use http_body_util::BodyExt;
 use tak_proto::GetTaskResultResponse;
 
 /// Fetches terminal result metadata for one remote attempt.
@@ -69,6 +70,26 @@ fn parse_remote_protocol_result(
     })
 }
 
+struct AbortOnDrop<T> {
+    handle: Option<tokio::task::JoinHandle<T>>,
+}
+
+impl<T> AbortOnDrop<T> {
+    fn new(handle: tokio::task::JoinHandle<T>) -> Self {
+        Self {
+            handle: Some(handle),
+        }
+    }
+}
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+    }
+}
+
 /// Sends a small HTTP request to a remote endpoint and returns `(status_code, body)`.
 ///
 /// ```no_run
@@ -91,21 +112,53 @@ async fn remote_protocol_http_request(
             target.node_id, target.endpoint
         )
     })?;
-    let header_block = remote_protocol_request_headers(&target.node_id, &target.bearer_token)?;
+    let bearer_token = remote_protocol_bearer_token(&target.node_id, &target.bearer_token)?;
     let payload = body.unwrap_or(&[]);
-    let request_head = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {socket_addr}\r\nConnection: close\r\n{header_block}Content-Type: application/x-protobuf\r\nContent-Length: {}\r\n\r\n",
-        payload.len()
-    );
 
     let exchange = async {
-        let mut stream = TransportFactory::connect(target).await?;
-        stream.write_all(request_head.as_bytes()).await?;
-        if !payload.is_empty() {
-            stream.write_all(payload).await?;
-        }
-        stream.flush().await?;
-        read_http_response(&mut stream, target, phase).await
+        let stream = TransportFactory::connect(target).await?;
+        let (mut sender, connection) =
+            hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
+                .await
+                .with_context(|| {
+                    format!(
+                        "infra error: remote node {} returned malformed HTTP response for {}",
+                        target.node_id, phase
+                    )
+                })?;
+        let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
+            let _ = connection.await;
+        }));
+        let request = hyper::Request::builder()
+            .method(method)
+            .uri(path)
+            .header(hyper::header::HOST, socket_addr.as_str())
+            .header(hyper::header::CONNECTION, "close")
+            .header("X-Tak-Protocol-Version", "v1")
+            .header(hyper::header::AUTHORIZATION, format!("Bearer {bearer_token}"))
+            .header(hyper::header::CONTENT_TYPE, "application/x-protobuf")
+            .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(payload)))
+            .context("build remote protocol request")?;
+        let response = sender.send_request(request).await.with_context(|| {
+            format!(
+                "infra error: remote node {} returned malformed HTTP response for {}",
+                target.node_id, phase
+            )
+        })?;
+        let status = response.status().as_u16();
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .with_context(|| {
+                format!(
+                    "infra error: remote node {} returned truncated HTTP body for {}",
+                    target.node_id, phase
+                )
+            })?
+            .to_bytes()
+            .to_vec();
+        Ok((status, body))
     };
 
     let effective_timeout = TransportFactory::phase_timeout(target, timeout);
@@ -120,80 +173,4 @@ async fn remote_protocol_http_request(
                 phase
             )
         })?
-}
-
-async fn read_http_response<S>(
-    stream: &mut S,
-    target: &StrictRemoteTarget,
-    phase: &str,
-) -> Result<(u16, Vec<u8>)>
-where
-    S: tokio::io::AsyncRead + Unpin + ?Sized,
-{
-    let mut response = Vec::new();
-    let mut chunk = [0_u8; 1024];
-    let split = loop {
-        if let Some(index) = response.windows(4).position(|window| window == b"\r\n\r\n") {
-            break index + 4;
-        }
-        let read = stream.read(&mut chunk).await?;
-        if read == 0 {
-            bail!(
-                "infra error: remote node {} returned malformed HTTP response for {}",
-                target.node_id,
-                phase
-            );
-        }
-        response.extend_from_slice(&chunk[..read]);
-    };
-    let head = String::from_utf8_lossy(&response[..split]);
-    let status_code = head
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|code| code.parse::<u16>().ok())
-        .ok_or_else(|| {
-            anyhow!(
-                "infra error: remote node {} returned invalid HTTP status for {}",
-                target.node_id,
-                phase
-            )
-        })?;
-    let content_length = response_content_length(&head, target, phase)?;
-    let mut body = response[split..].to_vec();
-    while body.len() < content_length {
-        let read = stream.read(&mut chunk).await?;
-        if read == 0 {
-            bail!(
-                "infra error: remote node {} returned truncated HTTP body for {}",
-                target.node_id,
-                phase
-            );
-        }
-        body.extend_from_slice(&chunk[..read]);
-    }
-    body.truncate(content_length);
-    Ok((status_code, body))
-}
-
-fn response_content_length(
-    head: &str,
-    target: &StrictRemoteTarget,
-    phase: &str,
-) -> Result<usize> {
-    for line in head.lines() {
-        let Some((name, value)) = line.split_once(':') else {
-            continue;
-        };
-        if name.trim().eq_ignore_ascii_case("content-length") {
-            return value.trim().parse::<usize>().with_context(|| {
-                format!(
-                    "infra error: remote node {} returned invalid content-length for {}",
-                    target.node_id, phase
-                )
-            });
-        }
-    }
-
-    Ok(0)
 }

@@ -23,7 +23,6 @@ use tak_core::model::{
     build_current_state_manifest, normalize_path_ref,
 };
 use tak_loader::evaluate_named_policy_decision;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
@@ -53,7 +52,7 @@ use container_engine::{
 use container_runtime::run_task_steps_in_container;
 use execution_graph::collect_required_labels;
 use lease_client::{acquire_task_lease, release_task_lease};
-use remote_endpoint::{remote_protocol_request_headers, test_tor_onion_dial_addr};
+use remote_endpoint::{remote_protocol_bearer_token, test_tor_onion_dial_addr};
 use remote_protocol_codec::{
     build_remote_submit_payload, parse_remote_events_response, parse_remote_result_outputs,
 };
@@ -101,4 +100,11 @@ include!("engine/protocol_result_http.rs");
 include!("engine/step_execution.rs");
 include!("engine/remote_worker.rs");
 
-pub use remote_endpoint::{endpoint_host_port, endpoint_socket_addr};
+#[cfg(test)]
+mod protocol_result_http_connection_cleanup_tests;
+#[cfg(test)]
+mod protocol_result_http_tests;
+#[cfg(test)]
+mod protocol_result_http_timeout_tests;
+
+pub use remote_endpoint::{endpoint_host_port, endpoint_socket_addr, socket_addr_from_host_port};

@@ -89,3 +89,19 @@ fn endpoint_helpers_normalize_authority_and_validate_ports() {
     assert!(endpoint_socket_addr("builder.example").is_err());
     assert!(endpoint_host_port("http://builder.example:bad").is_err());
 }
+
+#[test]
+fn endpoint_helpers_support_ipv6_and_strip_userinfo() {
+    assert_eq!(
+        endpoint_socket_addr("https://[::1]").expect("https ipv6"),
+        "[::1]:443"
+    );
+    assert_eq!(
+        endpoint_host_port("https://[::1]:8443/path").expect("ipv6 host port"),
+        ("::1".to_string(), 8443)
+    );
+    assert_eq!(
+        endpoint_socket_addr("https://user:pass@[::1]:9443/status").expect("userinfo stripped"),
+        "[::1]:9443"
+    );
+}

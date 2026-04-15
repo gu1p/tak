@@ -3,7 +3,9 @@ use std::path::Path;
 use anyhow::{Context, Result, anyhow, bail};
 use tokio::net::TcpListener;
 
-use crate::agent::{persist_ready_base_url, read_config};
+use crate::agent::{
+    DirectBaseUrlError, parse_direct_base_url, persist_ready_base_url, read_config,
+};
 use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
 
 mod tor;
@@ -35,26 +37,24 @@ async fn serve_direct_agent(
     config: &crate::agent::AgentConfig,
     store: SubmitAttemptStore,
 ) -> Result<()> {
-    let configured_base_url = config
-        .base_url
-        .as_deref()
-        .ok_or_else(|| anyhow!("base_url must be http(s) when serving direct transport"))?;
-    let (scheme, bind_addr) = configured_base_url
-        .strip_prefix("http://")
-        .map(|value| ("http", value))
-        .or_else(|| {
-            configured_base_url
-                .strip_prefix("https://")
-                .map(|value| ("https", value))
-        })
-        .ok_or_else(|| anyhow!("base_url must be http(s) when serving direct transport"))?;
-    let listener = TcpListener::bind(bind_addr)
+    let parsed = parse_direct_base_url(config.base_url.as_deref()).map_err(|err| match err {
+        DirectBaseUrlError::Missing | DirectBaseUrlError::InvalidScheme => {
+            anyhow!("base_url must be http(s) when serving direct transport")
+        }
+        DirectBaseUrlError::MissingHost => anyhow!("base_url must include a host"),
+        DirectBaseUrlError::MissingPort => anyhow!("base_url must include a port"),
+        DirectBaseUrlError::UnsupportedComponents => {
+            anyhow!("base_url must not include userinfo, path, query, or fragment when serving direct transport")
+        }
+    })?;
+    let bind_addr = parsed.bind_addr();
+    let listener = TcpListener::bind(&bind_addr)
         .await
         .with_context(|| format!("bind takd http listener at {bind_addr}"))?;
     let advertised_base_url = if bind_addr.ends_with(":0") {
-        format!("{scheme}://{}", listener.local_addr()?)
+        format!("{}://{}", parsed.scheme, listener.local_addr()?)
     } else {
-        configured_base_url.to_string()
+        parsed.canonical_base_url()
     };
     persist_ready_base_url(config_root, state_root, &advertised_base_url)?;
     tracing::info!("takd remote v1 direct service ready at {advertised_base_url}");

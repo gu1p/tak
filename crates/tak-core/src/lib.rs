@@ -4,6 +4,7 @@
 //! are reused by loader, executor, daemon, and CLI crates.
 
 pub mod crypto_provider;
+pub mod endpoint;
 pub mod label;
 pub mod model;
 pub mod planner;

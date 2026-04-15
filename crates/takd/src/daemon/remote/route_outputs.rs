@@ -20,7 +20,7 @@ pub(super) fn handle_remote_outputs_route(
     let Some(raw_path) = query_param_string(query, "path") else {
         return Ok(Some(error_response(400, "missing_output_path")));
     };
-    let normalized = match normalize_path_ref("workspace", raw_path) {
+    let normalized = match normalize_path_ref("workspace", &raw_path) {
         Ok(path_ref) if path_ref.path != "." => path_ref.path,
         _ => return Ok(Some(error_response(400, "invalid_output_path"))),
     };

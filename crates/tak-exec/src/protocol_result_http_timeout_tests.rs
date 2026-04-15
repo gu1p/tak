@@ -7,7 +7,9 @@ use super::{StrictRemoteTarget, remote_protocol_http_request};
 
 #[tokio::test]
 async fn remote_protocol_http_request_timeout_mentions_endpoint_and_transport() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind listener");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind listener");
     let addr = listener.local_addr().expect("listener addr");
     let server = tokio::spawn(async move {
         let (_stream, _) = listener.accept().await.expect("accept request");

@@ -26,6 +26,15 @@ impl LiveDirectRoots {
 }
 
 pub fn init_direct_agent(takd: &Path, roots: &LiveDirectRoots, node_id: &str) {
+    init_direct_agent_with_base_url(takd, roots, node_id, "http://127.0.0.1:0");
+}
+
+pub fn init_direct_agent_with_base_url(
+    takd: &Path,
+    roots: &LiveDirectRoots,
+    node_id: &str,
+    base_url: &str,
+) {
     let output = StdCommand::new(takd)
         .args([
             "init",
@@ -38,7 +47,7 @@ pub fn init_direct_agent(takd: &Path, roots: &LiveDirectRoots, node_id: &str) {
             "--transport",
             "direct",
             "--base-url",
-            "http://127.0.0.1:0",
+            base_url,
             "--pool",
             "build",
             "--pool",

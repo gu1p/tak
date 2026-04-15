@@ -52,9 +52,7 @@ async fn sync_remote_outputs_from_remote(
 ) -> Result<()> {
     for output in outputs {
         let relative_path = normalized_synced_output_path(output)?;
-        let path_query = relative_path.to_string_lossy().to_string();
-        let request_path =
-            format!("/v1/tasks/{task_run_id}/outputs?attempt={attempt}&path={path_query}");
+        let request_path = build_remote_output_request_path(task_run_id, attempt, &relative_path);
         let (status, response_body) = remote_protocol_http_request(
             target,
             "GET",
@@ -116,6 +114,17 @@ async fn sync_remote_outputs_from_remote(
     }
 
     Ok(())
+}
+
+fn build_remote_output_request_path(
+    task_run_id: &str,
+    attempt: u32,
+    relative_path: &Path,
+) -> String {
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    query.append_pair("attempt", &attempt.to_string());
+    query.append_pair("path", &normalize_filesystem_relative_path(relative_path));
+    format!("/v1/tasks/{task_run_id}/outputs?{}", query.finish())
 }
 
 fn normalized_synced_output_path(output: &SyncedOutput) -> Result<PathBuf> {

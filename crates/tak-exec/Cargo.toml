@@ -11,6 +11,7 @@ doctest = false
 anyhow.workspace = true
 base64.workspace = true
 bollard.workspace = true
+bytes.workspace = true
 futures.workspace = true
 ignore.workspace = true
 tokio.workspace = true
@@ -20,10 +21,15 @@ tak-proto = { path = "../tak-proto" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
 uuid.workspace = true
 tak-loader = { path = "../tak-loader" }
+tar.workspace = true
 tempfile.workspace = true
 toml.workspace = true
+url.workspace = true
 zip.workspace = true
 arti-client = { version = "0.39", default-features = false, features = ["tokio", "rustls", "onion-service-client"] }
 tor-rtcompat = "0.39"

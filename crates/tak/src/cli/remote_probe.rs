@@ -1,22 +1,22 @@
-use self::http::read_http_response;
 use super::remote_probe_support::{
-    ProbeAttemptError, test_tor_onion_dial_addr, tor_probe_retry_policy,
+    AbortOnDrop, ProbeAttemptError, test_tor_onion_dial_addr, tor_probe_retry_policy,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use arti_client::TorClient;
+use bytes::Bytes;
+use http_body_util::{BodyExt, Empty};
+use hyper::Request;
 use prost::Message;
 use std::time::Instant;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{
     default_client_tor_config, endpoint_host_port as shared_endpoint_host_port,
-    endpoint_socket_addr as shared_endpoint_socket_addr,
+    endpoint_socket_addr as shared_endpoint_socket_addr, socket_addr_from_host_port,
 };
 use tak_proto::NodeInfo;
-use tokio::io::{AsyncRead, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::time::sleep;
-
-mod http;
 
 pub(super) async fn probe_node(
     base_url: &str,
@@ -109,7 +109,7 @@ async fn connect(endpoint: &str, kind: RemoteTransportKind) -> Result<RemoteStre
     let (host, port) = endpoint_host_port(endpoint)?;
     if kind == RemoteTransportKind::Direct || !host.ends_with(".onion") {
         return Ok(Box::new(
-            TcpStream::connect(format!("{host}:{port}")).await?,
+            TcpStream::connect(socket_addr_from_host_port(&host, port)).await?,
         ));
     }
     if let Some(test_dial_addr) = test_tor_onion_dial_addr() {
@@ -120,27 +120,12 @@ async fn connect(endpoint: &str, kind: RemoteTransportKind) -> Result<RemoteStre
 }
 
 async fn probe_once(
-    mut stream: RemoteStream,
+    stream: RemoteStream,
     authority: &str,
     bearer_token: &str,
     base_url: &str,
 ) -> std::result::Result<NodeInfo, ProbeAttemptError> {
-    let request = format!(
-        "GET /v1/node/info HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {bearer_token}\r\nConnection: close\r\n\r\n"
-    );
-    stream
-        .write_all(request.as_bytes())
-        .await
-        .context("write node probe")
-        .map_err(ProbeAttemptError::retryable)?;
-    stream
-        .flush()
-        .await
-        .context("flush node probe")
-        .map_err(ProbeAttemptError::retryable)?;
-    let (status, body) = read_http_response(&mut stream, base_url)
-        .await
-        .map_err(ProbeAttemptError::retryable)?;
+    let (status, body) = send_node_info_request(stream, authority, bearer_token, base_url).await?;
     if status != 200 {
         return Err(ProbeAttemptError::final_error(anyhow!(
             "node probe failed with HTTP {status}"
@@ -159,5 +144,52 @@ fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
     shared_endpoint_host_port(endpoint)
 }
 
+async fn send_node_info_request<S>(
+    stream: S,
+    authority: &str,
+    bearer_token: &str,
+    base_url: &str,
+) -> std::result::Result<(u16, Vec<u8>), ProbeAttemptError>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let (mut sender, connection) =
+        hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
+            .await
+            .with_context(|| format!("malformed HTTP response from {base_url}"))
+            .map_err(ProbeAttemptError::retryable)?;
+    let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
+        let _ = connection.await;
+    }));
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/node/info")
+        .header(hyper::header::HOST, authority)
+        .header(
+            hyper::header::AUTHORIZATION,
+            format!("Bearer {}", bearer_token.trim()),
+        )
+        .header(hyper::header::CONNECTION, "close")
+        .body(Empty::<Bytes>::new())
+        .context("write node probe")
+        .map_err(ProbeAttemptError::retryable)?;
+    let response = sender
+        .send_request(request)
+        .await
+        .with_context(|| format!("malformed HTTP response from {base_url}"))
+        .map_err(ProbeAttemptError::retryable)?;
+    let status = response.status().as_u16();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .with_context(|| format!("truncated HTTP response body from {base_url}"))
+        .map_err(ProbeAttemptError::retryable)?
+        .to_bytes()
+        .to_vec();
+    Ok((status, body))
+}
+
+mod remote_probe_connection_cleanup_tests;
 #[cfg(test)]
 mod remote_probe_tests;

@@ -1,80 +1,70 @@
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
+use bytes::Bytes;
+use http_body_util::{BodyExt, Empty};
+use hyper::Request;
 use prost::Message;
 use tak_proto::NodeInfo;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 pub async fn fetch_node_info<S>(
-    stream: &mut S,
+    stream: S,
     authority: &str,
     bearer_token: &str,
     base_url: &str,
 ) -> Result<NodeInfo>
 where
-    S: AsyncRead + AsyncWrite + Unpin + ?Sized,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let request = format!(
-        "GET /v1/node/info HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {bearer_token}\r\nConnection: close\r\n\r\n"
-    );
-    stream
-        .write_all(request.as_bytes())
-        .await
-        .context("write onion node request")?;
-    stream.flush().await.context("flush onion node request")?;
-    let (status, body) = read_http_response(stream, base_url).await?;
+    let (status, body) = send_node_info_request(stream, authority, bearer_token, base_url).await?;
     if status != 200 {
         bail!("node probe failed with HTTP {status}");
     }
     NodeInfo::decode(body.as_slice()).context("decode onion node info")
 }
 
-async fn read_http_response<S>(stream: &mut S, base_url: &str) -> Result<(u16, Vec<u8>)>
+async fn send_node_info_request<S>(
+    stream: S,
+    authority: &str,
+    bearer_token: &str,
+    base_url: &str,
+) -> Result<(u16, Vec<u8>)>
 where
-    S: AsyncRead + Unpin + ?Sized,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let mut response = Vec::new();
-    let mut chunk = [0_u8; 1024];
-    let split = loop {
-        if let Some(index) = response.windows(4).position(|window| window == b"\r\n\r\n") {
-            break index + 4;
-        }
-        let read = stream
-            .read(&mut chunk)
+    let (mut sender, connection) =
+        hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
             .await
-            .context("read onion response")?;
-        if read == 0 {
-            bail!("malformed HTTP response from {base_url}");
-        }
-        response.extend_from_slice(&chunk[..read]);
-    };
-    let head = String::from_utf8_lossy(&response[..split]);
-    let status = head
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|code| code.parse::<u16>().ok())
-        .ok_or_else(|| anyhow!("invalid HTTP status from {base_url}"))?;
-    let content_length = head
-        .lines()
-        .find_map(|line| {
-            line.split_once(':')
-                .filter(|(name, _)| name.trim().eq_ignore_ascii_case("content-length"))
-                .map(|(_, value)| value.trim())
-        })
-        .map(str::parse::<usize>)
-        .transpose()
-        .with_context(|| format!("invalid HTTP content-length from {base_url}"))?
-        .unwrap_or(0);
-    let mut body = response[split..].to_vec();
-    while body.len() < content_length {
-        let read = stream
-            .read(&mut chunk)
+            .with_context(|| format!("malformed HTTP response from {base_url}"))?;
+    let connection_task = tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let result = async {
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/node/info")
+            .header(hyper::header::HOST, authority)
+            .header(
+                hyper::header::AUTHORIZATION,
+                format!("Bearer {}", bearer_token.trim()),
+            )
+            .header(hyper::header::CONNECTION, "close")
+            .body(Empty::<Bytes>::new())
+            .context("write onion node request")?;
+        let response = sender
+            .send_request(request)
             .await
-            .context("read onion response body")?;
-        if read == 0 {
-            bail!("truncated HTTP response body from {base_url}");
-        }
-        body.extend_from_slice(&chunk[..read]);
+            .with_context(|| format!("malformed HTTP response from {base_url}"))?;
+        let status = response.status().as_u16();
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .with_context(|| format!("truncated HTTP response body from {base_url}"))?
+            .to_bytes()
+            .to_vec();
+        Ok((status, body))
     }
-    body.truncate(content_length);
-    Ok((status, body))
+    .await;
+    connection_task.abort();
+    result
 }

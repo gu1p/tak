@@ -9,7 +9,7 @@ use crate::support::{
 };
 
 #[tokio::test]
-async fn remote_worker_builds_dockerfile_runtime_before_running_steps() {
+async fn remote_worker_build_context_supports_long_relative_paths() {
     let _env_lock = env_lock();
     let mut env_guard = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -25,8 +25,24 @@ async fn remote_worker_builds_dockerfile_runtime_before_running_steps() {
     )
     .expect("write dockerfile");
     fs::write(workspace_root.join("src/input.txt"), "hello\n").expect("write input");
+
+    let long_relative = format!(
+        "{}/{}/{}/{}/artifact.txt",
+        "segment1234567890segment1234567890segment1234567890segment1234567890",
+        "segment2234567890segment2234567890segment2234567890segment2234567890",
+        "segment3234567890segment3234567890segment3234567890segment3234567890",
+        "segment4234567890segment4234567890segment4234567890segment4234567890",
+    );
+    assert!(
+        long_relative.len() > 255,
+        "test path should exceed tar ustar limit"
+    );
+    let long_path = workspace_root.join(&long_relative);
+    fs::create_dir_all(long_path.parent().expect("long path parent")).expect("long path dirs");
+    fs::write(&long_path, "long path payload\n").expect("write long path file");
+
     let spec = worker_spec(
-        "remote_runtime_dockerfile",
+        "remote_runtime_dockerfile_long_path",
         vec![shell_step("true")],
         None,
         Some(RemoteRuntimeSpec::Containerized {
@@ -49,7 +65,6 @@ async fn remote_worker_builds_dockerfile_runtime_before_running_steps() {
         let spec = spec.clone();
         async move { execute_remote_worker_steps(&workspace_root, &spec).await }
     });
-
     let build = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             if let Some(build) = daemon.single_build() {
@@ -66,14 +81,13 @@ async fn remote_worker_builds_dockerfile_runtime_before_running_steps() {
         .await
         .expect("join remote worker")
         .expect("dockerfile runtime execution should succeed");
-
     assert!(result.success);
-    assert_eq!(result.exit_code, Some(0));
-    assert_eq!(result.runtime_kind.as_deref(), Some("containerized"));
-    assert_eq!(result.runtime_engine.as_deref(), Some("docker"));
-    assert_eq!(build.dockerfile, "docker/Dockerfile");
-    assert_eq!(
-        build.context_entries,
-        vec!["docker/Dockerfile", "src/input.txt"]
+    assert!(
+        build
+            .context_entries
+            .iter()
+            .any(|entry| entry == &long_relative),
+        "expected long path entry in build context: {:?}",
+        build.context_entries
     );
 }

@@ -3,7 +3,7 @@ use arti_client::TorClient;
 use futures::future::join_all;
 use std::time::Instant;
 use tak_core::model::RemoteTransportKind;
-use tak_exec::{default_client_tor_config, write_remote_observation};
+use tak_exec::{default_client_tor_config, socket_addr_from_host_port, write_remote_observation};
 use tak_proto::NodeStatusResponse;
 use tokio::io::AsyncRead;
 use tokio::net::TcpStream;
@@ -131,7 +131,7 @@ async fn connect(endpoint: &str, kind: RemoteTransportKind) -> Result<RemoteStre
     let (host, port) = endpoint_host_port(endpoint)?;
     if kind == RemoteTransportKind::Direct || !host.ends_with(".onion") {
         return Ok(Box::new(
-            TcpStream::connect(format!("{host}:{port}")).await?,
+            TcpStream::connect(socket_addr_from_host_port(&host, port)).await?,
         ));
     }
     if let Some(test_dial_addr) = test_tor_onion_dial_addr() {

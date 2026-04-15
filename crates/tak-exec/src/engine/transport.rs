@@ -62,7 +62,7 @@ impl RemoteTransportAdapter for TorTransportAdapter {
         Box::pin(async move {
             let (host, port) = endpoint_host_port(&target.endpoint)?;
             if !host.ends_with(".onion") {
-                let socket_addr = format!("{host}:{port}");
+                let socket_addr = remote_endpoint::socket_addr_from_host_port(&host, port);
                 let stream = TcpStream::connect(&socket_addr).await?;
                 let stream: RemoteIoStream = Box::new(stream);
                 return Ok(stream);

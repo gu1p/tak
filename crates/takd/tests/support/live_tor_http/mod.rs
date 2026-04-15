@@ -40,12 +40,12 @@ async fn wait_for_node_info_result(
     let authority = endpoint_socket_addr(base_url)?;
 
     loop {
-        if let Ok(Ok(mut stream)) = timeout(
+        if let Ok(Ok(stream)) = timeout(
             Duration::from_secs(15),
             client.connect((host.as_str(), port)),
         )
         .await
-            && let Ok(node) = fetch_node_info(&mut stream, &authority, bearer_token, base_url).await
+            && let Ok(node) = fetch_node_info(stream, &authority, bearer_token, base_url).await
         {
             return Ok(node);
         }

@@ -3,8 +3,6 @@ use std::io;
 use tokio::io::AsyncReadExt;
 use tokio::net::UnixStream;
 
-use super::query::percent_decode;
-
 pub(super) struct FakeDockerRequest {
     pub(super) method: String,
     pub(super) path: String,
@@ -20,12 +18,8 @@ impl FakeDockerRequest {
 
     pub(super) fn query_param(&self, key: &str) -> Option<String> {
         let (_, query) = self.path.split_once('?')?;
-        query.split('&').find_map(|pair| {
-            let (name, value) = pair.split_once('=')?;
-            (percent_decode(name).as_deref() == Some(key))
-                .then(|| percent_decode(value))
-                .flatten()
-        })
+        url::form_urlencoded::parse(query.as_bytes())
+            .find_map(|(name, value)| (name == key).then(|| value.into_owned()))
     }
 }
 

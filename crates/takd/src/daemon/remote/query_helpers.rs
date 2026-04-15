@@ -23,12 +23,10 @@ pub(super) fn split_path_and_query(path: &str) -> (&str, Option<&str>) {
     }
 }
 
-pub(super) fn query_param_string<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+pub(super) fn query_param_string(query: Option<&str>, key: &str) -> Option<String> {
     let query = query?;
-    query.split('&').find_map(|pair| {
-        let (name, value) = pair.split_once('=')?;
-        if name == key { Some(value) } else { None }
-    })
+    url::form_urlencoded::parse(query.as_bytes())
+        .find_map(|(name, value)| (name == key).then(|| value.into_owned()))
 }
 
 pub(super) fn query_param_u64(query: Option<&str>, key: &str) -> Option<u64> {

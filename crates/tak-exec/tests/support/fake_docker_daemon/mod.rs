@@ -9,7 +9,6 @@ use tokio::net::UnixListener;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
-mod query;
 mod request;
 mod response;
 mod server;

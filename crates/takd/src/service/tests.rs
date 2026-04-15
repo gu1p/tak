@@ -1,5 +1,7 @@
 use crate::agent::{AgentConfig, InitAgentOptions, init_agent, read_config, read_token};
 use crate::test_env::{EnvGuard, env_lock};
+use std::fs;
+use std::time::Duration;
 
 use super::tor::{onion_service_config, test_tor_hidden_service_bind_addr};
 use super::{serve_agent, serve_direct_agent};
@@ -31,6 +33,44 @@ async fn direct_transport_rejects_non_http_base_url() {
     .await
     .expect_err("invalid scheme");
     assert!(err.to_string().contains("base_url must be http(s)"));
+}
+
+#[tokio::test]
+async fn direct_transport_rejects_base_url_with_unsupported_components() {
+    for base_url in [
+        "http://user:pass@127.0.0.1:0",
+        "http://127.0.0.1:0/prefix",
+        "http://127.0.0.1:0?query=1",
+        "http://127.0.0.1:0#fragment",
+    ] {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let config_root = temp.path().join("config");
+        let state_root = temp.path().join("state");
+        fs::create_dir_all(&config_root).expect("create config root");
+        fs::create_dir_all(&state_root).expect("create state root");
+        fs::write(
+            config_root.join("agent.toml"),
+            toml::to_string(&agent_config(Some(base_url))).expect("encode agent config"),
+        )
+        .expect("write agent config");
+        let err = tokio::time::timeout(
+            Duration::from_millis(200),
+            serve_direct_agent(
+                &config_root,
+                &state_root,
+                &agent_config(Some(base_url)),
+                submit_store(&temp),
+            ),
+        )
+        .await
+        .expect("unsupported base_url should fail before serving")
+        .expect_err("unsupported base_url should fail");
+        assert!(
+            err.to_string()
+                .contains("base_url must not include userinfo, path, query, or fragment"),
+            "unexpected error for {base_url}: {err:#}"
+        );
+    }
 }
 
 #[test]

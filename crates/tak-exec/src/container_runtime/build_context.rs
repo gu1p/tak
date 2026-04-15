@@ -92,13 +92,15 @@ fn build_context_archive(build_context_root: &Path) -> Result<Vec<u8>> {
     files.sort_by(|left, right| left.0.cmp(&right.0));
 
     let mut archive = Vec::new();
-    for (relative, absolute, mode) in files {
-        let bytes = fs::read(&absolute).with_context(|| {
-            format!("failed to read build context file {}", absolute.display())
-        })?;
-        append_tar_entry(&mut archive, &relative, &bytes, mode)?;
+    {
+        let mut builder = tar_builder(&mut archive);
+        for (relative, absolute, mode) in files {
+            append_tar_entry(&mut builder, &relative, &absolute, mode)?;
+        }
+        builder
+            .finish()
+            .context("failed to finalize build context archive")?;
     }
-    archive.extend([0_u8; 1024]);
     Ok(archive)
 }
 

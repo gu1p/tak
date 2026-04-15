@@ -2,17 +2,38 @@ use std::future::Future;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
+use bytes::Bytes;
+use http_body_util::{BodyExt, Empty};
+use hyper::Request;
 use prost::Message;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{sleep, timeout};
 use tor_rtcompat::Runtime;
-
-mod http;
 
 trait RemoteIo: AsyncRead + AsyncWrite {}
 impl<T> RemoteIo for T where T: AsyncRead + AsyncWrite + ?Sized {}
 type RemoteStream = Box<dyn RemoteIo + Unpin + Send>;
 const MAX_PROBE_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(15);
+
+struct AbortOnDrop<T> {
+    handle: Option<tokio::task::JoinHandle<T>>,
+}
+
+impl<T> AbortOnDrop<T> {
+    fn new(handle: tokio::task::JoinHandle<T>) -> Self {
+        Self {
+            handle: Some(handle),
+        }
+    }
+}
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+    }
+}
 
 pub(super) async fn wait_for_tor_hidden_service_startup<R>(
     tor_client: &arti_client::TorClient<R>,
@@ -67,20 +88,12 @@ where
 }
 
 async fn probe_node_info(
-    mut stream: RemoteStream,
+    stream: RemoteStream,
     authority: &str,
     bearer_token: &str,
     base_url: &str,
 ) -> Result<()> {
-    let request = format!(
-        "GET /v1/node/info HTTP/1.1\r\nHost: {authority}\r\nAuthorization: Bearer {bearer_token}\r\nConnection: close\r\n\r\n"
-    );
-    stream
-        .write_all(request.as_bytes())
-        .await
-        .context("write startup node probe")?;
-    stream.flush().await.context("flush startup node probe")?;
-    let (status, body) = http::read_http_response(&mut stream, base_url).await?;
+    let (status, body) = send_node_info_request(stream, authority, bearer_token, base_url).await?;
     if status != 200 {
         bail!("node probe failed with HTTP {status}");
     }
@@ -111,50 +124,59 @@ where
 }
 
 fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
-    let trimmed = endpoint.trim();
-    let (scheme, without_scheme) = if let Some(value) = trimmed.strip_prefix("http://") {
-        ("http", value)
-    } else if let Some(value) = trimmed.strip_prefix("https://") {
-        ("https", value)
-    } else {
-        ("", trimmed)
-    };
-    let authority_end = without_scheme
-        .find(['/', '?', '#'])
-        .unwrap_or(without_scheme.len());
-    let authority = without_scheme[..authority_end].trim();
-    if authority.is_empty() {
-        bail!("missing host:port");
-    }
-    if authority.contains(':') {
-        return Ok(authority.to_string());
-    }
-    if scheme.is_empty() {
-        bail!("missing port in endpoint authority");
-    }
-    Ok(format!(
-        "{authority}:{}",
-        if scheme == "https" { "443" } else { "80" }
-    ))
+    tak_core::endpoint::endpoint_socket_addr(endpoint).map_err(Into::into)
 }
 
 fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
-    let socket_addr = endpoint_socket_addr(endpoint)?;
-    let (host, raw_port) = socket_addr
-        .rsplit_once(':')
-        .ok_or_else(|| anyhow!("missing host:port"))?;
-    if host.trim().is_empty() {
-        bail!("missing host");
-    }
-    Ok((
-        host.to_string(),
-        raw_port
-            .parse::<u16>()
-            .with_context(|| format!("invalid port `{raw_port}`"))?,
-    ))
+    tak_core::endpoint::endpoint_host_port(endpoint).map_err(Into::into)
 }
 
+async fn send_node_info_request<S>(
+    stream: S,
+    authority: &str,
+    bearer_token: &str,
+    base_url: &str,
+) -> Result<(u16, Vec<u8>)>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let (mut sender, connection) =
+        hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
+            .await
+            .with_context(|| format!("malformed HTTP response from {base_url}"))?;
+    let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
+        let _ = connection.await;
+    }));
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/node/info")
+        .header(hyper::header::HOST, authority)
+        .header(
+            hyper::header::AUTHORIZATION,
+            format!("Bearer {}", bearer_token.trim()),
+        )
+        .header(hyper::header::CONNECTION, "close")
+        .body(Empty::<Bytes>::new())
+        .context("write startup node probe")?;
+    let response = sender
+        .send_request(request)
+        .await
+        .with_context(|| format!("malformed HTTP response from {base_url}"))?;
+    let status = response.status().as_u16();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .with_context(|| format!("truncated HTTP response body from {base_url}"))?
+        .to_bytes()
+        .to_vec();
+    Ok((status, body))
+}
+
+mod http_connection_cleanup_tests;
 #[cfg(test)]
 mod http_response_tests;
+#[cfg(test)]
+mod http_response_truncated_body_tests;
 #[cfg(test)]
 mod tests;
