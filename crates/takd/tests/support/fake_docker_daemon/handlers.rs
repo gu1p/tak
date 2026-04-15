@@ -1,11 +1,9 @@
-use std::io;
-
-use tokio::net::UnixStream;
-
 use super::create::create_container;
 use super::request::FakeDockerRequest;
 use super::response::write_response;
 use super::state::FakeDockerDaemonState;
+use std::io;
+use tokio::net::UnixStream;
 
 pub(super) async fn write_image_status(
     stream: &mut UnixStream,
@@ -18,17 +16,6 @@ pub(super) async fn write_image_status(
         ("404 Not Found", br#"{"message":"not found"}"#.as_slice())
     };
     write_response(stream, status, "application/json", body).await
-}
-
-pub(super) async fn write_version_response(
-    stream: &mut UnixStream,
-    state: &FakeDockerDaemonState,
-) -> io::Result<()> {
-    let body = format!(
-        r#"{{"Version":"test","ApiVersion":"1.47","Arch":"{}","Os":"linux"}}"#,
-        state.daemon_arch()
-    );
-    write_response(stream, "200 OK", "application/json", body.as_bytes()).await
 }
 
 pub(super) async fn write_pull_response(
@@ -84,9 +71,8 @@ pub(super) async fn write_wait_response(
     path: &str,
 ) -> io::Result<()> {
     let container_id = path
-        .split("/containers/")
-        .nth(1)
-        .and_then(|tail| tail.split('/').next())
+        .split_once("/containers/")
+        .and_then(|(_, tail)| tail.split('/').next())
         .unwrap_or_default();
     let body = format!(
         r#"{{"StatusCode":{}}}"#,

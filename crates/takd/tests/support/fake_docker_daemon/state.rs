@@ -1,13 +1,18 @@
+mod query;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use super::CreateRecord;
 
 pub(super) struct FakeDockerDaemonState {
     visible_roots: Vec<PathBuf>,
     daemon_arch: String,
+    version_fails: bool,
     next_container_id: AtomicU64,
     pull_count: AtomicU64,
     present_images: Mutex<BTreeSet<String>>,
@@ -20,6 +25,7 @@ impl FakeDockerDaemonState {
         visible_roots: Vec<PathBuf>,
         image_present: bool,
         daemon_arch: String,
+        version_fails: bool,
     ) -> Self {
         let mut present_images = BTreeSet::new();
         if image_present {
@@ -28,6 +34,7 @@ impl FakeDockerDaemonState {
         Self {
             visible_roots,
             daemon_arch,
+            version_fails,
             next_container_id: AtomicU64::new(1),
             pull_count: AtomicU64::new(0),
             present_images: Mutex::new(present_images),
@@ -48,6 +55,9 @@ impl FakeDockerDaemonState {
     }
     pub(super) fn daemon_arch(&self) -> &str {
         &self.daemon_arch
+    }
+    pub(super) fn version_fails(&self) -> bool {
+        self.version_fails
     }
     pub(super) fn next_container_id(&self) -> String {
         let id = self.next_container_id.fetch_add(1, Ordering::SeqCst);
@@ -81,19 +91,5 @@ impl FakeDockerDaemonState {
             .lock()
             .expect("create records lock")
             .push(record);
-    }
-
-    pub(super) fn container_exit_code(&self, container_id: &str) -> i64 {
-        self.container_exit_codes
-            .lock()
-            .expect("container exit codes lock")
-            .get(container_id)
-            .copied()
-            .unwrap_or(1)
-    }
-    pub(super) fn path_is_visible(&self, source: &Path) -> bool {
-        self.visible_roots
-            .iter()
-            .any(|root| source.starts_with(root.as_path()))
     }
 }

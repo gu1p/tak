@@ -5,11 +5,12 @@ use tokio::net::{UnixListener, UnixStream};
 
 use super::handlers::{
     write_build_response, write_create_response, write_image_status, write_pull_response,
-    write_version_response, write_wait_response,
+    write_wait_response,
 };
 use super::request::{FakeDockerRequest, read_request};
 use super::response::{write_empty_response, write_logs_response, write_response};
 use super::state::FakeDockerDaemonState;
+use super::version::write_version_response;
 
 pub(super) async fn run_fake_docker_daemon(
     listener: UnixListener,

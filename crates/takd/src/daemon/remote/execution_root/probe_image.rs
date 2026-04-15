@@ -57,11 +57,12 @@ pub(super) async fn resolve_probe_image(docker: &Docker) -> ProbeImageSpec {
     match docker.version().await {
         Ok(version) => probe_image_for_arch(version.arch.as_deref()),
         Err(err) => {
+            let fallback = probe_image_for_current_target();
             tracing::warn!(
                 "failed to inspect container engine architecture during exec-root probe; falling back to {}: {err:#}",
-                PROBE_FALLBACK_IMAGE
+                fallback.image()
             );
-            ProbeImageSpec::registry(PROBE_FALLBACK_IMAGE)
+            fallback
         }
     }
 }
@@ -93,6 +94,14 @@ fn probe_image_for_arch(arch: Option<&str>) -> ProbeImageSpec {
         Some("aarch64") | Some("arm64") => {
             ProbeImageSpec::embedded(PROBE_IMAGE_AARCH64, PROBE_HELPER_AARCH64)
         }
+        _ => ProbeImageSpec::registry(PROBE_FALLBACK_IMAGE),
+    }
+}
+
+fn probe_image_for_current_target() -> ProbeImageSpec {
+    match std::env::consts::ARCH {
+        "x86_64" => ProbeImageSpec::embedded(PROBE_IMAGE_X86_64, PROBE_HELPER_X86_64),
+        "aarch64" => ProbeImageSpec::embedded(PROBE_IMAGE_AARCH64, PROBE_HELPER_AARCH64),
         _ => ProbeImageSpec::registry(PROBE_FALLBACK_IMAGE),
     }
 }

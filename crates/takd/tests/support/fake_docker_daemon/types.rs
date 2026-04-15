@@ -29,6 +29,7 @@ pub struct FakeDockerConfig {
     pub visible_roots: Vec<PathBuf>,
     pub image_present: bool,
     pub arch: String,
+    pub version_fails: bool,
 }
 
 impl Default for FakeDockerConfig {
@@ -37,6 +38,7 @@ impl Default for FakeDockerConfig {
             visible_roots: Vec::new(),
             image_present: true,
             arch: "x86_64".to_string(),
+            version_fails: false,
         }
     }
 }

@@ -9,6 +9,7 @@ mod response;
 mod server;
 mod state;
 mod types;
+mod version;
 
 pub use daemon::FakeDockerDaemon;
 pub use types::{CreateRecord, FakeDockerConfig};
