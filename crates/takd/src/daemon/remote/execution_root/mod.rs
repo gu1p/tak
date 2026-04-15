@@ -19,7 +19,8 @@ use super::query_helpers::sanitize_submit_idempotency_key;
 
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
 const REMOTE_ARTIFACT_ROOT_DIR: &str = "takd-remote-artifacts";
-const PROBE_IMAGE: &str = "alpine:3.20";
+const PROBE_IMAGE: &str = "takd-exec-root-probe:x86_64-v1";
+const PROBE_HELPER_BINARY: &str = "/tak-probe-busybox";
 const PROBE_MOUNT: &str = "/tak-probe";
 const PROBE_SENTINEL: &str = ".tak-mount-visible";
 

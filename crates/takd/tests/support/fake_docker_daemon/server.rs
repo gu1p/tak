@@ -4,9 +4,10 @@ use std::sync::Arc;
 use tokio::net::{UnixListener, UnixStream};
 
 use super::handlers::{
-    write_create_response, write_image_status, write_pull_response, write_wait_response,
+    write_build_response, write_create_response, write_image_status, write_pull_response,
+    write_wait_response,
 };
-use super::request::read_request;
+use super::request::{FakeDockerRequest, read_request};
 use super::response::{write_empty_response, write_logs_response, write_response};
 use super::state::FakeDockerDaemonState;
 
@@ -36,11 +37,18 @@ async fn handle_connection(
         "GET" if path.ends_with("/_ping") => {
             write_response(&mut stream, "200 OK", "text/plain", b"OK").await?
         }
-        "GET" if path.ends_with("/images/alpine:3.20/json") => {
-            write_image_status(&mut stream, &state).await?
+        "GET" if path.contains("/images/") && path.ends_with("/json") => {
+            let Some(image) = requested_image_name(&request) else {
+                write_response(&mut stream, "404 Not Found", "text/plain", b"not found").await?;
+                return Ok(());
+            };
+            write_image_status(&mut stream, &state, &image).await?
         }
         "POST" if path.ends_with("/images/create") => {
-            write_pull_response(&mut stream, &state).await?
+            write_pull_response(&mut stream, &state, &request).await?
+        }
+        "POST" if path.ends_with("/build") => {
+            write_build_response(&mut stream, &state, &request).await?
         }
         "POST" if path.ends_with("/containers/create") => {
             write_create_response(&mut stream, &state, &request).await?
@@ -57,4 +65,16 @@ async fn handle_connection(
     }
 
     Ok(())
+}
+
+fn requested_image_name(request: &FakeDockerRequest) -> Option<String> {
+    let path = request.path_without_query();
+    let tail = path.split("/images/").nth(1)?;
+    let image = tail.strip_suffix("/json")?;
+    Some(
+        image
+            .replace("%3A", ":")
+            .replace("%2F", "/")
+            .replace("%40", "@"),
+    )
 }

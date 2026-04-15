@@ -10,6 +10,7 @@ use super::state::FakeDockerDaemonState;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct CreateContainerPayload {
+    image: Option<String>,
     #[serde(default)]
     cmd: Vec<String>,
     working_dir: Option<String>,
@@ -41,6 +42,7 @@ pub(super) fn create_container(
     Ok(CreatedContainer {
         record: CreateRecord {
             container_id,
+            image: payload.image,
             cmd: payload.cmd,
             working_dir: payload.working_dir,
             binds,

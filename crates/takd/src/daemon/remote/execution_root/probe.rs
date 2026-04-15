@@ -13,7 +13,7 @@ use crate::daemon::transport::{ContainerEngine, ContainerEngineProbe, select_con
 
 use super::cache::RemoteExecRootCacheKey;
 use super::client::{
-    ContainerEngineClient, cleanup_container, connect_container_engine, ensure_container_image,
+    ContainerEngineClient, cleanup_container, connect_container_engine, ensure_probe_image,
     wait_for_container_exit_code,
 };
 use super::{PROBE_IMAGE, PROBE_MOUNT, PROBE_SENTINEL, candidate_remote_execution_root_bases};
@@ -67,7 +67,7 @@ async fn probe_remote_execution_root_candidates_async(
     let engine = select_container_engine(&mut engine_probe)
         .context("container engine selection failed during exec-root probe")?;
     let client = connect_container_engine(engine).await?;
-    ensure_container_image(&client.docker).await?;
+    ensure_probe_image(&client.docker).await?;
 
     let mut failures = Vec::new();
     for candidate in candidate_remote_execution_root_bases(key) {
@@ -102,9 +102,9 @@ async fn probe_candidate(
     let config = ContainerConfig {
         image: Some(PROBE_IMAGE.to_string()),
         cmd: Some(vec![
-            "sh".to_string(),
-            "-lc".to_string(),
-            format!("test -f {PROBE_MOUNT}/{PROBE_SENTINEL}"),
+            "test".to_string(),
+            "-f".to_string(),
+            format!("{PROBE_MOUNT}/{PROBE_SENTINEL}"),
         ]),
         attach_stdout: Some(false),
         attach_stderr: Some(false),

@@ -47,7 +47,7 @@ async fn containerized_remote_tasks_retry_probe_after_transient_probe_failure() 
         temp.path(),
         FakeDockerConfig {
             visible_roots: vec![visible_root.clone()],
-            image_present: false,
+            image_present: true,
         },
     );
 
@@ -70,6 +70,10 @@ async fn containerized_remote_tasks_retry_probe_after_transient_probe_failure() 
         .iter()
         .find(|record| !record.is_probe())
         .expect("execution container");
+    let probe = creates
+        .iter()
+        .find(|record| record.is_probe())
+        .expect("probe container");
     assert!(
         execution
             .bind_source()
@@ -78,9 +82,13 @@ async fn containerized_remote_tasks_retry_probe_after_transient_probe_failure() 
         "execution bind should use the visible tmpdir root after the retry: {:?}",
         execution
     );
+    assert_ne!(
+        probe.image, execution.image,
+        "probe should use a dedicated helper image instead of the task runtime image"
+    );
     assert_eq!(
         daemon.pull_count(),
-        1,
-        "retried probe should pull alpine once"
+        0,
+        "retried probe should not need any registry pull when the task image is already present"
     );
 }

@@ -15,6 +15,12 @@ impl FakeDockerRequest {
             .split_once('?')
             .map_or(self.path.as_str(), |(path, _)| path)
     }
+
+    pub(super) fn query_param(&self, key: &str) -> Option<String> {
+        let (_, query) = self.path.split_once('?')?;
+        url::form_urlencoded::parse(query.as_bytes())
+            .find_map(|(name, value)| (name == key).then(|| value.into_owned()))
+    }
 }
 
 pub(super) async fn read_request(stream: &mut UnixStream) -> io::Result<FakeDockerRequest> {

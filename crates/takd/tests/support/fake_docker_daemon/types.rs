@@ -3,6 +3,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateRecord {
     pub container_id: String,
+    pub image: Option<String>,
     pub cmd: Vec<String>,
     pub working_dir: Option<String>,
     pub binds: Vec<String>,

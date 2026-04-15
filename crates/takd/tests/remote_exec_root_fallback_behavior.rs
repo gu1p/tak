@@ -30,7 +30,7 @@ async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_
         temp.path(),
         FakeDockerConfig {
             visible_roots: Vec::new(),
-            image_present: false,
+            image_present: true,
         },
     );
     configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env);
@@ -58,6 +58,12 @@ async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_
         .iter()
         .find(|record| !record.is_probe())
         .expect("execution container");
+    for probe in creates.iter().filter(|record| record.is_probe()) {
+        assert_ne!(
+            probe.image, execution.image,
+            "probe should use a dedicated helper image instead of the task runtime image"
+        );
+    }
     assert!(
         execution
             .bind_source()
@@ -65,5 +71,10 @@ async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_
             .starts_with(Path::new("/var/tmp/takd-remote-exec")),
         "execution bind should fall back to unix default root: {:?}",
         execution
+    );
+    assert_eq!(
+        daemon.pull_count(),
+        0,
+        "probe fallback should not need any registry pull when the task image is already present"
     );
 }

@@ -29,7 +29,7 @@ async fn containerized_remote_tasks_probe_and_choose_visible_tmpdir_root() {
         temp.path(),
         FakeDockerConfig {
             visible_roots: vec![visible_root.clone()],
-            image_present: false,
+            image_present: true,
         },
     );
     configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env);
@@ -54,6 +54,10 @@ async fn containerized_remote_tasks_probe_and_choose_visible_tmpdir_root() {
         .iter()
         .find(|record| !record.is_probe())
         .expect("execution container");
+    let probe = creates
+        .iter()
+        .find(|record| record.is_probe())
+        .expect("probe container");
     assert!(
         execution
             .bind_source()
@@ -62,5 +66,13 @@ async fn containerized_remote_tasks_probe_and_choose_visible_tmpdir_root() {
         "execution bind should use visible tmpdir root: {:?}",
         execution
     );
-    assert_eq!(daemon.pull_count(), 1, "probe should pull alpine once");
+    assert_ne!(
+        probe.image, execution.image,
+        "probe should use a dedicated helper image instead of the task runtime image"
+    );
+    assert_eq!(
+        daemon.pull_count(),
+        0,
+        "probe should not need any registry pull when the task image is already present"
+    );
 }

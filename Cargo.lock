@@ -5619,6 +5619,7 @@ dependencies = [
  "tak-core",
  "tak-proto",
  "tak-runner",
+ "tar",
  "tempfile",
  "tokio",
  "toml 0.8.23",
