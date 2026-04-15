@@ -47,3 +47,41 @@ async fn remote_worker_reports_nonzero_docker_wait_as_task_failure() {
     assert_eq!(result.runtime_kind.as_deref(), Some("containerized"));
     assert_eq!(result.runtime_engine.as_deref(), Some("docker"));
 }
+
+#[tokio::test]
+async fn remote_worker_preserves_docker_wait_error_as_infra_failure() {
+    let _env_lock = env_lock();
+    let mut env_guard = EnvGuard::default();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let daemon = NonzeroWaitDockerDaemon::spawn_with_wait_error(
+        temp.path(),
+        1,
+        Some("context canceled"),
+        "docker runtime canceled\n",
+    );
+    configure_real_docker_env(temp.path(), daemon.socket_path(), &mut env_guard);
+
+    let workspace_root = temp.path().join("workspace");
+    fs::create_dir_all(&workspace_root).expect("create workspace");
+    let spec = worker_spec(
+        "remote_runtime_wait_error",
+        vec![shell_step("printf 'lint failed\\n' >&2; exit 1")],
+        None,
+        Some(RemoteRuntimeSpec::Containerized {
+            source: ContainerRuntimeSourceSpec::Image {
+                image: "alpine:3.20".to_string(),
+            },
+        }),
+        "builder-a",
+    );
+
+    let err = execute_remote_worker_steps(&workspace_root, &spec)
+        .await
+        .expect_err("docker wait errors should surface as infra failures");
+
+    assert!(
+        err.to_string()
+            .contains("container lifecycle runtime failed")
+    );
+    assert!(err.to_string().contains("context canceled"));
+}

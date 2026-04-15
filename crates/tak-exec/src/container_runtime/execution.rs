@@ -107,17 +107,25 @@ async fn wait_for_container_exit_code_via_api(
     let Some(result) = stream.next().await else {
         bail!("infra error: container lifecycle runtime failed: wait stream ended unexpectedly");
     };
-    let code = match result {
-        Ok(result) => docker_wait_exit_code(result.status_code)?,
-        Err(BollardError::DockerContainerWaitError { code, .. }) => {
-            docker_wait_exit_code(code)?
+    docker_wait_result_exit_code(result)
+}
+
+fn docker_wait_result_exit_code(
+    result: std::result::Result<bollard::models::ContainerWaitResponse, BollardError>,
+) -> Result<i32> {
+    match result {
+        Ok(result) => docker_wait_exit_code(result.status_code),
+        Err(BollardError::DockerContainerWaitError { error, code }) if error.is_empty() => {
+            docker_wait_exit_code(code)
         }
-        Err(err) => {
-            return Err(err)
-                .context("infra error: container lifecycle runtime failed: waiting for container failed");
+        Err(BollardError::DockerContainerWaitError { error, code }) => {
+            bail!(
+                "infra error: container lifecycle runtime failed: docker wait failed (status {code}): {error}"
+            );
         }
-    };
-    Ok(code)
+        Err(err) => Err(err)
+            .context("infra error: container lifecycle runtime failed: waiting for container failed"),
+    }
 }
 
 fn docker_wait_exit_code(code: i64) -> Result<i32> {
