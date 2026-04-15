@@ -1,3 +1,6 @@
+use std::path::Path;
+
+use super::super::execution_root::remote_execution_root_base;
 use super::*;
 
 impl SubmitAttemptStore {
@@ -15,6 +18,21 @@ impl SubmitAttemptStore {
         attempt: Option<u32>,
         selected_node_id: &str,
     ) -> Result<SubmitRegistration> {
+        self.register_submit_with_execution_root_base(
+            task_run_id,
+            attempt,
+            selected_node_id,
+            &remote_execution_root_base(),
+        )
+    }
+
+    pub(in crate::daemon::remote) fn register_submit_with_execution_root_base(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+        selected_node_id: &str,
+        execution_root_base: &Path,
+    ) -> Result<SubmitRegistration> {
         let selected_node_id = selected_node_id.trim();
         if selected_node_id.is_empty() {
             bail!("selected_node_id is required");
@@ -26,14 +44,15 @@ impl SubmitAttemptStore {
         let inserted = conn.execute(
             "
             INSERT INTO submit_attempts (
-                idempotency_key, task_run_id, attempt, selected_node_id, created_at_ms
-            ) VALUES (?1, ?2, ?3, ?4, ?5)
+                idempotency_key, task_run_id, attempt, selected_node_id, execution_root_base, created_at_ms
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
             ",
             params![
                 idempotency_key,
                 task_run_id.trim(),
                 attempt,
                 selected_node_id,
+                execution_root_base.display().to_string(),
                 unix_epoch_ms(),
             ],
         );

@@ -1,17 +1,16 @@
 use super::*;
 
 pub(super) fn stage_remote_worker_outputs(
-    idempotency_key: &str,
+    artifact_root: &Path,
     execution_root: &Path,
     outputs: &[RemoteWorkerOutputRecord],
 ) -> Result<()> {
-    let artifact_root = artifact_root_for_submit_key(idempotency_key);
-    clear_remote_output_artifacts(&artifact_root)?;
+    clear_remote_output_artifacts(artifact_root)?;
     if outputs.is_empty() {
         return Ok(());
     }
 
-    fs::create_dir_all(&artifact_root)
+    fs::create_dir_all(artifact_root)
         .with_context(|| format!("failed to create artifact root {}", artifact_root.display()))?;
     for output in outputs {
         let normalized = normalize_path_ref("workspace", &output.path)
@@ -46,10 +45,9 @@ pub(super) fn stage_remote_worker_outputs(
 }
 
 pub(super) fn read_staged_remote_output(
-    idempotency_key: &str,
+    artifact_root: &Path,
     relative_path: &str,
 ) -> Result<Option<Vec<u8>>> {
-    let artifact_root = artifact_root_for_submit_key(idempotency_key);
     if !artifact_root.exists() {
         return Ok(None);
     }

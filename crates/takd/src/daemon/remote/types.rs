@@ -5,7 +5,6 @@ use serde::Serialize;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef};
 use tak_proto::{NodeInfo, NodeStatusResponse};
 
-use super::query_helpers::remote_execution_root_base;
 use super::status_state::{ActiveJobMetadata, SharedNodeStatusState, new_shared_node_status_state};
 
 #[derive(Debug, Clone)]
@@ -51,7 +50,7 @@ impl RemoteNodeContext {
         Self {
             node: Arc::new(Mutex::new(node)),
             bearer_token,
-            status_state: new_shared_node_status_state(remote_execution_root_base()),
+            status_state: new_shared_node_status_state(),
         }
     }
 

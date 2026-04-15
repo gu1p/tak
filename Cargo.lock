@@ -5599,6 +5599,7 @@ dependencies = [
  "arti-client",
  "assert_cmd",
  "base64",
+ "bollard",
  "bytes",
  "clap",
  "futures",

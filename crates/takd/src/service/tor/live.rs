@@ -77,7 +77,8 @@ pub(super) async fn serve_live_tor_session(
                         Ok(()) => {
                             mark_transport_ready(&context, state_root, &base_url)?;
                             crate::daemon::remote::spawn_remote_cleanup_janitor(
-                                context.shared_status_state()
+                                context.shared_status_state(),
+                                store.clone(),
                             );
                             tracing::info!("takd remote v1 onion service ready at {base_url}");
                             break;
@@ -117,7 +118,8 @@ pub(super) async fn serve_live_tor_session(
                     if matches!(maybe_event, Some(TorHealthEvent::ProbeSucceeded)) {
                         mark_transport_ready(&context, state_root, &base_url)?;
                         crate::daemon::remote::spawn_remote_cleanup_janitor(
-                            context.shared_status_state()
+                            context.shared_status_state(),
+                            store.clone(),
                         );
                         tracing::info!("takd remote v1 onion service ready at {base_url}");
                         break;

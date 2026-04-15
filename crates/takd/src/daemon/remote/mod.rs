@@ -22,6 +22,7 @@ use zip::read::ZipArchive;
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 mod cleanup_janitor;
+mod execution_root;
 mod http_server;
 #[cfg(test)]
 mod http_server_test_support;
@@ -51,11 +52,15 @@ pub use tor_server::run_remote_v1_tor_hidden_service;
 pub use types::{RemoteNodeContext, RemoteV1Response};
 
 pub(crate) use cleanup_janitor::spawn_remote_cleanup_janitor;
+use execution_root::{
+    artifact_root_base_for_execution_root_base, artifact_root_for_submit_key_at_base,
+    ensure_remote_execution_root_base, execution_root_for_submit_key_at_base,
+    remote_execution_root_base,
+};
 pub(crate) use http_server::handle_remote_v1_http_stream;
 use query_helpers::{
-    artifact_root_for_submit_key, binary_response, error_response, execution_root_for_submit_key,
-    protobuf_response, query_param_string, query_param_u64, remote_artifact_root_base,
-    remote_execution_root_base, remote_task_path_arg, resolve_submit_idempotency_key_for_task_run,
+    binary_response, error_response, protobuf_response, query_param_string, query_param_u64,
+    remote_task_path_arg, resolve_submit_idempotency_key_for_task_run,
     sanitize_submit_idempotency_key, split_path_and_query, unix_epoch_ms,
 };
 use route_events::handle_remote_events_route;

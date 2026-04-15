@@ -25,7 +25,6 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
 
     let context = test_context();
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-
     let submit_ack = submit_shell_task_with_outputs(
         &context,
         &store,
@@ -42,11 +41,8 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
 
     let submit_key = build_submit_idempotency_key("task-run-1", Some(1)).expect("submit key");
     let execution_root = exec_root_base.join(submit_key.replace(':', "_"));
-    assert!(
-        !execution_root.exists(),
-        "finished remote execution root should be removed: {}",
-        execution_root.display()
-    );
+    assert!(!execution_root.exists(), "execution root should be removed");
+
     let result =
         handle_remote_v1_request(&context, &store, "GET", "/v1/tasks/task-run-1/result", None)
             .expect("result response");
@@ -54,35 +50,16 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
     assert_eq!(result.outputs.len(), 1);
     assert_eq!(result.outputs[0].path, "dist/out.txt");
 
-    let output = handle_remote_v1_request(
-        &context,
-        &store,
-        "GET",
-        "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
-        None,
-    )
-    .expect("output response");
-    assert_eq!(output.status_code, 200);
-    assert_eq!(output.body, b"hello remote\n");
-    let retry = handle_remote_v1_request(
-        &context,
-        &store,
-        "GET",
-        "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
-        None,
-    )
-    .expect("retry output response");
-    assert_eq!(retry.status_code, 200);
-    assert_eq!(retry.body, b"hello remote\n");
-
-    let third_fetch = handle_remote_v1_request(
-        &context,
-        &store,
-        "GET",
-        "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
-        None,
-    )
-    .expect("third output response");
-    assert_eq!(third_fetch.status_code, 200);
-    assert_eq!(third_fetch.body, b"hello remote\n");
+    for _ in 0..3 {
+        let output = handle_remote_v1_request(
+            &context,
+            &store,
+            "GET",
+            "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
+            None,
+        )
+        .expect("output response");
+        assert_eq!(output.status_code, 200);
+        assert_eq!(output.body, b"hello remote\n");
+    }
 }

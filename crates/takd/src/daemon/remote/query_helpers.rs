@@ -33,31 +33,6 @@ pub(super) fn query_param_u64(query: Option<&str>, key: &str) -> Option<u64> {
     query_param_string(query, key).and_then(|value| value.parse::<u64>().ok())
 }
 
-pub(super) fn execution_root_for_submit_key(idempotency_key: &str) -> PathBuf {
-    remote_execution_root_base().join(sanitize_submit_idempotency_key(idempotency_key))
-}
-
-pub(super) fn artifact_root_for_submit_key(idempotency_key: &str) -> PathBuf {
-    remote_artifact_root_base().join(sanitize_submit_idempotency_key(idempotency_key))
-}
-
-pub(super) fn remote_execution_root_base() -> PathBuf {
-    std::env::var("TAKD_REMOTE_EXEC_ROOT")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("takd-remote-exec"))
-}
-
-pub(super) fn remote_artifact_root_base() -> PathBuf {
-    remote_execution_root_base()
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("takd-remote-artifacts")
-}
-
 pub(super) fn sanitize_submit_idempotency_key(idempotency_key: &str) -> String {
     idempotency_key
         .chars()

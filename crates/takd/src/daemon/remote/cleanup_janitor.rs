@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
@@ -9,17 +9,20 @@ use super::*;
 const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
 const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
 
-pub(crate) fn spawn_remote_cleanup_janitor(status_state: status_state::SharedNodeStatusState) {
+pub(crate) fn spawn_remote_cleanup_janitor(
+    status_state: status_state::SharedNodeStatusState,
+    store: SubmitAttemptStore,
+) {
     let interval = remote_cleanup_interval();
     tokio::spawn(async move {
-        if let Err(err) = run_remote_cleanup_once(&status_state) {
+        if let Err(err) = run_remote_cleanup_once(&status_state, &store) {
             tracing::warn!("remote cleanup janitor startup sweep failed: {err:#}");
         }
 
         let mut ticker = tokio::time::interval(interval);
         loop {
             ticker.tick().await;
-            if let Err(err) = run_remote_cleanup_once(&status_state) {
+            if let Err(err) = run_remote_cleanup_once(&status_state, &store) {
                 tracing::warn!("remote cleanup janitor sweep failed: {err:#}");
             }
         }
@@ -28,11 +31,13 @@ pub(crate) fn spawn_remote_cleanup_janitor(status_state: status_state::SharedNod
 
 pub(crate) fn run_remote_cleanup_once(
     status_state: &status_state::SharedNodeStatusState,
+    store: &SubmitAttemptStore,
 ) -> Result<()> {
     let active_jobs = active_job_keys(status_state)?;
     let ttl = remote_cleanup_ttl();
-    cleanup_stale_remote_entries(&remote_execution_root_base(), &active_jobs, ttl)?;
-    cleanup_stale_remote_entries(&remote_artifact_root_base(), &active_jobs, ttl)?;
+    for root in cleanup_roots(store)? {
+        cleanup_stale_remote_entries(&root, &active_jobs, ttl)?;
+    }
     Ok(())
 }
 
@@ -45,6 +50,26 @@ fn active_job_keys(status_state: &status_state::SharedNodeStatusState) -> Result
         .into_iter()
         .map(|key| sanitize_submit_idempotency_key(&key))
         .collect())
+}
+
+fn cleanup_roots(store: &SubmitAttemptStore) -> Result<Vec<PathBuf>> {
+    let mut execution_roots = store.known_execution_root_bases()?;
+    let current_root = remote_execution_root_base();
+    if !execution_roots.contains(&current_root) {
+        execution_roots.push(current_root);
+    }
+
+    let mut roots = Vec::with_capacity(execution_roots.len() * 2);
+    for execution_root in execution_roots {
+        if !roots.contains(&execution_root) {
+            roots.push(execution_root.clone());
+        }
+        let artifact_root = artifact_root_base_for_execution_root_base(&execution_root);
+        if !roots.contains(&artifact_root) {
+            roots.push(artifact_root);
+        }
+    }
+    Ok(roots)
 }
 
 fn cleanup_stale_remote_entries(

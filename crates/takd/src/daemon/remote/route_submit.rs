@@ -23,17 +23,23 @@ pub(super) fn handle_remote_submit_route(
         Ok(worker_payload) => worker_payload,
         Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
     };
+    let execution_root_base = ensure_remote_execution_root_base(worker_payload.runtime.as_ref());
     let node = context.node_info()?;
     let selected_node_id = node.node_id.clone();
-    let registration =
-        store.register_submit(task_run_id, Some(payload.attempt), &selected_node_id)?;
+    let registration = store.register_submit_with_execution_root_base(
+        task_run_id,
+        Some(payload.attempt),
+        &selected_node_id,
+        &execution_root_base,
+    )?;
     let (attached, idempotency_key) = match registration {
         SubmitRegistration::Created { idempotency_key } => (false, idempotency_key),
         SubmitRegistration::Attached { idempotency_key } => (true, idempotency_key),
     };
 
     if !attached {
-        let execution_root = execution_root_for_submit_key(&idempotency_key);
+        let execution_root =
+            execution_root_for_submit_key_at_base(&idempotency_key, &execution_root_base);
         context.register_active_job(
             idempotency_key.clone(),
             super::status_state::ActiveJobMetadata::new(

@@ -53,12 +53,18 @@ fn run_remote_worker_submit_execution(
         );
     }
 
-    let execution_result = execute_remote_worker_submit(
-        idempotency_key,
-        selected_node_id,
-        payload,
-        output_observer.clone(),
-    );
+    let execution_result = store
+        .execution_root_base_for_submit(idempotency_key)
+        .map(|value| value.unwrap_or_else(remote_execution_root_base))
+        .and_then(|execution_root_base| {
+            execute_remote_worker_submit(
+                idempotency_key,
+                &execution_root_base,
+                selected_node_id,
+                payload,
+                output_observer.clone(),
+            )
+        });
     let finished_at = unix_epoch_ms();
     let duration_ms = finished_at.saturating_sub(started_at);
     let stdout_tail = output_observer.stdout_tail();

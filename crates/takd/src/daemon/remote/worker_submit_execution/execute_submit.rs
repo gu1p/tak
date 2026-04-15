@@ -1,5 +1,6 @@
 fn execute_remote_worker_submit(
     idempotency_key: &str,
+    execution_root_base: &Path,
     selected_node_id: &str,
     payload: &RemoteWorkerSubmitPayload,
     output_observer: Arc<dyn TaskOutputObserver>,
@@ -7,7 +8,8 @@ fn execute_remote_worker_submit(
     tak_runner::RemoteWorkerExecutionResult,
     Vec<RemoteWorkerOutputRecord>,
 )> {
-    let execution_root = execution_root_for_submit_key(idempotency_key);
+    let execution_root = execution_root_for_submit_key_at_base(idempotency_key, execution_root_base);
+    let artifact_root = artifact_root_for_submit_key_at_base(idempotency_key, execution_root_base);
     if execution_root.exists() {
         fs::remove_dir_all(&execution_root).with_context(|| {
             format!(
@@ -49,7 +51,7 @@ fn execute_remote_worker_submit(
             &payload.outputs,
             result.success,
         )?;
-        stage_remote_worker_outputs(idempotency_key, &execution_root, &outputs)?;
+        stage_remote_worker_outputs(&artifact_root, &execution_root, &outputs)?;
 
         Ok((result, outputs))
     })();

@@ -37,6 +37,7 @@ impl SubmitAttemptStore {
                 task_run_id TEXT NOT NULL,
                 attempt INTEGER NOT NULL,
                 selected_node_id TEXT NOT NULL,
+                execution_root_base TEXT NOT NULL DEFAULT '',
                 created_at_ms INTEGER NOT NULL
             );
 
@@ -58,6 +59,14 @@ impl SubmitAttemptStore {
             );
             ",
         )?;
+        if !self.table_has_column(&conn, "submit_attempts", "execution_root_base")? {
+            conn.execute_batch(
+                "
+                ALTER TABLE submit_attempts
+                ADD COLUMN execution_root_base TEXT NOT NULL DEFAULT '';
+                ",
+            )?;
+        }
         Ok(())
     }
 
@@ -87,5 +96,16 @@ impl SubmitAttemptStore {
             return Ok(());
         }
         bail!("submit attempt {idempotency_key} does not exist")
+    }
+
+    fn table_has_column(&self, conn: &Connection, table: &str, column: &str) -> Result<bool> {
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+        for row in rows {
+            if row?.trim() == column {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }

@@ -24,9 +24,12 @@ pub(super) fn handle_remote_outputs_route(
         Ok(path_ref) if path_ref.path != "." => path_ref.path,
         _ => return Ok(Some(error_response(400, "invalid_output_path"))),
     };
-    let artifact_root = artifact_root_for_submit_key(&key);
+    let execution_root_base = store
+        .execution_root_base_for_submit(&key)?
+        .unwrap_or_else(remote_execution_root_base);
+    let artifact_root = artifact_root_for_submit_key_at_base(&key, &execution_root_base);
     if artifact_root.exists() {
-        let Some(bytes) = read_staged_remote_output(&key, &normalized)? else {
+        let Some(bytes) = read_staged_remote_output(&artifact_root, &normalized)? else {
             return Ok(Some(error_response(404, "output_not_found")));
         };
         return Ok(Some(binary_response(
@@ -36,7 +39,7 @@ pub(super) fn handle_remote_outputs_route(
         )));
     }
 
-    let execution_root = execution_root_for_submit_key(&key);
+    let execution_root = execution_root_for_submit_key_at_base(&key, &execution_root_base);
     let output_path = execution_root.join(&normalized);
     let Ok(bytes) = fs::read(&output_path) else {
         return Ok(Some(error_response(404, "output_not_found")));

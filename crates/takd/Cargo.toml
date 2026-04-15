@@ -7,6 +7,7 @@ edition = "2024"
 anyhow.workspace = true
 arti-client = { version = "0.41", default-features = false, features = ["tokio", "rustls", "onion-service-service"] }
 base64.workspace = true
+bollard.workspace = true
 bytes.workspace = true
 clap.workspace = true
 futures.workspace = true

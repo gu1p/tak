@@ -11,7 +11,7 @@ pub async fn run_remote_v1_http_server(
     store: SubmitAttemptStore,
     context: RemoteNodeContext,
 ) -> Result<()> {
-    spawn_remote_cleanup_janitor(context.shared_status_state());
+    spawn_remote_cleanup_janitor(context.shared_status_state(), store.clone());
     loop {
         let (stream, _) = listener.accept().await.context("accept failed")?;
         let store = store.clone();

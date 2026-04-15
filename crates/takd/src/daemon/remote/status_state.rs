@@ -6,6 +6,7 @@ use anyhow::Result;
 use sysinfo::{CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, SubmittedNeed};
 
+use super::execution_root::remote_execution_root_base;
 use super::query_helpers::unix_epoch_ms;
 use super::status_state_helpers::{active_job_value, aggregate_need_usage, storage_usage};
 
@@ -46,12 +47,11 @@ pub(crate) type SharedNodeStatusState = Arc<Mutex<NodeStatusState>>;
 pub(crate) struct NodeStatusState {
     system: System,
     disks: Disks,
-    execution_root_base: PathBuf,
     cpu_usage_ready: bool,
     active_jobs: BTreeMap<String, ActiveJobMetadata>,
 }
 
-pub(crate) fn new_shared_node_status_state(execution_root_base: PathBuf) -> SharedNodeStatusState {
+pub(crate) fn new_shared_node_status_state() -> SharedNodeStatusState {
     let mut system = System::new_with_specifics(
         RefreshKind::nothing()
             .with_cpu(CpuRefreshKind::everything())
@@ -63,7 +63,6 @@ pub(crate) fn new_shared_node_status_state(execution_root_base: PathBuf) -> Shar
     Arc::new(Mutex::new(NodeStatusState {
         system,
         disks: Disks::new_with_refreshed_list(),
-        execution_root_base,
         cpu_usage_ready: false,
         active_jobs: BTreeMap::new(),
     }))
@@ -121,7 +120,7 @@ impl NodeStatusState {
             }),
             storage: Some(storage_usage(
                 &self.disks,
-                &self.execution_root_base,
+                &remote_execution_root_base(),
                 tak_execution_bytes,
             )),
             allocated_needs: aggregate_need_usage(&active_jobs),

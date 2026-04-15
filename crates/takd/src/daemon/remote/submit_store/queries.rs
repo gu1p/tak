@@ -122,4 +122,59 @@ impl SubmitAttemptStore {
             Ok(None)
         }
     }
+
+    pub(in crate::daemon::remote) fn execution_root_base_for_submit(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<PathBuf>> {
+        let key = idempotency_key.trim();
+        if key.is_empty() {
+            bail!("idempotency_key is required");
+        }
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT execution_root_base
+            FROM submit_attempts
+            WHERE idempotency_key = ?1
+            LIMIT 1
+            ",
+        )?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            let root = row.get::<_, String>(0)?;
+            let root = root.trim();
+            if root.is_empty() {
+                return Ok(None);
+            }
+            Ok(Some(PathBuf::from(root)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(in crate::daemon::remote) fn known_execution_root_bases(&self) -> Result<Vec<PathBuf>> {
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT DISTINCT execution_root_base
+            FROM submit_attempts
+            WHERE execution_root_base != ''
+            ",
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut roots = Vec::new();
+        for row in rows {
+            let root = row?;
+            let root = root.trim();
+            if root.is_empty() {
+                continue;
+            }
+            let path = PathBuf::from(root);
+            if !roots.contains(&path) {
+                roots.push(path);
+            }
+        }
+        Ok(roots)
+    }
 }
