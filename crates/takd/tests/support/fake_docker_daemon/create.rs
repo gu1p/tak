@@ -72,5 +72,9 @@ fn exit_code_for_payload(state: &FakeDockerDaemonState, cmd: &[String], binds: &
         return if visible && sentinel.is_file() { 0 } else { 1 };
     }
 
+    if cmd.iter().any(|value| value.contains("exit 1")) {
+        return 1;
+    }
+
     if visible { 0 } else { 1 }
 }

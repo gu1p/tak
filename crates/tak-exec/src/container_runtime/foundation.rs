@@ -10,6 +10,7 @@ use bollard::container::{
     Config as ContainerConfig, CreateContainerOptions, LogOutput, LogsOptions,
     RemoveContainerOptions, StartContainerOptions, WaitContainerOptions,
 };
+use bollard::errors::Error as BollardError;
 use bollard::image::CreateImageOptions;
 use bollard::models::HostConfig;
 use futures::StreamExt;
