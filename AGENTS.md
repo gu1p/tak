@@ -59,8 +59,9 @@ UI contract tests must ensure (as applicable):
 
 ## Mandatory Checks
 
+- Inside this repo, use the system `tak` already on `PATH`.
+- If you need to bootstrap a fresh machine from this checkout, run `./get-tak.sh` once, then use `tak run ...`.
 - Run `tak run //:check` for **every single change** (features, fixes, refactors, docs that affect tooling).
-- Use `tak exec -- ...` for isolated test or tool-native loops after adding a test and before the final full gate.
 - Do not merge code that fails `tak run //:check`.
 - Do not report work as complete until the most recent `tak run //:check` run exits successfully in the current branch state.
 - If `tak run //:check` fails, report the failing test/spec names and keep the task in-progress.
@@ -82,17 +83,15 @@ A change is “done” only when:
 2. Add unit tests for core logic.
 3. Add integration tests if cross-module behavior exists.
 4. If it a flow that an user or other stakeholder will perform, add a E2E test mimicking their use -- as real as we can.
-5. Use `tak exec -- <tool> ...` for narrow feedback loops such as one new test or one package-specific test run.
-6. Run `tak run //:check`.
-7. Implement minimal code to pass.
-8. Refactor safely.
+5. Run `tak run //:check`.
+6. Implement minimal code to pass.
+7. Refactor safely.
 
 ### Fixing a Bug
 1. Add a test that fails on the current code and reproduces the bug.
 2. Implement the smallest fix.
 3. Add/adjust regression coverage (unit/integration as appropriate).
-4. Use `tak exec -- <tool> ...` for focused validation when needed.
-5. Run `tak run //:check`.
+4. Run `tak run //:check`.
 
 ---
 

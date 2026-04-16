@@ -58,8 +58,6 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Serve an interactive dependency graph UI locally. This is a graph viewer, not a remote-operations client.
 - `tak run <label...>`
   - Execute targets and dependencies.
-- `tak exec -- <program> [args...]`
-  - Run one raw tool-native command with Tak's execution engine and exit code handling.
 - `tak run hello`
   - At a workspace root, bare task names are shorthand for root-package labels such as `//:hello`.
 - `tak run <label...> -j <N> --keep-going`
@@ -98,8 +96,6 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 ## Run Output Signals
 
 `tak run` streams task `stdout` and `stderr` live as work executes, then prints one summary line per executed task. Remote and containerized runs use the same local-terminal contract so output stays visible while the task is still running.
-
-`tak exec` streams the wrapped tool's `stdout` and `stderr` live and exits with the wrapped command's exit code. Use it for narrow developer-loop commands that should keep native tool semantics.
 
 Example:
 
@@ -167,9 +163,6 @@ tak tree
 tak explain //apps/web:test_ui
 tak graph //apps/web:test_ui --format dot
 tak run //apps/web:test_ui -j 4 --keep-going
-tak exec -- cargo test parser_rejects_empty_input
-tak exec -- uv run pytest tests/test_loader.py -k current_state
-tak exec -- npm test -- --runInBand file-open
 ```
 
 Workspace rules:
@@ -233,6 +226,14 @@ Install behavior:
   - `TAK_REPO` to install from a different repository.
   - `GH_TOKEN` or `GITHUB_TOKEN` for private repository access.
   - `TAKD_TRANSPORT`, `TAKD_BASE_URL`, `TAKD_POOLS`, `TAKD_TAGS`, and `TAKD_CAPABILITIES` to customize the initial agent config.
+
+## Working on Tak Itself
+
+Inside this repo, use the system `tak` already on `PATH`.
+
+If you need to bootstrap a fresh machine from this checkout, run `./get-tak.sh` once and then use `tak run ...` from the installed binary. GitHub Actions in this repo follow the same bootstrap path.
+
+This repo bootstraps from the latest released Tak, so root `TASKS.py` and contributor guidance must stay compatible with the released CLI surface.
 
 ## Quality Gates
 

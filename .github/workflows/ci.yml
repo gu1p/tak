@@ -19,6 +19,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Tak
+        shell: bash
+        env:
+          TAK_INSTALL_DIR: ${{ runner.temp }}/tak-bin
+        run: |
+          set -euo pipefail
+          ./get-tak.sh
+          echo "$TAK_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Show Tak version
+        run: tak --version
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -28,7 +40,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run Tak check
-        run: cargo run --locked -p tak -- run //:check
+        run: tak run //:check
 
       - name: Install coverage tool
         run: cargo install cargo-llvm-cov --locked
@@ -42,7 +54,7 @@ jobs:
           df -h .
 
       - name: Run Tak coverage
-        run: cargo run --locked -p tak -- run //:coverage
+        run: tak run //:coverage
 
       - name: Upload coverage artifact
         if: always()
@@ -82,6 +94,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Tak
+        shell: bash
+        env:
+          TAK_INSTALL_DIR: ${{ runner.temp }}/tak-bin
+        run: |
+          set -euo pipefail
+          ./get-tak.sh
+          echo "$TAK_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Show Tak version
+        run: tak --version
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -99,4 +123,4 @@ jobs:
         run: cargo install cargo-zigbuild --locked
 
       - name: Build binaries via Tak
-        run: cargo run --locked -p tak -- run "${{ matrix.tak_task }}"
+        run: tak run "${{ matrix.tak_task }}"
