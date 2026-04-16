@@ -36,6 +36,16 @@ pub fn status_payload_for(
     transport: &str,
     with_job: bool,
 ) -> Vec<u8> {
+    status_payload_with_detail_for(node_id, base_url, transport, with_job, "")
+}
+
+pub fn status_payload_with_detail_for(
+    node_id: &str,
+    base_url: &str,
+    transport: &str,
+    with_job: bool,
+    transport_detail: &str,
+) -> Vec<u8> {
     NodeStatusResponse {
         node: Some(NodeInfo {
             node_id: node_id.into(),
@@ -47,7 +57,7 @@ pub fn status_payload_for(
             capabilities: vec!["linux".into()],
             transport: transport.into(),
             transport_state: "ready".into(),
-            transport_detail: String::new(),
+            transport_detail: transport_detail.into(),
         }),
         sampled_at_ms: 1_734_000_000_000,
         cpu: Some(CpuUsage {

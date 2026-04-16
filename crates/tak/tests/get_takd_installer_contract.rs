@@ -35,7 +35,10 @@ fn linux_installer_bootstraps_takd_user_service_and_prints_token() {
         "installer should not rely on systemd log redirection:\n{unit}"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("takd:v1:"), "missing token:\n{stdout}");
+    assert!(
+        stdout.contains("takd:tor:"),
+        "missing tor invite:\n{stdout}"
+    );
     assert!(stdout.contains(".onion"), "missing onion url:\n{stdout}");
     assert!(
         stdout.contains("Scan this QR code"),

@@ -85,4 +85,8 @@ fn serve_creates_service_log_with_tor_startup_milestones() {
         contents.contains(ready_line),
         "missing onion readiness milestone:\n{contents}"
     );
+    assert!(
+        !contents.contains("http://[redacted].onion"),
+        "service log should not redact the full onion url:\n{contents}"
+    );
 }

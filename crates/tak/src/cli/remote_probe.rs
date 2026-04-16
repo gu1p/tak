@@ -161,15 +161,18 @@ where
     let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
         let _ = connection.await;
     }));
-    let request = Request::builder()
+    let mut request = Request::builder()
         .method("GET")
         .uri("/v1/node/info")
         .header(hyper::header::HOST, authority)
-        .header(
+        .header(hyper::header::CONNECTION, "close");
+    if !bearer_token.trim().is_empty() {
+        request = request.header(
             hyper::header::AUTHORIZATION,
             format!("Bearer {}", bearer_token.trim()),
-        )
-        .header(hyper::header::CONNECTION, "close")
+        );
+    }
+    let request = request
         .body(Empty::<Bytes>::new())
         .context("write node probe")
         .map_err(ProbeAttemptError::retryable)?;

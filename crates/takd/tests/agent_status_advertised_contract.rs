@@ -74,7 +74,8 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
             && stdout.contains("readiness: advertised")
             && stdout.contains("transport_state: ready")
             && stdout.contains("reachability: verified")
-            && stdout.contains("base_url: http://builder-status.onion"),
+            && stdout.contains("base_url: http://builder-status.onion")
+            && !stdout.contains("http://[redacted].onion"),
         "missing ready status fields:\n{stdout}"
     );
     assert!(

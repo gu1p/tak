@@ -2,7 +2,7 @@
 
 use std::net::TcpListener as StdTcpListener;
 
-use tak_proto::decode_remote_token;
+use tak_proto::decode_tor_invite;
 use takd::agent::{InitAgentOptions, init_agent, read_token_wait};
 use takd::serve_agent;
 
@@ -56,10 +56,10 @@ async fn serve_agent_simulated_tor_retries_initial_startup_failures_until_token_
         .await
         .expect("join wait token")
         .expect("wait token");
-    let payload = decode_remote_token(&token).expect("decode tor token");
-    let node = fetch_node_info(&bind_addr, "builder-tor.onion", &payload.bearer_token).await;
+    let base_url = decode_tor_invite(&token).expect("decode tor invite");
+    let node = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
 
     assert_eq!(node.node_id, "builder-tor");
-    assert_eq!(node.base_url, "http://builder-tor.onion");
+    assert_eq!(node.base_url, base_url);
     server.abort();
 }

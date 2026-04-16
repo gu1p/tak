@@ -3,7 +3,7 @@
 use std::fs;
 use std::net::TcpListener as StdTcpListener;
 
-use tak_proto::decode_remote_token;
+use tak_proto::decode_tor_invite;
 use takd::agent::{InitAgentOptions, init_agent, read_token_wait};
 use takd::serve_agent;
 
@@ -53,16 +53,14 @@ async fn serve_agent_simulated_tor_uses_test_bind_addr_and_persists_onion_base_u
         .await
         .expect("join wait token")
         .expect("wait token");
-    let payload = decode_remote_token(&token).expect("decode tor token");
-    let node = payload.node.expect("node info");
-    let fetched = fetch_node_info(&bind_addr, "builder-tor.onion", &payload.bearer_token).await;
-    let status = fetch_node_status(&bind_addr, "builder-tor.onion", &payload.bearer_token).await;
+    let base_url = decode_tor_invite(&token).expect("decode tor invite");
+    let fetched = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
+    let status = fetch_node_status(&bind_addr, "builder-tor.onion", "").await;
 
     assert_eq!(fetched.node_id, "builder-tor");
     assert_eq!(status.node.expect("status node").node_id, "builder-tor");
     assert!(status.active_jobs.is_empty(), "new agent should be idle");
-    assert_eq!(node.transport, "tor");
-    assert!(node.base_url.starts_with("http://") && node.base_url.contains(".onion"));
+    assert_eq!(base_url, "http://builder-tor.onion");
     assert!(
         fs::read_to_string(config_root.join("agent.toml"))
             .expect("read agent config")

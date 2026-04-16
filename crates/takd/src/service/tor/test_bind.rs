@@ -40,7 +40,7 @@ pub(super) async fn serve_test_bind_session(
         .with_context(|| format!("bind takd tor test listener at {bind_addr}"))?;
     persist_ready_base_url(config_root, state_root, &base_url)?;
     write_transport_health(state_root, &TransportHealth::ready(Some(base_url.clone())))?;
-    tracing::info!("takd remote v1 onion service ready at {base_url}");
+    tracing::info!("takd remote v1 onion service ready at {}", base_url);
     let context = ready_context(&ready_config(config, &base_url))?;
 
     if let Some(delay) = take_test_force_recovery_after(state_root) {

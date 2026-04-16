@@ -6,6 +6,8 @@
 mod cli;
 mod diagnostics;
 #[cfg(test)]
+mod diagnostics_preflight_redaction_tests;
+#[cfg(test)]
 mod diagnostics_preflight_tests;
 #[cfg(test)]
 mod diagnostics_tests;

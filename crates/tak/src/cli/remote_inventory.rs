@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use tak_exec::record_remote_observation;
-use tak_proto::decode_remote_token;
+use tak_proto::{NodeInfo, decode_remote_token, decode_tor_invite};
 
 use super::remote_probe::probe_node;
 
@@ -28,45 +28,84 @@ struct RemoteInventoryFile {
 }
 
 pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
-    let payload = decode_remote_token(token)?;
-    let node = payload
-        .node
-        .ok_or_else(|| anyhow!("remote token is missing node info"))?;
-    let probed = probe_node(&node.base_url, &node.transport, &payload.bearer_token)
-        .await
-        .with_context(|| {
-            format!(
-                "failed to probe remote node {} at {} via {}",
-                node.node_id, node.base_url, node.transport
-            )
-        })?;
-    if probed.node_id != node.node_id {
-        bail!(
-            "remote node id mismatch: token={}, probe={}",
-            node.node_id,
-            probed.node_id
-        );
-    }
-
     let mut inventory = load_inventory()?;
-    inventory
-        .remotes
-        .retain(|remote| remote.node_id != node.node_id);
-    let _ = record_remote_observation(&probed);
-    let record = RemoteRecord {
-        node_id: probed.node_id,
-        display_name: probed.display_name,
-        base_url: probed.base_url,
-        bearer_token: payload.bearer_token,
-        pools: probed.pools,
-        tags: probed.tags,
-        capabilities: probed.capabilities,
-        transport: probed.transport,
-        enabled: true,
+    let record = if token.trim().starts_with("takd:v1:") {
+        let payload = decode_remote_token(token)?;
+        let node = payload
+            .node
+            .ok_or_else(|| anyhow!("remote token is missing node info"))?;
+        if node.transport == "tor" {
+            bail!("tor onboarding now uses `takd:tor:` invites");
+        }
+        let probed = probe_node(&node.base_url, &node.transport, &payload.bearer_token)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to probe remote node {} at {} via {}",
+                    node.node_id, node.base_url, node.transport
+                )
+            })?;
+        if probed.node_id != node.node_id {
+            bail!(
+                "remote node id mismatch: token={}, probe={}",
+                node.node_id,
+                probed.node_id
+            );
+        }
+        inventory
+            .remotes
+            .retain(|remote| remote.node_id != node.node_id);
+        let _ = record_remote_observation(&probed);
+        RemoteRecord {
+            node_id: probed.node_id,
+            display_name: probed.display_name,
+            base_url: probed.base_url,
+            bearer_token: payload.bearer_token,
+            pools: probed.pools,
+            tags: probed.tags,
+            capabilities: probed.capabilities,
+            transport: probed.transport,
+            enabled: true,
+        }
+    } else if token.trim().starts_with("takd:tor:") {
+        let base_url = decode_tor_invite(token)?;
+        let probed = probe_node(&base_url, "tor", "")
+            .await
+            .with_context(|| format!("failed to probe remote node at {base_url} via tor"))?;
+        ensure_tor_invite_matches_probe(&base_url, &probed)?;
+        inventory
+            .remotes
+            .retain(|remote| remote.node_id != probed.node_id);
+        let _ = record_remote_observation(&probed);
+        RemoteRecord {
+            node_id: probed.node_id,
+            display_name: probed.display_name,
+            base_url,
+            bearer_token: String::new(),
+            pools: probed.pools,
+            tags: probed.tags,
+            capabilities: probed.capabilities,
+            transport: "tor".to_string(),
+            enabled: true,
+        }
+    } else {
+        bail!("remote invite must start with `takd:v1:` or `takd:tor:`");
     };
     inventory.remotes.push(record.clone());
     save_inventory(&inventory)?;
     Ok(record)
+}
+
+fn ensure_tor_invite_matches_probe(invited_base_url: &str, probed: &NodeInfo) -> Result<()> {
+    if probed.transport == "tor" && probed.base_url == invited_base_url {
+        return Ok(());
+    }
+    bail!(
+        "tor invite expected {} via tor, probe returned {} via {}",
+        invited_base_url,
+        probed.base_url,
+        probed.transport
+    );
 }
 
 pub(super) fn list_remotes() -> Result<Vec<RemoteRecord>> {

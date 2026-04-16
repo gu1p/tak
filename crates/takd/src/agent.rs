@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
-use tak_proto::{RemoteTokenPayload, decode_remote_token, encode_remote_token};
+use tak_proto::{
+    RemoteTokenPayload, decode_remote_token, decode_tor_invite, encode_remote_token,
+    encode_tor_invite,
+};
 use uuid::Uuid;
 
 use crate::daemon::remote::RemoteNodeContext;
@@ -20,7 +23,9 @@ mod helpers;
 mod paths;
 mod transport_health;
 
-pub(crate) use direct_base_url::{DirectBaseUrlError, parse_direct_base_url};
+pub(crate) use direct_base_url::{
+    DirectBaseUrlError, parse_direct_base_url, validate_direct_base_url,
+};
 pub(crate) use helpers::node_info_with_transport;
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
 pub use transport_health::{
@@ -114,7 +119,9 @@ pub fn read_token(state_root: &Path) -> Result<String> {
     if token.is_empty() {
         bail!("agent token not ready");
     }
-    let _ = decode_remote_token(&token)?;
+    if decode_remote_token(&token).is_err() {
+        let _ = decode_tor_invite(&token)?;
+    }
     Ok(token)
 }
 
@@ -143,11 +150,15 @@ pub fn persist_ready_base_url(
     }
     config.base_url = Some(base_url.to_string());
     write_config(config_root, &config)?;
-    let token = encode_remote_token(&RemoteTokenPayload {
-        version: "v1".to_string(),
-        node: Some(node_info(&config, base_url)),
-        bearer_token: config.bearer_token.clone(),
-    })?;
+    let token = if config.transport == "tor" {
+        encode_tor_invite(base_url)?
+    } else {
+        encode_remote_token(&RemoteTokenPayload {
+            version: "v1".to_string(),
+            node: Some(node_info(&config, base_url)),
+            bearer_token: config.bearer_token.clone(),
+        })?
+    };
     fs::write(token_path(state_root), format!("{token}\n"))?;
     Ok(token)
 }
@@ -169,24 +180,4 @@ fn write_config(config_root: &Path, config: &AgentConfig) -> Result<()> {
         toml::to_string(config).context("encode agent config")?,
     )?;
     Ok(())
-}
-
-fn validate_direct_base_url(base_url: Option<&str>) -> Result<String> {
-    parse_direct_base_url(base_url)
-        .map(|parsed| parsed.canonical_base_url())
-        .map_err(|err| match err {
-            DirectBaseUrlError::Missing => anyhow!("base_url is required for direct transport"),
-            DirectBaseUrlError::InvalidScheme => {
-                anyhow!("base_url must start with http:// or https:// for direct transport")
-            }
-            DirectBaseUrlError::MissingHost => {
-                anyhow!("base_url must include a host for direct transport")
-            }
-            DirectBaseUrlError::MissingPort => {
-                anyhow!("base_url must include a port for direct transport")
-            }
-            DirectBaseUrlError::UnsupportedComponents => anyhow!(
-                "base_url must not include userinfo, path, query, or fragment for direct transport"
-            ),
-        })
 }

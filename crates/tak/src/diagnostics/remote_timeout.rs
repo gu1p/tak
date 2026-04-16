@@ -108,7 +108,11 @@ fn render_transport_signal_line(failure: &RemotePreflightFailure) -> Option<Line
             "  - {} state={} detail={}",
             failure.node_id,
             state,
-            failure.live_transport_detail.as_deref().unwrap_or("n/a"),
+            failure
+                .live_transport_detail
+                .as_deref()
+                .map(str::to_string)
+                .unwrap_or_else(|| "n/a".to_string()),
         )));
     }
     let observation = failure.last_observation.as_ref()?;
@@ -117,9 +121,9 @@ fn render_transport_signal_line(failure: &RemotePreflightFailure) -> Option<Line
         failure.node_id,
         observation.transport_state,
         if observation.transport_detail.is_empty() {
-            "n/a"
+            "n/a".to_string()
         } else {
-            observation.transport_detail.as_str()
+            observation.transport_detail.clone()
         },
     )))
 }

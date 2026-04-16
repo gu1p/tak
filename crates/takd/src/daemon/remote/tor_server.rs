@@ -6,17 +6,14 @@ pub async fn run_remote_v1_tor_hidden_service(
 ) -> Result<()> {
     if let Some(test_bind_addr) = test_tor_hidden_service_bind_addr() {
         tracing::info!("using takd tor hidden-service test bind override at {test_bind_addr}");
-        let context =
-            remote_node_context_from_env(Some(format!("http://{}.onion", config.nickname)));
+        let onion_endpoint = format!("http://{}.onion", config.nickname);
+        let context = remote_node_context_from_env(Some(onion_endpoint.clone()));
         let listener = TcpListener::bind(test_bind_addr.as_str())
             .await
             .with_context(|| {
                 format!("failed to bind takd tor test listener at {test_bind_addr}")
             })?;
-        tracing::info!(
-            "takd remote v1 onion service ready at http://{}.onion",
-            config.nickname
-        );
+        tracing::info!("takd remote v1 onion service ready at {}", onion_endpoint);
         return run_remote_v1_http_server(listener, store, context).await;
     }
 
@@ -47,7 +44,7 @@ pub async fn run_remote_v1_tor_hidden_service(
         .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
     let context = remote_node_context_from_env(Some(onion_endpoint.clone()));
     spawn_remote_cleanup_janitor(context.shared_status_state(), store.clone());
-    tracing::info!("takd remote v1 onion service ready at {onion_endpoint}");
+    tracing::info!("takd remote v1 onion service ready at {}", onion_endpoint);
 
     futures::pin_mut!(rend_requests);
     while let Some(rend_request) = rend_requests.next().await {

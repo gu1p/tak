@@ -31,7 +31,10 @@ fn status_reports_recovering_transport_state_when_tor_relaunch_is_in_progress() 
         &TransportHealth::new(
             TransportState::Recovering,
             Some(base_url.to_string()),
-            Some("rendezvous accept failures exceeded threshold".to_string()),
+            Some(
+                "Tor onion service at http://builder-status.onion did not become reachable within 1000ms during takd startup"
+                    .to_string(),
+            ),
         ),
     )
     .expect("write transport health");
@@ -58,7 +61,11 @@ fn status_reports_recovering_transport_state_when_tor_relaunch_is_in_progress() 
         "missing transport_state:\n{stdout}"
     );
     assert!(
-        stdout.contains("base_url: http://builder-status.onion"),
+        stdout.contains("base_url: http://builder-status.onion")
+            && stdout.contains(
+                "transport_detail: Tor onion service at http://builder-status.onion did not become reachable within 1000ms during takd startup"
+            )
+            && !stdout.contains("http://[redacted].onion"),
         "missing base_url:\n{stdout}"
     );
     assert!(

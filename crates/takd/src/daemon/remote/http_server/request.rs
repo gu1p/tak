@@ -72,8 +72,15 @@ pub(super) fn request_is_authorized(
     request: &ParsedHttpRequest,
     context: &RemoteNodeContext,
 ) -> bool {
-    if context.bearer_token.trim().is_empty() {
+    if context
+        .node_info()
+        .ok()
+        .is_some_and(|node| node.transport == "tor")
+    {
         return true;
+    }
+    if context.bearer_token.trim().is_empty() {
+        return false;
     }
     request.authorization.as_deref() == Some(&format!("Bearer {}", context.bearer_token))
 }

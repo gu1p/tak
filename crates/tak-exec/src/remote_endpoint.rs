@@ -1,14 +1,20 @@
 use std::env;
 
 use anyhow::{Result, bail};
+use tak_core::model::RemoteTransportKind;
 
 pub(crate) fn remote_protocol_bearer_token<'a>(
     node_id: &str,
     bearer_token: &'a str,
-) -> Result<&'a str> {
+    transport_kind: RemoteTransportKind,
+) -> Result<Option<&'a str>> {
     let token = bearer_token.trim();
     if token.is_empty() {
-        bail!("infra error: remote node {} bearer token is empty", node_id);
+        return if transport_kind == RemoteTransportKind::Tor {
+            Ok(None)
+        } else {
+            bail!("infra error: remote node {} bearer token is empty", node_id)
+        };
     }
     if token.contains(['\r', '\n']) {
         bail!(
@@ -16,7 +22,7 @@ pub(crate) fn remote_protocol_bearer_token<'a>(
             node_id
         );
     }
-    Ok(token)
+    Ok(Some(token))
 }
 
 pub fn endpoint_socket_addr(endpoint: &str) -> Result<String> {

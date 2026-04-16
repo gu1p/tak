@@ -10,7 +10,8 @@ use std::sync::{
 use std::thread;
 
 use prost::Message;
-use support::remote_cli::{node_info, read_request, remote_token};
+use support::remote_cli::{node_info, read_request};
+use tak_proto::encode_tor_invite;
 
 #[test]
 fn remote_add_retries_retryable_tor_probe_failures_before_succeeding() {
@@ -24,7 +25,15 @@ fn remote_add_retries_retryable_tor_probe_failures_before_succeeding() {
     let server = thread::spawn(move || {
         for attempt in 1..=2 {
             let (mut stream, _) = listener.accept().expect("accept probe");
-            assert!(read_request(&mut stream).starts_with("GET /v1/node/info HTTP/1.1\r\n"));
+            let request = read_request(&mut stream);
+            assert!(
+                request.starts_with("GET /v1/node/info HTTP/1.1\r\n"),
+                "unexpected request: {request}"
+            );
+            assert!(
+                !request.contains("Authorization:"),
+                "tor invite probe should not send auth header:\n{request}"
+            );
             server_attempts.fetch_add(1, Ordering::SeqCst);
             if attempt == 1 {
                 continue;
@@ -44,17 +53,11 @@ fn remote_add_retries_retryable_tor_probe_failures_before_succeeding() {
             stream.write_all(&body).expect("write protobuf body");
         }
     });
+    let invite =
+        encode_tor_invite("http://builder-retry-hidden-service.onion").expect("encode invite");
 
     let add = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
-        .args([
-            "remote",
-            "add",
-            &remote_token(
-                "builder-retry",
-                "http://builder-retry-hidden-service.onion",
-                "tor",
-            ),
-        ])
+        .args(["remote", "add", &invite])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_TOR_ONION_DIAL_ADDR", format!("127.0.0.1:{port}"))
         .env("TAK_TEST_TOR_PROBE_TIMEOUT_MS", "200")

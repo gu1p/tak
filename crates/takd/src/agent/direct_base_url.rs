@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use url::{Host, Url};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +60,26 @@ pub(crate) fn parse_direct_base_url(
         host_for_bind,
         port,
     })
+}
+
+pub(crate) fn validate_direct_base_url(base_url: Option<&str>) -> Result<String> {
+    parse_direct_base_url(base_url)
+        .map(|parsed| parsed.canonical_base_url())
+        .map_err(|err| match err {
+            DirectBaseUrlError::Missing => anyhow!("base_url is required for direct transport"),
+            DirectBaseUrlError::InvalidScheme => {
+                anyhow!("base_url must start with http:// or https:// for direct transport")
+            }
+            DirectBaseUrlError::MissingHost => {
+                anyhow!("base_url must include a host for direct transport")
+            }
+            DirectBaseUrlError::MissingPort => {
+                anyhow!("base_url must include a port for direct transport")
+            }
+            DirectBaseUrlError::UnsupportedComponents => anyhow!(
+                "base_url must not include userinfo, path, query, or fragment for direct transport"
+            ),
+        })
 }
 
 #[path = "direct_base_url_tests.rs"]

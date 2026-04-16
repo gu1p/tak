@@ -112,7 +112,11 @@ async fn remote_protocol_http_request(
             target.node_id, target.endpoint
         )
     })?;
-    let bearer_token = remote_protocol_bearer_token(&target.node_id, &target.bearer_token)?;
+    let bearer_token = remote_protocol_bearer_token(
+        &target.node_id,
+        &target.bearer_token,
+        target.transport_kind,
+    )?;
     let payload = body.unwrap_or(&[]);
 
     let exchange = async {
@@ -129,14 +133,20 @@ async fn remote_protocol_http_request(
         let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
             let _ = connection.await;
         }));
-        let request = hyper::Request::builder()
+        let mut request = hyper::Request::builder()
             .method(method)
             .uri(path)
             .header(hyper::header::HOST, socket_addr.as_str())
             .header(hyper::header::CONNECTION, "close")
             .header("X-Tak-Protocol-Version", "v1")
-            .header(hyper::header::AUTHORIZATION, format!("Bearer {bearer_token}"))
-            .header(hyper::header::CONTENT_TYPE, "application/x-protobuf")
+            .header(hyper::header::CONTENT_TYPE, "application/x-protobuf");
+        if let Some(bearer_token) = bearer_token {
+            request = request.header(
+                hyper::header::AUTHORIZATION,
+                format!("Bearer {bearer_token}"),
+            );
+        }
+        let request = request
             .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(payload)))
             .context("build remote protocol request")?;
         let response = sender.send_request(request).await.with_context(|| {

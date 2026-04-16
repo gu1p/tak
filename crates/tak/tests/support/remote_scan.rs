@@ -31,12 +31,44 @@ pub fn write_scan_fixture(path: &Path, cameras: &[CameraFixture<'_>]) -> Result<
     Ok(())
 }
 
+pub fn write_single_camera_qr_fixture(path: &Path, payload: &str) -> Result<()> {
+    let frames = [
+        FrameFixture::Blank {
+            width: 192,
+            height: 192,
+        },
+        FrameFixture::QrPayload {
+            payload,
+            width: 192,
+        },
+    ];
+    let cameras = [CameraFixture {
+        id: "cam0",
+        name: "Desk Camera",
+        frames: &frames,
+    }];
+    write_scan_fixture(path, &cameras)
+}
+
 pub fn run_scan(config_root: &Path, fixture_path: &Path, script: &str) -> Result<Output> {
-    Ok(StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    run_scan_with_env(config_root, fixture_path, script, &[])
+}
+
+pub fn run_scan_with_env(
+    config_root: &Path,
+    fixture_path: &Path,
+    script: &str,
+    envs: &[(&str, String)],
+) -> Result<Output> {
+    let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    command
         .args(["remote", "scan"])
         .env("XDG_CONFIG_HOME", config_root)
         .env("TAK_TEST_REMOTE_SCAN_FIXTURE", fixture_path)
         .env("TAK_TEST_REMOTE_SCAN_SCRIPT", script)
-        .stdin(Stdio::null())
-        .output()?)
+        .stdin(Stdio::null());
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    Ok(command.output()?)
 }

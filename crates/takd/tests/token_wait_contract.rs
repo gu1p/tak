@@ -3,7 +3,7 @@ use std::process::Command as StdCommand;
 use std::thread;
 use std::time::Duration;
 
-use tak_proto::{NodeInfo, RemoteTokenPayload, encode_remote_token};
+use tak_proto::encode_tor_invite;
 
 #[test]
 fn token_show_waits_for_hidden_service_token() {
@@ -11,27 +11,11 @@ fn token_show_waits_for_hidden_service_token() {
     let state_root = temp.path().join("state");
     fs::create_dir_all(&state_root).expect("create state root");
     let token_path = state_root.join("agent.token");
-    let token = encode_remote_token(&RemoteTokenPayload {
-        version: "v1".into(),
-        node: Some(NodeInfo {
-            node_id: "builder-a".into(),
-            display_name: "builder-a".into(),
-            base_url: "http://builder-a.onion".into(),
-            healthy: true,
-            pools: vec!["default".into()],
-            tags: vec!["builder".into()],
-            capabilities: vec!["linux".into()],
-            transport: "tor".into(),
-            transport_state: "ready".into(),
-            transport_detail: String::new(),
-        }),
-        bearer_token: "secret".into(),
-    })
-    .expect("encode token");
+    let invite = encode_tor_invite("http://builder-a.onion").expect("encode invite");
 
     let writer = thread::spawn(move || {
         thread::sleep(Duration::from_millis(250));
-        fs::write(token_path, format!("{token}\n")).expect("write token");
+        fs::write(token_path, format!("{invite}\n")).expect("write invite");
     });
 
     let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
@@ -55,7 +39,7 @@ fn token_show_waits_for_hidden_service_token() {
     assert!(
         String::from_utf8_lossy(&show.stdout)
             .trim()
-            .starts_with("takd:v1:"),
+            .starts_with("takd:tor:"),
         "unexpected stdout:\n{}",
         String::from_utf8_lossy(&show.stdout)
     );

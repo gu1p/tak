@@ -3,7 +3,7 @@
 use std::fs;
 use std::net::TcpListener as StdTcpListener;
 
-use tak_proto::decode_remote_token;
+use tak_proto::decode_tor_invite;
 use takd::agent::{InitAgentOptions, TransportState, init_agent, read_token_wait};
 use takd::serve_agent;
 
@@ -58,22 +58,19 @@ async fn serve_agent_simulated_tor_relaunches_in_process_and_keeps_the_same_onio
         .await
         .expect("join wait token")
         .expect("wait token");
-    let payload = decode_remote_token(&token).expect("decode tor token");
-    let first = fetch_node_info(&bind_addr, "builder-tor.onion", &payload.bearer_token).await;
+    let base_url = decode_tor_invite(&token).expect("decode tor invite");
+    let first = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
 
     let recovering = wait_for_transport_state(&state_root, TransportState::Recovering).await;
-    assert_eq!(
-        recovering.base_url.as_deref(),
-        Some("http://builder-tor.onion")
-    );
+    assert_eq!(recovering.base_url.as_deref(), Some(base_url.as_str()));
 
     let ready = wait_for_transport_state(&state_root, TransportState::Ready).await;
-    assert_eq!(ready.base_url.as_deref(), Some("http://builder-tor.onion"));
+    assert_eq!(ready.base_url.as_deref(), Some(base_url.as_str()));
 
-    let second = fetch_node_info(&bind_addr, "builder-tor.onion", &payload.bearer_token).await;
+    let second = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
 
     assert_eq!(first.node_id, "builder-tor");
-    assert_eq!(first.base_url, "http://builder-tor.onion");
+    assert_eq!(first.base_url, base_url);
     assert_eq!(second.node_id, first.node_id);
     assert_eq!(second.base_url, first.base_url);
     assert!(

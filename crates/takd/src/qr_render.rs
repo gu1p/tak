@@ -7,6 +7,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
+use tak_proto::decode_tor_invite;
 use tui_qrcode::{Colors, QrCodeWidget};
 
 const MIN_VIEW_WIDTH: u16 = 84;
@@ -15,8 +16,15 @@ const BLOCK_VERTICAL_CHROME: u16 = 4;
 const BLOCK_HORIZONTAL_CHROME: u16 = 6;
 
 pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
+    let is_tor_invite = decode_tor_invite(token).is_ok();
     let qr_code = QrCode::new(token.as_bytes())?;
     let command = format!("tak remote add '{token}'");
+    let qr_title = if is_tor_invite {
+        " Takd Invite "
+    } else {
+        " Takd Token "
+    };
+    let value_title = if is_tor_invite { " Invite " } else { " Token " };
     let qr_widget = QrCodeWidget::new(qr_code).colors(Colors::Normal);
     let qr_size = qr_widget.size(Rect::new(0, 0, 0, 0));
     let view_width = MIN_VIEW_WIDTH.max(qr_size.width + BLOCK_HORIZONTAL_CHROME);
@@ -45,7 +53,7 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             .style(Style::default().add_modifier(Modifier::BOLD));
         frame.render_widget(title, rows[0]);
 
-        let qr_block = Block::default().borders(Borders::ALL).title(" Takd Token ");
+        let qr_block = Block::default().borders(Borders::ALL).title(qr_title);
         let qr_area = qr_block.inner(rows[1]).inner(Margin {
             vertical: 1,
             horizontal: 2,
@@ -64,7 +72,7 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             command_area,
         );
 
-        let token_block = Block::default().borders(Borders::ALL).title(" Token ");
+        let token_block = Block::default().borders(Borders::ALL).title(value_title);
         let token_area = token_block.inner(rows[3]).inner(Margin {
             vertical: 1,
             horizontal: 2,
