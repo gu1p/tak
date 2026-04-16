@@ -4,7 +4,6 @@ set -euo pipefail
 TAK_REPO="${TAK_REPO:-gu1p/tak}"
 TAKD_INSTALL_DIR="${TAKD_INSTALL_DIR:-$HOME/.local/bin}"
 TAKD_VERSION_INPUT="${TAKD_VERSION:-${TAK_VERSION:-}}"
-GITHUB_TOKEN_VALUE="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
 TAKD_WAIT_TIMEOUT_SECS="${TAKD_WAIT_TIMEOUT_SECS:-120}"
 
 err() {
@@ -12,22 +11,13 @@ err() {
   exit 1
 }
 
-api_get() {
-  local url="$1"
-  if [[ -n "$GITHUB_TOKEN_VALUE" ]]; then
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN_VALUE" -H 'Accept: application/vnd.github+json' "$url"
-  else
-    curl -fsSL -H 'Accept: application/vnd.github+json' "$url"
-  fi
-}
-
 download_asset() {
   local url="$1" out_file="$2"
-  if [[ -n "$GITHUB_TOKEN_VALUE" ]]; then
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN_VALUE" -o "$out_file" "$url"
-  else
-    curl -fsSL -o "$out_file" "$url"
-  fi
+  curl -fsSL -o "$out_file" "$url"
+}
+
+resolve_latest_release_url() {
+  curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${TAK_REPO}/releases/latest"
 }
 
 detect_target() {
@@ -52,9 +42,18 @@ resolve_tag() {
     [[ "$TAKD_VERSION_INPUT" == v* ]] && printf '%s' "$TAKD_VERSION_INPUT" || printf 'v%s' "$TAKD_VERSION_INPUT"
     return
   fi
-  local latest_json tag
-  latest_json="$(api_get "https://api.github.com/repos/${TAK_REPO}/releases/latest")" || err "failed to resolve latest release for ${TAK_REPO}"
-  tag="$(printf '%s' "$latest_json" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+  local latest_url tag
+  latest_url="$(resolve_latest_release_url)" || err "failed to resolve latest release for ${TAK_REPO}"
+  case "$latest_url" in
+    "https://github.com/${TAK_REPO}/releases/tag/"*)
+      ;;
+    *)
+      err "could not parse latest release tag"
+      ;;
+  esac
+  tag="${latest_url##*/}"
+  tag="${tag%%\?*}"
+  tag="${tag%/}"
   [[ -n "$tag" ]] || err "could not parse latest release tag"
   printf '%s' "$tag"
 }

@@ -39,6 +39,11 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: Run Tak check
         run: tak run //:check
 
@@ -80,11 +85,11 @@ jobs:
             target: aarch64-unknown-linux-musl
             use_zig: true
             tak_task: //:build-release-aarch64-unknown-linux-musl
-          - os: macos-14
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             use_zig: false
             tak_task: //:build-release-x86_64-apple-darwin
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
             use_zig: false
             tak_task: //:build-release-aarch64-apple-darwin

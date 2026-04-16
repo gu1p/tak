@@ -4,30 +4,20 @@ set -euo pipefail
 TAK_REPO="${TAK_REPO:-gu1p/tak}"
 TAK_INSTALL_DIR="${TAK_INSTALL_DIR:-$HOME/.local/bin}"
 TAK_VERSION_INPUT="${TAK_VERSION:-}"
-GITHUB_TOKEN_VALUE="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
 
 err() {
   printf 'error: %s\n' "$1" >&2
   exit 1
 }
 
-api_get() {
-  local url="$1"
-  if [[ -n "$GITHUB_TOKEN_VALUE" ]]; then
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN_VALUE" -H 'Accept: application/vnd.github+json' "$url"
-  else
-    curl -fsSL -H 'Accept: application/vnd.github+json' "$url"
-  fi
-}
-
 download_asset() {
   local url="$1"
   local out_file="$2"
-  if [[ -n "$GITHUB_TOKEN_VALUE" ]]; then
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN_VALUE" -o "$out_file" "$url"
-  else
-    curl -fsSL -o "$out_file" "$url"
-  fi
+  curl -fsSL -o "$out_file" "$url"
+}
+
+resolve_latest_release_url() {
+  curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${TAK_REPO}/releases/latest"
 }
 
 detect_target() {
@@ -72,12 +62,19 @@ resolve_tag() {
     return
   fi
 
-  local latest_json tag
-  latest_json="$(api_get "https://api.github.com/repos/${TAK_REPO}/releases/latest")" || {
-    err "failed to resolve latest release for ${TAK_REPO}; if the repo is private set GH_TOKEN or GITHUB_TOKEN"
-  }
+  local latest_url tag
+  latest_url="$(resolve_latest_release_url)" || err "failed to resolve latest release for ${TAK_REPO}"
+  case "$latest_url" in
+    "https://github.com/${TAK_REPO}/releases/tag/"*)
+      ;;
+    *)
+      err "could not parse latest release tag"
+      ;;
+  esac
 
-  tag="$(printf '%s' "$latest_json" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+  tag="${latest_url##*/}"
+  tag="${tag%%\?*}"
+  tag="${tag%/}"
   [[ -n "$tag" ]] || err "could not parse latest release tag"
   printf '%s' "$tag"
 }
@@ -97,7 +94,7 @@ main() {
 
   printf 'Downloading %s\n' "$archive_url"
   download_asset "$archive_url" "$archive_path" || {
-    err "failed to download release artifact ${archive_name}; verify tag exists and auth token is set for private repos"
+    err "failed to download release artifact ${archive_name}; verify the tag exists"
   }
 
   tar -xzf "$archive_path" -C "$temp_dir"

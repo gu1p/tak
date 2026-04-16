@@ -216,7 +216,7 @@ curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-takd.sh | bash
 
 Install behavior:
 
-- Downloads latest release asset for macOS/Linux (`x86_64` + `aarch64`).
+- Downloads latest public release asset for macOS/Linux (`x86_64` + `aarch64`).
 - Installs `tak` and `takd` to `~/.local/bin` by default.
 - `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.
 - `get-takd.sh` prints a terminal QR code for the onboarding token after the agent is ready.
@@ -224,7 +224,6 @@ Install behavior:
   - `TAK_VERSION` to pin a release tag.
   - `TAK_INSTALL_DIR` to change install destination.
   - `TAK_REPO` to install from a different repository.
-  - `GH_TOKEN` or `GITHUB_TOKEN` for private repository access.
   - `TAKD_TRANSPORT`, `TAKD_BASE_URL`, `TAKD_POOLS`, `TAKD_TAGS`, and `TAKD_CAPABILITIES` to customize the initial agent config.
 
 ## Working on Tak Itself

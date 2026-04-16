@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const FORBIDDEN_TOKENS: [&str; 3] = [
+const FORBIDDEN_TOKENS: [&str; 5] = [
     "tak exec --",
     "cargo run --locked -p tak -- run",
     "make check",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
 ];
 
 #[test]
@@ -34,6 +36,24 @@ fn repo_docs_use_system_tak_bootstrap_language() {
         assert!(
             !agents.contains(token),
             "AGENTS.md should not mention `{token}`"
+        );
+    }
+}
+
+#[test]
+fn bootstrap_scripts_do_not_reference_github_tokens() {
+    let root = repo_root();
+    let get_tak = load_text(&root.join("get-tak.sh"));
+    let get_takd = load_text(&root.join("get-takd.sh"));
+
+    for token in ["GH_TOKEN", "GITHUB_TOKEN"] {
+        assert!(
+            !get_tak.contains(token),
+            "get-tak.sh should not mention `{token}`"
+        );
+        assert!(
+            !get_takd.contains(token),
+            "get-takd.sh should not mention `{token}`"
         );
     }
 }
