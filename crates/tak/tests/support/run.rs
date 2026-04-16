@@ -6,7 +6,7 @@ use std::process::{Command as StdCommand, Output};
 
 use anyhow::{Context, Result, bail};
 
-fn run_tak(
+pub fn run_tak_output(
     workspace_root: &Path,
     args: &[&str],
     extra_env: &BTreeMap<String, String>,
@@ -29,7 +29,7 @@ pub fn run_tak_expect_success(
     args: &[&str],
     extra_env: &BTreeMap<String, String>,
 ) -> Result<String> {
-    let output = run_tak(workspace_root, args, extra_env)?;
+    let output = run_tak_output(workspace_root, args, extra_env)?;
     if !output.status.success() {
         bail!(
             "command `tak {}` failed\nstdout:\n{}\nstderr:\n{}",
@@ -46,7 +46,7 @@ pub fn run_tak_expect_failure(
     args: &[&str],
     extra_env: &BTreeMap<String, String>,
 ) -> Result<(String, String)> {
-    let output = run_tak(workspace_root, args, extra_env)?;
+    let output = run_tak_output(workspace_root, args, extra_env)?;
     if output.status.success() {
         bail!(
             "command `tak {}` unexpectedly succeeded\nstdout:\n{}\nstderr:\n{}",

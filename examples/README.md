@@ -107,5 +107,5 @@ cargo test -p tak --test examples_matrix_contract
 Run full project gate:
 
 ```bash
-make check
+tak run //:check
 ```

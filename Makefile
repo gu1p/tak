@@ -1,28 +1,33 @@
-.PHONY: check test lint fmt-check docs-check line-limits-check src-test-separation-check workflow-contract-check generated-artifact-ignore-check
+.PHONY: check coverage test lint fmt-check docs-check line-limits-check src-test-separation-check workflow-contract-check generated-artifact-ignore-check
 
-check: fmt-check line-limits-check src-test-separation-check workflow-contract-check generated-artifact-ignore-check lint test docs-check
+TAK_RUN = cargo run --locked -p tak -- run
+
+check:
+	$(TAK_RUN) //:check
+
+coverage:
+	$(TAK_RUN) //:coverage
 
 fmt-check:
-	cargo fmt --all -- --check
+	$(TAK_RUN) //:fmt-check
 
 lint:
-	cargo clippy --workspace --all-targets -- -D warnings
+	$(TAK_RUN) //:lint
 
 test:
-	cargo test --workspace
+	$(TAK_RUN) //:test
 
 docs-check:
-	cargo test --workspace --doc
-	cargo test -p tak --test doctest_contract
+	$(TAK_RUN) //:docs-check
 
 line-limits-check:
-	scripts/check_rust_file_limits.sh
+	$(TAK_RUN) //:line-limits-check
 
 src-test-separation-check:
-	scripts/check_no_tests_in_src.sh
+	$(TAK_RUN) //:src-test-separation-check
 
 workflow-contract-check:
-	scripts/check_workflow_binary_matrix.sh
+	$(TAK_RUN) //:workflow-contract-check
 
 generated-artifact-ignore-check:
-	scripts/check_generated_artifacts_ignore.sh
+	$(TAK_RUN) //:generated-artifact-ignore-check

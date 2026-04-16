@@ -17,12 +17,13 @@ fn repo_root() -> &'static Path {
 }
 
 #[test]
-fn repo_root_tasks_surface_lists_makefile_mirror_targets() -> Result<()> {
+fn repo_root_tasks_surface_lists_tak_owned_workflow_targets() -> Result<()> {
     let env = BTreeMap::new();
     let list = run_tak_expect_success(repo_root(), &["list"], &env)?;
 
     for label in [
         "//:check",
+        "//:coverage",
         "//:fmt-check",
         "//:line-limits-check",
         "//:src-test-separation-check",
@@ -31,6 +32,14 @@ fn repo_root_tasks_surface_lists_makefile_mirror_targets() -> Result<()> {
         "//:lint",
         "//:test",
         "//:docs-check",
+        "//:build-release-x86_64-unknown-linux-musl",
+        "//:build-release-aarch64-unknown-linux-musl",
+        "//:build-release-x86_64-apple-darwin",
+        "//:build-release-aarch64-apple-darwin",
+        "//:package-release-x86_64-unknown-linux-musl",
+        "//:package-release-aarch64-unknown-linux-musl",
+        "//:package-release-x86_64-apple-darwin",
+        "//:package-release-aarch64-apple-darwin",
     ] {
         assert!(
             list.contains(label),
@@ -40,6 +49,16 @@ fn repo_root_tasks_surface_lists_makefile_mirror_targets() -> Result<()> {
 
     let explain = run_tak_expect_success(repo_root(), &["explain", "//:check"], &env)?;
     assert!(explain.contains("label: //:check"), "explain:\n{explain}");
+
+    let explain = run_tak_expect_success(
+        repo_root(),
+        &["explain", "//:package-release-x86_64-unknown-linux-musl"],
+        &env,
+    )?;
+    assert!(
+        explain.contains("label: //:package-release-x86_64-unknown-linux-musl"),
+        "explain:\n{explain}"
+    );
 
     Ok(())
 }

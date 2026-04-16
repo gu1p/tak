@@ -32,6 +32,7 @@ High-level flow:
 | `tak graph [label] --format dot` | "What dependency graph should I visualize?" | workspace load + optional guided label parse | DOT graph text (`digraph tak { ... }`). |
 | `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional guided label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)` | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
+| `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
 | `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
 | `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
@@ -67,6 +68,13 @@ High-level flow:
 - Delegates retry, timeout, and lease behavior to `tak-exec`.
 - Streams task `stdout` and `stderr` live to the local terminal for local, remote, and containerized execution.
 - Per-task status is printed after execution summary is available.
+
+### `exec`
+
+- Does not require a `TASKS.py` workspace.
+- Builds one synthetic command task and reuses the same executor/runtime override path as `run`.
+- Streams wrapped command `stdout` and `stderr` live without adding a summary line to stdout.
+- Preserves the wrapped process exit code on command failure.
 
 ### `web`
 
@@ -115,7 +123,7 @@ Representative user-facing errors:
 
 ## Environment-Driven Behavior
 
-`run` uses environment overrides:
+`run` and `exec` use environment overrides:
 
 - `TAKD_SOCKET` optional lease daemon socket path
 - `TAK_LEASE_TTL_MS` for lease TTL

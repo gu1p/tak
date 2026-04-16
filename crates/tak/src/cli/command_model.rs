@@ -28,6 +28,26 @@ pub(super) enum Commands {
     Web {
         label: Option<String>,
     },
+    Exec {
+        #[arg(long = "cwd")]
+        cwd: Option<String>,
+        #[arg(long = "env", value_name = "KEY=VALUE")]
+        env: Vec<String>,
+        #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
+        local: bool,
+        #[arg(long = "remote", default_value_t = false)]
+        remote: bool,
+        #[arg(long = "container", default_value_t = false)]
+        container: bool,
+        #[arg(long = "container-image")]
+        container_image: Option<String>,
+        #[arg(long = "container-dockerfile")]
+        container_dockerfile: Option<String>,
+        #[arg(long = "container-build-context")]
+        container_build_context: Option<String>,
+        #[arg(last = true, required = true, num_args = 1.., allow_hyphen_values = true)]
+        argv: Vec<String>,
+    },
     Run {
         labels: Vec<String>,
         #[arg(short = 'j', long = "jobs", default_value_t = 1)]

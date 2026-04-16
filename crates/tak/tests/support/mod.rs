@@ -34,5 +34,5 @@ pub use auth_fallback_servers::{
     spawn_auth_rejecting_submit_server, spawn_timeout_node_info_server,
 };
 pub use remote_inventory::{RemoteRecord, write_remote_inventory};
-pub use run::{run_tak_expect_failure, run_tak_expect_success};
+pub use run::{run_tak_expect_failure, run_tak_expect_success, run_tak_output};
 pub use tasks::write_tasks;

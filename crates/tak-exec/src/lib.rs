@@ -108,3 +108,24 @@ mod protocol_result_http_tests;
 mod protocol_result_http_timeout_tests;
 
 pub use remote_endpoint::{endpoint_host_port, endpoint_socket_addr, socket_addr_from_host_port};
+
+/// Executes exactly one resolved task and preserves the task's own success and exit metadata.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on internal state and is compile-checked only.
+/// # async fn demo(
+/// #     task: &tak_core::model::ResolvedTask,
+/// #     root: &std::path::Path,
+/// # ) -> anyhow::Result<()> {
+/// let _result = tak_exec::run_resolved_task(task, root, &tak_exec::RunOptions::default()).await?;
+/// # Ok(())
+/// # }
+/// ```
+pub async fn run_resolved_task(
+    task: &ResolvedTask,
+    workspace_root: &Path,
+    options: &RunOptions,
+) -> Result<TaskRunResult> {
+    let lease_context = LeaseContext::from_options(options);
+    run_single_task(task, workspace_root, options, &lease_context).await
+}

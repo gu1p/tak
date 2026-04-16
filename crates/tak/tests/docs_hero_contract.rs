@@ -21,13 +21,15 @@ const HERO_SECTIONS: [&str; 6] = [
     "## Artifacts",
 ];
 
-const ROOT_TOKENS: [&str; 23] = [
+const ROOT_TOKENS: [&str; 25] = [
     "`tak list`",
     "`tak tree`",
     "`tak explain <label>`",
     "`tak graph [label] --format dot`",
     "`tak web [label]`",
     "`tak run <label...>`",
+    "`tak exec -- <program> [args...]`",
+    "`tak run //:check`",
     "`--keep-going`",
     "`tak status`",
     "`tak remote add <token>`",
@@ -56,19 +58,13 @@ fn root_readme_surfaces_full_cli_and_run_metadata() {
 }
 
 #[test]
-fn examples_index_has_hero_path_and_reference_matrix() {
+fn example_docs_surface_hero_path_and_sections() {
     let index = load_text(&repo_root().join("examples/README.md"));
     assert!(index.contains("Hero"), "missing hero section");
     assert!(index.contains("catalog.toml"), "missing catalog reference");
-    for hero in HERO_EXAMPLES {
-        assert!(index.contains(hero), "examples/README.md missing `{hero}`");
-    }
-}
-
-#[test]
-fn hero_readmes_include_copy_paste_and_parameter_alternatives() {
     let root = repo_root();
     for hero in HERO_EXAMPLES {
+        assert!(index.contains(hero), "examples/README.md missing `{hero}`");
         let path = root.join("examples").join(hero).join("README.md");
         let body = load_text(&path);
         for section in HERO_SECTIONS {
@@ -87,14 +83,14 @@ fn hero_readmes_include_copy_paste_and_parameter_alternatives() {
 }
 
 fn repo_root() -> PathBuf {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let root = manifest.parent().and_then(Path::parent);
-    root.expect("repo root should be two levels above tak crate")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("repo root should be two levels above tak crate")
         .to_path_buf()
 }
 
 fn load_text(path: &Path) -> String {
-    let display = path.display();
-    let message = |err| panic!("failed to read {display}: {err}");
-    fs::read_to_string(path).unwrap_or_else(message)
+    fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
 }

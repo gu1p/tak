@@ -9,7 +9,7 @@ use std::process::ExitCode;
 #[tokio::main]
 async fn main() -> ExitCode {
     match tak::run_cli().await {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(err) => {
             eprint!("{}", tak::render_error_report(&err));
             ExitCode::FAILURE
