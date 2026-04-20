@@ -2,7 +2,7 @@
 
 use takd::run_daemon;
 
-mod support;
+use crate::support;
 
 use support::env::{EnvGuard, env_lock};
 use support::http::wait_for_node_info;

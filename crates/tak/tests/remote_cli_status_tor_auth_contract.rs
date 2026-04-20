@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::fs;
 use std::io::Write;
@@ -53,7 +53,7 @@ fn remote_status_allows_empty_bearer_token_for_tor_transport() {
         stream.write_all(&body).expect("write response body");
     });
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-status"])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_TOR_ONION_DIAL_ADDR", format!("127.0.0.1:{port}"))

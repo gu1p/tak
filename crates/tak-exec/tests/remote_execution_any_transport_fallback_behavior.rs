@@ -5,7 +5,7 @@ use std::fs;
 use tak_core::model::{RemoteSpec, RemoteTransportKind};
 use tak_exec::{RunOptions, run_tasks};
 
-mod support;
+use crate::support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_task_spec_with_outputs,

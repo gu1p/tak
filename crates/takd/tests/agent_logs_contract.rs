@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::fs;
 use std::process::Command as StdCommand;
 
@@ -12,7 +14,7 @@ fn logs_tails_requested_number_of_lines() {
     )
     .expect("write service log");
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let output = StdCommand::new(support::takd_bin())
         .args([
             "logs",
             "--state-root",
@@ -34,7 +36,7 @@ fn logs_reports_missing_service_log_with_actionable_error() {
     let state_root = temp.path().join("state");
     fs::create_dir_all(&state_root).expect("create state root");
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let output = StdCommand::new(support::takd_bin())
         .args(["logs", "--state-root", &state_root.display().to_string()])
         .output()
         .expect("run takd logs");
@@ -58,7 +60,7 @@ fn logs_returns_empty_output_for_empty_service_log() {
     fs::create_dir_all(&state_root).expect("create state root");
     fs::write(state_root.join("service.log"), "").expect("write empty service log");
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let output = StdCommand::new(support::takd_bin())
         .args(["logs", "--state-root", &state_root.display().to_string()])
         .output()
         .expect("run takd logs");
@@ -78,7 +80,7 @@ fn logs_accepts_zero_requested_lines() {
     fs::create_dir_all(&state_root).expect("create state root");
     fs::write(state_root.join("service.log"), "line-1\nline-2\n").expect("write service log");
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let output = StdCommand::new(support::takd_bin())
         .args([
             "logs",
             "--state-root",

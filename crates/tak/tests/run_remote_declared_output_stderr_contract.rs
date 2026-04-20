@@ -1,6 +1,6 @@
 //! Black-box contract for declared output failures after remote stderr activity.
 
-mod support;
+use crate::support;
 
 use std::fs;
 

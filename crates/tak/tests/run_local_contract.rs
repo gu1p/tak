@@ -1,6 +1,6 @@
 //! Contract test for `tak run` staying client-side.
 
-mod support;
+use crate::support;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -27,7 +27,7 @@ SPEC
     )
     .expect("write tasks");
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["run", "//:local_only"])
         .current_dir(temp.path())
         .output()

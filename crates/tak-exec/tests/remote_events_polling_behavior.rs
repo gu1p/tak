@@ -9,7 +9,7 @@ use tak_exec::{
     OutputStream, RemoteLogChunk, RunOptions, TaskOutputChunk, TaskOutputObserver, run_tasks,
 };
 
-mod support;
+use crate::support;
 
 use support::{
     DelayedEventsServer, EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec,

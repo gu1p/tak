@@ -1,5 +1,3 @@
-mod support;
-
 use anyhow::Result;
 use tak_exec::{load_remote_observation_at, write_remote_observation_at};
 use tak_proto::NodeInfo;

@@ -5,7 +5,9 @@ use tak_proto::NodeInfo;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
+use takd::daemon::remote::{
+    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
+};
 
 #[tokio::test]
 async fn remote_v1_http_server_serves_protobuf_node_info() {
@@ -23,6 +25,7 @@ async fn remote_v1_http_server_serves_protobuf_node_info() {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let db_path = temp.path().join("takd.sqlite");

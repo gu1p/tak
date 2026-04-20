@@ -1,6 +1,6 @@
 //! Black-box contract for gitignore-aware remote context staging.
 
-mod support;
+use crate::support;
 
 use std::collections::BTreeMap;
 use std::fs;

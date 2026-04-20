@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{OutputStream, RemoteLogChunk, RunOptions, run_tasks};
 
-mod support;
+use crate::support;
 
 use support::{
     EnvGuard, NonTerminalEventsServer, RemoteInventoryRecord, env_lock, remote_builder_spec,

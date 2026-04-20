@@ -1,6 +1,6 @@
 //! Black-box contract for explicit remote glob output syncing.
 
-mod support;
+use crate::support;
 
 use std::fs;
 

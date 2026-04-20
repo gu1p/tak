@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::net::TcpListener;
@@ -39,7 +39,7 @@ fn remote_add_imports_tor_invite_and_lists_remote_with_full_url() {
         stream.write_all(&body).expect("write protobuf body");
     });
 
-    let add = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let add = StdCommand::new(support::tak_bin())
         .args(["remote", "add", &invite])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_TOR_ONION_DIAL_ADDR", format!("127.0.0.1:{port}"))
@@ -47,7 +47,7 @@ fn remote_add_imports_tor_invite_and_lists_remote_with_full_url() {
         .expect("run tak remote add");
     assert!(add.status.success(), "tak remote add should succeed");
 
-    let list = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let list = StdCommand::new(support::tak_bin())
         .args(["remote", "list"])
         .env("XDG_CONFIG_HOME", &config_root)
         .output()

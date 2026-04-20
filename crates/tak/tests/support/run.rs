@@ -6,12 +6,14 @@ use std::process::{Command as StdCommand, Output};
 
 use anyhow::{Context, Result, bail};
 
+pub use super::binary::tak_bin;
+
 pub fn run_tak_output(
     workspace_root: &Path,
     args: &[&str],
     extra_env: &BTreeMap<String, String>,
 ) -> Result<Output> {
-    let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    let mut command = StdCommand::new(tak_bin());
     command
         .current_dir(workspace_root)
         .args(args)

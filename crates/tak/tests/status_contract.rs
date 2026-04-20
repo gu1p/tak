@@ -1,8 +1,10 @@
+use crate::support;
+
 use std::process::Command as StdCommand;
 
 #[test]
 fn status_reports_that_coordination_status_is_unavailable() {
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .arg("status")
         .output()
         .expect("run tak status");

@@ -1,6 +1,6 @@
 //! Black-box contract for the repo root TASKS.py surface.
 
-mod support;
+use crate::support;
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -23,6 +23,7 @@ fn repo_root_tasks_surface_lists_tak_owned_workflow_targets() -> Result<()> {
 
     for label in [
         "//:check",
+        "//:check-rust",
         "//:coverage",
         "//:fmt-check",
         "//:line-limits-check",
@@ -32,6 +33,8 @@ fn repo_root_tasks_surface_lists_tak_owned_workflow_targets() -> Result<()> {
         "//:lint",
         "//:test",
         "//:docs-check",
+        "//:docs-wiki",
+        "//:docs-wiki-serve",
         "//:build-release-x86_64-unknown-linux-musl",
         "//:build-release-aarch64-unknown-linux-musl",
         "//:build-release-x86_64-apple-darwin",

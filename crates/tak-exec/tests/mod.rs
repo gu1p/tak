@@ -1,0 +1,36 @@
+pub mod support;
+
+mod client_observation_cache_contract;
+mod client_tor_config_contract;
+mod client_tor_config_precedence_contract;
+mod container_runtime_bollard_contract;
+mod doctest_policy_contract;
+mod no_matching_remote_error_disabled_inventory_contract;
+mod no_matching_remote_error_rejections_contract;
+mod remote_events_liveness_behavior;
+mod remote_events_polling_behavior;
+mod remote_events_result_probe_behavior;
+mod remote_execution_any_transport_behavior;
+mod remote_execution_any_transport_fallback_behavior;
+mod remote_execution_auth_fallback_behavior;
+mod remote_execution_default_gitignore_behavior;
+mod remote_execution_explicit_context_behavior;
+mod remote_execution_gitignore_behavior;
+mod remote_execution_reachable_fallback_behavior;
+mod remote_execution_sync_behavior;
+mod remote_execution_sync_reserved_query_path_behavior;
+mod remote_execution_tor_behavior;
+mod remote_execution_tor_direct_ipv6_behavior;
+mod remote_execution_tor_retry_behavior;
+mod remote_preflight_transport_state_behavior;
+mod remote_progress_auth_fallback_behavior;
+mod remote_progress_retry_behavior;
+mod remote_wait_activity_reset_behavior;
+mod remote_wait_heartbeat_behavior;
+mod remote_wait_unavailable_telemetry_behavior;
+#[path = "remote_worker_runtime_behavior.rs"]
+mod remote_worker_runtime_behavior;
+mod remote_worker_runtime_failure_behavior;
+mod remote_worker_runtime_nonzero_exit_behavior;
+mod remote_worker_runtime_streaming_behavior;
+mod tor_transport_contract;

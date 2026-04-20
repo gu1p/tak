@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -17,23 +15,22 @@ pub struct EnvGuard {
 }
 
 impl EnvGuard {
-    pub fn set(&mut self, key: &str, value: impl Into<String>) {
-        if !self.saved.iter().any(|(saved_key, _)| saved_key == key) {
-            self.saved.push((key.to_string(), std::env::var(key).ok()));
-        }
-        // SAFETY: test processes serialize environment mutation through `ENV_LOCK`.
-        unsafe {
-            std::env::set_var(key, value.into());
-        }
+    pub fn set(&mut self, key: &str, value: impl AsRef<str>) {
+        self.save(key);
+        let value = value.as_ref();
+        // SAFETY: tests serialize environment mutation through `ENV_LOCK`.
+        unsafe { std::env::set_var(key, value) };
     }
 
     pub fn remove(&mut self, key: &str) {
+        self.save(key);
+        // SAFETY: tests serialize environment mutation through `ENV_LOCK`.
+        unsafe { std::env::remove_var(key) };
+    }
+
+    fn save(&mut self, key: &str) {
         if !self.saved.iter().any(|(saved_key, _)| saved_key == key) {
             self.saved.push((key.to_string(), std::env::var(key).ok()));
-        }
-        // SAFETY: test processes serialize environment mutation through `ENV_LOCK`.
-        unsafe {
-            std::env::remove_var(key);
         }
     }
 }
@@ -43,16 +40,12 @@ impl Drop for EnvGuard {
         for (key, value) in self.saved.iter().rev() {
             match value {
                 Some(previous) => {
-                    // SAFETY: test processes serialize environment mutation through `ENV_LOCK`.
-                    unsafe {
-                        std::env::set_var(key, previous);
-                    }
+                    // SAFETY: tests serialize environment mutation through `ENV_LOCK`.
+                    unsafe { std::env::set_var(key, previous) }
                 }
                 None => {
-                    // SAFETY: test processes serialize environment mutation through `ENV_LOCK`.
-                    unsafe {
-                        std::env::remove_var(key);
-                    }
+                    // SAFETY: tests serialize environment mutation through `ENV_LOCK`.
+                    unsafe { std::env::remove_var(key) }
                 }
             }
         }

@@ -3,6 +3,8 @@
 //! `takd` owns the standalone remote worker HTTP service plus the reusable
 //! limiter/submit-store machinery used by agent-facing tests.
 
+extern crate self as takd;
+
 #[allow(dead_code)]
 const _TOR_HIDDEN_SERVICE_CONTRACT_MARKER: &str = "arti_client::TorClient launch_onion_service(";
 
@@ -22,9 +24,9 @@ pub use daemon::protocol::{
     TaskInfo, ensure_valid_request, run_server,
 };
 pub use daemon::remote::{
-    RemoteNodeContext, RemoteV1Response, SubmitAttemptStore, SubmitRegistration,
-    build_submit_idempotency_key, handle_remote_v1_request, run_remote_v1_http_server,
-    run_remote_v1_tor_hidden_service,
+    RemoteNodeContext, RemoteRuntimeConfig, RemoteV1Response, SubmitAttemptStore,
+    SubmitRegistration, build_submit_idempotency_key, handle_remote_v1_request,
+    run_remote_v1_http_server, run_remote_v1_tor_hidden_service,
 };
 pub use daemon::runtime::{default_socket_path, default_state_db_path, run_daemon};
 pub use daemon::transport::{

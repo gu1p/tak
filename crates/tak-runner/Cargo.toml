@@ -2,6 +2,11 @@
 name = "tak-runner"
 version = "0.1.0"
 edition = "2024"
+autotests = false
+
+[[test]]
+name = "suite"
+path = "tests/mod.rs"
 
 [lib]
 # Cargo rustdoc currently fails to resolve `tak-runner`'s re-export dependency graph under `cargo test`.

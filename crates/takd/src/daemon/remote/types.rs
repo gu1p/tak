@@ -5,6 +5,9 @@ use serde::Serialize;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef};
 use tak_proto::{NodeInfo, NodeStatusResponse};
 
+use super::execution_root::remote_execution_root_base;
+use super::runtime::RemoteRuntimeConfig;
+use super::runtime_state::RemoteRuntimeState;
 use super::status_state::{ActiveJobMetadata, SharedNodeStatusState, new_shared_node_status_state};
 
 #[derive(Debug, Clone)]
@@ -43,14 +46,16 @@ pub struct RemoteNodeContext {
     node: Arc<Mutex<NodeInfo>>,
     pub bearer_token: String,
     status_state: SharedNodeStatusState,
+    runtime_state: Arc<RemoteRuntimeState>,
 }
 
 impl RemoteNodeContext {
-    pub fn new(node: NodeInfo, bearer_token: String) -> Self {
+    pub fn new(node: NodeInfo, bearer_token: String, runtime_config: RemoteRuntimeConfig) -> Self {
         Self {
             node: Arc::new(Mutex::new(node)),
             bearer_token,
             status_state: new_shared_node_status_state(),
+            runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
         }
     }
 
@@ -114,10 +119,18 @@ impl RemoteNodeContext {
             .status_state
             .lock()
             .map_err(|_| anyhow!("node status state lock poisoned"))?;
-        guard.snapshot(&node)
+        guard.snapshot(&node, &remote_execution_root_base(self))
     }
 
     pub(crate) fn shared_status_state(&self) -> SharedNodeStatusState {
         self.status_state.clone()
+    }
+
+    pub fn runtime_config(&self) -> RemoteRuntimeConfig {
+        self.runtime_state.config.clone()
+    }
+
+    pub(crate) fn runtime_state(&self) -> &Arc<RemoteRuntimeState> {
+        &self.runtime_state
     }
 }

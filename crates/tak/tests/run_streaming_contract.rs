@@ -4,7 +4,7 @@ use std::process::{Command as StdCommand, Stdio};
 
 use anyhow::Result;
 
-mod support;
+use crate::support;
 
 use support::live_direct::{LiveDirectRoots, init_direct_agent, spawn_direct_agent};
 use support::live_direct_remote::add_remote;
@@ -19,7 +19,7 @@ fn run_streams_local_stdout_and_stderr_before_summary() -> Result<()> {
     let temp = tempfile::tempdir()?;
     write_local_streaming_tasks(temp.path())?;
 
-    let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    let mut command = StdCommand::new(support::tak_bin());
     command
         .current_dir(temp.path())
         .args(["run", "//:stream_local"])

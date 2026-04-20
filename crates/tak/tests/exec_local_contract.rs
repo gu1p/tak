@@ -1,6 +1,6 @@
 //! Black-box contract for `tak exec` local developer workflows.
 
-mod support;
+use crate::support;
 
 use std::collections::BTreeMap;
 use std::fs;

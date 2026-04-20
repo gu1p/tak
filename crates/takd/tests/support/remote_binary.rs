@@ -4,7 +4,7 @@ use prost::Message;
 use std::thread;
 use std::time::Duration;
 use tak_proto::{CmdStep, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest, step};
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 pub fn streaming_context() -> RemoteNodeContext {
     RemoteNodeContext::new(
@@ -21,6 +21,7 @@ pub fn streaming_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     )
 }
 

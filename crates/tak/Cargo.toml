@@ -3,6 +3,24 @@ name = "tak"
 version = "0.1.0"
 edition = "2024"
 build = "build.rs"
+autotests = false
+
+[[bin]]
+name = "tak"
+path = "src/main.rs"
+test = false
+
+[[test]]
+name = "suite"
+path = "tests/mod.rs"
+
+[[test]]
+name = "doctest_contract"
+path = "tests/doctest_contract.rs"
+
+[[test]]
+name = "examples_matrix_contract"
+path = "tests/examples_matrix_contract.rs"
 
 [lib]
 # Cargo rustdoc currently fails to resolve `tak`'s private CLI dependency graph under `cargo test --doc`.

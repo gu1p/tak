@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tak_core::model::{BackoffDef, RemoteTransportKind, RetryDef};
 use tak_exec::{RunOptions, TaskStatusPhase, run_tasks};
 
-mod support;
+use crate::support;
 
 use support::{
     CollectingStatusObserver, EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock,

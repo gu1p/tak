@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::net::TcpListener;
@@ -35,7 +35,7 @@ fn remote_add_does_not_retry_http_failures_and_does_not_persist_remote() {
     let invite =
         encode_tor_invite("http://builder-auth-hidden-service.onion").expect("encode invite");
 
-    let add = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let add = StdCommand::new(support::tak_bin())
         .args(["remote", "add", &invite])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_TOR_ONION_DIAL_ADDR", format!("127.0.0.1:{port}"))

@@ -1,24 +1,25 @@
-use std::env;
 use std::process::Command as StdCommand;
 
 use anyhow::{Context, Result, bail};
 
-pub(super) fn podman_socket_candidates_from_env() -> Vec<String> {
-    let explicit = env::var("TAK_PODMAN_SOCKET").ok();
-    let runtime_dir = env::var("XDG_RUNTIME_DIR").ok();
-    let uid = env::var("UID").ok();
+use crate::daemon::remote::RemoteRuntimeConfig;
+
+pub(super) fn podman_socket_candidates(config: &RemoteRuntimeConfig) -> Vec<String> {
+    let explicit = config.podman_socket();
+    let runtime_dir = config.runtime_dir();
+    let uid = config.uid();
     let mut sockets = Vec::new();
 
-    if let Some(explicit) = explicit.as_deref().and_then(normalize_podman_socket) {
+    if let Some(explicit) = explicit.and_then(normalize_podman_socket) {
         sockets.push(explicit);
     }
-    if let Some(runtime_dir) = runtime_dir {
+    if let Some(runtime_dir) = runtime_dir.map(str::to_string) {
         let runtime_dir = runtime_dir.trim();
         if !runtime_dir.is_empty() {
             sockets.push(format!("unix://{runtime_dir}/podman/podman.sock"));
         }
     }
-    if let Some(uid) = uid {
+    if let Some(uid) = uid.map(str::to_string) {
         let uid = uid.trim();
         if !uid.is_empty() {
             sockets.push(format!("unix:///run/user/{uid}/podman/podman.sock"));
@@ -26,13 +27,12 @@ pub(super) fn podman_socket_candidates_from_env() -> Vec<String> {
     }
 
     sockets.push("unix:///run/podman/podman.sock".to_string());
-    if let Ok(tmpdir) = env::var("TMPDIR") {
-        let tmpdir = tmpdir.trim().trim_end_matches('/');
-        if !tmpdir.is_empty() {
-            sockets.push(format!(
-                "unix://{tmpdir}/podman/podman-machine-default-api.sock"
-            ));
-        }
+    let tmpdir = config.temp_dir().display().to_string();
+    let tmpdir = tmpdir.trim().trim_end_matches('/');
+    if !tmpdir.is_empty() {
+        sockets.push(format!(
+            "unix://{tmpdir}/podman/podman-machine-default-api.sock"
+        ));
     }
     sockets
 }

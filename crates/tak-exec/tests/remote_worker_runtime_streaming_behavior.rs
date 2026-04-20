@@ -7,7 +7,7 @@ use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_exec::{OutputStream, TaskOutputChunk, execute_remote_worker_steps_with_output};
 use tokio::time::{Duration, timeout};
 
-mod support;
+use crate::support;
 
 use support::{
     CollectingObserver, EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock,

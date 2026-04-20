@@ -2,19 +2,13 @@ use std::fs;
 
 use takd::SubmitAttemptStore;
 
-#[path = "support/remote_container.rs"]
-mod remote_container;
-#[path = "support/remote_output.rs"]
-mod remote_output;
-mod support;
-#[path = "support/wait_for_terminal_events.rs"]
-mod wait_for_terminal_events;
+use crate::support;
 
-use remote_container::{configure_fake_docker_env, fetch_result, submit_container_task};
-use remote_output::test_context;
 use support::env::{EnvGuard, env_lock};
 use support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
-use wait_for_terminal_events::wait_for_terminal_events;
+use support::remote_container::{configure_fake_docker_env, fetch_result, submit_container_task};
+use support::remote_output::test_context_with_runtime;
+use support::wait_for_terminal_events::wait_for_terminal_events;
 
 #[cfg(target_arch = "x86_64")]
 const EXPECTED_PROBE_IMAGE: &str = "takd-exec-root-probe:x86_64-v1";
@@ -40,11 +34,9 @@ async fn containerized_remote_tasks_use_embedded_probe_helper_when_version_looku
             ..Default::default()
         },
     );
-    configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env);
-    env.remove("TAKD_REMOTE_EXEC_ROOT");
-    env.set("TMPDIR", tmpdir.display().to_string());
-
-    let context = test_context();
+    let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
+        .with_temp_dir(tmpdir);
+    let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let ack = submit_container_task(&context, &store, "task-run-probed-version-failure", "true");
     assert!(ack.accepted);

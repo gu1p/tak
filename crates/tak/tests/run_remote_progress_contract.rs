@@ -2,7 +2,7 @@ use std::process::Stdio;
 
 use anyhow::Result;
 
-mod support;
+use crate::support;
 
 use support::live_direct::{LiveDirectRoots, init_direct_agent, spawn_direct_agent};
 use support::live_direct_remote::add_remote;

@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::net::TcpListener;
@@ -36,7 +36,7 @@ fn remote_status_watch_refreshes_until_test_limit() {
         }
     });
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--watch", "--interval-ms", "1"])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_REMOTE_STATUS_MAX_POLLS", "2")

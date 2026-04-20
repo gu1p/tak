@@ -2,22 +2,12 @@ use std::fs;
 
 use prost::Message;
 use tak_proto::ErrorResponse;
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
-
-mod support;
-
-use support::env::{EnvGuard, env_lock};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 #[test]
 fn remote_output_route_decodes_percent_encoded_workspace_paths() {
-    let _env_lock = env_lock();
-    let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root_base = temp.path().join("takd-remote-exec");
-    env.set(
-        "TAKD_REMOTE_EXEC_ROOT",
-        exec_root_base.display().to_string(),
-    );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("takd.sqlite")).expect("store");
     let context = RemoteNodeContext::new(
         tak_proto::NodeInfo {
@@ -33,10 +23,11 @@ fn remote_output_route_decodes_percent_encoded_workspace_paths() {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
     );
 
     let registration = store
-        .register_submit("run-1", Some(1), "builder-a")
+        .register_submit("run-1", Some(1), "builder-a", &exec_root_base)
         .expect("register submit");
     let idempotency_key = match registration {
         takd::SubmitRegistration::Created { idempotency_key }

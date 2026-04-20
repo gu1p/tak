@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::net::TcpListener;
@@ -34,7 +34,7 @@ fn remote_status_lists_running_jobs_and_resources() {
         stream.write_all(&body).expect("write response body");
     });
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-a"])
         .env("XDG_CONFIG_HOME", &config_root)
         .output()

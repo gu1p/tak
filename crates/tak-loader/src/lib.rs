@@ -43,3 +43,5 @@ include!("loader/output_resolution.rs");
 include!("loader/execution_resolution.rs");
 include!("loader/remote_validation.rs");
 include!("loader/module_eval.rs");
+
+extern crate self as tak_loader;

@@ -5,6 +5,7 @@ pub(super) fn spawn_remote_worker_submit_execution(
     store: SubmitAttemptStore,
     status_state: status_state::SharedNodeStatusState,
     idempotency_key: String,
+    execution_root_base: std::path::PathBuf,
     selected_node_id: String,
     transport_kind: String,
     payload: RemoteWorkerSubmitPayload,
@@ -17,6 +18,7 @@ pub(super) fn spawn_remote_worker_submit_execution(
                 &store,
                 &status_state,
                 &idempotency_key,
+                &execution_root_base,
                 &selected_node_id,
                 &transport_kind,
                 &payload,
@@ -30,6 +32,7 @@ fn run_remote_worker_submit_execution(
     store: &SubmitAttemptStore,
     status_state: &status_state::SharedNodeStatusState,
     idempotency_key: &str,
+    execution_root_base: &std::path::Path,
     selected_node_id: &str,
     transport_kind: &str,
     payload: &RemoteWorkerSubmitPayload,
@@ -55,11 +58,11 @@ fn run_remote_worker_submit_execution(
 
     let execution_result = store
         .execution_root_base_for_submit(idempotency_key)
-        .map(|value| value.unwrap_or_else(remote_execution_root_base))
-        .and_then(|execution_root_base| {
+        .map(|value| value.unwrap_or_else(|| execution_root_base.to_path_buf()))
+        .and_then(|resolved_execution_root_base| {
             execute_remote_worker_submit(
                 idempotency_key,
-                &execution_root_base,
+                &resolved_execution_root_base,
                 selected_node_id,
                 payload,
                 output_observer.clone(),

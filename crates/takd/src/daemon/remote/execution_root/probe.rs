@@ -9,9 +9,9 @@ use bollard::container::{
 use bollard::models::HostConfig;
 use uuid::Uuid;
 
+use crate::daemon::remote::RemoteRuntimeConfig;
 use crate::daemon::transport::{ContainerEngine, ContainerEngineProbe, select_container_engine};
 
-use super::cache::RemoteExecRootCacheKey;
 use super::client::{
     ContainerEngineClient, cleanup_container, connect_container_engine, ensure_probe_image,
     wait_for_container_exit_code,
@@ -42,9 +42,9 @@ impl ContainerEngineProbe for ShellContainerEngineProbe {
 }
 
 pub(super) fn probe_remote_execution_root_candidates(
-    key: &RemoteExecRootCacheKey,
+    runtime_config: &RemoteRuntimeConfig,
 ) -> Result<PathBuf> {
-    let key = key.clone();
+    let runtime_config = runtime_config.clone();
     std::thread::Builder::new()
         .name("takd-exec-root-probe".to_string())
         .spawn(move || {
@@ -52,8 +52,9 @@ pub(super) fn probe_remote_execution_root_candidates(
                 .enable_all()
                 .build()
                 .context("failed to create tokio runtime for exec-root probe")?;
-            runtime
-                .block_on(async move { probe_remote_execution_root_candidates_async(&key).await })
+            runtime.block_on(async move {
+                probe_remote_execution_root_candidates_async(&runtime_config).await
+            })
         })
         .context("failed to spawn exec-root probe thread")?
         .join()
@@ -61,16 +62,16 @@ pub(super) fn probe_remote_execution_root_candidates(
 }
 
 async fn probe_remote_execution_root_candidates_async(
-    key: &RemoteExecRootCacheKey,
+    runtime_config: &RemoteRuntimeConfig,
 ) -> Result<PathBuf> {
     let mut engine_probe = ShellContainerEngineProbe;
     let engine = select_container_engine(&mut engine_probe)
         .context("container engine selection failed during exec-root probe")?;
-    let client = connect_container_engine(engine).await?;
+    let client = connect_container_engine(engine, runtime_config).await?;
     let probe_image = ensure_probe_image(&client.docker).await?;
 
     let mut failures = Vec::new();
-    for candidate in candidate_remote_execution_root_bases(key) {
+    for candidate in candidate_remote_execution_root_bases(runtime_config) {
         match probe_candidate(&client, engine, probe_image.image(), &candidate).await {
             Ok(()) => return Ok(candidate),
             Err(err) => failures.push(format!("{}: {err}", candidate.display())),

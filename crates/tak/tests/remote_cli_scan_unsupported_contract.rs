@@ -1,6 +1,6 @@
 #![cfg(not(target_os = "linux"))]
 
-mod support;
+use crate::support;
 
 use support::remote_scan::run_scan;
 

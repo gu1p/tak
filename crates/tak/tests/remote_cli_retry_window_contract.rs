@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::net::TcpListener;
 use std::process::Command as StdCommand;
@@ -16,7 +16,7 @@ fn remote_add_reports_exhausted_tor_probe_retry_window_and_keeps_inventory_empty
     let invite = encode_tor_invite("http://builder-unreachable-hidden-service.onion")
         .expect("encode invite");
 
-    let add = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let add = StdCommand::new(support::tak_bin())
         .args(["remote", "add", &invite])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("TAK_TEST_TOR_ONION_DIAL_ADDR", bind_addr)

@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 
-mod support;
+use crate::support;
 
 use support::remote_cli::remote_token;
 use support::remote_scan::{CameraFixture, FrameFixture, run_scan, write_scan_fixture};

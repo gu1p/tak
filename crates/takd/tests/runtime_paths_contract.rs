@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use takd::{default_socket_path, default_state_db_path};
 
-mod support;
+use crate::support;
 
 use support::env::{EnvGuard, env_lock};
 

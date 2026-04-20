@@ -1,6 +1,6 @@
 //! Black-box contracts for local container run-mode overrides.
 
-mod support;
+use crate::support;
 
 use std::fs;
 

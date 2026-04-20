@@ -2,6 +2,16 @@
 name = "takd"
 version = "0.1.0"
 edition = "2024"
+autotests = false
+
+[[bin]]
+name = "takd"
+path = "src/main.rs"
+test = false
+
+[[test]]
+name = "suite"
+path = "tests/mod.rs"
 
 [dependencies]
 anyhow.workspace = true

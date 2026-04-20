@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::process::Command as StdCommand;
 
 use takd::agent::{
@@ -10,7 +12,7 @@ fn status_reports_recovering_transport_state_when_tor_relaunch_is_in_progress() 
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
 
-    let init = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let init = StdCommand::new(support::takd_bin())
         .args([
             "init",
             "--config-root",
@@ -39,7 +41,7 @@ fn status_reports_recovering_transport_state_when_tor_relaunch_is_in_progress() 
     )
     .expect("write transport health");
 
-    let status = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let status = StdCommand::new(support::takd_bin())
         .args([
             "status",
             "--config-root",

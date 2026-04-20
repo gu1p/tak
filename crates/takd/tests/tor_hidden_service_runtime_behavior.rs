@@ -4,7 +4,7 @@ use std::net::TcpListener as StdTcpListener;
 
 use takd::{SubmitAttemptStore, TorHiddenServiceRuntimeConfig, run_remote_v1_tor_hidden_service};
 
-mod support;
+use crate::support;
 
 use support::env::{EnvGuard, env_lock};
 use support::http::wait_for_node_info;

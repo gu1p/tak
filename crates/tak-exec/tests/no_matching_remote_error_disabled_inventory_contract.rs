@@ -3,7 +3,7 @@
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{NoMatchingRemoteError, RunOptions, run_tasks};
 
-mod support;
+use crate::support;
 
 use support::{
     EnvGuard, env_lock, prepare_workspace, remote_builder_spec, remote_task_spec, shell_step,

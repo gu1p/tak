@@ -2,7 +2,7 @@ use prost::Message;
 use tak_proto::SubmitTaskResponse;
 use takd::{SubmitAttemptStore, handle_remote_v1_request};
 
-mod support;
+use crate::support;
 
 use support::remote_binary::{
     streaming_context, streaming_submit_request, wait_for_streaming_events,

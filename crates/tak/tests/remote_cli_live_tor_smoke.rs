@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use support::example_workspace::{assert_file_contains, stage_example_workspace};
 use support::live_tor::{LiveTorRoots, init_tor_agent, spawn_tor_agent, wait_for_token};

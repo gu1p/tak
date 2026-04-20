@@ -1,6 +1,6 @@
 use prost::Message;
 use tak_proto::{NodeInfo, NodeStatusResponse};
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 #[test]
 fn node_routes_follow_live_transport_state() {
@@ -18,6 +18,7 @@ fn node_routes_follow_live_transport_state() {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
     context
         .set_transport_state("recovering", Some("self-probe failed"))

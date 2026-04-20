@@ -34,6 +34,7 @@ def _normalize_deps(value):
     return [_dep_to_label(value)]
 
 def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None):
+    """Declare the module boundary that Tak loads from one TASKS.py file."""
     return {
         "spec_version": 1,
         "project_id": project_id,
@@ -46,6 +47,7 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, 
     }
 
 def Local(id, max_parallel_tasks=1, runtime=None):
+    """Describe the local execution pool and its optional default runtime."""
     return {
         "id": id,
         "max_parallel_tasks": max_parallel_tasks,
@@ -53,6 +55,7 @@ def Local(id, max_parallel_tasks=1, runtime=None):
     }
 
 def Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
+    """Describe a remote execution target by pool, capability filters, transport, and runtime."""
     return {
         "pool": pool,
         "required_tags": _or_empty_list(required_tags),
@@ -62,16 +65,19 @@ def Remote(pool=None, required_tags=None, required_capabilities=None, transport=
     }
 
 def DirectHttps():
+    """Force direct HTTPS transport for a remote target."""
     return {
         "kind": "direct",
     }
 
 def AnyTransport():
+    """Allow Tak to choose direct or Tor transport from the available remote endpoint."""
     return {
         "kind": "any",
     }
 
 def TorOnionService():
+    """Force Tor onion-service transport for a remote target."""
     return {
         "kind": "tor",
     }
@@ -80,6 +86,7 @@ REPO_ZIP_SNAPSHOT = "REPO_ZIP_SNAPSHOT"
 OUTPUTS_AND_LOGS = "OUTPUTS_AND_LOGS"
 
 def ContainerRuntime(image, command=None, mounts=None, env=None, resources=None):
+    """Run remote work inside a prebuilt container image."""
     return {
         "kind": "containerized",
         "image": str(image),
@@ -92,6 +99,7 @@ def ContainerRuntime(image, command=None, mounts=None, env=None, resources=None)
     }
 
 def DockerfileRuntime(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
+    """Build a container runtime from a Dockerfile in the workspace."""
     return {
         "kind": "containerized",
         "image": None,
@@ -120,6 +128,7 @@ Reason = {
 }
 
 def PolicyContext(task_side_effecting=False, local_cpu_percent=0.0):
+    """Provide the runtime facts exposed to a custom placement policy."""
     return {
         "task": {"side_effecting": bool(task_side_effecting)},
         "local": {"cpu_percent": float(local_cpu_percent)},
@@ -137,6 +146,7 @@ def _is_remote_constructor_value(value):
     return isinstance(value, dict) and "max_parallel_tasks" not in value
 
 def Decision_local(local=None, reason=REASON_DEFAULT_LOCAL_POLICY):
+    """Return an explicit local placement decision from a custom policy."""
     if local is not None and not _is_local_constructor_value(local):
         raise TypeError("Decision.local requires Local(...)")
     decision = {
@@ -148,6 +158,7 @@ def Decision_local(local=None, reason=REASON_DEFAULT_LOCAL_POLICY):
     return decision
 
 def Decision_remote(remote, reason="DEFAULT_REMOTE_POLICY"):
+    """Return an explicit remote placement decision from a custom policy."""
     return {
         "mode": "remote",
         "remote": remote,
@@ -176,6 +187,7 @@ def Decision_resolve(*args, **kwargs):
 POLICY_CONTEXT = PolicyContext()
 
 def LocalOnly(local):
+    """Force a task to run on the supplied local execution pool."""
     if not _is_local_constructor_value(local):
         raise TypeError("LocalOnly expects Local(...)")
     return {
@@ -184,6 +196,7 @@ def LocalOnly(local):
     }
 
 def RemoteOnly(remote):
+    """Force a task to run on the supplied remote execution target."""
     if not _is_remote_constructor_value(remote):
         raise TypeError("RemoteOnly expects Remote(...)")
     return {
@@ -234,6 +247,7 @@ def _compile_policy_decision(policy, context):
     raise TypeError("unsupported policy decision mode: " + str(mode))
 
 def ByCustomPolicy(policy):
+    """Resolve task placement from a named or inline custom policy."""
     if not isinstance(POLICY_CONTEXT, dict):
         raise TypeError("POLICY_CONTEXT must be PolicyContext(...)")
 
@@ -250,23 +264,27 @@ def ByCustomPolicy(policy):
     }
 
 def path(value):
+    """Reference one workspace path in Tak inputs or outputs."""
     return {
         "kind": "path",
         "value": str(value),
     }
 
 def glob(value):
+    """Reference a glob pattern in Tak inputs or outputs."""
     return {
         "kind": "glob",
         "value": str(value),
     }
 
 def gitignore():
+    """Reuse the repo's gitignore rules as a CurrentState ignore source."""
     return {
         "kind": "gitignore",
     }
 
 def CurrentState(roots=None, ignored=None, include=None):
+    """Capture the current workspace contents as an execution input snapshot."""
     return {
         "roots": _or_empty_list(roots),
         "ignored": _or_empty_list(ignored),
@@ -274,6 +292,7 @@ def CurrentState(roots=None, ignored=None, include=None):
     }
 
 def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, tags=None, doc=None):
+    """Declare one task, including its steps, dependencies, execution policy, and outputs."""
     return {
         "name": name,
         "deps": _normalize_deps(deps),
@@ -290,6 +309,7 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
     }
 
 def cmd(*argv, cwd=None, env=None):
+    """Run one command step with optional cwd and environment overrides."""
     return {
         "kind": "cmd",
         "argv": list(argv),
@@ -298,6 +318,7 @@ def cmd(*argv, cwd=None, env=None):
     }
 
 def script(path, *argv, interpreter=None, cwd=None, env=None):
+    """Run one checked-in script step with optional interpreter, cwd, and environment overrides."""
     return {
         "kind": "script",
         "path": path,
@@ -308,6 +329,7 @@ def script(path, *argv, interpreter=None, cwd=None, env=None):
     }
 
 def need(name, slots=1, scope=PROJECT, hold=DURING):
+    """Acquire slots from a limiter while a task runs or starts."""
     return {
         "limiter": {"name": name, "scope": scope},
         "slots": slots,
@@ -315,6 +337,7 @@ def need(name, slots=1, scope=PROJECT, hold=DURING):
     }
 
 def queue_use(name, scope=MACHINE, slots=1, priority=0):
+    """Join a named queue before the task starts."""
     return {
         "queue": {"name": name, "scope": scope},
         "slots": slots,
@@ -322,6 +345,7 @@ def queue_use(name, scope=MACHINE, slots=1, priority=0):
     }
 
 def resource(name, capacity, unit=None, scope=MACHINE):
+    """Define a capacity-based limiter such as CPU or RAM slots."""
     return {
         "kind": "resource",
         "name": name,
@@ -331,6 +355,7 @@ def resource(name, capacity, unit=None, scope=MACHINE):
     }
 
 def lock(name, scope=MACHINE):
+    """Define an exclusive limiter with one available slot."""
     return {
         "kind": "lock",
         "name": name,
@@ -338,6 +363,7 @@ def lock(name, scope=MACHINE):
     }
 
 def queue_def(name, slots, discipline=FIFO, max_pending=None, scope=MACHINE):
+    """Define a queue and its scheduling discipline."""
     return {
         "name": name,
         "scope": scope,
@@ -347,6 +373,7 @@ def queue_def(name, slots, discipline=FIFO, max_pending=None, scope=MACHINE):
     }
 
 def rate_limit(name, burst, refill_per_second, scope=MACHINE):
+    """Define a token-bucket limiter."""
     return {
         "kind": "rate_limit",
         "name": name,
@@ -356,6 +383,7 @@ def rate_limit(name, burst, refill_per_second, scope=MACHINE):
     }
 
 def process_cap(name, max_running, match=None, scope=MACHINE):
+    """Define a limiter that matches and caps external processes."""
     return {
         "kind": "process_cap",
         "name": name,
@@ -365,6 +393,7 @@ def process_cap(name, max_running, match=None, scope=MACHINE):
     }
 
 def retry(attempts=1, on_exit=None, backoff=None):
+    """Configure retry attempts, exit-code matching, and backoff."""
     return {
         "attempts": attempts,
         "on_exit": _or_empty_list(on_exit),
@@ -372,12 +401,14 @@ def retry(attempts=1, on_exit=None, backoff=None):
     }
 
 def fixed(seconds):
+    """Use a fixed retry backoff duration."""
     return {
         "kind": "fixed",
         "seconds": seconds,
     }
 
 def exp_jitter(min_s=1, max_s=60, jitter="full"):
+    """Use exponential backoff with jitter."""
     return {
         "kind": "exp_jitter",
         "min_s": min_s,

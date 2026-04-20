@@ -1,5 +1,7 @@
 //! Contract tests for `takd` agent lifecycle commands.
 
+use crate::support;
+
 use std::fs;
 use std::process::Command as StdCommand;
 
@@ -9,7 +11,7 @@ fn init_persists_pending_tor_agent_and_token_show_requires_readiness() {
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
 
-    let init = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let init = StdCommand::new(support::takd_bin())
         .args([
             "init",
             "--config-root",
@@ -38,7 +40,7 @@ fn init_persists_pending_tor_agent_and_token_show_requires_readiness() {
         "init should not persist a token before hidden-service readiness"
     );
 
-    let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let show = StdCommand::new(support::takd_bin())
         .args([
             "token",
             "show",

@@ -1,6 +1,6 @@
 #![allow(clippy::await_holding_lock)]
 
-mod support;
+use crate::support;
 
 use std::fs;
 use std::io::ErrorKind;
@@ -8,7 +8,9 @@ use std::io::ErrorKind;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
+use takd::daemon::remote::{
+    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
+};
 use tokio::net::TcpListener;
 
 use support::{
@@ -25,10 +27,6 @@ async fn tor_transport_reaches_non_onion_ipv6_remotes() {
     let config_root = temp.path().join("config");
     fs::create_dir_all(&workspace_root).expect("create workspace");
     env.set("XDG_CONFIG_HOME", config_root.display().to_string());
-    env.set(
-        "TAKD_REMOTE_EXEC_ROOT",
-        temp.path().join("remote-exec").display().to_string(),
-    );
 
     let listener = match TcpListener::bind("[::1]:0").await {
         Ok(listener) => listener,
@@ -51,6 +49,7 @@ async fn tor_transport_reaches_non_onion_ipv6_remotes() {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("builder-ipv6.sqlite"))
         .expect("submit attempt store");

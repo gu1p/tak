@@ -1,6 +1,6 @@
 #![allow(clippy::await_holding_lock)]
 
-mod support;
+use crate::support;
 
 use std::fs;
 

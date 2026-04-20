@@ -4,7 +4,8 @@ use std::os::unix::fs::symlink;
 use prost::Message;
 use tak_proto::{CmdStep, ErrorResponse, NodeInfo, Step, SubmitTaskRequest, step};
 use takd::{
-    RemoteNodeContext, SubmitAttemptStore, build_submit_idempotency_key, handle_remote_v1_request,
+    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, build_submit_idempotency_key,
+    handle_remote_v1_request,
 };
 
 #[test]
@@ -12,9 +13,6 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root_base = temp.path().join("exec-root");
     fs::create_dir_all(&exec_root_base).expect("create exec root");
-    unsafe {
-        std::env::set_var("TAKD_REMOTE_EXEC_ROOT", &exec_root_base);
-    }
     let context = RemoteNodeContext::new(
         NodeInfo {
             node_id: "builder-a".into(),
@@ -29,6 +27,7 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 
@@ -67,9 +66,6 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
     let response = handle_remote_v1_request(&context, &store, "GET", "/v1/node/status", None)
         .expect("status response");
     fs::remove_file(&execution_root).expect("remove execution root symlink");
-    unsafe {
-        std::env::remove_var("TAKD_REMOTE_EXEC_ROOT");
-    }
     assert_eq!(response.status_code, 500);
     let error = ErrorResponse::decode(response.body.as_slice()).expect("decode error");
     assert_eq!(error.message, "status_unavailable");

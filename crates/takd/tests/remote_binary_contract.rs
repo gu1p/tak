@@ -5,7 +5,7 @@ use tak_proto::{
     CmdStep, GetTaskResultResponse, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest,
     SubmitTaskResponse, SubmittedNeed, step,
 };
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 #[test]
 fn remote_routes_serve_binary_protobuf_contracts() {
@@ -23,6 +23,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");

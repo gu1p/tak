@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::net::TcpListener;

@@ -7,6 +7,7 @@ pub mod http;
 pub mod inventory;
 pub mod output_spec;
 pub mod remote_mismatch;
+pub mod remote_progress_wait;
 pub mod remote_worker_runtime;
 pub mod servers;
 pub mod status_observer;

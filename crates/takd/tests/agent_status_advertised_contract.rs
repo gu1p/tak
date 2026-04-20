@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::net::TcpListener;
 use std::process::{Command as StdCommand, Stdio};
 
@@ -11,7 +13,7 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
         listener.local_addr().expect("addr").to_string()
     };
 
-    let init = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let init = StdCommand::new(support::takd_bin())
         .args([
             "init",
             "--config-root",
@@ -25,7 +27,7 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut child = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let mut child = StdCommand::new(support::takd_bin())
         .args([
             "serve",
             "--config-root",
@@ -39,7 +41,7 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let show = StdCommand::new(support::takd_bin())
         .args([
             "token",
             "show",
@@ -53,7 +55,7 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
         .expect("run takd token show");
     assert!(show.status.success(), "takd token show should succeed");
 
-    let status = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let status = StdCommand::new(support::takd_bin())
         .args([
             "status",
             "--config-root",

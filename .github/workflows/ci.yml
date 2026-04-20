@@ -44,22 +44,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ripgrep
 
-      - name: Run Tak check
-        run: tak run //:check
-
       - name: Install coverage tool
         run: cargo install cargo-llvm-cov --locked
 
-      - name: Reclaim disk before coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo llvm-cov clean --workspace
-          rm -rf target
-          df -h .
-
-      - name: Run Tak coverage
-        run: tak run //:coverage
+      - name: Run Tak CI
+        run: tak run //:ci
 
       - name: Upload coverage artifact
         if: always()

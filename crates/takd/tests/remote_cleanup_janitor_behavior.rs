@@ -6,25 +6,19 @@ use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 use tokio::time::{Duration, sleep};
 
-#[path = "support/remote_output.rs"]
-mod remote_output;
-mod support;
+use crate::support;
 
-use remote_output::{submit_shell_task, test_context};
-use support::env::{EnvGuard, env_lock};
+use takd::RemoteRuntimeConfig;
+
+use support::remote_output::{submit_shell_task, test_context_with_runtime};
 
 #[test]
 fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
-    let _env_lock = env_lock();
-    let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root = temp.path().join("exec-root");
     let artifact_root = temp.path().join("takd-remote-artifacts");
     fs::create_dir_all(&exec_root).expect("create exec root");
     fs::create_dir_all(&artifact_root).expect("create artifact root");
-    env.set("TAKD_REMOTE_EXEC_ROOT", exec_root.display().to_string());
-    env.set("TAKD_REMOTE_CLEANUP_TTL_MS", "10");
-    env.set("TAKD_REMOTE_CLEANUP_INTERVAL_MS", "10");
 
     let stale_exec_root = exec_root.join("stale-job_1");
     let stale_artifact_root = artifact_root.join("stale-job_1");
@@ -35,7 +29,12 @@ fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind remote listener");
-        let context = test_context();
+        let context = test_context_with_runtime(
+            RemoteRuntimeConfig::for_tests()
+                .with_explicit_remote_exec_root(exec_root.clone())
+                .with_remote_cleanup_ttl(Duration::from_millis(10))
+                .with_remote_cleanup_interval(Duration::from_millis(10)),
+        );
         let store =
             SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
         let server = tokio::spawn(run_remote_v1_http_server(

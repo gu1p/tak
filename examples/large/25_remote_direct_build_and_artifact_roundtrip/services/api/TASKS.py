@@ -13,6 +13,7 @@ SPEC = module_spec(
   tasks=[
     task(
       "build_remote",
+      doc="Build the service remotely and return the declared artifact directory.",
       deps=["//:prepare_context"],
       outputs=[path("//out")],
       steps=[
@@ -26,6 +27,7 @@ SPEC = module_spec(
     ),
     task(
       "verify_artifact",
+      doc="Verify the remote build artifact locally before promotion.",
       deps=[":build_remote"],
       steps=[
         cmd(
@@ -37,6 +39,7 @@ SPEC = module_spec(
     ),
     task(
       "release",
+      doc="Join the remote artifact and the local verification log into one release summary.",
       deps=[":verify_artifact"],
       steps=[
         cmd(

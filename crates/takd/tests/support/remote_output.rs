@@ -2,9 +2,13 @@
 
 use prost::Message;
 use tak_proto::{CmdStep, OutputSelector, Step, SubmitTaskRequest, SubmitTaskResponse, step};
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 pub fn test_context() -> RemoteNodeContext {
+    test_context_with_runtime(RemoteRuntimeConfig::for_tests())
+}
+
+pub fn test_context_with_runtime(runtime_config: RemoteRuntimeConfig) -> RemoteNodeContext {
     RemoteNodeContext::new(
         tak_proto::NodeInfo {
             node_id: "builder-a".into(),
@@ -19,6 +23,7 @@ pub fn test_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
+        runtime_config,
     )
 }
 

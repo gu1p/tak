@@ -2,7 +2,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
-pub(crate) fn env_lock() -> MutexGuard<'static, ()> {
+pub fn env_lock() -> MutexGuard<'static, ()> {
     match ENV_LOCK.get_or_init(|| Mutex::new(())).lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -10,18 +10,19 @@ pub(crate) fn env_lock() -> MutexGuard<'static, ()> {
 }
 
 #[derive(Default)]
-pub(crate) struct EnvGuard {
+pub struct EnvGuard {
     saved: Vec<(String, Option<String>)>,
 }
 
 impl EnvGuard {
-    pub(crate) fn set(&mut self, key: &str, value: &str) {
+    pub fn set(&mut self, key: &str, value: impl AsRef<str>) {
         self.save(key);
+        let value = value.as_ref();
         // SAFETY: tests serialize environment mutation through `ENV_LOCK`.
         unsafe { std::env::set_var(key, value) };
     }
 
-    pub(crate) fn remove(&mut self, key: &str) {
+    pub fn remove(&mut self, key: &str) {
         self.save(key);
         // SAFETY: tests serialize environment mutation through `ENV_LOCK`.
         unsafe { std::env::remove_var(key) };

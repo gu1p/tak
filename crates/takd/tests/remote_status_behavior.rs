@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use prost::Message;
 use tak_proto::{CmdStep, NodeInfo, NodeStatusResponse, Step, SubmitTaskRequest, step};
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 #[test]
 fn remote_status_route_serves_protobuf_and_reports_running_job() {
@@ -22,6 +22,7 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");

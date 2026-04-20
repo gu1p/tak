@@ -1,6 +1,6 @@
 //! Black-box contracts for local run-mode overrides.
 
-mod support;
+use crate::support;
 
 use std::collections::BTreeMap;
 use std::fs;

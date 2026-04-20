@@ -6,7 +6,6 @@ use anyhow::Result;
 use sysinfo::{CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, SubmittedNeed};
 
-use super::execution_root::remote_execution_root_base;
 use super::query_helpers::unix_epoch_ms;
 use super::status_state_helpers::{active_job_value, aggregate_need_usage, storage_usage};
 
@@ -81,7 +80,11 @@ impl NodeStatusState {
         self.active_jobs.keys().cloned().collect()
     }
 
-    pub(crate) fn snapshot(&mut self, node: &NodeInfo) -> Result<NodeStatusResponse> {
+    pub(crate) fn snapshot(
+        &mut self,
+        node: &NodeInfo,
+        execution_root_base: &std::path::Path,
+    ) -> Result<NodeStatusResponse> {
         self.system.refresh_memory();
         self.system.refresh_cpu_usage();
         self.disks
@@ -120,7 +123,7 @@ impl NodeStatusState {
             }),
             storage: Some(storage_usage(
                 &self.disks,
-                &remote_execution_root_base(),
+                execution_root_base,
                 tak_execution_bytes,
             )),
             allocated_needs: aggregate_need_usage(&active_jobs),

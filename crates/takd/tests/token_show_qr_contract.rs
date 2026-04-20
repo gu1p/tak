@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::fs;
 use std::process::Command as StdCommand;
 
@@ -18,7 +20,7 @@ fn token_show_qr_renders_onboarding_command_and_qr_block() {
     let invite = encode_tor_invite("http://builder-qr.onion").expect("encode invite");
     fs::write(state_root.join("agent.token"), format!("{invite}\n")).expect("write invite");
 
-    let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let show = StdCommand::new(support::takd_bin())
         .args([
             "token",
             "show",

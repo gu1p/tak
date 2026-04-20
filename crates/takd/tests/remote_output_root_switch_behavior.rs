@@ -1,28 +1,19 @@
-use takd::{SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
-#[path = "support/remote_output.rs"]
-mod remote_output;
-mod support;
-#[path = "support/wait_for_terminal_events.rs"]
-mod wait_for_terminal_events;
+use crate::support;
 
-use remote_output::{submit_shell_task_with_outputs, test_context};
-use support::env::{EnvGuard, env_lock};
-use wait_for_terminal_events::wait_for_terminal_events;
+use support::remote_output::{submit_shell_task_with_outputs, test_context_with_runtime};
+use support::wait_for_terminal_events::wait_for_terminal_events;
 
 #[test]
 fn finished_remote_task_serves_outputs_after_execution_root_changes() {
-    let _env_lock = env_lock();
-    let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let initial_exec_root = temp.path().join("root-a/exec-root");
     let changed_exec_root = temp.path().join("root-b/exec-root");
-    env.set(
-        "TAKD_REMOTE_EXEC_ROOT",
-        initial_exec_root.display().to_string(),
-    );
 
-    let context = test_context();
+    let context = test_context_with_runtime(
+        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(initial_exec_root.clone()),
+    );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit_ack = submit_shell_task_with_outputs(
         &context,
@@ -37,13 +28,12 @@ fn finished_remote_task_serves_outputs_after_execution_root_changes() {
     );
     assert!(submit_ack.accepted);
     wait_for_terminal_events(&context, &store, "task-run-root-switch");
-    env.set(
-        "TAKD_REMOTE_EXEC_ROOT",
-        changed_exec_root.display().to_string(),
+    let changed_context = test_context_with_runtime(
+        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(changed_exec_root),
     );
 
     let output = handle_remote_v1_request(
-        &context,
+        &changed_context,
         &store,
         "GET",
         "/v1/tasks/task-run-root-switch/outputs?path=dist/out.txt",

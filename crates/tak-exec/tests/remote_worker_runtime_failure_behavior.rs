@@ -6,7 +6,7 @@ use std::fs;
 use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, TaskLabel};
 use tak_exec::{RemoteWorkerExecutionSpec, execute_remote_worker_steps};
 
-mod support;
+use crate::support;
 
 use support::{EnvGuard, env_lock, install_fake_docker, shell_step};
 

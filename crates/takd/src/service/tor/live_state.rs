@@ -5,7 +5,7 @@ use anyhow::Result;
 use crate::agent::{
     TransportHealth, TransportState, node_info_with_transport, write_transport_health,
 };
-use crate::daemon::remote::RemoteNodeContext;
+use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 
 pub(super) fn pending_context(
     config: &crate::agent::AgentConfig,
@@ -15,6 +15,7 @@ pub(super) fn pending_context(
     RemoteNodeContext::new(
         node_info_with_transport(&ready, base_url, TransportState::Pending.as_str(), None),
         config.bearer_token.clone(),
+        RemoteRuntimeConfig::from_env(),
     )
 }
 

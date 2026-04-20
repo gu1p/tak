@@ -7,7 +7,7 @@ use tak_proto::decode_tor_invite;
 use takd::agent::{InitAgentOptions, TransportState, init_agent, read_token_wait};
 use takd::serve_agent;
 
-mod support;
+use crate::support;
 
 use support::env::{EnvGuard, env_lock};
 use support::http::fetch_node_info;

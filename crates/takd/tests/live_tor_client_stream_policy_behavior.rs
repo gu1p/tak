@@ -1,5 +1,5 @@
 use tak_proto::NodeInfo;
-use takd::{RemoteNodeContext, service::observe_live_tor_client_stream};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, service::observe_live_tor_client_stream};
 
 #[test]
 fn live_tor_client_stream_observation_does_not_clear_recovering_state() {
@@ -17,6 +17,7 @@ fn live_tor_client_stream_observation_does_not_clear_recovering_state() {
             transport_detail: "self-probe failed".into(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
 
     observe_live_tor_client_stream(&context);

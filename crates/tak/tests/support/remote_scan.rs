@@ -60,7 +60,7 @@ pub fn run_scan_with_env(
     script: &str,
     envs: &[(&str, String)],
 ) -> Result<Output> {
-    let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    let mut command = StdCommand::new(super::tak_bin());
     command
         .args(["remote", "scan"])
         .env("XDG_CONFIG_HOME", config_root)

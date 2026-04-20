@@ -29,7 +29,8 @@ pub fn handle_remote_v1_request(
     if let Some(response) = handle_remote_events_route(store, &method, path_only, query)? {
         return Ok(response);
     }
-    if let Some(response) = handle_remote_outputs_route(store, &method, path_only, query)? {
+    if let Some(response) = handle_remote_outputs_route(context, store, &method, path_only, query)?
+    {
         return Ok(response);
     }
     if let Some(response) = handle_remote_result_route(store, &method, path_only, query)? {

@@ -3,6 +3,8 @@
 //! This crate expands target dependencies, enforces execution ordering, applies retry and
 //! timeout policy, and optionally coordinates daemon leases around task execution.
 
+extern crate self as tak_exec;
+
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -99,7 +101,6 @@ include!("engine/protocol_events.rs");
 include!("engine/protocol_result_http.rs");
 include!("engine/step_execution.rs");
 include!("engine/remote_worker.rs");
-
 #[cfg(test)]
 mod protocol_result_http_connection_cleanup_tests;
 #[cfg(test)]

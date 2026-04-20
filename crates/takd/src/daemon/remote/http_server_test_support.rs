@@ -4,7 +4,7 @@ use std::task::{Context as TaskContext, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use super::{RemoteNodeContext, SubmitAttemptStore};
+use super::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore};
 
 pub(super) struct ScriptedHttpStream {
     read_bytes: Vec<u8>,
@@ -83,6 +83,7 @@ pub(super) fn node_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     )
 }
 

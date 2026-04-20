@@ -1,7 +1,9 @@
-//! Tak command-line interface library.
+//! Tak command-line interface for project-local `TASKS.py` workspaces.
 //!
-//! This crate exposes the CLI runtime used by the `tak` binary. Moving behavior
-//! into the library keeps command logic testable.
+//! The CLI loads the current directory's `TASKS.py`, resolves the workspace graph,
+//! and dispatches local, remote, and graph-inspection flows through one testable library.
+
+extern crate self as tak;
 
 mod cli;
 mod diagnostics;

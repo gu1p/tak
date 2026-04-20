@@ -1,14 +1,21 @@
 //! Integration contract test for Tor remote V1 HTTP serving entrypoint.
+#![allow(clippy::await_holding_lock)]
+
+use crate::support;
 
 use prost::Message;
 use tak_proto::NodeInfo;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
+use support::env::env_lock;
+use takd::daemon::remote::{
+    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
+};
 
 #[tokio::test]
 async fn remote_v1_http_server_allows_tor_requests_without_authorization_header() {
+    let _env_lock = env_lock();
     let context = RemoteNodeContext::new(
         NodeInfo {
             node_id: "builder-tor".into(),
@@ -23,6 +30,7 @@ async fn remote_v1_http_server_allows_tor_requests_without_authorization_header(
             transport_detail: String::new(),
         },
         "secret".into(),
+        RemoteRuntimeConfig::for_tests(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let db_path = temp.path().join("takd.sqlite");

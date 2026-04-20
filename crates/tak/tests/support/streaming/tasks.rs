@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::support::write_tasks;
+use super::super::write_tasks;
 
 pub fn write_local_streaming_tasks(root: &std::path::Path) -> Result<()> {
     write_tasks(

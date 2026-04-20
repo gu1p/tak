@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::fs;
 use std::net::TcpListener;
 use std::process::{Command as StdCommand, Stdio};
@@ -14,7 +16,7 @@ fn serve_creates_service_log_with_tor_startup_milestones() {
         listener.local_addr().expect("addr").to_string()
     };
 
-    let init = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let init = StdCommand::new(support::takd_bin())
         .args([
             "init",
             "--config-root",
@@ -28,7 +30,7 @@ fn serve_creates_service_log_with_tor_startup_milestones() {
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut child = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let mut child = StdCommand::new(support::takd_bin())
         .args([
             "serve",
             "--config-root",
@@ -42,7 +44,7 @@ fn serve_creates_service_log_with_tor_startup_milestones() {
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let show = StdCommand::new(support::takd_bin())
         .args([
             "token",
             "show",

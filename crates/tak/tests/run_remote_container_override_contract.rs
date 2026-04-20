@@ -1,6 +1,6 @@
 //! Black-box contract for remote container run-mode overrides.
 
-mod support;
+use crate::support;
 
 use std::collections::BTreeMap;
 use std::fs;

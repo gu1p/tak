@@ -1,8 +1,10 @@
+use crate::support;
+
 use std::process::Command as StdCommand;
 
 #[test]
 fn daemon_subcommand_is_removed() {
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["daemon", "start"])
         .output()
         .expect("run tak daemon start");

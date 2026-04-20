@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use super::super::execution_root::remote_execution_root_base;
 use super::*;
 
 impl SubmitAttemptStore {
@@ -17,12 +16,13 @@ impl SubmitAttemptStore {
         task_run_id: &str,
         attempt: Option<u32>,
         selected_node_id: &str,
+        execution_root_base: &Path,
     ) -> Result<SubmitRegistration> {
         self.register_submit_with_execution_root_base(
             task_run_id,
             attempt,
             selected_node_id,
-            &remote_execution_root_base(),
+            execution_root_base,
         )
     }
 

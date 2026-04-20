@@ -6,23 +6,17 @@ use anyhow::{Context, Result};
 
 use super::*;
 
-const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
-const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
-
-pub(crate) fn spawn_remote_cleanup_janitor(
-    status_state: status_state::SharedNodeStatusState,
-    store: SubmitAttemptStore,
-) {
-    let interval = remote_cleanup_interval();
+pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
+    let interval = context.runtime_config().remote_cleanup_interval();
     tokio::spawn(async move {
-        if let Err(err) = run_remote_cleanup_once(&status_state, &store) {
+        if let Err(err) = run_remote_cleanup_once(&context, &store) {
             tracing::warn!("remote cleanup janitor startup sweep failed: {err:#}");
         }
 
         let mut ticker = tokio::time::interval(interval);
         loop {
             ticker.tick().await;
-            if let Err(err) = run_remote_cleanup_once(&status_state, &store) {
+            if let Err(err) = run_remote_cleanup_once(&context, &store) {
                 tracing::warn!("remote cleanup janitor sweep failed: {err:#}");
             }
         }
@@ -30,12 +24,12 @@ pub(crate) fn spawn_remote_cleanup_janitor(
 }
 
 pub(crate) fn run_remote_cleanup_once(
-    status_state: &status_state::SharedNodeStatusState,
+    context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
 ) -> Result<()> {
-    let active_jobs = active_job_keys(status_state)?;
-    let ttl = remote_cleanup_ttl();
-    for root in cleanup_roots(store)? {
+    let active_jobs = active_job_keys(&context.shared_status_state())?;
+    let ttl = context.runtime_config().remote_cleanup_ttl();
+    for root in cleanup_roots(context, store)? {
         cleanup_stale_remote_entries(&root, &active_jobs, ttl)?;
     }
     Ok(())
@@ -52,9 +46,9 @@ fn active_job_keys(status_state: &status_state::SharedNodeStatusState) -> Result
         .collect())
 }
 
-fn cleanup_roots(store: &SubmitAttemptStore) -> Result<Vec<PathBuf>> {
+fn cleanup_roots(context: &RemoteNodeContext, store: &SubmitAttemptStore) -> Result<Vec<PathBuf>> {
     let mut execution_roots = store.known_execution_root_bases()?;
-    let current_root = remote_execution_root_base();
+    let current_root = remote_execution_root_base(context);
     if !execution_roots.contains(&current_root) {
         execution_roots.push(current_root);
     }
@@ -124,26 +118,4 @@ fn remove_stale_remote_entry(path: &Path) -> Result<()> {
             .with_context(|| format!("failed to remove stale file {}", path.display()))?;
     }
     Ok(())
-}
-
-fn remote_cleanup_ttl() -> Duration {
-    Duration::from_millis(env_duration_ms(
-        "TAKD_REMOTE_CLEANUP_TTL_MS",
-        DEFAULT_REMOTE_CLEANUP_TTL_MS,
-    ))
-}
-
-fn remote_cleanup_interval() -> Duration {
-    Duration::from_millis(env_duration_ms(
-        "TAKD_REMOTE_CLEANUP_INTERVAL_MS",
-        DEFAULT_REMOTE_CLEANUP_INTERVAL_MS,
-    ))
-}
-
-fn env_duration_ms(name: &str, default_ms: u64) -> u64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(default_ms)
 }

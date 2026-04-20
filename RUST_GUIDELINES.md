@@ -126,6 +126,7 @@ If a bug is found:
 - CI/local enforcement:
   - `cargo test --workspace --doc`
   - `cargo test -p tak --test doctest_contract`
+  - `cargo test -p <crate> --test suite <filter>`
 
 ---
 

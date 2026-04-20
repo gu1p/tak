@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::fs;
 use std::process::Command as StdCommand;
 use std::thread;
@@ -18,7 +20,7 @@ fn token_show_waits_for_hidden_service_token() {
         fs::write(token_path, format!("{invite}\n")).expect("write invite");
     });
 
-    let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let show = StdCommand::new(support::takd_bin())
         .args([
             "token",
             "show",

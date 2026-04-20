@@ -3,7 +3,9 @@
 use std::path::Path;
 
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
+use takd::daemon::remote::{
+    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
+};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
@@ -40,6 +42,7 @@ impl RunningTakdServer {
                 transport_detail: String::new(),
             },
             "secret".into(),
+            RemoteRuntimeConfig::for_tests(),
         );
         let store = SubmitAttemptStore::with_db_path(state_root.join(format!("{node_id}.sqlite")))
             .expect("submit attempt store");

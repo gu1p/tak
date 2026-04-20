@@ -1,6 +1,6 @@
 //! Black-box contract for Dockerfile-backed remote task execution.
 
-mod support;
+use crate::support;
 
 use std::fs;
 

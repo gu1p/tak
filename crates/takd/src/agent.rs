@@ -11,7 +11,7 @@ use tak_proto::{
 };
 use uuid::Uuid;
 
-use crate::daemon::remote::RemoteNodeContext;
+use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 use helpers::{hidden_service_nickname, node_info, normalize_values};
 use paths::{config_path, token_path};
 
@@ -171,6 +171,7 @@ pub fn ready_context(config: &AgentConfig) -> Result<RemoteNodeContext> {
     Ok(RemoteNodeContext::new(
         node_info(config, &base_url),
         config.bearer_token.clone(),
+        RemoteRuntimeConfig::from_env(),
     ))
 }
 

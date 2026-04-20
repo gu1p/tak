@@ -6,7 +6,7 @@ use std::net::TcpListener;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 
-mod support;
+use crate::support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_builder_spec,

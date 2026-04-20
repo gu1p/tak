@@ -7,10 +7,12 @@ use std::time::Duration;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
+use takd::daemon::remote::{
+    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
+};
 use tokio::net::TcpListener;
 
-mod support;
+use crate::support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec_with_outputs,
@@ -61,6 +63,7 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
                 transport_detail: String::new(),
             },
             "secret".into(),
+            RemoteRuntimeConfig::for_tests(),
         );
         let store = SubmitAttemptStore::with_db_path(temp.path().join("delayed.sqlite"))
             .expect("submit store");

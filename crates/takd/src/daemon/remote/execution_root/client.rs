@@ -1,12 +1,14 @@
 use anyhow::{Context, Result, bail};
+use bollard::API_DEFAULT_VERSION;
 use bollard::Docker;
 use bollard::container::{RemoveContainerOptions, WaitContainerOptions};
 use bollard::image::{BuildImageOptions, CreateImageOptions};
 use futures::StreamExt;
 
+use crate::daemon::remote::RemoteRuntimeConfig;
 use crate::daemon::transport::ContainerEngine;
 
-use super::podman::{podman_socket_candidates_from_env, wait_for_container_exit_code_via_cli};
+use super::podman::{podman_socket_candidates, wait_for_container_exit_code_via_cli};
 use super::probe_image::{ProbeImageSpec, build_probe_image_context, resolve_probe_image};
 
 #[derive(Debug)]
@@ -17,10 +19,11 @@ pub(super) struct ContainerEngineClient {
 
 pub(super) async fn connect_container_engine(
     engine: ContainerEngine,
+    runtime_config: &RemoteRuntimeConfig,
 ) -> Result<ContainerEngineClient> {
     match engine {
         ContainerEngine::Docker => {
-            let docker = Docker::connect_with_local_defaults()
+            let docker = connect_docker_client(runtime_config)
                 .context("docker client connect failed during exec-root probe")?;
             docker
                 .ping()
@@ -31,7 +34,7 @@ pub(super) async fn connect_container_engine(
                 podman_wait_socket: None,
             })
         }
-        ContainerEngine::Podman => connect_podman_client().await,
+        ContainerEngine::Podman => connect_podman_client(runtime_config).await,
     }
 }
 
@@ -114,8 +117,22 @@ pub(super) async fn cleanup_container(docker: &Docker, container_name: &str) -> 
     Ok(())
 }
 
-async fn connect_podman_client() -> Result<ContainerEngineClient> {
-    for socket in podman_socket_candidates_from_env() {
+fn connect_docker_client(runtime_config: &RemoteRuntimeConfig) -> Result<Docker> {
+    if let Some(host) = runtime_config.docker_host() {
+        if host.starts_with("unix://") || host.starts_with('/') {
+            return Ok(Docker::connect_with_unix(host, 120, API_DEFAULT_VERSION)?);
+        }
+        if host.starts_with("tcp://") || host.starts_with("http://") {
+            return Ok(Docker::connect_with_http(host, 120, API_DEFAULT_VERSION)?);
+        }
+    }
+    Ok(Docker::connect_with_local_defaults()?)
+}
+
+async fn connect_podman_client(
+    runtime_config: &RemoteRuntimeConfig,
+) -> Result<ContainerEngineClient> {
+    for socket in podman_socket_candidates(runtime_config) {
         let socket_path = socket.strip_prefix("unix://").unwrap_or(socket.as_str());
         let Ok(client) = Docker::connect_with_unix(socket_path, 120, bollard::API_DEFAULT_VERSION)
         else {

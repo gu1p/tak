@@ -35,3 +35,15 @@ fn repo_test_dockerfile_extends_live_tor_timeout_budget() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn repo_test_dockerfile_does_not_install_cargo_nextest() -> Result<()> {
+    let dockerfile = fs::read_to_string(repo_root().join("docker/tak-tests/Dockerfile"))?;
+
+    assert!(
+        !dockerfile.contains("cargo install cargo-nextest"),
+        "docker/tak-tests/Dockerfile must not install cargo-nextest for local check flow:\n{dockerfile}"
+    );
+
+    Ok(())
+}

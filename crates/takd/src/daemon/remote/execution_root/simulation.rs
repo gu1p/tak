@@ -1,6 +1,5 @@
-use std::env;
+use crate::daemon::remote::RemoteRuntimeConfig;
 
-pub(super) fn should_skip_probe() -> bool {
-    env::var("TAK_TEST_HOST_PLATFORM").is_ok()
-        || env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok()
+pub(super) fn should_skip_probe(config: &RemoteRuntimeConfig) -> bool {
+    config.skip_exec_root_probe()
 }

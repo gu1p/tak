@@ -1,29 +1,22 @@
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
-use takd::{SubmitAttemptStore, build_submit_idempotency_key, handle_remote_v1_request};
+use takd::{
+    RemoteRuntimeConfig, SubmitAttemptStore, build_submit_idempotency_key, handle_remote_v1_request,
+};
 
-#[path = "support/remote_output.rs"]
-mod remote_output;
-mod support;
-#[path = "support/wait_for_terminal_events.rs"]
-mod wait_for_terminal_events;
+use crate::support;
 
-use remote_output::{submit_shell_task_with_outputs, test_context};
-use support::env::{EnvGuard, env_lock};
-use wait_for_terminal_events::wait_for_terminal_events;
+use support::remote_output::{submit_shell_task_with_outputs, test_context_with_runtime};
+use support::wait_for_terminal_events::wait_for_terminal_events;
 
 #[test]
 fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
-    let _env_lock = env_lock();
-    let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root_base = temp.path().join("exec-root");
-    env.set(
-        "TAKD_REMOTE_EXEC_ROOT",
-        exec_root_base.display().to_string(),
-    );
 
-    let context = test_context();
+    let context = test_context_with_runtime(
+        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+    );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit_ack = submit_shell_task_with_outputs(
         &context,

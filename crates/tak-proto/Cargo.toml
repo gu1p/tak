@@ -3,6 +3,11 @@ name = "tak-proto"
 version = "0.1.0"
 edition = "2024"
 build = "build.rs"
+autotests = false
+
+[[test]]
+name = "suite"
+path = "tests/mod.rs"
 
 [dependencies]
 anyhow.workspace = true

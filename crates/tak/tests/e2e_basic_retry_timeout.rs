@@ -6,7 +6,7 @@ use std::fs;
 use anyhow::Result;
 
 #[allow(dead_code)]
-mod support;
+use crate::support;
 use support::{run_tak_expect_failure, run_tak_expect_success, write_tasks};
 
 #[test]

@@ -1,3 +1,5 @@
+use crate::support;
+
 use std::process::Command as StdCommand;
 
 #[test]
@@ -6,7 +8,7 @@ fn status_reports_pending_tor_readiness_after_init() {
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
 
-    let init = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let init = StdCommand::new(support::takd_bin())
         .args([
             "init",
             "--config-root",
@@ -20,7 +22,7 @@ fn status_reports_pending_tor_readiness_after_init() {
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let status = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let status = StdCommand::new(support::takd_bin())
         .args([
             "status",
             "--config-root",

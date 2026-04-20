@@ -7,7 +7,7 @@ use tak_core::model::{
 };
 use tak_exec::{PlacementMode, RunOptions, run_tasks};
 
-mod support;
+use crate::support;
 
 use support::{
     EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_builder_spec,

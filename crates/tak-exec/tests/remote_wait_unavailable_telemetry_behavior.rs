@@ -7,11 +7,9 @@ use std::time::Duration;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 
-#[path = "support/remote_progress_wait.rs"]
-mod remote_progress_wait;
-mod support;
+use crate::support;
 
-use remote_progress_wait::success_result;
+use support::remote_progress_wait::success_result;
 use support::{
     CollectingStatusObserver, EnvGuard, EventPollPlan, RemoteInventoryRecord, ScriptedEventsServer,
     env_lock, remote_builder_spec, remote_task_spec, shell_step, write_remote_inventory,

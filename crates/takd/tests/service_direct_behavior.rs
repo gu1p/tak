@@ -1,15 +1,19 @@
+#![allow(clippy::await_holding_lock)]
+
 use std::fs;
 
 use tak_proto::decode_remote_token;
 use takd::agent::{InitAgentOptions, init_agent, read_token_wait};
 use takd::serve_agent;
 
-mod support;
+use crate::support;
 
+use support::env::env_lock;
 use support::http::{fetch_node_info, fetch_node_status};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
+    let _env_lock = env_lock();
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");

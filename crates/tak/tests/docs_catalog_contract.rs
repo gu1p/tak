@@ -1,6 +1,7 @@
-mod support;
+use crate::support;
 
 use anyhow::{Result, anyhow};
+use std::fs;
 
 use support::examples_catalog::load_catalog;
 
@@ -37,6 +38,32 @@ fn hero_examples_expose_agent_authoring_metadata() -> Result<()> {
         assert!(
             !entry.project_shapes.is_empty(),
             "{name} missing project_shapes metadata"
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn hero_examples_expose_source_level_docs() -> Result<()> {
+    let catalog = load_catalog()?;
+
+    for name in HERO_EXAMPLES {
+        let entry = catalog
+            .example
+            .iter()
+            .find(|entry| entry.name == name)
+            .ok_or_else(|| anyhow!("missing catalog entry `{name}`"))?;
+        let body = fs::read_to_string(
+            support::examples_catalog::repo_root()
+                .join("examples")
+                .join(&entry.name)
+                .join("TASKS.py"),
+        )?;
+        assert!(
+            body.contains("# Example:") || body.contains("# Scenario:") || body.contains("\"\"\""),
+            "{} missing source-level example docs in TASKS.py",
+            entry.name
         );
     }
 

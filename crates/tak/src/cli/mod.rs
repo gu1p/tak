@@ -36,4 +36,5 @@ use remote_status::run_remote_status;
 use run_command::{RunCliArgs, run_task_command};
 use workspace_helpers::{canonical_label, load_workspace_from_cwd, parse_input_label};
 
+pub(crate) use command_model::command_tree;
 pub use run_cli::run_cli;

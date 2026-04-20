@@ -6,13 +6,18 @@ use tak_proto::{
     CmdStep, ContainerRuntime, GetTaskResultResponse, RuntimeSpec, Step, SubmitTaskRequest,
     SubmitTaskResponse, runtime_spec, step,
 };
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
-use crate::remote_output::empty_workspace_zip;
 use crate::support::env::EnvGuard;
 use crate::support::fake_docker::install_fake_docker;
 
-pub fn configure_fake_docker_env(root: &Path, socket_path: &Path, env_guard: &mut EnvGuard) {
+use super::remote_output::empty_workspace_zip;
+
+pub fn configure_fake_docker_env(
+    root: &Path,
+    socket_path: &Path,
+    env_guard: &mut EnvGuard,
+) -> RemoteRuntimeConfig {
     let bin_root = root.join("bin");
     install_fake_docker(&bin_root);
     env_guard.set(
@@ -23,7 +28,9 @@ pub fn configure_fake_docker_env(root: &Path, socket_path: &Path, env_guard: &mu
             env::var("PATH").unwrap_or_default()
         ),
     );
-    env_guard.set("DOCKER_HOST", format!("unix://{}", socket_path.display()));
+    let docker_host = format!("unix://{}", socket_path.display());
+    env_guard.set("DOCKER_HOST", &docker_host);
+    RemoteRuntimeConfig::for_tests().with_docker_host(docker_host)
 }
 
 pub fn submit_container_task(

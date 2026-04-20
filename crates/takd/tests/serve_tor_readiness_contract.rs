@@ -1,9 +1,14 @@
+use crate::support;
+
 use std::fs;
 use std::net::TcpListener;
 use std::process::{Command as StdCommand, Stdio};
 
+use support::env::env_lock;
+
 #[test]
 fn serve_with_tor_test_bind_override_persists_hidden_service_base_url_and_token() {
+    let _env_lock = env_lock();
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
@@ -12,7 +17,7 @@ fn serve_with_tor_test_bind_override_persists_hidden_service_base_url_and_token(
         listener.local_addr().expect("addr").to_string()
     };
 
-    let init = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let init = StdCommand::new(support::takd_bin())
         .args([
             "init",
             "--config-root",
@@ -24,7 +29,7 @@ fn serve_with_tor_test_bind_override_persists_hidden_service_base_url_and_token(
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut child = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let mut child = StdCommand::new(support::takd_bin())
         .args([
             "serve",
             "--config-root",
@@ -38,7 +43,7 @@ fn serve_with_tor_test_bind_override_persists_hidden_service_base_url_and_token(
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(assert_cmd::cargo::cargo_bin!("takd"))
+    let show = StdCommand::new(support::takd_bin())
         .args([
             "token",
             "show",

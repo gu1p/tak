@@ -7,7 +7,7 @@ use tak_exec::execute_remote_worker_steps;
 
 #[path = "support/nonzero_wait_docker_daemon.rs"]
 mod nonzero_wait_docker_daemon;
-mod support;
+use crate::support;
 
 use nonzero_wait_docker_daemon::NonzeroWaitDockerDaemon;
 use support::{EnvGuard, configure_real_docker_env, env_lock, shell_step, worker_spec};

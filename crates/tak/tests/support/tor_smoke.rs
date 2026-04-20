@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Child, Command as StdCommand, Output};
 
+use super::run::tak_bin;
+pub use super::takd_binary::{resolve_takd_bin, resolve_takd_bin_with_bootstrap, takd_bin};
 use super::tor_probe_env::apply_live_tor_probe_env;
 
 pub struct ChildGuard {
@@ -16,42 +18,8 @@ impl Drop for ChildGuard {
     }
 }
 
-fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("workspace root")
-        .to_path_buf()
-}
-
-pub fn takd_bin() -> PathBuf {
-    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_takd") {
-        return PathBuf::from(path);
-    }
-
-    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| workspace_root().join("target"));
-    let binary = target_dir
-        .join("debug")
-        .join(format!("takd{}", std::env::consts::EXE_SUFFIX));
-    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let status = StdCommand::new(cargo)
-        .current_dir(workspace_root())
-        .args(["build", "-p", "takd", "--bin", "takd"])
-        .status()
-        .expect("build takd binary for live tor smoke test");
-    assert!(status.success(), "building takd binary should succeed");
-    assert!(
-        binary.is_file(),
-        "missing takd binary at {}",
-        binary.display()
-    );
-    binary
-}
-
 pub fn tak_command(workspace_root: &Path, config_root: &Path) -> StdCommand {
-    let mut command = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"));
+    let mut command = StdCommand::new(tak_bin());
     let state_root = config_root
         .parent()
         .expect("client config root should have a parent")

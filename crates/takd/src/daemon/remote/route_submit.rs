@@ -23,7 +23,8 @@ pub(super) fn handle_remote_submit_route(
         Ok(worker_payload) => worker_payload,
         Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
     };
-    let execution_root_base = ensure_remote_execution_root_base(worker_payload.runtime.as_ref());
+    let execution_root_base =
+        ensure_remote_execution_root_base(context, worker_payload.runtime.as_ref());
     let node = context.node_info()?;
     let selected_node_id = node.node_id.clone();
     let registration = store.register_submit_with_execution_root_base(
@@ -55,6 +56,7 @@ pub(super) fn handle_remote_submit_route(
             store.clone(),
             context.shared_status_state(),
             idempotency_key.clone(),
+            execution_root_base,
             selected_node_id,
             node.transport,
             worker_payload,

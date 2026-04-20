@@ -1,38 +1,32 @@
-mod support;
+use crate::support;
 use anyhow::Result;
 use std::collections::BTreeMap;
 use std::path::Path;
 use support::run_tak_expect_success;
 
-const REQUIRED_SECTIONS: [&str; 6] = [
+const REQUIRED_SECTIONS: [&str; 7] = [
     "# Tak Agent Docs",
     "## What Tak Is For",
     "## Core Capabilities",
+    "## CLI Surface",
     "## TASKS.py API Surface",
     "## Example Chooser",
     "## Authoring Workflow",
 ];
-
-const REQUIRED_TOKENS: [&str; 10] = [
-    "module_spec(",
-    "task(",
-    "cmd(",
-    "script(",
-    "Local(",
-    "Remote(",
-    "CurrentState(",
+const REQUIRED_TOKENS: [&str; 8] = [
+    "def module_spec(",
+    "def task(",
+    "def cmd(",
+    "def script(",
+    "def Local(",
+    "def Remote(",
     "small/01_hello_single_task",
     "large/25_remote_direct_build_and_artifact_roundtrip",
-    "tak run //:hello",
 ];
-const REQUIRED_SOURCE_TOKENS: [&str; 8] = [
+const REQUIRED_EXAMPLE_SOURCE_TOKENS: [&str; 4] = [
     "#### Source Files",
     "##### `apps/web/TASKS.py`",
     "##### `services/api/TASKS.py`",
-    "# Example: small/01_hello_single_task",
-    "doc=\"Writes a hello output file.\"",
-    "# File: apps/web/TASKS.py",
-    "deps=[\"//apps/api:build\", \"//libs/common:lint\"]",
     "execution=RemoteOnly(REMOTE)",
 ];
 
@@ -69,7 +63,7 @@ fn docs_dump_embeds_recommended_example_sources() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let output = run_docs_dump(temp.path())?;
 
-    for token in REQUIRED_SOURCE_TOKENS {
+    for token in REQUIRED_EXAMPLE_SOURCE_TOKENS {
         assert!(
             output.contains(token),
             "missing source token `{token}`:\n{output}"
@@ -78,6 +72,7 @@ fn docs_dump_embeds_recommended_example_sources() -> Result<()> {
 
     Ok(())
 }
+
 #[test]
 fn docs_dump_is_workspace_independent() -> Result<()> {
     let temp = tempfile::tempdir()?;

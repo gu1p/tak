@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::net::TcpListener;
@@ -58,7 +58,7 @@ fn remote_status_renders_partial_http_failures_and_exits_non_zero() {
         .expect("write failing response");
     });
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status"])
         .env("XDG_CONFIG_HOME", &config_root)
         .output()

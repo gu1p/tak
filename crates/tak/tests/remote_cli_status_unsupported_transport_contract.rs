@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::process::Command as StdCommand;
 
@@ -13,7 +13,7 @@ fn remote_status_reports_unsupported_transport_errors() {
         &[("builder-weird", "http://127.0.0.1:9", "udp", true)],
     );
 
-    let output = StdCommand::new(assert_cmd::cargo::cargo_bin!("tak"))
+    let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-weird"])
         .env("XDG_CONFIG_HOME", &config_root)
         .output()
