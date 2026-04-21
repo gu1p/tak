@@ -1,4 +1,9 @@
-fn normalize_relative_path(anchor: &str, path: &str) -> Result<String, PathNormalizationError> {
+use super::*;
+
+pub(crate) fn normalize_relative_path(
+    anchor: &str,
+    path: &str,
+) -> Result<String, PathNormalizationError> {
     let mut parts = Vec::<String>::new();
     for segment in path.replace('\\', "/").split('/') {
         match segment {

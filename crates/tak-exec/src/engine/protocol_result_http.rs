@@ -1,4 +1,7 @@
+use super::*;
+
 use http_body_util::BodyExt;
+use prost::Message;
 use tak_proto::GetTaskResultResponse;
 
 /// Fetches terminal result metadata for one remote attempt.
@@ -9,7 +12,7 @@ use tak_proto::GetTaskResultResponse;
 /// #     Ok(())
 /// # }
 /// ```
-async fn remote_protocol_result(
+pub(crate) async fn remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     attempt: u32,
@@ -23,7 +26,7 @@ async fn remote_protocol_result(
     Ok(result)
 }
 
-async fn try_remote_protocol_result(
+pub(crate) async fn try_remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     _attempt: u32,
@@ -45,7 +48,7 @@ async fn try_remote_protocol_result(
     Ok(Some(parse_remote_protocol_result(target, &response_body)?))
 }
 
-fn parse_remote_protocol_result(
+pub(crate) fn parse_remote_protocol_result(
     target: &StrictRemoteTarget,
     response_body: &[u8],
 ) -> Result<RemoteProtocolResult> {
@@ -98,7 +101,7 @@ impl<T> Drop for AbortOnDrop<T> {
 /// #     Ok(())
 /// # }
 /// ```
-async fn remote_protocol_http_request(
+pub(crate) async fn remote_protocol_http_request(
     target: &StrictRemoteTarget,
     method: &str,
     path: &str,
@@ -114,12 +117,9 @@ async fn remote_protocol_http_request(
             )
         })
         .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
-    let bearer_token = remote_protocol_bearer_token(
-        &target.node_id,
-        &target.bearer_token,
-        target.transport_kind,
-    )
-    .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
+    let bearer_token =
+        remote_protocol_bearer_token(&target.node_id, &target.bearer_token, target.transport_kind)
+            .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
     let payload = body.unwrap_or(&[]);
 
     let exchange = async {
@@ -152,7 +152,9 @@ async fn remote_protocol_http_request(
             );
         }
         let request = request
-            .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(payload)))
+            .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(
+                payload,
+            )))
             .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
         let response = sender.send_request(request).await.map_err(|_| {
             RemoteHttpExchangeError::other(format!(

@@ -5,7 +5,7 @@ fn container_runtime_embeds_bollard_lifecycle_calls() {
     let source = format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}",
         include_str!("../src/lib.rs"),
-        include_str!("../src/container_runtime.rs"),
+        include_str!("../src/container_runtime/mod.rs"),
         include_str!("../src/container_runtime/foundation.rs"),
         include_str!("../src/container_runtime/build_context.rs"),
         include_str!("../src/container_runtime/tar_archive.rs"),

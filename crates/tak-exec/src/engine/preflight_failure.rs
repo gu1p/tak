@@ -1,5 +1,7 @@
+use super::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RemoteNodeInfoFailureKind {
+pub(crate) enum RemoteNodeInfoFailureKind {
     Timeout,
     Auth,
     HttpStatus,
@@ -9,7 +11,7 @@ enum RemoteNodeInfoFailureKind {
 }
 
 #[derive(Debug, Clone)]
-struct RemoteNodeInfoFailure {
+pub(crate) struct RemoteNodeInfoFailure {
     kind: RemoteNodeInfoFailureKind,
     message: String,
 }
@@ -23,49 +25,49 @@ impl std::fmt::Display for RemoteNodeInfoFailure {
 impl std::error::Error for RemoteNodeInfoFailure {}
 
 impl RemoteNodeInfoFailure {
-    fn timeout(message: String) -> Self {
+    pub(crate) fn timeout(message: String) -> Self {
         Self {
             kind: RemoteNodeInfoFailureKind::Timeout,
             message,
         }
     }
 
-    fn auth(message: String) -> Self {
+    pub(crate) fn auth(message: String) -> Self {
         Self {
             kind: RemoteNodeInfoFailureKind::Auth,
             message,
         }
     }
 
-    fn http_status(message: String) -> Self {
+    pub(crate) fn http_status(message: String) -> Self {
         Self {
             kind: RemoteNodeInfoFailureKind::HttpStatus,
             message,
         }
     }
 
-    fn invalid_metadata(message: String) -> Self {
+    pub(crate) fn invalid_metadata(message: String) -> Self {
         Self {
             kind: RemoteNodeInfoFailureKind::InvalidMetadata,
             message,
         }
     }
 
-    fn connect(message: String) -> Self {
+    pub(crate) fn connect(message: String) -> Self {
         Self {
             kind: RemoteNodeInfoFailureKind::Connect,
             message,
         }
     }
 
-    fn other(message: String) -> Self {
+    pub(crate) fn other(message: String) -> Self {
         Self {
             kind: RemoteNodeInfoFailureKind::Other,
             message,
         }
     }
 
-    fn from_http_exchange(err: RemoteHttpExchangeError) -> Self {
+    pub(crate) fn from_http_exchange(err: RemoteHttpExchangeError) -> Self {
         match err.kind {
             RemoteHttpExchangeErrorKind::Timeout => Self::timeout(err.message),
             RemoteHttpExchangeErrorKind::Connect => Self::connect(err.message),
@@ -74,7 +76,7 @@ impl RemoteNodeInfoFailure {
     }
 }
 
-fn remote_preflight_timeout_failure(
+pub(crate) fn remote_preflight_timeout_failure(
     target: &StrictRemoteTarget,
     message: String,
 ) -> RemotePreflightFailure {
@@ -90,7 +92,7 @@ fn remote_preflight_timeout_failure(
     }
 }
 
-fn remote_preflight_error_failure(
+pub(crate) fn remote_preflight_error_failure(
     target: &StrictRemoteTarget,
     failure: RemoteNodeInfoFailure,
 ) -> RemotePreflightFailure {
@@ -113,7 +115,7 @@ fn remote_preflight_error_failure(
     }
 }
 
-fn remote_preflight_unhealthy_failure(
+pub(crate) fn remote_preflight_unhealthy_failure(
     target: &StrictRemoteTarget,
     node: &tak_proto::NodeInfo,
 ) -> RemotePreflightFailure {
@@ -133,7 +135,9 @@ fn remote_preflight_unhealthy_failure(
     }
 }
 
-fn classify_preflight_failure_kind(kind: RemoteNodeInfoFailureKind) -> RemotePreflightFailureKind {
+pub(crate) fn classify_preflight_failure_kind(
+    kind: RemoteNodeInfoFailureKind,
+) -> RemotePreflightFailureKind {
     match kind {
         RemoteNodeInfoFailureKind::Timeout => RemotePreflightFailureKind::Timeout,
         RemoteNodeInfoFailureKind::Auth => RemotePreflightFailureKind::Auth,

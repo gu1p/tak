@@ -1,91 +1,24 @@
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
-use std::process::Command as StdCommand;
-use std::sync::Arc;
-use std::time::Duration;
-
 use anyhow::{Context, Result, bail};
 use bollard::Docker;
-use bollard::container::{
-    Config as ContainerConfig, CreateContainerOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StartContainerOptions, WaitContainerOptions,
-};
-use bollard::errors::Error as BollardError;
 use bollard::image::CreateImageOptions;
-use bollard::models::HostConfig;
 use futures::StreamExt;
-use tak_core::model::{ResolvedTask, StepDef, TaskLabel};
-use uuid::Uuid;
 
 use crate::container_engine::{ContainerEngine, engine_name, podman_socket_candidates_from_env};
-use crate::step_runner::{StepRunResult, resolve_cwd};
-use crate::{ContainerExecutionPlan, OutputStream, TaskOutputObserver};
 
 #[derive(Debug)]
-pub(crate) struct ContainerStepSpec {
-    pub(crate) argv: Vec<String>,
-    pub(crate) cwd: PathBuf,
-    pub(crate) env: BTreeMap<String, String>,
+pub(super) struct ContainerEngineClient {
+    pub(super) docker: Docker,
+    pub(super) podman_wait_socket: Option<String>,
 }
 
-#[derive(Debug)]
-struct ContainerEngineClient {
-    docker: Docker,
-    podman_wait_socket: Option<String>,
-}
-
-struct ContainerStepRunContext<'a> {
-    workspace_root: &'a Path,
-    task_label: &'a TaskLabel,
-    attempt: u32,
-    output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
-}
-
-pub(crate) async fn run_task_steps_in_container(
-    task: &ResolvedTask,
-    workspace_root: &Path,
-    plan: &ContainerExecutionPlan,
-    runtime_env: Option<&BTreeMap<String, String>>,
-    attempt: u32,
-    output_observer: Option<&Arc<dyn TaskOutputObserver>>,
-) -> Result<StepRunResult> {
-    let client = connect_container_engine(plan.engine).await?;
-    ensure_container_runtime_source(&client.docker, workspace_root, plan).await?;
-    let run_context = ContainerStepRunContext {
-        workspace_root,
-        task_label: &task.label,
-        attempt,
-        output_observer,
-    };
-
-    for step in &task.steps {
-        let step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
-        let status = run_step_in_container(
-            &client.docker,
-            plan.engine,
-            client.podman_wait_socket.as_deref(),
-            &plan.image,
-            &step_spec,
-            task.timeout_s,
-            &run_context,
-        )
-        .await?;
-        if !status.success {
-            return Ok(status);
-        }
-    }
-
-    Ok(StepRunResult {
-        success: true,
-        exit_code: Some(0),
-    })
-}
-
-async fn connect_container_engine(engine: ContainerEngine) -> Result<ContainerEngineClient> {
+pub(super) async fn connect_container_engine(
+    engine: ContainerEngine,
+) -> Result<ContainerEngineClient> {
     match engine {
         ContainerEngine::Docker => {
-            let docker = Docker::connect_with_local_defaults()
-                .context("infra error: container lifecycle start failed: docker client connect failed")?;
+            let docker = Docker::connect_with_local_defaults().context(
+                "infra error: container lifecycle start failed: docker client connect failed",
+            )?;
             docker.ping().await.with_context(|| {
                 format!(
                     "infra error: container lifecycle start failed: {} ping failed",
@@ -118,7 +51,7 @@ async fn connect_podman_client() -> Result<ContainerEngineClient> {
     bail!("infra error: container lifecycle start failed: no podman socket available");
 }
 
-async fn ensure_container_image(docker: &Docker, image: &str) -> Result<()> {
+pub(super) async fn ensure_container_image(docker: &Docker, image: &str) -> Result<()> {
     match docker.inspect_image(image).await {
         Ok(_) => return Ok(()),
         Err(bollard::errors::Error::DockerResponseServerError {
@@ -142,55 +75,4 @@ async fn ensure_container_image(docker: &Docker, image: &str) -> Result<()> {
         item.context("infra error: container lifecycle pull failed")?;
     }
     Ok(())
-}
-
-pub(crate) fn build_container_step_spec(
-    step: &StepDef,
-    workspace_root: &Path,
-    runtime_env: Option<&BTreeMap<String, String>>,
-) -> Result<ContainerStepSpec> {
-    match step {
-        StepDef::Cmd { argv, cwd, env } => {
-            if argv.is_empty() {
-                bail!("cmd step requires a non-empty argv");
-            }
-            let mut env_map = BTreeMap::new();
-            if let Some(runtime_env) = runtime_env {
-                env_map.extend(runtime_env.clone());
-            }
-            env_map.extend(env.clone());
-            Ok(ContainerStepSpec {
-                argv: argv.clone(),
-                cwd: resolve_cwd(workspace_root, cwd),
-                env: env_map,
-            })
-        }
-        StepDef::Script {
-            path,
-            argv,
-            interpreter,
-            cwd,
-            env,
-        } => {
-            let mut full_argv = Vec::with_capacity(argv.len() + 2);
-            if let Some(interpreter) = interpreter {
-                full_argv.push(interpreter.clone());
-                full_argv.push(path.clone());
-            } else {
-                full_argv.push(path.clone());
-            }
-            full_argv.extend(argv.clone());
-
-            let mut env_map = BTreeMap::new();
-            if let Some(runtime_env) = runtime_env {
-                env_map.extend(runtime_env.clone());
-            }
-            env_map.extend(env.clone());
-            Ok(ContainerStepSpec {
-                argv: full_argv,
-                cwd: resolve_cwd(workspace_root, cwd),
-                env: env_map,
-            })
-        }
-    }
 }

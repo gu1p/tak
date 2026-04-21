@@ -1,3 +1,5 @@
+use super::*;
+
 /// Builds a deterministic transfer manifest from available files and `CurrentState` boundaries.
 ///
 /// The filter order is:
@@ -43,7 +45,7 @@ pub fn build_current_state_manifest(
     ContextManifest::from_paths(selected)
 }
 
-fn compare_path_ref(left: &PathRef, right: &PathRef) -> Ordering {
+pub(crate) fn compare_path_ref(left: &PathRef, right: &PathRef) -> Ordering {
     compare_anchor(&left.anchor, &right.anchor).then_with(|| left.path.cmp(&right.path))
 }
 
@@ -94,7 +96,7 @@ fn anchor_token(anchor: &PathAnchor) -> String {
     }
 }
 
-fn hash_manifest_entries(entries: &[PathRef]) -> String {
+pub(crate) fn hash_manifest_entries(entries: &[PathRef]) -> String {
     let mut hasher = Sha256::new();
     for entry in entries {
         let anchor = anchor_token(&entry.anchor);

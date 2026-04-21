@@ -1,4 +1,10 @@
-fn resolve_output_selectors(
+use anyhow::{Result, anyhow, bail};
+use ignore::gitignore::GitignoreBuilder;
+use tak_core::model::{OutputSelectorDef, OutputSelectorSpec, PathInputDef};
+
+use super::context_resolution::resolve_context_path;
+
+pub(crate) fn resolve_output_selectors(
     outputs: Vec<OutputSelectorDef>,
     package: &str,
 ) -> Result<Vec<OutputSelectorSpec>> {
@@ -8,7 +14,10 @@ fn resolve_output_selectors(
         .collect()
 }
 
-fn resolve_output_selector(selector: OutputSelectorDef, package: &str) -> Result<OutputSelectorSpec> {
+fn resolve_output_selector(
+    selector: OutputSelectorDef,
+    package: &str,
+) -> Result<OutputSelectorSpec> {
     match selector {
         OutputSelectorDef::Path { value } => Ok(OutputSelectorSpec::Path(
             resolve_context_path(PathInputDef::Path { value }, package)

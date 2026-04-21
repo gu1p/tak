@@ -1,3 +1,5 @@
+use super::*;
+use prost::Message;
 use tak_proto::SubmitTaskResponse;
 
 /// Submits one remote attempt after successful preflight.
@@ -8,7 +10,7 @@ use tak_proto::SubmitTaskResponse;
 /// #     Ok(())
 /// # }
 /// ```
-async fn remote_protocol_submit(
+pub(crate) async fn remote_protocol_submit(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     attempt: u32,
@@ -55,15 +57,14 @@ async fn remote_protocol_submit(
         });
     }
 
-    let parsed = SubmitTaskResponse::decode(response_body.as_slice()).map_err(|_| {
-        RemoteSubmitFailure {
+    let parsed =
+        SubmitTaskResponse::decode(response_body.as_slice()).map_err(|_| RemoteSubmitFailure {
             kind: RemoteSubmitFailureKind::Other,
             message: format!(
                 "infra error: remote node {} returned invalid protobuf for submit",
                 target.node_id
             ),
-        }
-    })?;
+        })?;
     if !parsed.accepted {
         return Err(RemoteSubmitFailure {
             kind: RemoteSubmitFailureKind::Other,

@@ -1,4 +1,8 @@
-fn normalize_image_name_and_tag(image_name: &str) -> Result<String, ContainerImageReferenceError> {
+use super::*;
+
+pub(crate) fn normalize_image_name_and_tag(
+    image_name: &str,
+) -> Result<String, ContainerImageReferenceError> {
     let last_slash = image_name.rfind('/');
     let last_colon = image_name.rfind(':');
 
@@ -21,7 +25,7 @@ fn normalize_image_name_and_tag(image_name: &str) -> Result<String, ContainerIma
     Ok(image_name.to_ascii_lowercase())
 }
 
-fn normalize_runtime_command(
+pub(crate) fn normalize_runtime_command(
     command: Option<&Vec<String>>,
 ) -> Result<Vec<String>, ContainerRuntimeExecutionSpecError> {
     let Some(command) = command else {
@@ -42,7 +46,7 @@ fn normalize_runtime_command(
     Ok(normalized)
 }
 
-fn normalize_runtime_mounts(
+pub(crate) fn normalize_runtime_mounts(
     mounts: &[ContainerMountDef],
 ) -> Result<Vec<ContainerMountSpec>, ContainerRuntimeExecutionSpecError> {
     let mut normalized = Vec::with_capacity(mounts.len());
@@ -90,7 +94,7 @@ fn normalize_runtime_mount_target(target: &str) -> Option<String> {
     Some(format!("/{}", segments.join("/")))
 }
 
-fn normalize_runtime_env(
+pub(crate) fn normalize_runtime_env(
     env: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>, ContainerRuntimeExecutionSpecError> {
     let mut normalized = BTreeMap::new();

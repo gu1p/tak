@@ -1,3 +1,5 @@
+use super::*;
+
 use prost::Message;
 use tak_proto::NodeInfo;
 
@@ -9,7 +11,7 @@ use tak_proto::NodeInfo;
 /// #     Ok(())
 /// # }
 /// ```
-async fn detect_remote_protocol_mode(
+pub(crate) async fn detect_remote_protocol_mode(
     target: &StrictRemoteTarget,
 ) -> std::result::Result<NodeInfo, RemoteNodeInfoFailure> {
     let (status, body) = remote_protocol_http_request(

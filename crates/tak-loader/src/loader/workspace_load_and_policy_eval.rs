@@ -1,3 +1,23 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use anyhow::{Context, Result, anyhow, bail};
+use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
+use tak_core::model::{
+    ModuleSpec, PolicyDecisionDef, PolicyDecisionSpec, TaskLabel, WorkspaceSpec,
+};
+
+use super::{
+    LoadOptions, MergeState, PRELUDE,
+    execution_resolution::resolve_policy_decision,
+    module_eval::{monty_to_json, sanitize_canonical_v1_imports},
+    module_merge::merge_module,
+    project_resolution::{package_for_file, resolve_project_id},
+    workspace_discovery::{detect_workspace_root, discover_tasks_files},
+};
+
 pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpec> {
     let workspace_root = detect_workspace_root(root)?;
     let discovered = discover_tasks_files(&workspace_root, options)?;
@@ -53,16 +73,6 @@ pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpe
         limiters: state.limiters,
         queues: state.queues,
     })
-}
-
-#[derive(Default)]
-struct MergeState {
-    tasks: BTreeMap<TaskLabel, ResolvedTask>,
-    task_origins: BTreeMap<TaskLabel, PathBuf>,
-    limiters: HashMap<LimiterKey, LimiterDef>,
-    limiter_origins: HashMap<LimiterKey, PathBuf>,
-    queues: HashMap<LimiterKey, QueueDef>,
-    queue_origins: HashMap<LimiterKey, PathBuf>,
 }
 
 /// Evaluates a named policy function from one `TASKS.py` file and resolves it to V1 policy IR.

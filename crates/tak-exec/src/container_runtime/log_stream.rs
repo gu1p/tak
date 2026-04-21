@@ -1,6 +1,8 @@
-type ContainerLogTask = Option<tokio::task::JoinHandle<Result<()>>>;
+use super::*;
 
-fn spawn_container_log_task(
+pub(super) type ContainerLogTask = Option<tokio::task::JoinHandle<Result<()>>>;
+
+pub(super) fn spawn_container_log_task(
     docker: Docker,
     container_id: String,
     task_label: TaskLabel,
@@ -22,9 +24,8 @@ fn spawn_container_log_task(
             }),
         );
         while let Some(item) = logs.next().await {
-            let item = item.context(
-                "infra error: container lifecycle runtime failed: log streaming failed",
-            )?;
+            let item = item
+                .context("infra error: container lifecycle runtime failed: log streaming failed")?;
             if let Some((stream, bytes)) = container_log_output_chunk(item) {
                 crate::emit_task_output(
                     Some(&output_observer),
@@ -48,7 +49,7 @@ fn container_log_output_chunk(output: LogOutput) -> Option<(OutputStream, Vec<u8
     }
 }
 
-async fn finish_container_log_task(task: ContainerLogTask) -> Result<()> {
+pub(super) async fn finish_container_log_task(task: ContainerLogTask) -> Result<()> {
     let Some(task) = task else {
         return Ok(());
     };

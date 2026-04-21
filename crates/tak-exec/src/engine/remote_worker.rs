@@ -1,3 +1,5 @@
+use super::*;
+
 pub async fn execute_remote_worker_steps(
     workspace_root: &Path,
     spec: &RemoteWorkerExecutionSpec,
@@ -35,15 +37,14 @@ pub async fn execute_remote_worker_steps_with_output(
         None => None,
     };
 
-    let result =
-        run_task_steps_with_runtime(
-            &task,
-            workspace_root,
-            runtime_metadata.as_ref(),
-            spec.attempt,
-            output_observer.as_ref(),
-        )
-        .await?;
+    let result = run_task_steps_with_runtime(
+        &task,
+        workspace_root,
+        runtime_metadata.as_ref(),
+        spec.attempt,
+        output_observer.as_ref(),
+    )
+    .await?;
     Ok(RemoteWorkerExecutionResult {
         success: result.success,
         exit_code: result.exit_code,

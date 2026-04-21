@@ -1,4 +1,6 @@
-fn build_task_run_result(
+use super::*;
+
+pub(crate) fn build_task_run_result(
     attempt: u32,
     success: bool,
     placement: &TaskPlacement,
@@ -22,9 +24,9 @@ fn build_task_run_result(
         remote_runtime_kind: outcome
             .remote_runtime_kind
             .or_else(|| runtime_metadata.map(|meta| meta.kind.clone())),
-        remote_runtime_engine: outcome.remote_runtime_engine.or_else(|| {
-            runtime_metadata.and_then(|meta| meta.engine.clone())
-        }),
+        remote_runtime_engine: outcome
+            .remote_runtime_engine
+            .or_else(|| runtime_metadata.and_then(|meta| meta.engine.clone())),
         remote_logs: outcome.remote_logs,
         synced_outputs: outcome.synced_outputs,
     }

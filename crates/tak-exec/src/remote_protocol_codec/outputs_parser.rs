@@ -1,3 +1,5 @@
+use super::*;
+
 pub(crate) fn parse_remote_result_outputs(
     target: &StrictRemoteTarget,
     result: &GetTaskResultResponse,

@@ -1,3 +1,5 @@
+use super::*;
+
 pub fn normalize_container_image_reference(
     image: &str,
 ) -> Result<ContainerImageReference, ContainerImageReferenceError> {
@@ -85,7 +87,11 @@ pub fn validate_container_runtime_execution_spec(
 fn validate_container_runtime_source(
     runtime: &RemoteRuntimeDef,
 ) -> Result<ContainerRuntimeSourceInputSpec, ContainerRuntimeExecutionSpecError> {
-    let image = runtime.image.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty());
+    let image = runtime
+        .image
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty());
     let dockerfile = runtime.dockerfile.as_ref();
 
     match (image, dockerfile) {
@@ -103,11 +109,9 @@ fn validate_container_runtime_source(
                     return Err(ContainerRuntimeExecutionSpecError::MissingDockerfile);
                 }
             };
-            if runtime
-                .build_context
-                .as_ref()
-                .is_some_and(|path| matches!(path, PathInputDef::Path { value } if value.trim().is_empty()))
-            {
+            if runtime.build_context.as_ref().is_some_and(
+                |path| matches!(path, PathInputDef::Path { value } if value.trim().is_empty()),
+            ) {
                 return Err(ContainerRuntimeExecutionSpecError::InvalidBuildContextPathType);
             }
             Ok(ContainerRuntimeSourceInputSpec::Dockerfile {

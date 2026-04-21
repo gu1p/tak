@@ -1,4 +1,10 @@
-fn resolve_current_state(
+use anyhow::{Result, anyhow, bail};
+use tak_core::model::{
+    CurrentStateDef, CurrentStateSpec, IgnoreSourceDef, IgnoreSourceSpec, PathInputDef,
+    normalize_path_ref,
+};
+
+pub(crate) fn resolve_current_state(
     context: Option<CurrentStateDef>,
     package: &str,
 ) -> Result<CurrentStateSpec> {
@@ -61,7 +67,10 @@ fn resolve_ignore_source(source: IgnoreSourceDef, package: &str) -> Result<Ignor
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_context_path(path: PathInputDef, package: &str) -> Result<tak_core::model::PathRef> {
+pub(crate) fn resolve_context_path(
+    path: PathInputDef,
+    package: &str,
+) -> Result<tak_core::model::PathRef> {
     let raw = match path {
         PathInputDef::Path { value } => value.trim().to_string(),
     };

@@ -1,3 +1,5 @@
+use super::*;
+
 /// Selects the first reachable remote endpoint in declaration order.
 ///
 /// ```no_run
@@ -6,7 +8,7 @@
 /// #     Ok(())
 /// # }
 /// ```
-async fn preflight_ordered_remote_target(
+pub(crate) async fn preflight_ordered_remote_target(
     task: &ResolvedTask,
     candidates: &[StrictRemoteTarget],
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
@@ -44,7 +46,7 @@ async fn preflight_ordered_remote_target(
 /// #     Ok(())
 /// # }
 /// ```
-async fn preflight_strict_remote_target(
+pub(crate) async fn preflight_strict_remote_target(
     target: &StrictRemoteTarget,
 ) -> std::result::Result<(), RemotePreflightFailure> {
     if let Err(err) = TransportFactory::socket_addr(target).with_context(|| {
@@ -82,12 +84,12 @@ async fn preflight_strict_remote_target(
     }
 }
 
-fn is_auth_submit_failure(err: &anyhow::Error) -> bool {
+pub(crate) fn is_auth_submit_failure(err: &anyhow::Error) -> bool {
     err.downcast_ref::<RemoteSubmitFailure>()
         .is_some_and(|failure| failure.kind == RemoteSubmitFailureKind::Auth)
 }
 
-async fn fallback_after_auth_submit_failure(
+pub(crate) async fn fallback_after_auth_submit_failure(
     task: &ResolvedTask,
     candidates: &[StrictRemoteTarget],
     failed_node_id: &str,
@@ -97,7 +99,10 @@ async fn fallback_after_auth_submit_failure(
 ) -> Result<StrictRemoteTarget> {
     let mut failures = vec![initial_failure.clone()];
     let mut preflight_failures = Vec::new();
-    if candidates.iter().any(|candidate| candidate.node_id != failed_node_id) {
+    if candidates
+        .iter()
+        .any(|candidate| candidate.node_id != failed_node_id)
+    {
         emit_remote_unavailable(output_observer, &task.label, submit.attempt, failed_node_id)?;
     }
 
@@ -106,7 +111,12 @@ async fn fallback_after_auth_submit_failure(
             continue;
         }
 
-        emit_remote_probe(output_observer, &task.label, submit.attempt, &candidate.node_id)?;
+        emit_remote_probe(
+            output_observer,
+            &task.label,
+            submit.attempt,
+            &candidate.node_id,
+        )?;
         match preflight_strict_remote_target(candidate).await {
             Ok(()) => emit_remote_connected(
                 output_observer,
@@ -129,7 +139,12 @@ async fn fallback_after_auth_submit_failure(
             }
         }
 
-        emit_remote_submit(output_observer, &task.label, submit.attempt, &candidate.node_id)?;
+        emit_remote_submit(
+            output_observer,
+            &task.label,
+            submit.attempt,
+            &candidate.node_id,
+        )?;
         match remote_protocol_submit(
             candidate,
             submit.task_run_id,

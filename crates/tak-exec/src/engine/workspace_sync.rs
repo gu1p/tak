@@ -1,4 +1,6 @@
-fn sync_remote_outputs(
+use super::*;
+
+pub(crate) fn sync_remote_outputs(
     staged_root: &Path,
     workspace_root: &Path,
     outputs: &[SyncedOutput],
@@ -43,7 +45,7 @@ fn sync_remote_outputs(
     Ok(())
 }
 
-async fn sync_remote_outputs_from_remote(
+pub(crate) async fn sync_remote_outputs_from_remote(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     attempt: u32,
@@ -143,7 +145,7 @@ fn normalized_synced_output_path(output: &SyncedOutput) -> Result<PathBuf> {
     Ok(PathBuf::from(normalized.path))
 }
 
-fn normalize_filesystem_relative_path(path: &Path) -> String {
+pub(crate) fn normalize_filesystem_relative_path(path: &Path) -> String {
     let mut value = String::new();
     for component in path.components() {
         if !value.is_empty() {

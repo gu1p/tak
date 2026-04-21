@@ -1,6 +1,12 @@
+use super::*;
+
+use prost::Message;
 use tak_proto::{CpuUsage, MemoryUsage, NodeStatusResponse};
 
-async fn render_remote_wait_heartbeat(target: &StrictRemoteTarget, elapsed_s: u64) -> String {
+pub(crate) async fn render_remote_wait_heartbeat(
+    target: &StrictRemoteTarget,
+    elapsed_s: u64,
+) -> String {
     let summary = fetch_remote_wait_telemetry_summary(target)
         .await
         .unwrap_or_else(|| "node telemetry unavailable".to_string());
@@ -48,7 +54,7 @@ async fn fetch_remote_wait_telemetry_summary(target: &StrictRemoteTarget) -> Opt
         .and_then(|result| result.ok())
 }
 
-fn remote_wait_heartbeat_interval() -> Duration {
+pub(crate) fn remote_wait_heartbeat_interval() -> Duration {
     const DEFAULT_REMOTE_WAIT_HEARTBEAT: Duration = Duration::from_secs(30);
 
     std::env::var("TAK_TEST_REMOTE_WAIT_HEARTBEAT_MS")

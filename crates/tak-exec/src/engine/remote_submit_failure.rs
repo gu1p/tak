@@ -1,13 +1,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RemoteSubmitFailureKind {
+pub(crate) enum RemoteSubmitFailureKind {
     Auth,
     Other,
 }
 
 #[derive(Debug, Clone)]
-struct RemoteSubmitFailure {
-    kind: RemoteSubmitFailureKind,
-    message: String,
+pub(crate) struct RemoteSubmitFailure {
+    pub(crate) kind: RemoteSubmitFailureKind,
+    pub(crate) message: String,
 }
 
 impl std::fmt::Display for RemoteSubmitFailure {

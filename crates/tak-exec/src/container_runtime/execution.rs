@@ -1,4 +1,6 @@
-async fn run_step_in_container(
+use super::*;
+
+pub(super) async fn run_step_in_container(
     docker: &Docker,
     engine: ContainerEngine,
     podman_wait_socket: Option<&str>,
@@ -110,7 +112,7 @@ async fn wait_for_container_exit_code_via_api(
     docker_wait_result_exit_code(result)
 }
 
-fn docker_wait_result_exit_code(
+pub(super) fn docker_wait_result_exit_code(
     result: std::result::Result<bollard::models::ContainerWaitResponse, BollardError>,
 ) -> Result<i32> {
     match result {
@@ -123,8 +125,9 @@ fn docker_wait_result_exit_code(
                 "infra error: container lifecycle runtime failed: docker wait failed (status {code}): {error}"
             );
         }
-        Err(err) => Err(err)
-            .context("infra error: container lifecycle runtime failed: waiting for container failed"),
+        Err(err) => Err(err).context(
+            "infra error: container lifecycle runtime failed: waiting for container failed",
+        ),
     }
 }
 
@@ -162,7 +165,9 @@ async fn wait_for_container_exit_code_via_cli(
         .unwrap_or_default()
         .trim()
         .parse::<i32>()
-        .context("infra error: container lifecycle runtime failed: invalid podman wait exit code")?;
+        .context(
+            "infra error: container lifecycle runtime failed: invalid podman wait exit code",
+        )?;
     Ok(exit_code)
 }
 

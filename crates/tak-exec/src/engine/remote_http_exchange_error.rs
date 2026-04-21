@@ -1,32 +1,32 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RemoteHttpExchangeErrorKind {
+pub(crate) enum RemoteHttpExchangeErrorKind {
     Timeout,
     Connect,
     Other,
 }
 
 #[derive(Debug, Clone)]
-struct RemoteHttpExchangeError {
-    kind: RemoteHttpExchangeErrorKind,
-    message: String,
+pub(crate) struct RemoteHttpExchangeError {
+    pub(crate) kind: RemoteHttpExchangeErrorKind,
+    pub(crate) message: String,
 }
 
 impl RemoteHttpExchangeError {
-    fn timeout(message: String) -> Self {
+    pub(crate) fn timeout(message: String) -> Self {
         Self {
             kind: RemoteHttpExchangeErrorKind::Timeout,
             message,
         }
     }
 
-    fn connect(message: String) -> Self {
+    pub(crate) fn connect(message: String) -> Self {
         Self {
             kind: RemoteHttpExchangeErrorKind::Connect,
             message,
         }
     }
 
-    fn other(message: String) -> Self {
+    pub(crate) fn other(message: String) -> Self {
         Self {
             kind: RemoteHttpExchangeErrorKind::Other,
             message,

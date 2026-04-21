@@ -1,8 +1,10 @@
-use std::fs;
+use super::*;
+
 use bollard::image::BuildImageOptions;
+use std::fs;
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef};
 
-async fn ensure_container_runtime_source(
+pub(super) async fn ensure_container_runtime_source(
     docker: &Docker,
     workspace_root: &Path,
     plan: &ContainerExecutionPlan,
@@ -50,11 +52,9 @@ async fn build_container_image_from_dockerfile(
         );
     }
 
-    let dockerfile_relative = dockerfile_path
-        .strip_prefix(&build_context_root)
-        .context(
-            "infra error: container lifecycle build failed: dockerfile must be within build context",
-        )?;
+    let dockerfile_relative = dockerfile_path.strip_prefix(&build_context_root).context(
+        "infra error: container lifecycle build failed: dockerfile must be within build context",
+    )?;
     let archive = build_context_archive(&build_context_root)?;
 
     let mut stream = docker.build_image(
@@ -144,9 +144,16 @@ fn collect_build_context_files(
             )
         })?;
         let metadata = entry.metadata().with_context(|| {
-            format!("failed to read build context metadata for {}", path.display())
+            format!(
+                "failed to read build context metadata for {}",
+                path.display()
+            )
         })?;
-        files.push((normalize_archive_path(relative), path, archive_mode(&metadata)));
+        files.push((
+            normalize_archive_path(relative),
+            path,
+            archive_mode(&metadata),
+        ));
     }
     Ok(())
 }

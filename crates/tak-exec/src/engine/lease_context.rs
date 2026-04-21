@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Debug, Clone)]
 pub(crate) struct LeaseContext {
     pub(crate) user: String,
@@ -13,7 +15,7 @@ impl LeaseContext {
     /// #     Ok(())
     /// # }
     /// ```
-    fn from_options(options: &RunOptions) -> Self {
+    pub(crate) fn from_options(options: &RunOptions) -> Self {
         let user = options.user.clone().unwrap_or_else(|| {
             env::var("USER")
                 .or_else(|_| env::var("USERNAME"))

@@ -1,3 +1,5 @@
+use super::*;
+
 /// Runs one task with retries, acquiring and releasing leases per attempt when configured.
 ///
 /// ```no_run
@@ -6,13 +8,14 @@
 /// #     Ok(())
 /// # }
 /// ```
-async fn run_single_task(
+pub(crate) async fn run_single_task(
     task: &ResolvedTask,
     workspace_root: &Path,
     options: &RunOptions,
     lease_context: &LeaseContext,
 ) -> Result<TaskRunResult> {
-    let mut placement = preflight_task_placement(task, workspace_root, options.output_observer.as_ref()).await?;
+    let mut placement =
+        preflight_task_placement(task, workspace_root, options.output_observer.as_ref()).await?;
     let runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
     let remote_workspace = if placement.placement_mode == PlacementMode::Remote {
         Some(stage_remote_workspace(

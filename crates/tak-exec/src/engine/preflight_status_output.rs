@@ -1,4 +1,6 @@
-fn emit_remote_probe(
+use super::*;
+
+pub(crate) fn emit_remote_probe(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
@@ -14,7 +16,7 @@ fn emit_remote_probe(
     )
 }
 
-fn emit_remote_connected(
+pub(crate) fn emit_remote_connected(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
@@ -30,7 +32,7 @@ fn emit_remote_connected(
     )
 }
 
-fn emit_remote_unavailable(
+pub(crate) fn emit_remote_unavailable(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
@@ -46,7 +48,7 @@ fn emit_remote_unavailable(
     )
 }
 
-fn emit_remote_submit(
+pub(crate) fn emit_remote_submit(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
@@ -62,7 +64,7 @@ fn emit_remote_submit(
     )
 }
 
-fn emit_remote_accepted(
+pub(crate) fn emit_remote_accepted(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
@@ -78,7 +80,7 @@ fn emit_remote_accepted(
     )
 }
 
-fn next_candidate_available(
+pub(crate) fn next_candidate_available(
     candidates: &[StrictRemoteTarget],
     failed_node_id: &str,
     index: usize,

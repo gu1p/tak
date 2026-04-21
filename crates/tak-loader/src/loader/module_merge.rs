@@ -1,4 +1,18 @@
-fn merge_module(
+use std::env;
+use std::path::Path;
+
+use anyhow::{Result, anyhow, bail};
+use tak_core::label::parse_label;
+use tak_core::model::{
+    LimiterDef, LimiterKey, LimiterRef, ModuleSpec, ResolvedTask, RetryDef, Scope,
+};
+
+use super::{
+    MergeState, context_resolution::resolve_current_state, execution_resolution::resolve_execution,
+    output_resolution::resolve_output_selectors, remote_validation::validate_runtime,
+};
+
+pub(crate) fn merge_module(
     module_path: &Path,
     root: &Path,
     project_id: &str,
@@ -123,14 +137,6 @@ fn merge_module(
     Ok(())
 }
 
-/// Copies a limiter reference while resolving the concrete scope key for this workspace.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
 fn with_scope_key(reference: &LimiterRef, project_id: &str, root: &Path) -> LimiterRef {
     LimiterRef {
         name: reference.name.clone(),
@@ -139,14 +145,6 @@ fn with_scope_key(reference: &LimiterRef, project_id: &str, root: &Path) -> Limi
     }
 }
 
-/// Builds the workspace limiter key for a concrete limiter definition.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
 fn limiter_key_for_limiter(limiter: &LimiterDef, project_id: &str, root: &Path) -> LimiterKey {
     match limiter {
         LimiterDef::Resource { name, scope, .. }
@@ -160,14 +158,6 @@ fn limiter_key_for_limiter(limiter: &LimiterDef, project_id: &str, root: &Path) 
     }
 }
 
-/// Resolves a concrete scope key value for the given scope variant.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
 fn scope_key_for(scope: &Scope, project_id: &str, root: &Path) -> Option<String> {
     match scope {
         Scope::Machine => None,

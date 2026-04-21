@@ -6,7 +6,9 @@
 /// #     Ok(())
 /// # }
 /// ```
-fn stage_remote_workspace(
+use super::*;
+
+pub(crate) fn stage_remote_workspace(
     task: &ResolvedTask,
     workspace_root: &Path,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,

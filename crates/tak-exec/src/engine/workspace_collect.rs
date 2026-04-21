@@ -1,12 +1,9 @@
-/// Collects all regular files under the workspace root as normalized workspace-anchored refs.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn collect_workspace_files(workspace_root: &Path, state: &CurrentStateSpec) -> Result<Vec<PathRef>> {
+use super::*;
+
+pub(crate) fn collect_workspace_files(
+    workspace_root: &Path,
+    state: &CurrentStateSpec,
+) -> Result<Vec<PathRef>> {
     let mut files = if uses_workspace_gitignore(state) {
         collect_workspace_files_with_gitignore(workspace_root)?
     } else {
@@ -150,15 +147,7 @@ fn collect_explicit_include_files(
     Ok(())
 }
 
-/// Copies manifest-selected files into the staged workspace while preserving relative layout.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn materialize_manifest_files(
+pub(crate) fn materialize_manifest_files(
     workspace_root: &Path,
     staged_root: &Path,
     entries: &[PathRef],

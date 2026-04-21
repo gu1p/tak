@@ -1,3 +1,5 @@
+use super::*;
+
 /// Repeatedly requests a lease for a task until granted or a terminal daemon error occurs.
 ///
 /// ```no_run

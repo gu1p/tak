@@ -1,3 +1,6 @@
+use super::*;
+use crate::RemoteObservation;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequiredRemoteDiagnostic {
     pub pool: Option<String>,

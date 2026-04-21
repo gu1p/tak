@@ -1,4 +1,18 @@
-fn validate_remote_transport(transport: Option<RemoteTransportDef>) -> Result<RemoteTransportKind> {
+use anyhow::{Result, anyhow, bail};
+use tak_core::model::{
+    ContainerRuntimeSourceInputSpec, ContainerRuntimeSourceSpec, PathInputDef, PathRef,
+    RemoteRuntimeDef, RemoteRuntimeSpec, RemoteTransportDef, RemoteTransportKind,
+    normalize_path_ref, validate_container_runtime_execution_spec,
+};
+
+use super::{
+    V1_TRANSPORT_ANY, V1_TRANSPORT_DIRECT, V1_TRANSPORT_TOR,
+    context_resolution::resolve_context_path,
+};
+
+pub(crate) fn validate_remote_transport(
+    transport: Option<RemoteTransportDef>,
+) -> Result<RemoteTransportKind> {
     let Some(transport) = transport else {
         return Ok(RemoteTransportKind::Any);
     };
@@ -17,7 +31,7 @@ fn validate_remote_transport(transport: Option<RemoteTransportDef>) -> Result<Re
     }
 }
 
-fn validate_runtime(
+pub(crate) fn validate_runtime(
     runtime: Option<RemoteRuntimeDef>,
     package: &str,
     owner: &str,
@@ -46,8 +60,7 @@ fn resolve_container_runtime_source(
             dockerfile,
             build_context,
         } => {
-            let dockerfile =
-                resolve_runtime_path(dockerfile, package, owner, "dockerfile")?;
+            let dockerfile = resolve_runtime_path(dockerfile, package, owner, "dockerfile")?;
             let build_context = match build_context {
                 Some(build_context) => {
                     resolve_runtime_path(build_context, package, owner, "build_context")?

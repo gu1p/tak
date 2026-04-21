@@ -1,3 +1,5 @@
+use super::*;
+
 pub fn normalize_path_ref(anchor: &str, path: &str) -> Result<PathRef, PathNormalizationError> {
     let normalized_anchor = parse_anchor(anchor)?;
     let normalized_path = normalize_relative_path(anchor, path)?;

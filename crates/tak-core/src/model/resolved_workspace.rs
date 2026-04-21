@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LimiterKey {
     pub scope: Scope,
@@ -58,8 +60,13 @@ pub struct RemoteSpec {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerRuntimeSourceSpec {
-    Image { image: String },
-    Dockerfile { dockerfile: PathRef, build_context: PathRef },
+    Image {
+        image: String,
+    },
+    Dockerfile {
+        dockerfile: PathRef,
+        build_context: PathRef,
+    },
 }
 
 #[derive(Debug, Clone)]

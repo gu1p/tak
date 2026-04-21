@@ -31,7 +31,11 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
         payload
             .needs
             .iter()
-            .map(|need| (need.name.clone(), need.scope.clone(), need.scope_key.clone()))
+            .map(|need| (
+                need.name.clone(),
+                need.scope.clone(),
+                need.scope_key.clone()
+            ))
             .collect::<Vec<_>>(),
         vec![
             ("cpu".into(), "machine".into(), None),
@@ -51,7 +55,12 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
         }
         other => panic!("expected glob output, got {other:?}"),
     }
-    match payload.runtime.expect("runtime").kind.expect("runtime kind") {
+    match payload
+        .runtime
+        .expect("runtime")
+        .kind
+        .expect("runtime kind")
+    {
         runtime_spec::Kind::Container(container) => {
             assert_eq!(container.image.as_deref(), Some("ghcr.io/acme/web:latest"));
             assert_eq!(container.dockerfile, None);

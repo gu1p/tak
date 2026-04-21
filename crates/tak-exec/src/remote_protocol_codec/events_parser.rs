@@ -1,3 +1,5 @@
+use super::*;
+
 pub(crate) fn parse_remote_events_response(
     target: &StrictRemoteTarget,
     response_body: &[u8],
@@ -31,7 +33,11 @@ pub(crate) fn parse_remote_events_response(
             bytes: if !event.chunk_bytes.is_empty() {
                 event.chunk_bytes
             } else {
-                event.chunk.or(event.message).unwrap_or_default().into_bytes()
+                event
+                    .chunk
+                    .or(event.message)
+                    .unwrap_or_default()
+                    .into_bytes()
             },
         });
     }

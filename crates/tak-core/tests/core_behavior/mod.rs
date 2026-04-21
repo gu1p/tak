@@ -4,5 +4,7 @@ mod container_runtime_normalization;
 mod context_manifest;
 mod current_state;
 mod labels;
+mod model_facade_functions;
+mod model_public_types_contract;
 mod path_refs;
 mod topo;

@@ -12,6 +12,10 @@ use tokio::process::Command;
 
 use crate::{OutputStream, TaskOutputObserver};
 
+mod output_relay;
+
+use output_relay::{finish_output_relays, spawn_output_relay};
+
 #[derive(Debug)]
 pub(crate) struct StepRunResult {
     pub(crate) success: bool,
@@ -88,7 +92,6 @@ pub(crate) async fn run_step(
 }
 
 type OutputRelayTask = Option<tokio::task::JoinHandle<Result<()>>>;
-include!("step_runner/output_relay.rs");
 
 /// Builds an executable process command and effective working directory for a step.
 ///

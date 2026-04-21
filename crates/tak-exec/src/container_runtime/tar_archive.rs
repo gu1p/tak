@@ -1,10 +1,12 @@
-fn tar_builder(archive: &mut Vec<u8>) -> tar::Builder<&mut Vec<u8>> {
+use super::*;
+
+pub(super) fn tar_builder(archive: &mut Vec<u8>) -> tar::Builder<&mut Vec<u8>> {
     let mut builder = tar::Builder::new(archive);
     builder.mode(tar::HeaderMode::Deterministic);
     builder
 }
 
-fn append_tar_entry(
+pub(super) fn append_tar_entry(
     builder: &mut tar::Builder<&mut Vec<u8>>,
     path: &str,
     absolute_path: &Path,

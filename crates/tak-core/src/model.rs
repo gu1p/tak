@@ -12,17 +12,59 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-include!("model/task_identity.rs");
-include!("model/module_spec.rs");
-include!("model/remote_config.rs");
-include!("model/container_runtime_types.rs");
-include!("model/execution_policy.rs");
-include!("model/limiter_retry.rs");
-include!("model/resolved_workspace.rs");
-include!("model/container_runtime_validation.rs");
-include!("model/context_manifest.rs");
-include!("model/current_state_manifest.rs");
-include!("model/path_anchor.rs");
-include!("model/container_runtime_normalization.rs");
-include!("model/container_runtime_limits.rs");
-include!("model/relative_path.rs");
+mod container_runtime_limits;
+mod container_runtime_normalization;
+mod container_runtime_types;
+mod container_runtime_validation;
+mod context_manifest;
+mod current_state_manifest;
+mod execution_policy;
+mod limiter_retry;
+mod module_spec;
+mod path_anchor;
+mod relative_path;
+mod remote_config;
+mod resolved_workspace;
+mod task_identity;
+
+pub use self::container_runtime_types::{
+    ContainerImageReference, ContainerImageReferenceError, ContainerMountSpec,
+    ContainerResourceLimitsSpec, ContainerRuntimeExecutionSpec, ContainerRuntimeExecutionSpecError,
+    ContainerRuntimeSourceInputSpec,
+};
+pub use self::container_runtime_validation::{
+    normalize_container_image_reference, validate_container_runtime_execution_spec,
+};
+pub use self::context_manifest::normalize_path_ref;
+pub use self::current_state_manifest::build_current_state_manifest;
+pub use self::execution_policy::{
+    Hold, NeedDef, PolicyDecisionDef, PolicyDecisionModeDef, QueueUseDef, StepDef, TaskExecutionDef,
+};
+pub use self::limiter_retry::{BackoffDef, LimiterDef, QueueDef, QueueDiscipline, RetryDef};
+pub use self::module_spec::{
+    CurrentStateDef, Defaults, IgnoreSourceDef, LocalDef, ModuleSpec, OutputSelectorDef,
+    PathInputDef, TaskDef,
+};
+pub use self::remote_config::{
+    ContainerMountDef, ContainerResourceLimitsDef, RemoteDef, RemoteRuntimeDef, RemoteTransportDef,
+    RemoteTransportKind,
+};
+pub use self::resolved_workspace::{
+    ContainerRuntimeSourceSpec, ContextManifest, CurrentStateOrigin, CurrentStateSpec,
+    IgnoreSourceSpec, LimiterKey, LocalSpec, OutputSelectorSpec, PathAnchor,
+    PathNormalizationError, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec,
+    ResolvedTask, TaskExecutionSpec, WorkspaceSpec,
+};
+pub use self::task_identity::{LimiterRef, Scope, TaskLabel};
+
+pub(crate) use self::container_runtime_limits::{
+    is_sensitive_runtime_env_key, normalize_runtime_resource_limits,
+};
+pub(crate) use self::container_runtime_normalization::{
+    normalize_image_name_and_tag, normalize_runtime_command, normalize_runtime_env,
+    normalize_runtime_mounts,
+};
+pub(crate) use self::current_state_manifest::{compare_path_ref, hash_manifest_entries};
+pub(crate) use self::module_spec::default_local_parallelism;
+pub(crate) use self::path_anchor::parse_anchor;
+pub(crate) use self::relative_path::normalize_relative_path;

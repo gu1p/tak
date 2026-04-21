@@ -1,4 +1,6 @@
-fn parse_anchor(anchor: &str) -> Result<PathAnchor, PathNormalizationError> {
+use super::*;
+
+pub(crate) fn parse_anchor(anchor: &str) -> Result<PathAnchor, PathNormalizationError> {
     let normalized = anchor.trim();
     if normalized.is_empty() {
         return Err(PathNormalizationError::EmptyAnchor);

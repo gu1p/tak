@@ -1,4 +1,15 @@
-fn resolve_execution(execution: TaskExecutionDef, package: &str) -> Result<TaskExecutionSpec> {
+use anyhow::{Result, anyhow, bail};
+use tak_core::model::{
+    LocalDef, LocalSpec, PolicyDecisionDef, PolicyDecisionModeDef, PolicyDecisionSpec, RemoteDef,
+    RemoteSpec, TaskExecutionDef, TaskExecutionSpec,
+};
+
+use super::remote_validation::{validate_remote_transport, validate_runtime};
+
+pub(crate) fn resolve_execution(
+    execution: TaskExecutionDef,
+    package: &str,
+) -> Result<TaskExecutionSpec> {
     match execution {
         TaskExecutionDef::LocalOnly { local } => {
             let id = local.id.trim().to_string();
@@ -15,9 +26,9 @@ fn resolve_execution(execution: TaskExecutionDef, package: &str) -> Result<TaskE
                 runtime,
             }))
         }
-        TaskExecutionDef::RemoteOnly { remote } => {
-            Ok(TaskExecutionSpec::RemoteOnly(resolve_remote(remote, package)?))
-        }
+        TaskExecutionDef::RemoteOnly { remote } => Ok(TaskExecutionSpec::RemoteOnly(
+            resolve_remote(remote, package)?,
+        )),
         TaskExecutionDef::ByCustomPolicy {
             policy_name,
             decision,
@@ -45,7 +56,10 @@ fn resolve_execution(execution: TaskExecutionDef, package: &str) -> Result<TaskE
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_policy_decision(decision: PolicyDecisionDef, package: &str) -> Result<PolicyDecisionSpec> {
+pub(crate) fn resolve_policy_decision(
+    decision: PolicyDecisionDef,
+    package: &str,
+) -> Result<PolicyDecisionSpec> {
     let reason = {
         let normalized = decision.reason.trim().to_string();
         if normalized.is_empty() {
@@ -62,7 +76,9 @@ fn resolve_policy_decision(decision: PolicyDecisionDef, package: &str) -> Result
             }
             let local = decision
                 .local
-                .map(|local| resolve_local(local, package, "execution ByCustomPolicy.decision.local"))
+                .map(|local| {
+                    resolve_local(local, package, "execution ByCustomPolicy.decision.local")
+                })
                 .transpose()?;
             Ok(PolicyDecisionSpec::Local { reason, local })
         }
@@ -113,7 +129,9 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         runtime,
     } = remote;
 
-    let pool = pool.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    let pool = pool
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     let required_tags = required_tags
         .into_iter()
         .map(|value| value.trim().to_string())

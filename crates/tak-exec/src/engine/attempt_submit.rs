@@ -1,4 +1,6 @@
-async fn preflight_task_placement(
+use super::*;
+
+pub(crate) async fn preflight_task_placement(
     task: &ResolvedTask,
     workspace_root: &Path,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
@@ -16,7 +18,7 @@ async fn preflight_task_placement(
     Ok(placement)
 }
 
-async fn resolve_initial_runtime_metadata(
+pub(crate) async fn resolve_initial_runtime_metadata(
     task: &ResolvedTask,
     placement: &mut TaskPlacement,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
@@ -26,7 +28,7 @@ async fn resolve_initial_runtime_metadata(
     resolve_runtime_execution_metadata(task, placement)
 }
 
-async fn resolve_attempt_submit_state(
+pub(crate) async fn resolve_attempt_submit_state(
     task: &ResolvedTask,
     placement: &mut TaskPlacement,
     remote_workspace: Option<&RemoteWorkspaceStage>,

@@ -1,4 +1,6 @@
-fn resolve_runtime_execution_metadata(
+use super::*;
+
+pub(crate) fn resolve_runtime_execution_metadata(
     task: &ResolvedTask,
     placement: &TaskPlacement,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
@@ -19,7 +21,7 @@ fn resolve_runtime_execution_metadata(
     resolve_runtime_execution_metadata_for_target(task, target)
 }
 
-fn resolve_runtime_execution_metadata_for_target(
+pub(crate) fn resolve_runtime_execution_metadata_for_target(
     task: &ResolvedTask,
     target: &StrictRemoteTarget,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
@@ -30,7 +32,7 @@ fn resolve_runtime_execution_metadata_for_target(
     )
 }
 
-fn resolve_runtime_execution_metadata_for_node_runtime(
+pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
     task: &ResolvedTask,
     node_id: &str,
     runtime: Option<&RemoteRuntimeSpec>,
@@ -83,10 +85,7 @@ fn resolve_runtime_execution_metadata_for_node_runtime(
             let mut env_overrides = BTreeMap::new();
             env_overrides.insert("TAK_RUNTIME".to_string(), "containerized".to_string());
             env_overrides.insert("TAK_RUNTIME_ENGINE".to_string(), engine_name.clone());
-            env_overrides.insert(
-                "TAK_RUNTIME_SOURCE".to_string(),
-                runtime_source.to_string(),
-            );
+            env_overrides.insert("TAK_RUNTIME_SOURCE".to_string(), runtime_source.to_string());
             env_overrides.insert("TAK_CONTAINER_IMAGE".to_string(), image.clone());
             env_overrides.insert(
                 "TAK_REMOTE_RUNTIME".to_string(),
@@ -126,7 +125,7 @@ fn should_use_simulated_container_runtime() -> bool {
         || env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok()
 }
 
-fn maybe_fail_injected_container_lifecycle_stage(
+pub(crate) fn maybe_fail_injected_container_lifecycle_stage(
     task: &ResolvedTask,
     node_id: &str,
     stage: ContainerLifecycleStage,
@@ -146,7 +145,9 @@ fn maybe_fail_injected_container_lifecycle_stage(
     );
 }
 
-fn test_injected_container_lifecycle_stage(node_id: &str) -> Option<ContainerLifecycleStage> {
+pub(crate) fn test_injected_container_lifecycle_stage(
+    node_id: &str,
+) -> Option<ContainerLifecycleStage> {
     let configured = env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").ok()?;
     for entry in configured.split(',') {
         let entry = entry.trim();

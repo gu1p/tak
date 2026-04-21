@@ -1,4 +1,4 @@
-use super::*;
+use super::{BollardError, execution::docker_wait_result_exit_code};
 
 #[test]
 fn docker_wait_result_exit_code_accepts_zero_status() {

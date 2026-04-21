@@ -1,3 +1,9 @@
+use std::collections::BTreeSet;
+use std::path::Path;
+
+use anyhow::{Result, anyhow, bail};
+use sha2::{Digest, Sha256};
+
 /// Resolves the project id from options, `TASKS.py` module specs, or a path-based hash fallback.
 ///
 /// ```no_run
@@ -6,7 +12,7 @@
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_project_id(
+pub(crate) fn resolve_project_id(
     root: &Path,
     from_options: Option<&str>,
     from_modules: &[Option<&str>],
@@ -51,7 +57,7 @@ fn resolve_project_id(
 /// #     Ok(())
 /// # }
 /// ```
-fn package_for_file(root: &Path, tasks_file: &Path) -> Result<String> {
+pub(crate) fn package_for_file(root: &Path, tasks_file: &Path) -> Result<String> {
     let parent = tasks_file
         .parent()
         .ok_or_else(|| anyhow!("TASKS.py has no parent: {}", tasks_file.display()))?;

@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ModuleSpec {
     #[serde(default = "default_spec_version")]
@@ -116,6 +118,6 @@ pub struct LocalDef {
 /// #     Ok(())
 /// # }
 /// ```
-fn default_local_parallelism() -> u32 {
+pub(crate) fn default_local_parallelism() -> u32 {
     1
 }

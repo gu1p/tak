@@ -1,26 +1,28 @@
-struct AttemptExecutionContext<'a> {
-    task: &'a ResolvedTask,
-    workspace_root: &'a Path,
-    run_root: &'a Path,
-    placement: &'a TaskPlacement,
-    runtime_metadata: Option<&'a RuntimeExecutionMetadata>,
-    remote_workspace: Option<&'a RemoteWorkspaceStage>,
-    task_run_id: &'a str,
-    attempt: u32,
-    output_observer: Option<&'a std::sync::Arc<dyn TaskOutputObserver>>,
+use super::*;
+
+pub(crate) struct AttemptExecutionContext<'a> {
+    pub(crate) task: &'a ResolvedTask,
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) run_root: &'a Path,
+    pub(crate) placement: &'a TaskPlacement,
+    pub(crate) runtime_metadata: Option<&'a RuntimeExecutionMetadata>,
+    pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    pub(crate) task_run_id: &'a str,
+    pub(crate) attempt: u32,
+    pub(crate) output_observer: Option<&'a std::sync::Arc<dyn TaskOutputObserver>>,
 }
 
-struct AttemptExecutionOutcome {
-    attempt_success: bool,
-    last_exit_code: Option<i32>,
-    failure_detail: Option<String>,
-    synced_outputs: Vec<SyncedOutput>,
-    remote_runtime_kind: Option<String>,
-    remote_runtime_engine: Option<String>,
-    remote_logs: Vec<RemoteLogChunk>,
+pub(crate) struct AttemptExecutionOutcome {
+    pub(crate) attempt_success: bool,
+    pub(crate) last_exit_code: Option<i32>,
+    pub(crate) failure_detail: Option<String>,
+    pub(crate) synced_outputs: Vec<SyncedOutput>,
+    pub(crate) remote_runtime_kind: Option<String>,
+    pub(crate) remote_runtime_engine: Option<String>,
+    pub(crate) remote_logs: Vec<RemoteLogChunk>,
 }
 
-async fn execute_task_attempt(
+pub(crate) async fn execute_task_attempt(
     context: &AttemptExecutionContext<'_>,
 ) -> Result<AttemptExecutionOutcome> {
     let run_local_attempt = context.placement.placement_mode != PlacementMode::Remote;
@@ -40,7 +42,9 @@ async fn execute_task_attempt(
         })
     };
 
-    let (remote_logs, protocol_result) = if context.placement.placement_mode == PlacementMode::Remote {
+    let (remote_logs, protocol_result) = if context.placement.placement_mode
+        == PlacementMode::Remote
+    {
         let target = context
             .placement
             .strict_remote_target

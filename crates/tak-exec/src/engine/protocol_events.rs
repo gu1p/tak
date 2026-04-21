@@ -6,7 +6,9 @@
 /// #     Ok(())
 /// # }
 /// ```
-async fn remote_protocol_events(
+use super::*;
+
+pub(crate) async fn remote_protocol_events(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     task_label: &TaskLabel,

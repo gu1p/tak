@@ -1,4 +1,6 @@
-fn spawn_output_relay<R>(
+use super::*;
+
+pub(super) fn spawn_output_relay<R>(
     reader: Option<R>,
     task_label: TaskLabel,
     attempt: u32,
@@ -45,7 +47,7 @@ where
     }
 }
 
-async fn finish_output_relays(
+pub(super) async fn finish_output_relays(
     stdout_task: OutputRelayTask,
     stderr_task: OutputRelayTask,
 ) -> Result<()> {

@@ -1,4 +1,6 @@
-fn is_sensitive_runtime_env_key(key: &str) -> bool {
+use super::*;
+
+pub(crate) fn is_sensitive_runtime_env_key(key: &str) -> bool {
     let lower = key.to_ascii_lowercase();
     lower.contains("token")
         || lower.contains("secret")
@@ -7,7 +9,7 @@ fn is_sensitive_runtime_env_key(key: &str) -> bool {
         || lower.contains("key")
 }
 
-fn normalize_runtime_resource_limits(
+pub(crate) fn normalize_runtime_resource_limits(
     resource_limits: Option<&ContainerResourceLimitsDef>,
 ) -> Result<Option<ContainerResourceLimitsSpec>, ContainerRuntimeExecutionSpecError> {
     let Some(resource_limits) = resource_limits else {

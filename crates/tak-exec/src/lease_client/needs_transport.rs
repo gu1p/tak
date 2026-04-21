@@ -1,3 +1,5 @@
+use super::*;
+
 /// Converts core model need definitions into daemon wire-format needs.
 ///
 /// ```no_run
@@ -26,7 +28,7 @@ pub(crate) fn convert_needs(needs: &[NeedDef]) -> Vec<NeedRequest> {
 /// #     Ok(())
 /// # }
 /// ```
-async fn send_daemon_request(socket_path: &Path, request: Request) -> Result<Response> {
+pub(super) async fn send_daemon_request(socket_path: &Path, request: Request) -> Result<Response> {
     let stream = UnixStream::connect(socket_path)
         .await
         .with_context(|| format!("failed to connect to daemon at {}", socket_path.display()))?;

@@ -1,3 +1,11 @@
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result, anyhow, bail};
+use tak_core::model::{ModuleSpec, PathInputDef};
+
+use super::{LoadOptions, TASKS_FILE, module_eval::eval_module_spec};
+
 pub fn detect_workspace_root(start: &Path) -> Result<PathBuf> {
     resolve_tasks_file(start)?
         .parent()
@@ -17,9 +25,7 @@ pub fn discover_tasks_files(
     root: &Path,
     options: &LoadOptions,
 ) -> Result<Vec<(PathBuf, ModuleSpec)>> {
-    let workspace_root = root
-        .canonicalize()
-        .unwrap_or_else(|_| root.to_path_buf());
+    let workspace_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let root_tasks_file = workspace_root.join(TASKS_FILE);
     let mut seen = BTreeSet::new();
     let mut stack = Vec::new();
@@ -43,10 +49,7 @@ fn resolve_tasks_file(start: &Path) -> Result<PathBuf> {
         start.join(TASKS_FILE)
     };
 
-    if candidate
-        .file_name()
-        .is_none_or(|name| name != TASKS_FILE)
-    {
+    if candidate.file_name().is_none_or(|name| name != TASKS_FILE) {
         bail!(
             "expected `{TASKS_FILE}` in the current directory, got {}",
             candidate.display()
@@ -96,7 +99,14 @@ fn collect_tasks_files(
 
     for include in includes {
         let include_tasks = resolve_include_tasks_file(tasks_file, workspace_root, &include)?;
-        collect_tasks_files(&include_tasks, workspace_root, options, seen, stack, modules)?;
+        collect_tasks_files(
+            &include_tasks,
+            workspace_root,
+            options,
+            seen,
+            stack,
+            modules,
+        )?;
     }
 
     stack.pop();

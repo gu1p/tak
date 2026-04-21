@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Clone)]
 pub struct RunOptions {
     pub jobs: usize,

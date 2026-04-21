@@ -2,7 +2,11 @@
 
 #[test]
 fn tor_transport_uses_embedded_arti_client_not_external_socks_proxy() {
-    let source = include_str!("../src/lib.rs");
+    let source = format!(
+        "{}\n{}",
+        include_str!("../src/engine/mod.rs"),
+        include_str!("../src/engine/transport.rs"),
+    );
     assert!(
         source.contains("arti_client::TorClient"),
         "tor transport must embed Arti client in-process"

@@ -1,3 +1,5 @@
+use super::*;
+
 /// Executes all steps in one task attempt and short-circuits on first failing step.
 ///
 /// ```no_run
@@ -6,7 +8,7 @@
 /// #     Ok(())
 /// # }
 /// ```
-async fn run_task_steps(
+pub(crate) async fn run_task_steps(
     task: &ResolvedTask,
     workspace_root: &Path,
     runtime_env: Option<&BTreeMap<String, String>>,
@@ -35,7 +37,7 @@ async fn run_task_steps(
     })
 }
 
-async fn run_task_steps_with_runtime(
+pub(crate) async fn run_task_steps_with_runtime(
     task: &ResolvedTask,
     workspace_root: &Path,
     runtime_metadata: Option<&RuntimeExecutionMetadata>,

@@ -1,4 +1,16 @@
-fn eval_module_spec(path: &Path, options: &LoadOptions) -> Result<ModuleSpec> {
+use std::fs;
+use std::path::Path;
+use std::time::Duration;
+
+use anyhow::{Result, anyhow, bail};
+use monty::{LimitedTracker, MontyObject, MontyRun, PrintWriter, ResourceLimits};
+use monty_type_checking::{SourceFile, type_check};
+use serde_json::{Map, Value};
+use tak_core::model::ModuleSpec;
+
+use super::{DSL_STUBS, LoadOptions, PRELUDE};
+
+pub(crate) fn eval_module_spec(path: &Path, options: &LoadOptions) -> Result<ModuleSpec> {
     let source = fs::read_to_string(path)?;
     let source = sanitize_canonical_v1_imports(&source);
     let code = format!("{PRELUDE}\n\n{source}");
@@ -45,7 +57,7 @@ fn eval_module_spec(path: &Path, options: &LoadOptions) -> Result<ModuleSpec> {
     Ok(module)
 }
 
-fn sanitize_canonical_v1_imports(source: &str) -> String {
+pub(crate) fn sanitize_canonical_v1_imports(source: &str) -> String {
     let mut output = Vec::new();
     let mut skipping_multiline_import = false;
 
@@ -106,7 +118,7 @@ fn sanitize_canonical_v1_imports(source: &str) -> String {
 /// #     Ok(())
 /// # }
 /// ```
-fn monty_to_json(value: MontyObject) -> Result<Value> {
+pub(crate) fn monty_to_json(value: MontyObject) -> Result<Value> {
     let json = match value {
         MontyObject::None => Value::Null,
         MontyObject::Bool(v) => Value::Bool(v),

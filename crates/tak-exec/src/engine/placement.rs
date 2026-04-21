@@ -6,7 +6,12 @@
 /// #     Ok(())
 /// # }
 /// ```
-fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<TaskPlacement> {
+use super::*;
+
+pub(crate) fn resolve_task_placement(
+    task: &ResolvedTask,
+    workspace_root: &Path,
+) -> Result<TaskPlacement> {
     match &task.execution {
         TaskExecutionSpec::LocalOnly(local) => {
             // Local constructor metadata is validated by the loader and preserved for summaries.
@@ -32,11 +37,11 @@ fn resolve_task_placement(task: &ResolvedTask, workspace_root: &Path) -> Result<
                 let tasks_file = tasks_file_for_label(workspace_root, &task.label);
                 evaluate_named_policy_decision(&tasks_file, &task.label.package, policy_name)
                     .with_context(|| {
-                    format!(
-                        "runtime policy evaluation failed for task {} (policy={policy_name})",
-                        task.label
-                    )
-                })?
+                        format!(
+                            "runtime policy evaluation failed for task {} (policy={policy_name})",
+                            task.label
+                        )
+                    })?
             };
             match &resolved_decision {
                 PolicyDecisionSpec::Local { reason, local } => Ok(TaskPlacement {

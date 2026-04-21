@@ -1,3 +1,5 @@
+use super::*;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainerImageReference {
     pub canonical: String,
@@ -39,7 +41,9 @@ pub struct ContainerResourceLimitsSpec {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContainerRuntimeSourceInputSpec {
-    Image { image: String },
+    Image {
+        image: String,
+    },
     Dockerfile {
         dockerfile: PathInputDef,
         build_context: Option<PathInputDef>,

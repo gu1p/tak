@@ -1,4 +1,6 @@
-fn emit_task_output(
+use super::*;
+
+pub(crate) fn emit_task_output(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
@@ -20,7 +22,7 @@ fn emit_task_output(
     })
 }
 
-fn emit_task_status(
+pub(crate) fn emit_task_status(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     event: TaskStatusEvent,
 ) -> Result<()> {
@@ -30,7 +32,7 @@ fn emit_task_status(
     observer.observe_status(event)
 }
 
-fn emit_task_status_message(
+pub(crate) fn emit_task_status_message(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     task_label: &TaskLabel,
     attempt: u32,
