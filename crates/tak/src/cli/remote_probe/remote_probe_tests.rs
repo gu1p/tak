@@ -52,3 +52,31 @@ async fn node_probe_reads_a_complete_http_body_without_waiting_for_eof() {
     assert_eq!(node.node_id, expected.node_id);
     server_task.await.expect("server task");
 }
+
+#[tokio::test]
+async fn node_probe_reports_malformed_http_responses_with_base_url_context() {
+    let (client, mut server) = duplex(1024);
+    let base_url = "http://builder-a.onion";
+
+    let server_task = tokio::spawn(async move {
+        let mut request = [0_u8; 256];
+        let _ = server.read(&mut request).await.expect("read request");
+        server
+            .write_all(b"not-http\r\n\r\n")
+            .await
+            .expect("write malformed response");
+        server.flush().await.expect("flush malformed response");
+    });
+
+    let err = probe_once(Box::new(client), "builder-a.onion:80", "secret", base_url)
+        .await
+        .expect_err("probe should reject malformed HTTP");
+    assert!(
+        err.into_anyhow()
+            .to_string()
+            .contains("malformed HTTP response from http://builder-a.onion"),
+        "expected explicit malformed-response diagnostic",
+    );
+
+    server_task.await.expect("server task");
+}

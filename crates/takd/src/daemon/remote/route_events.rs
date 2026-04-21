@@ -27,6 +27,7 @@ pub(super) fn handle_remote_events_route(
     for event in events {
         let payload_value = serde_json::from_str::<serde_json::Value>(&event.payload_json)
             .unwrap_or_else(|_| serde_json::json!({ "raw": event.payload_json }));
+        let chunk_bytes = remote_event_chunk_bytes(&payload_value);
         let kind = payload_value
             .get("kind")
             .and_then(serde_json::Value::as_str)
@@ -57,27 +58,8 @@ pub(super) fn handle_remote_events_route(
                 .get("message")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
-            chunk: payload_value
-                .get("chunk")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string),
-            chunk_bytes: payload_value
-                .get("chunk_base64")
-                .and_then(serde_json::Value::as_str)
-                .and_then(|value| base64::engine::general_purpose::STANDARD.decode(value).ok())
-                .or_else(|| {
-                    payload_value
-                        .get("chunk")
-                        .and_then(serde_json::Value::as_str)
-                        .map(|value| value.as_bytes().to_vec())
-                })
-                .or_else(|| {
-                    payload_value
-                        .get("message")
-                        .and_then(serde_json::Value::as_str)
-                        .map(|value| value.as_bytes().to_vec())
-                })
-                .unwrap_or_default(),
+            chunk: remote_event_chunk_text(&payload_value, &chunk_bytes),
+            chunk_bytes,
         });
     }
 
@@ -88,4 +70,34 @@ pub(super) fn handle_remote_events_route(
             done,
         },
     )))
+}
+
+fn remote_event_chunk_bytes(payload_value: &serde_json::Value) -> Vec<u8> {
+    payload_value
+        .get("chunk_base64")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|value| base64::engine::general_purpose::STANDARD.decode(value).ok())
+        .or_else(|| {
+            payload_value
+                .get("chunk")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.as_bytes().to_vec())
+        })
+        .or_else(|| {
+            payload_value
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.as_bytes().to_vec())
+        })
+        .unwrap_or_default()
+}
+
+fn remote_event_chunk_text(
+    payload_value: &serde_json::Value,
+    chunk_bytes: &[u8],
+) -> Option<String> {
+    if payload_value.get("chunk_base64").is_none() && payload_value.get("chunk").is_none() {
+        return None;
+    }
+    std::str::from_utf8(chunk_bytes).ok().map(str::to_string)
 }

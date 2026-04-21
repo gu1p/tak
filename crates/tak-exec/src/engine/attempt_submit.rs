@@ -81,6 +81,7 @@ async fn resolve_attempt_submit_state(
             )?;
         }
         Err(submit_error) => {
+            let submit_error = anyhow::Error::new(submit_error);
             if !placement.ordered_remote_targets.is_empty() && is_auth_submit_failure(&submit_error)
             {
                 let failed_node_id = target.node_id.clone();

@@ -70,7 +70,9 @@ include!("engine/remote_diagnostics.rs");
 include!("engine/run_tasks.rs");
 include!("engine/lease_context.rs");
 include!("engine/remote_models.rs");
+include!("engine/remote_http_exchange_error.rs");
 include!("engine/preflight_failure.rs");
+include!("engine/remote_submit_failure.rs");
 include!("engine/transport.rs");
 
 fn transport_adapter_for_kind(kind: RemoteTransportKind) -> &'static dyn RemoteTransportAdapter {
@@ -101,6 +103,10 @@ include!("engine/protocol_events.rs");
 include!("engine/protocol_result_http.rs");
 include!("engine/step_execution.rs");
 include!("engine/remote_worker.rs");
+#[path = "engine/preflight_failure_classification_tests.rs"]
+mod preflight_failure_classification_tests;
+#[path = "engine/preflight_fallback_classification_tests.rs"]
+mod preflight_fallback_classification_tests;
 #[cfg(test)]
 mod protocol_result_http_connection_cleanup_tests;
 #[cfg(test)]

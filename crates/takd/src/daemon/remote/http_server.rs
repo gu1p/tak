@@ -3,7 +3,7 @@ use super::*;
 mod request;
 mod response;
 
-use request::{read_http_request, request_is_authorized, request_parse_error_reason};
+use request::{ReadHttpRequestError, read_http_request, request_is_authorized};
 use response::write_http_response;
 
 pub async fn run_remote_v1_http_server(
@@ -43,11 +43,12 @@ where
     let request = match read_http_request(stream).await {
         Ok(Some(request)) => request,
         Ok(None) => return Ok(()),
-        Err(err) => {
-            let response = error_response(400, request_parse_error_reason(&err));
+        Err(ReadHttpRequestError::Parse(err)) => {
+            let response = error_response(400, err.reason());
             write_http_response(stream, &response).await?;
             return Ok(());
         }
+        Err(ReadHttpRequestError::Io(err)) => return Err(err),
     };
     if !request_is_authorized(&request, context) {
         write_http_response(stream, &error_response(401, "auth_failed")).await?;

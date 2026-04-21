@@ -5,15 +5,13 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
-use tak_proto::{
-    RemoteTokenPayload, decode_remote_token, decode_tor_invite, encode_remote_token,
-    encode_tor_invite,
-};
+use tak_proto::{RemoteTokenPayload, encode_remote_token, encode_tor_invite};
 use uuid::Uuid;
 
 use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 use helpers::{hidden_service_nickname, node_info, normalize_values};
 use paths::{config_path, token_path};
+use token_state::{read_token_error_into_anyhow, read_token_state, should_retry_token_error};
 
 const CONFIG_FILE: &str = "agent.toml";
 const TOKEN_FILE: &str = "agent.token";
@@ -21,6 +19,9 @@ const TOKEN_FILE: &str = "agent.token";
 mod direct_base_url;
 mod helpers;
 mod paths;
+#[path = "agent/token_readiness_tests.rs"]
+mod token_readiness_tests;
+mod token_state;
 mod transport_health;
 
 pub(crate) use direct_base_url::{
@@ -113,27 +114,18 @@ pub fn read_config(config_root: &Path) -> Result<AgentConfig> {
 }
 
 pub fn read_token(state_root: &Path) -> Result<String> {
-    let token =
-        fs::read_to_string(token_path(state_root)).map_err(|_| anyhow!("agent token not ready"))?;
-    let token = token.trim().to_string();
-    if token.is_empty() {
-        bail!("agent token not ready");
-    }
-    if decode_remote_token(&token).is_err() {
-        let _ = decode_tor_invite(&token)?;
-    }
-    Ok(token)
+    read_token_state(state_root).map_err(read_token_error_into_anyhow)
 }
 
 pub fn read_token_wait(state_root: &Path, timeout_secs: u64) -> Result<String> {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
     loop {
-        match read_token(state_root) {
+        match read_token_state(state_root) {
             Ok(token) => return Ok(token),
-            Err(err) if err.to_string().contains("not ready") && Instant::now() < deadline => {
+            Err(err) if should_retry_token_error(&err) && Instant::now() < deadline => {
                 thread::sleep(Duration::from_millis(100));
             }
-            Err(err) => return Err(err),
+            Err(err) => return Err(read_token_error_into_anyhow(err)),
         }
     }
 }

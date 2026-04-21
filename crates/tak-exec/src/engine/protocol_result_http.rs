@@ -105,30 +105,35 @@ async fn remote_protocol_http_request(
     body: Option<&[u8]>,
     phase: &str,
     timeout: Duration,
-) -> Result<(u16, Vec<u8>)> {
-    let socket_addr = TransportFactory::socket_addr(target).with_context(|| {
-        format!(
-            "infra error: remote node {} has invalid endpoint {}",
-            target.node_id, target.endpoint
-        )
-    })?;
+) -> std::result::Result<(u16, Vec<u8>), RemoteHttpExchangeError> {
+    let socket_addr = TransportFactory::socket_addr(target)
+        .with_context(|| {
+            format!(
+                "infra error: remote node {} has invalid endpoint {}",
+                target.node_id, target.endpoint
+            )
+        })
+        .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
     let bearer_token = remote_protocol_bearer_token(
         &target.node_id,
         &target.bearer_token,
         target.transport_kind,
-    )?;
+    )
+    .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
     let payload = body.unwrap_or(&[]);
 
     let exchange = async {
-        let stream = TransportFactory::connect(target).await?;
+        let stream = TransportFactory::connect(target)
+            .await
+            .map_err(|err| RemoteHttpExchangeError::connect(format!("{err:#}")))?;
         let (mut sender, connection) =
             hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
                 .await
-                .with_context(|| {
-                    format!(
+                .map_err(|_| {
+                    RemoteHttpExchangeError::other(format!(
                         "infra error: remote node {} returned malformed HTTP response for {}",
                         target.node_id, phase
-                    )
+                    ))
                 })?;
         let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
             let _ = connection.await;
@@ -148,23 +153,23 @@ async fn remote_protocol_http_request(
         }
         let request = request
             .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(payload)))
-            .context("build remote protocol request")?;
-        let response = sender.send_request(request).await.with_context(|| {
-            format!(
+            .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
+        let response = sender.send_request(request).await.map_err(|_| {
+            RemoteHttpExchangeError::other(format!(
                 "infra error: remote node {} returned malformed HTTP response for {}",
                 target.node_id, phase
-            )
+            ))
         })?;
         let status = response.status().as_u16();
         let body = response
             .into_body()
             .collect()
             .await
-            .with_context(|| {
-                format!(
+            .map_err(|_| {
+                RemoteHttpExchangeError::other(format!(
                     "infra error: remote node {} returned truncated HTTP body for {}",
                     target.node_id, phase
-                )
+                ))
             })?
             .to_bytes()
             .to_vec();
@@ -175,12 +180,12 @@ async fn remote_protocol_http_request(
     tokio::time::timeout(effective_timeout, exchange)
         .await
         .map_err(|_| {
-            anyhow!(
+            RemoteHttpExchangeError::timeout(format!(
                 "infra error: remote node {} at {} via {} {} request timed out",
                 target.node_id,
                 target.endpoint,
                 target.transport_kind.as_result_value(),
                 phase
-            )
+            ))
         })?
 }

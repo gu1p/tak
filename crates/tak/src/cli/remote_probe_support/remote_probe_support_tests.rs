@@ -1,4 +1,6 @@
-use super::tor_probe_retry_policy;
+#![cfg(test)]
+
+use super::transport::tor_probe_retry_policy;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();

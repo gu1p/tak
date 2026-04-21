@@ -28,6 +28,7 @@ mod remote_cli_scan_tor_contract;
 mod remote_cli_scan_unsupported_contract;
 mod remote_cli_status_failure_contract;
 mod remote_cli_status_ipv6_contract;
+mod remote_cli_status_malformed_response_contract;
 mod remote_cli_status_once_contract;
 mod remote_cli_status_tor_auth_contract;
 mod remote_cli_status_tor_transport_contract;

@@ -73,11 +73,7 @@ async fn invalid_content_length_returns_explicit_bad_request_reason() {
         "expected protobuf error response: {head}"
     );
     let error = ErrorResponse::decode(body).expect("decode error payload");
-    assert!(
-        error.message.contains("invalid_content_length"),
-        "expected explicit invalid_content_length reason: {:?}",
-        error
-    );
+    assert_eq!(error.message, "invalid_content_length");
 
     server.abort();
 }

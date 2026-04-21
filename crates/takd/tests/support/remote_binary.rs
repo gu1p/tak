@@ -26,17 +26,23 @@ pub fn streaming_context() -> RemoteNodeContext {
 }
 
 pub fn streaming_submit_request() -> SubmitTaskRequest {
+    streaming_submit_request_with_command(
+        "task-run-stream",
+        "printf 'remote-stdout\\n'; printf 'remote-stderr\\n' >&2",
+    )
+}
+
+pub fn streaming_submit_request_with_command(
+    task_run_id: &str,
+    command: &str,
+) -> SubmitTaskRequest {
     SubmitTaskRequest {
-        task_run_id: "task-run-stream".to_string(),
+        task_run_id: task_run_id.to_string(),
         attempt: 1,
         workspace_zip: empty_workspace_zip(),
         steps: vec![Step {
             kind: Some(step::Kind::Cmd(CmdStep {
-                argv: vec![
-                    "sh".into(),
-                    "-c".into(),
-                    "printf 'remote-stdout\\n'; printf 'remote-stderr\\n' >&2".into(),
-                ],
+                argv: vec!["sh".into(), "-c".into(), command.into()],
                 cwd: None,
                 env: Default::default(),
             })),
@@ -53,15 +59,18 @@ pub fn wait_for_streaming_events(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
 ) -> PollTaskEventsResponse {
+    wait_for_streaming_events_for_task(context, store, "task-run-stream")
+}
+
+pub fn wait_for_streaming_events_for_task(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+) -> PollTaskEventsResponse {
     loop {
-        let response = handle_remote_v1_request(
-            context,
-            store,
-            "GET",
-            "/v1/tasks/task-run-stream/events",
-            None,
-        )
-        .expect("events response");
+        let path = format!("/v1/tasks/{task_run_id}/events");
+        let response =
+            handle_remote_v1_request(context, store, "GET", &path, None).expect("events response");
         let events =
             PollTaskEventsResponse::decode(response.body.as_slice()).expect("decode events");
         if events.done {

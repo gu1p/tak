@@ -25,6 +25,8 @@ mod cleanup_janitor;
 mod execution_root;
 mod http_server;
 #[cfg(test)]
+mod http_server_request_validation_unit_tests;
+#[cfg(test)]
 mod http_server_test_support;
 #[cfg(test)]
 mod http_server_unit_tests;

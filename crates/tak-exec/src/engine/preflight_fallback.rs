@@ -53,7 +53,10 @@ async fn preflight_strict_remote_target(
             target.node_id, target.endpoint
         )
     }) {
-        return Err(remote_preflight_error_failure(target, format!("{err:#}")));
+        return Err(remote_preflight_error_failure(
+            target,
+            RemoteNodeInfoFailure::other(format!("{err:#}")),
+        ));
     }
 
     let preflight_timeout = TransportFactory::preflight_timeout(target);
@@ -66,7 +69,7 @@ async fn preflight_strict_remote_target(
                 Err(remote_preflight_unhealthy_failure(target, &node))
             }
         }
-        Ok(Err(err)) => Err(remote_preflight_error_failure(target, format!("{err:#}"))),
+        Ok(Err(err)) => Err(remote_preflight_error_failure(target, err)),
         Err(_) => Err(remote_preflight_timeout_failure(
             target,
             format!(
@@ -80,7 +83,8 @@ async fn preflight_strict_remote_target(
 }
 
 fn is_auth_submit_failure(err: &anyhow::Error) -> bool {
-    format!("{err:#}").contains("auth failed")
+    err.downcast_ref::<RemoteSubmitFailure>()
+        .is_some_and(|failure| failure.kind == RemoteSubmitFailureKind::Auth)
 }
 
 async fn fallback_after_auth_submit_failure(
@@ -137,7 +141,12 @@ async fn fallback_after_auth_submit_failure(
         .await
         {
             Ok(()) => {
-                emit_remote_accepted(output_observer, &task.label, submit.attempt, &candidate.node_id)?;
+                emit_remote_accepted(
+                    output_observer,
+                    &task.label,
+                    submit.attempt,
+                    &candidate.node_id,
+                )?;
                 return Ok(candidate.clone());
             }
             Err(err) => {

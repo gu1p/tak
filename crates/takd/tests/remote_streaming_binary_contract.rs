@@ -46,6 +46,7 @@ fn remote_routes_stream_stdout_and_stderr_events_before_terminal_result() {
         .find(|event| event.kind == "TASK_STDOUT_CHUNK")
         .expect("stdout event");
     assert_eq!(stdout_event.chunk_bytes, b"remote-stdout\n");
+    assert_eq!(stdout_event.chunk.as_deref(), Some("remote-stdout\n"));
 
     let stderr_event = events
         .events
@@ -53,4 +54,5 @@ fn remote_routes_stream_stdout_and_stderr_events_before_terminal_result() {
         .find(|event| event.kind == "TASK_STDERR_CHUNK")
         .expect("stderr event");
     assert_eq!(stderr_event.chunk_bytes, b"remote-stderr\n");
+    assert_eq!(stderr_event.chunk.as_deref(), Some("remote-stderr\n"));
 }

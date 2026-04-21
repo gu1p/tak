@@ -57,7 +57,6 @@ impl TaskOutputObserver for RemoteWorkerEventObserver {
             &serde_json::json!({
                 "kind": kind,
                 "timestamp_ms": unix_epoch_ms(),
-                "chunk": String::from_utf8_lossy(&chunk.bytes).into_owned(),
                 "chunk_base64": base64::engine::general_purpose::STANDARD.encode(&chunk.bytes),
             })
             .to_string(),
