@@ -15,3 +15,5 @@ require_ignored() {
 
 require_ignored "dist-manual/" "manual release artifacts"
 require_ignored ".tmp/release-target/" "release target cache"
+require_ignored "default_coverage.profraw" "root coverage raw profile artifacts"
+require_ignored "crates/tak/default_coverage.profraw" "nested coverage raw profile artifacts"

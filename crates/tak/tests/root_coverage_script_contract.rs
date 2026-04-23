@@ -27,6 +27,10 @@ fn coverage_script_builds_checkout_binaries_under_llvm_cov_environment() {
         "run_coverage.sh should not combine environment setup and report generation in one direct cargo llvm-cov invocation anymore:\n{script}"
     );
     assert!(
+        !script.contains("cargo llvm-cov report \\\n  --workspace"),
+        "run_coverage.sh should not pass --workspace to cargo llvm-cov report:\n{script}"
+    );
+    assert!(
         !script.contains("cargo llvm-cov report \\\n  --workspace \\\n  --all-features"),
         "run_coverage.sh should not pass feature-selection flags to cargo llvm-cov report:\n{script}"
     );
