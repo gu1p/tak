@@ -69,7 +69,12 @@ fn execute_remote_worker_submit(
 
     match (execution_result, cleanup_result) {
         (Ok(value), Ok(())) => Ok(value),
-        (Ok(_), Err(err)) => Err(err),
+        (Ok(value), Err(err)) => {
+            tracing::warn!(
+                "remote worker submit {idempotency_key} completed successfully but cleanup failed: {err:#}"
+            );
+            Ok(value)
+        }
         (Err(err), Ok(())) => Err(err),
         (Err(err), Err(cleanup_err)) => Err(err.context(cleanup_err.to_string())),
     }

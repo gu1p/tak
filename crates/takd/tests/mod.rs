@@ -36,6 +36,7 @@ mod remote_exec_root_probe_version_error_behavior;
 mod remote_exec_root_simulated_runtime_behavior;
 mod remote_node_transport_state_behavior;
 mod remote_output_cleanup_persistence_behavior;
+mod remote_output_cleanup_tolerance_behavior;
 mod remote_output_legacy_root_behavior;
 mod remote_output_query_decode_behavior;
 mod remote_output_query_reserved_character_behavior;
