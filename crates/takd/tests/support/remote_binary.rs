@@ -3,7 +3,10 @@
 use prost::Message;
 use std::thread;
 use std::time::Duration;
-use tak_proto::{CmdStep, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest, step};
+use tak_proto::{
+    CmdStep, ContainerRuntime, NodeInfo, PollTaskEventsResponse, RuntimeSpec, Step,
+    SubmitTaskRequest, runtime_spec, step,
+};
 use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 pub fn streaming_context() -> RemoteNodeContext {
@@ -21,7 +24,7 @@ pub fn streaming_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        RemoteRuntimeConfig::for_tests().with_skip_exec_root_probe(true),
     )
 }
 
@@ -48,13 +51,12 @@ pub fn streaming_submit_request_with_command(
             })),
         }],
         timeout_s: None,
-        runtime: None,
+        runtime: Some(test_container_runtime()),
         task_label: "//apps/web:stream".to_string(),
         needs: Vec::new(),
         outputs: Vec::new(),
     }
 }
-
 pub fn wait_for_streaming_events(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
@@ -85,4 +87,14 @@ fn empty_workspace_zip() -> Vec<u8> {
         .finish()
         .expect("finish empty workspace zip")
         .into_inner()
+}
+
+fn test_container_runtime() -> RuntimeSpec {
+    RuntimeSpec {
+        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
+            image: Some("alpine:3.20".into()),
+            dockerfile: None,
+            build_context: None,
+        })),
+    }
 }

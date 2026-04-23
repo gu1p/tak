@@ -7,6 +7,7 @@ REMOTE = Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=DirectHttps(),
+  runtime=ContainerRuntime(image="alpine:3.20"),
 )
 
 SPEC = module_spec(

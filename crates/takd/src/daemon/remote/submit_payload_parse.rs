@@ -17,11 +17,13 @@ pub(super) fn parse_remote_worker_submit_payload(
             .map(parse_remote_worker_step)
             .collect::<Result<Vec<_>>>()?,
         timeout_s: request.timeout_s,
-        runtime: request
-            .runtime
-            .as_ref()
-            .map(parse_remote_worker_runtime_spec)
-            .transpose()?,
+        runtime: Some(
+            request
+                .runtime
+                .as_ref()
+                .ok_or_else(|| anyhow!("invalid_submit_fields: execution.runtime is required")) // fail closed against host-level remote execution
+                .and_then(parse_remote_worker_runtime_spec)?,
+        ),
         outputs: request
             .outputs
             .iter()

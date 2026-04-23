@@ -31,6 +31,7 @@ REMOTE = Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=DirectHttps(),
+  runtime=ContainerRuntime(image="alpine:3.20"),
 )
 
 remote_stream = task(
@@ -59,6 +60,7 @@ REMOTE = Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=DirectHttps(),
+  runtime=ContainerRuntime(image="alpine:3.20"),
 )
 
 remote_wait = task(

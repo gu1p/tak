@@ -1,5 +1,8 @@
 use prost::Message;
-use tak_proto::{CmdStep, OutputSelector, Step, SubmitTaskRequest, step};
+use tak_proto::{
+    CmdStep, ContainerRuntime, OutputSelector, RuntimeSpec, Step, SubmitTaskRequest, runtime_spec,
+    step,
+};
 
 pub fn truncated_submit_request(task_run_id: &str) -> Vec<u8> {
     let prefix = submit_request(task_run_id, Vec::new()).encode_to_vec();
@@ -49,9 +52,19 @@ fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> SubmitTask
             })),
         }],
         timeout_s: None,
-        runtime: None,
+        runtime: Some(test_container_runtime()),
         task_label: "//apps/web:build".into(),
         needs: Vec::new(),
         outputs,
+    }
+}
+
+fn test_container_runtime() -> RuntimeSpec {
+    RuntimeSpec {
+        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
+            image: Some("alpine:3.20".into()),
+            dockerfile: None,
+            build_context: None,
+        })),
     }
 }

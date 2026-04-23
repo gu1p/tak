@@ -6,7 +6,7 @@ use tak_core::model::{
 
 use super::run_override_runtime::{
     declared_container_runtime, explicit_container_runtime_override,
-    resolve_container_runtime_for_task,
+    resolve_container_runtime_for_remote_override, resolve_container_runtime_for_task,
 };
 use super::*;
 
@@ -14,6 +14,10 @@ use super::*;
 enum RunPlacementSelector {
     Local,
     Remote,
+}
+
+pub(super) fn warn_redundant_remote_container_flag(remote: bool, container: bool) -> bool {
+    remote && container
 }
 
 pub(super) struct RunExecutionOverrideArgs<'a> {
@@ -55,9 +59,14 @@ pub(super) fn apply_run_execution_overrides(
             .tasks
             .get_mut(&label)
             .ok_or_else(|| anyhow!("task not found: {}", canonical_label(&label)))?;
-        let runtime =
-            resolved_runtime_for_override(task, args.container, explicit_runtime.as_ref())?;
-        task.execution = match placement.expect("placement validated") {
+        let selected_placement = placement.expect("placement validated");
+        let runtime = resolved_runtime_for_override(
+            task,
+            selected_placement,
+            args.container,
+            explicit_runtime.as_ref(),
+        )?;
+        task.execution = match selected_placement {
             RunPlacementSelector::Local => {
                 let mut local = existing_local_spec(&task.execution).unwrap_or_default();
                 local.runtime = runtime;
@@ -77,13 +86,19 @@ pub(super) fn apply_run_execution_overrides(
 
 fn resolved_runtime_for_override(
     task: &ResolvedTask,
+    placement: RunPlacementSelector,
     container: bool,
     explicit_runtime: Option<&tak_core::model::RemoteRuntimeSpec>,
 ) -> Result<Option<tak_core::model::RemoteRuntimeSpec>> {
-    if container {
-        return resolve_container_runtime_for_task(task, explicit_runtime).map(Some);
+    match placement {
+        RunPlacementSelector::Local if container => {
+            resolve_container_runtime_for_task(task, explicit_runtime).map(Some)
+        }
+        RunPlacementSelector::Local => Ok(declared_container_runtime(&task.execution)),
+        RunPlacementSelector::Remote => {
+            resolve_container_runtime_for_remote_override(task, explicit_runtime).map(Some)
+        }
     }
-    Ok(declared_container_runtime(&task.execution))
 }
 
 fn existing_local_spec(execution: &TaskExecutionSpec) -> Option<LocalSpec> {
@@ -147,11 +162,12 @@ fn validate_container_flag_usage(
         bail!("--container-build-context requires --container-dockerfile");
     }
     if !container
+        && placement != Some(RunPlacementSelector::Remote)
         && (container_image.is_some()
             || container_dockerfile.is_some()
             || container_build_context.is_some())
     {
-        bail!("container source flags require --container");
+        bail!("container source flags require --remote or --container");
     }
     if container && placement.is_none() {
         bail!("--container requires exactly one of --local or --remote");

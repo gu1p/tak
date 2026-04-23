@@ -8,7 +8,7 @@
 /// ```
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use tak_core::model::{PolicyDecisionSpec, RemoteSpec, ResolvedTask, TaskExecutionSpec, TaskLabel};
 use tak_loader::evaluate_named_policy_decision;
 
@@ -84,11 +84,12 @@ fn remote_task_placement(
     remote: &RemoteSpec,
     reason: Option<String>,
 ) -> Result<TaskPlacement> {
-    let selection = configured_remote_targets(remote)?;
+    let remote = materialize_effective_remote_spec(task, remote)?;
+    let selection = configured_remote_targets(&remote)?;
     if selection.matched_targets.is_empty() {
         return Err(NoMatchingRemoteError::new(
             canonical_task_label(&task.label),
-            remote,
+            &remote,
             selection.configured_remote_count,
             selection.enabled_remote_count,
             selection.enabled_remotes,
@@ -103,6 +104,25 @@ fn remote_task_placement(
         decision_reason: reason,
         local: None,
     })
+}
+
+fn materialize_effective_remote_spec(
+    task: &ResolvedTask,
+    remote: &RemoteSpec,
+) -> Result<RemoteSpec> {
+    if remote.runtime.is_some() {
+        return Ok(remote.clone());
+    }
+    if let Some(runtime) = task.container_runtime.clone() {
+        let mut remote = remote.clone();
+        remote.runtime = Some(runtime);
+        return Ok(remote);
+    }
+
+    bail!(
+        "task {} requires a containerized runtime for remote execution; provide Remote(..., runtime=...), Policy Decision.remote(Remote(..., runtime=...)), or TASKS.py defaults.container_runtime",
+        canonical_task_label(&task.label)
+    )
 }
 
 fn canonical_task_label(label: &TaskLabel) -> String {

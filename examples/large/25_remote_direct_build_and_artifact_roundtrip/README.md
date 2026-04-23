@@ -12,6 +12,7 @@ REMOTE = Remote(
     required_tags=["builder"],
     required_capabilities=["linux"],
     transport=DirectHttps(),
+    runtime=ContainerRuntime(image="alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -52,7 +53,7 @@ SPEC
 |---|---|---|---|
 | execution mode | `RemoteOnly(REMOTE)` | `LocalOnly(Local(...))`, `ByCustomPolicy(...)` | Force remote, force local, or pick dynamically with policy logic. |
 | remote transport | direct client-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
-| remote runtime | default runtime | `Remote(..., runtime=ContainerRuntime(...))` | Containerized remote runtime gives stronger environment reproducibility. |
+| remote runtime | `ContainerRuntime(image="alpine:3.20")` | `DockerfileRuntime(...)` | Remote execution is always containerized; choose the image or Dockerfile that defines the runtime. |
 
 ## Runbook
 

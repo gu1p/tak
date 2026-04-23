@@ -50,10 +50,10 @@ pub(super) enum Commands {
         /// Force local execution.
         #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
         local: bool,
-        /// Force remote execution.
+        /// Force remote containerized execution.
         #[arg(long = "remote", default_value_t = false)]
         remote: bool,
-        /// Force a container runtime.
+        /// Force a local container runtime. With `--remote`, accepted as a compatibility alias.
         #[arg(long = "container", default_value_t = false)]
         container: bool,
         /// Use this container image for execution.
@@ -82,10 +82,10 @@ pub(super) enum Commands {
         /// Force local execution.
         #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
         local: bool,
-        /// Force remote execution.
+        /// Force remote containerized execution.
         #[arg(long = "remote", default_value_t = false)]
         remote: bool,
-        /// Force a container runtime.
+        /// Force a local container runtime. With `--remote`, accepted as a compatibility alias.
         #[arg(long = "container", default_value_t = false)]
         container: bool,
         /// Use this container image for execution.

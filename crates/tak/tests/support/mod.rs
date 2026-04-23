@@ -4,6 +4,7 @@ pub mod auth_fallback_servers;
 pub mod binary;
 pub mod container_runtime;
 pub mod coverage_script;
+pub mod direct_remote_runtime;
 pub mod example_workspace;
 pub mod examples_catalog;
 pub mod examples_direct_fixture;

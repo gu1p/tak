@@ -3,7 +3,9 @@ use std::sync::Arc;
 use tak_exec::{RunOptions, run_tasks};
 
 use super::run_output::StdStreamOutputObserver;
-use super::run_overrides::{RunExecutionOverrideArgs, apply_run_execution_overrides};
+use super::run_overrides::{
+    RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
+};
 use super::*;
 
 pub(super) struct RunCliArgs {
@@ -29,6 +31,11 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         .iter()
         .map(|label| parse_input_label(&spec, label, "run"))
         .collect::<Result<Vec<_>>>()?;
+    if warn_redundant_remote_container_flag(args.remote, args.container) {
+        eprintln!(
+            "warning: --container is redundant with --remote; remote execution already implies a containerized runtime"
+        );
+    }
     let spec = apply_run_execution_overrides(
         &spec,
         &targets,

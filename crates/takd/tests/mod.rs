@@ -44,6 +44,7 @@ mod remote_status_behavior;
 mod remote_status_unavailable_behavior;
 mod remote_streaming_binary_contract;
 mod remote_streaming_chunk_bytes_contract;
+mod remote_submit_runtime_required_behavior;
 mod remote_v1_http_request_parse_behavior;
 mod remote_v1_http_request_validation_behavior;
 mod remote_v1_http_server_behavior;

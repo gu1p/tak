@@ -8,7 +8,9 @@ use tak_core::model::{
 use tak_exec::{RunOptions, run_resolved_task};
 
 use super::run_output::StdStreamOutputObserver;
-use super::run_overrides::{RunExecutionOverrideArgs, apply_run_execution_overrides};
+use super::run_overrides::{
+    RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
+};
 use super::*;
 
 pub(super) struct ExecCliArgs {
@@ -37,6 +39,11 @@ pub(super) async fn run_exec_command(args: ExecCliArgs) -> Result<ExitCode> {
         limiters: HashMap::new(),
         queues: HashMap::new(),
     };
+    if warn_redundant_remote_container_flag(args.remote, args.container) {
+        eprintln!(
+            "warning: --container is redundant with --remote; remote execution already implies a containerized runtime"
+        );
+    }
     let spec = apply_run_execution_overrides(
         &spec,
         std::slice::from_ref(&label),

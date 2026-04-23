@@ -4,12 +4,16 @@ use takd::{SubmitAttemptStore, handle_remote_v1_request};
 
 use crate::support;
 
+use support::env::{EnvGuard, env_lock};
 use support::remote_binary::{
     streaming_context, streaming_submit_request, wait_for_streaming_events,
 };
 
 #[test]
 fn remote_routes_stream_stdout_and_stderr_events_before_terminal_result() {
+    let _env_lock = env_lock();
+    let mut env = EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
     let context = streaming_context();
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");

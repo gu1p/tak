@@ -1,18 +1,14 @@
-use std::collections::BTreeMap;
-use std::env;
-
-use anyhow::{Result, anyhow, bail};
-use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, ResolvedTask};
-use uuid::Uuid;
-
+use super::remote_models::{ContainerLifecycleStage, RuntimeExecutionMetadata, TaskPlacement};
 use super::{ContainerExecutionPlan, PlacementMode, StrictRemoteTarget};
-
 use crate::container_engine::{
     ContainerEngine, ShellContainerEngineProbe, resolve_container_engine_host_platform,
     select_container_engine_with_probe,
 };
-
-use super::remote_models::{ContainerLifecycleStage, RuntimeExecutionMetadata, TaskPlacement};
+use anyhow::{Result, anyhow, bail};
+use std::collections::BTreeMap;
+use std::env;
+use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, ResolvedTask};
+use uuid::Uuid;
 
 pub(crate) fn resolve_runtime_execution_metadata(
     task: &ResolvedTask,
@@ -28,7 +24,6 @@ pub(crate) fn resolve_runtime_execution_metadata(
                 .and_then(|local| local.runtime.as_ref()),
         );
     }
-
     let Some(target) = placement.strict_remote_target.as_ref() else {
         return Ok(None);
     };
@@ -54,7 +49,6 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
     let Some(runtime) = runtime else {
         return Ok(None);
     };
-
     match runtime {
         RemoteRuntimeSpec::Containerized { source } => {
             maybe_fail_injected_container_lifecycle_stage(
@@ -62,40 +56,40 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
                 node_id,
                 ContainerLifecycleStage::Pull,
             )?;
-
-            let mut probe = ShellContainerEngineProbe;
-            let engine = select_container_engine_with_probe(
-                resolve_container_engine_host_platform(),
-                &mut probe,
-            )
-            .map_err(|err| {
-                anyhow!(
-                    "infra error: remote node {} container lifecycle {} failed for task {}: {}",
-                    node_id,
-                    ContainerLifecycleStage::Start.as_str(),
-                    task.label,
-                    err
+            let simulate_container_runtime = should_use_simulated_container_runtime();
+            let engine = if simulate_container_runtime {
+                ContainerEngine::Docker
+            } else {
+                let mut probe = ShellContainerEngineProbe;
+                select_container_engine_with_probe(
+                    resolve_container_engine_host_platform(),
+                    &mut probe,
                 )
-            })?;
-
+                .map_err(|err| {
+                    anyhow!(
+                        "infra error: remote node {} container lifecycle {} failed for task {}: {}",
+                        node_id,
+                        ContainerLifecycleStage::Start.as_str(),
+                        task.label,
+                        err
+                    )
+                })?
+            };
             maybe_fail_injected_container_lifecycle_stage(
                 task,
                 node_id,
                 ContainerLifecycleStage::Start,
             )?;
-
             let engine_name = match engine {
                 ContainerEngine::Docker => "docker".to_string(),
                 ContainerEngine::Podman => "podman".to_string(),
             };
-
             let (runtime_source, image) = match source {
                 ContainerRuntimeSourceSpec::Image { image } => ("image", image.clone()),
                 ContainerRuntimeSourceSpec::Dockerfile { .. } => {
                     ("dockerfile", format!("tak-runtime-{}", Uuid::new_v4()))
                 }
             };
-
             let mut env_overrides = BTreeMap::new();
             env_overrides.insert("TAK_RUNTIME".to_string(), "containerized".to_string());
             env_overrides.insert("TAK_RUNTIME_ENGINE".to_string(), engine_name.clone());
@@ -107,14 +101,12 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
             );
             env_overrides.insert("TAK_REMOTE_ENGINE".to_string(), engine_name.clone());
             env_overrides.insert("TAK_REMOTE_CONTAINER_IMAGE".to_string(), image.clone());
-
             maybe_fail_injected_container_lifecycle_stage(
                 task,
                 node_id,
                 ContainerLifecycleStage::Runtime,
             )?;
-
-            let container_plan = if should_use_simulated_container_runtime() {
+            let container_plan = if simulate_container_runtime {
                 None
             } else {
                 Some(ContainerExecutionPlan {
@@ -123,7 +115,6 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
                     image: image.clone(),
                 })
             };
-
             Ok(Some(RuntimeExecutionMetadata {
                 kind: "containerized".to_string(),
                 engine: Some(engine_name),

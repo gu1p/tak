@@ -21,7 +21,7 @@ fn run_command_executes_neutral_task_remotely_with_remote_flag() -> Result<()> {
     let marker = workspace_root.join("out/remote-run.txt");
     write_tasks(
         &workspace_root,
-        "SPEC = module_spec(tasks=[task(\"check\", outputs=[path(\"out\")], steps=[cmd(\"sh\", \"-c\", \"mkdir -p out && echo remote-run > out/remote-run.txt\")])])\nSPEC\n",
+        "SPEC = module_spec(defaults={\"container_runtime\": ContainerRuntime(image=\"alpine:3.20\")}, tasks=[task(\"check\", outputs=[path(\"out\")], steps=[cmd(\"sh\", \"-c\", \"mkdir -p out && echo remote-run > out/remote-run.txt\")])])\nSPEC\n",
     )?;
 
     let takd = takd_bin();

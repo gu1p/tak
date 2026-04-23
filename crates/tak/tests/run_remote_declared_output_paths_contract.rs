@@ -22,7 +22,7 @@ fn run_remote_syncs_only_declared_output_paths() -> Result<()> {
   "check",
   context=CurrentState(ignored=[gitignore()]),
   outputs=[path("out")],
-  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps())),
+  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps(), runtime=ContainerRuntime(image="alpine:3.20"))),
   steps=[cmd("sh", "-ceu", """
 mkdir -p out target/private
 printf 'synced\n' > out/result.txt
@@ -58,7 +58,7 @@ fn run_remote_without_declared_outputs_does_not_sync_created_files() -> Result<(
         &workspace_root,
         r#"SPEC = module_spec(tasks=[task(
   "check",
-  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps())),
+  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps(), runtime=ContainerRuntime(image="alpine:3.20"))),
   steps=[cmd("sh", "-ceu", """
 mkdir -p out
 printf 'remote only\n' > out/undeclared.txt

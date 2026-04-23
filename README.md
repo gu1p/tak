@@ -1,6 +1,6 @@
 # Tak
 
-Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the current directory's `TASKS.py`, follows explicit `module_spec(includes=[...])` links, builds one validated dependency graph, and executes local and remote work with consistent retry, timeout, and resource-coordination behavior.
+Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the current directory's `TASKS.py`, follows explicit `module_spec(includes=[...])` links, builds one validated dependency graph, and executes local host work, local containerized work, and remote containerized work with consistent retry, timeout, and resource-coordination behavior.
 
 ## Why Teams Use Tak
 
@@ -18,7 +18,7 @@ Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the
 - Retry policies with fixed or exponential-jitter backoff.
 - Timeout controls per task.
 - Client-side lease coordination for `needs` (resource/lock/rate/process/queue semantics).
-- Remote execution with direct or Tor transport plus artifact roundtrip.
+- Remote containerized execution with direct or Tor transport plus artifact roundtrip.
 - Containerized runtimes from either a prebuilt image or a workspace `Dockerfile`.
 - Hybrid local+remote pipelines with stable run summaries.
 
@@ -145,6 +145,12 @@ REMOTE = Remote(
     runtime=ContainerRuntime(image="alpine:3.20"),
 )
 ```
+
+Runtime model:
+
+- local host execution
+- local containerized execution
+- remote containerized execution
 
 For Tor onboarding, `takd token show --wait` now waits until the local `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
 

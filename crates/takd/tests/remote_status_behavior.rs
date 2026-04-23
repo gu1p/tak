@@ -1,32 +1,25 @@
-use std::io::Write;
+use crate::support;
+
 use std::thread;
 use std::time::Duration;
 
 use prost::Message;
-use tak_proto::{CmdStep, NodeInfo, NodeStatusResponse, Step, SubmitTaskRequest, step};
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use tak_proto::{CmdStep, NodeStatusResponse, Step, SubmitTaskRequest, step};
+use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+
+use support::remote_output::{
+    empty_workspace_zip, test_container_runtime, test_context_with_runtime,
+};
 
 #[test]
 fn remote_status_route_serves_protobuf_and_reports_running_job() {
-    let context = RemoteNodeContext::new(
-        NodeInfo {
-            node_id: "builder-a".into(),
-            display_name: "builder-a".into(),
-            base_url: "http://127.0.0.1:43123".into(),
-            healthy: true,
-            pools: vec!["default".into()],
-            tags: vec!["builder".into()],
-            capabilities: vec!["linux".into()],
-            transport: "direct".into(),
-            transport_state: "ready".into(),
-            transport_detail: String::new(),
-        },
-        "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
-    );
+    let _env_lock = support::env::env_lock();
+    let mut env = support::env::EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
+    let context =
+        test_context_with_runtime(RemoteRuntimeConfig::for_tests().with_skip_exec_root_probe(true));
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-
     let submit = SubmitTaskRequest {
         task_run_id: "task-run-1".to_string(),
         attempt: 1,
@@ -39,7 +32,7 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
             })),
         }],
         timeout_s: None,
-        runtime: None,
+        runtime: Some(test_container_runtime()),
         task_label: "//apps/web:build".to_string(),
         needs: vec![tak_proto::SubmittedNeed {
             name: "cpu".to_string(),
@@ -58,7 +51,6 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
     )
     .expect("submit response");
     assert_eq!(submit.status_code, 200);
-
     for _ in 0..50 {
         let response = handle_remote_v1_request(&context, &store, "GET", "/v1/node/status", None)
             .expect("status response");
@@ -76,16 +68,4 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
     }
 
     panic!("timed out waiting for active job in node status");
-}
-
-fn empty_workspace_zip() -> Vec<u8> {
-    let cursor = std::io::Cursor::new(Vec::new());
-    let mut writer = zip::ZipWriter::new(cursor);
-    writer
-        .start_file("TASKS.py", zip::write::SimpleFileOptions::default())
-        .expect("start workspace file");
-    writer
-        .write_all(b"SPEC = module_spec(tasks=[])\nSPEC\n")
-        .expect("write workspace file");
-    writer.finish().expect("finish workspace zip").into_inner()
 }

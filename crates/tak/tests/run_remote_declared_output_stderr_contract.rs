@@ -20,7 +20,7 @@ fn run_remote_missing_declared_output_mentions_error_even_with_stderr_logs() -> 
         r#"SPEC = module_spec(tasks=[task(
   "check",
   outputs=[path("out/missing.txt")],
-  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps())),
+  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps(), runtime=ContainerRuntime(image="alpine:3.20"))),
   steps=[cmd("sh", "-c", "printf 'remote stderr\n' >&2")],
 )])
 SPEC

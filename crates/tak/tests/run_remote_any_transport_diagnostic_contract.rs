@@ -18,6 +18,7 @@ REMOTE = Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
+  runtime=ContainerRuntime(image="alpine:3.20"),
 )
 
 SPEC = module_spec(tasks=[

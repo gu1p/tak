@@ -10,10 +10,14 @@ use crate::support;
 
 use takd::RemoteRuntimeConfig;
 
+use support::env::{EnvGuard, env_lock};
 use support::remote_output::{submit_shell_task, test_context_with_runtime};
 
 #[test]
 fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
+    let _env_lock = env_lock();
+    let mut env = EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root = temp.path().join("exec-root");
     let artifact_root = temp.path().join("takd-remote-artifacts");
@@ -32,6 +36,7 @@ fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         let context = test_context_with_runtime(
             RemoteRuntimeConfig::for_tests()
                 .with_explicit_remote_exec_root(exec_root.clone())
+                .with_skip_exec_root_probe(true)
                 .with_remote_cleanup_ttl(Duration::from_millis(10))
                 .with_remote_cleanup_interval(Duration::from_millis(10)),
         );

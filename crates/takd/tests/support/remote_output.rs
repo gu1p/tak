@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use prost::Message;
-use tak_proto::{CmdStep, OutputSelector, Step, SubmitTaskRequest, SubmitTaskResponse, step};
+use tak_proto::{
+    CmdStep, ContainerRuntime, OutputSelector, RuntimeSpec, Step, SubmitTaskRequest,
+    SubmitTaskResponse, runtime_spec, step,
+};
 use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 pub fn test_context() -> RemoteNodeContext {
@@ -55,7 +58,7 @@ pub fn submit_shell_task_with_outputs(
             })),
         }],
         timeout_s: None,
-        runtime: None,
+        runtime: Some(test_container_runtime()),
         task_label: "//apps/web:test".to_string(),
         needs: Vec::new(),
         outputs,
@@ -78,4 +81,14 @@ pub fn empty_workspace_zip() -> Vec<u8> {
         .finish()
         .expect("finish empty workspace zip")
         .into_inner()
+}
+
+pub fn test_container_runtime() -> RuntimeSpec {
+    RuntimeSpec {
+        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
+            image: Some("alpine:3.20".into()),
+            dockerfile: None,
+            build_context: None,
+        })),
+    }
 }

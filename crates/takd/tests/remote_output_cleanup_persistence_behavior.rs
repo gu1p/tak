@@ -6,16 +6,22 @@ use takd::{
 
 use crate::support;
 
+use support::env::{EnvGuard, env_lock};
 use support::remote_output::{submit_shell_task_with_outputs, test_context_with_runtime};
 use support::wait_for_terminal_events::wait_for_terminal_events;
 
 #[test]
 fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
+    let _env_lock = env_lock();
+    let mut env = EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root_base = temp.path().join("exec-root");
 
     let context = test_context_with_runtime(
-        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+        RemoteRuntimeConfig::for_tests()
+            .with_explicit_remote_exec_root(exec_root_base.clone())
+            .with_skip_exec_root_probe(true),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit_ack = submit_shell_task_with_outputs(

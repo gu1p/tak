@@ -1,3 +1,5 @@
+use crate::support;
+
 use prost::Message;
 use std::thread;
 use std::time::Duration;
@@ -5,26 +7,19 @@ use tak_proto::{
     CmdStep, GetTaskResultResponse, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest,
     SubmitTaskResponse, SubmittedNeed, step,
 };
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+
+use support::remote_output::{
+    empty_workspace_zip, test_container_runtime, test_context_with_runtime,
+};
 
 #[test]
 fn remote_routes_serve_binary_protobuf_contracts() {
-    let context = RemoteNodeContext::new(
-        NodeInfo {
-            node_id: "builder-a".into(),
-            display_name: "builder-a".into(),
-            base_url: "http://127.0.0.1:43123".into(),
-            healthy: true,
-            pools: vec!["default".into()],
-            tags: vec!["builder".into()],
-            capabilities: vec!["linux".into()],
-            transport: "direct".into(),
-            transport_state: "ready".into(),
-            transport_detail: String::new(),
-        },
-        "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
-    );
+    let _env_lock = support::env::env_lock();
+    let mut env = support::env::EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
+    let context =
+        test_context_with_runtime(RemoteRuntimeConfig::for_tests().with_skip_exec_root_probe(true));
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let node = handle_remote_v1_request(&context, &store, "GET", "/v1/node/info", None)
@@ -32,7 +27,6 @@ fn remote_routes_serve_binary_protobuf_contracts() {
     assert_eq!(node.content_type, "application/x-protobuf");
     let node_info = NodeInfo::decode(node.body.as_slice()).expect("decode node info");
     assert_eq!(node_info.node_id, "builder-a");
-
     let submit = SubmitTaskRequest {
         task_run_id: "task-run-1".to_string(),
         attempt: 1,
@@ -45,7 +39,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
             })),
         }],
         timeout_s: None,
-        runtime: None,
+        runtime: Some(test_container_runtime()),
         task_label: "//apps/web:test".to_string(),
         needs: vec![SubmittedNeed {
             name: "cpu".to_string(),
@@ -65,7 +59,6 @@ fn remote_routes_serve_binary_protobuf_contracts() {
     .expect("submit response");
     let submit_ack = SubmitTaskResponse::decode(submit.body.as_slice()).expect("decode submit");
     assert!(submit_ack.accepted);
-
     for _ in 0..50 {
         let events =
             handle_remote_v1_request(&context, &store, "GET", "/v1/tasks/task-run-1/events", None)
@@ -81,13 +74,4 @@ fn remote_routes_serve_binary_protobuf_contracts() {
         handle_remote_v1_request(&context, &store, "GET", "/v1/tasks/task-run-1/result", None)
             .expect("result response");
     let _ = GetTaskResultResponse::decode(result.body.as_slice()).expect("decode result");
-}
-
-fn empty_workspace_zip() -> Vec<u8> {
-    let cursor = std::io::Cursor::new(Vec::new());
-    let writer = zip::ZipWriter::new(cursor);
-    writer
-        .finish()
-        .expect("finish empty workspace zip")
-        .into_inner()
 }

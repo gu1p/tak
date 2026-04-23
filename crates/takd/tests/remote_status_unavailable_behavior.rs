@@ -1,8 +1,13 @@
+use crate::support;
+
 use std::fs;
 use std::os::unix::fs::symlink;
 
 use prost::Message;
-use tak_proto::{CmdStep, ErrorResponse, NodeInfo, Step, SubmitTaskRequest, step};
+use tak_proto::{
+    CmdStep, ContainerRuntime, ErrorResponse, NodeInfo, RuntimeSpec, Step, SubmitTaskRequest,
+    runtime_spec, step,
+};
 use takd::{
     RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, build_submit_idempotency_key,
     handle_remote_v1_request,
@@ -10,6 +15,9 @@ use takd::{
 
 #[test]
 fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unreadable() {
+    let _env_lock = support::env::env_lock();
+    let mut env = support::env::EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
     let temp = tempfile::tempdir().expect("tempdir");
     let exec_root_base = temp.path().join("exec-root");
     fs::create_dir_all(&exec_root_base).expect("create exec root");
@@ -27,7 +35,9 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+        RemoteRuntimeConfig::for_tests()
+            .with_explicit_remote_exec_root(exec_root_base.clone())
+            .with_skip_exec_root_probe(true),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 
@@ -43,7 +53,7 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
             })),
         }],
         timeout_s: None,
-        runtime: None,
+        runtime: Some(test_container_runtime()),
         task_label: "//apps/web:build".to_string(),
         needs: Vec::new(),
         outputs: Vec::new(),
@@ -69,4 +79,14 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
     assert_eq!(response.status_code, 500);
     let error = ErrorResponse::decode(response.body.as_slice()).expect("decode error");
     assert_eq!(error.message, "status_unavailable");
+}
+
+fn test_container_runtime() -> RuntimeSpec {
+    RuntimeSpec {
+        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
+            image: Some("alpine:3.20".into()),
+            dockerfile: None,
+            build_context: None,
+        })),
+    }
 }

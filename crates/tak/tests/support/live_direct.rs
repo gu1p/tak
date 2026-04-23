@@ -1,10 +1,8 @@
 #![allow(dead_code)]
-
+use super::container_runtime::simulated_container_runtime_env;
+use super::tor_smoke::{ChildGuard, assert_success_with_log};
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Stdio};
-
-use super::tor_smoke::{ChildGuard, assert_success_with_log};
-
 pub struct LiveDirectRoots {
     pub server_config_root: PathBuf,
     pub server_state_root: PathBuf,
@@ -24,7 +22,6 @@ impl LiveDirectRoots {
         self.server_state_root.join("service.log")
     }
 }
-
 pub fn init_direct_agent(takd: &Path, roots: &LiveDirectRoots, node_id: &str) {
     init_direct_agent_with_base_url(takd, roots, node_id, "http://127.0.0.1:0");
 }
@@ -86,6 +83,13 @@ pub fn spawn_direct_agent_with_env(
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    let temp_root = roots
+        .server_state_root
+        .parent()
+        .expect("live direct roots should share one temp root");
+    for (key, value) in simulated_container_runtime_env(temp_root) {
+        command.env(key, value);
+    }
     for (key, value) in extra_env {
         command.env(key, value);
     }
