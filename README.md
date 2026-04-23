@@ -45,7 +45,7 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 ## CLI Quick Reference
 
 - `tak list`
-  - Enumerate fully-qualified task labels in the current directory workspace.
+  - Enumerate workspace tasks with their fully-qualified labels, dependencies, and authored descriptions.
 - `tak tree`
   - Render tasks as a tree for quick topology inspection.
 - `tak docs dump`
@@ -231,6 +231,8 @@ Install behavior:
 Inside this repo, use the system `tak` already on `PATH`.
 
 If you need to bootstrap a fresh machine from this checkout, run `./get-tak.sh` once and then use `tak run ...` from the installed binary. GitHub Actions in this repo follow the same bootstrap path.
+
+For local source installs, `./install-locally.sh` builds with stable Rust. If `cargo +stable` is unavailable and your active Cargo toolchain is nightly-only, the script stops with an explicit stable-toolchain error instead of attempting a nightly build.
 
 This repo bootstraps from the latest released Tak, so root `TASKS.py` and contributor guidance must stay compatible with the released CLI surface.
 

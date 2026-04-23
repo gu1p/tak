@@ -15,6 +15,7 @@ mod examples_tor_fixture_behavior;
 mod exec_local_contract;
 mod get_takd_installer_contract;
 mod invalid_input_guidance_contract;
+mod list_docs_contract;
 mod local_installer_contract;
 mod remote_cli_direct_uppercase_scheme_contract;
 mod remote_cli_http_failure_contract;

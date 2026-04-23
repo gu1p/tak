@@ -36,6 +36,14 @@ pub async fn run_cli() -> Result<ExitCode> {
                 .ok_or_else(|| anyhow!("task not found: {label}"))?;
 
             println!("label: {}", canonical_label(&label));
+            if task.doc.trim().is_empty() {
+                println!("doc: (none)");
+            } else {
+                println!("doc:");
+                for line in task.doc.trim().lines() {
+                    println!("  {line}");
+                }
+            }
             if task.deps.is_empty() {
                 println!("deps: (none)");
             } else {

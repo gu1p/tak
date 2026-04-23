@@ -37,7 +37,7 @@ SPEC
 
 ## Expected Signals
 
-- `tak list` includes `//:hello`.
+- `tak list` includes `//:hello` and the authored `Writes a hello output file.` description.
 - `tak run` prints a success summary for `hello`.
 - Exit code is zero.
 

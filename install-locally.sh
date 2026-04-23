@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+declare -a CARGO_CMD=()
+
 err() {
   printf 'error: %s\n' "$1" >&2
   exit 1
@@ -48,6 +50,40 @@ active_shell_rc() {
   esac
 }
 
+cargo_version_is_stable() {
+  local version
+  version="$(cargo -V 2>/dev/null || true)"
+  [[ "$version" =~ ^cargo[[:space:]][0-9]+\.[0-9]+\.[0-9]+[[:space:]] ]]
+}
+
+cargo_supports_version_probe() {
+  cargo -V >/dev/null 2>&1
+}
+
+resolve_cargo_cmd() {
+  if cargo +stable -V >/dev/null 2>&1; then
+    CARGO_CMD=(cargo +stable)
+    return
+  fi
+
+  if cargo_version_is_stable; then
+    CARGO_CMD=(cargo)
+    return
+  fi
+
+  # Keep plain-cargo behavior for minimal shims that only implement build/metadata.
+  if ! cargo_supports_version_probe; then
+    CARGO_CMD=(cargo)
+    return
+  fi
+
+  err "stable Rust toolchain is required for local source installs; install it with 'rustup toolchain install stable' or make stable your active toolchain"
+}
+
+cargo_run() {
+  "${CARGO_CMD[@]}" "$@"
+}
+
 cargo_target_dir() {
   local metadata target_dir
 
@@ -56,7 +92,7 @@ cargo_target_dir() {
     return
   fi
 
-  if metadata="$(cargo metadata --format-version 1 --no-deps 2>/dev/null)"; then
+  if metadata="$(cargo_run metadata --format-version 1 --no-deps 2>/dev/null)"; then
     target_dir="$(printf '%s' "$metadata" | tr -d '\n' | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"
     target_dir="${target_dir//\\\//\/}"
     if [[ -n "$target_dir" ]]; then
@@ -99,11 +135,12 @@ main() {
 
   root="$(repo_root)"
   cd "$root"
+  resolve_cargo_cmd
 
   dir="$(install_dir)"
 
   printf 'Building tak and takd from source\n'
-  cargo build --release --locked -p tak -p takd
+  cargo_run build --release --locked -p tak -p takd
 
   target_root="$(cargo_target_dir)"
   tak_artifact="$target_root/release/tak"

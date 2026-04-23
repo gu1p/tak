@@ -5,7 +5,7 @@ use std::path::Path;
 use support::run_tak_expect_success;
 
 const REQUIRED_CLI_DOC_TOKENS: [&str; 4] = [
-    "List every fully-qualified task label available from the current workspace",
+    "List every task from the current workspace with its label, dependencies, and description",
     "Execute one or more task labels plus their dependencies",
     "Continue scheduling independent tasks after a task failure",
     "Refresh the node snapshot every N milliseconds while watching",

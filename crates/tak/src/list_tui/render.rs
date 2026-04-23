@@ -4,22 +4,8 @@ pub(crate) fn render_list(spec: &WorkspaceSpec) -> String {
     let mut lines = Vec::with_capacity(spec.tasks.len().max(1));
 
     for (label, task) in &spec.tasks {
-        let task_name = display_label(label);
-        if task.deps.is_empty() {
-            lines.push(format!("{LIST_TASK}{task_name}{RESET}"));
-            continue;
-        }
-
-        let deps = task
-            .deps
-            .iter()
-            .map(|dep| format!("{LIST_DEP}{}{RESET}", display_label(dep)))
-            .collect::<Vec<_>>()
-            .join(&format!("{LIST_PUNC}, {RESET}"));
-
-        lines.push(format!(
-            "{LIST_TASK}{task_name}{RESET} {LIST_PUNC}[{RESET}{deps}{LIST_PUNC}]{RESET}"
-        ));
+        lines.push(render_task_header(label, task));
+        lines.extend(render_task_doc_lines(&task.doc));
     }
 
     if lines.is_empty() {
@@ -27,6 +13,37 @@ pub(crate) fn render_list(spec: &WorkspaceSpec) -> String {
     }
 
     format!("{}\n", lines.join("\n"))
+}
+
+fn render_task_header(label: &TaskLabel, task: &ResolvedTask) -> String {
+    let task_name = display_label(label);
+    if task.deps.is_empty() {
+        return format!("{LIST_TASK}{task_name}{RESET}");
+    }
+
+    let deps = task
+        .deps
+        .iter()
+        .map(|dep| format!("{LIST_DEP}{}{RESET}", display_label(dep)))
+        .collect::<Vec<_>>()
+        .join(&format!("{LIST_PUNC}, {RESET}"));
+
+    format!("{LIST_TASK}{task_name}{RESET} {LIST_PUNC}[{RESET}{deps}{LIST_PUNC}]{RESET}")
+}
+
+fn render_task_doc_lines(doc: &str) -> Vec<String> {
+    let Some(doc) = doc_block(doc) else {
+        return Vec::new();
+    };
+
+    doc.lines()
+        .map(|line| format!("{LIST_PUNC}  {line}{RESET}"))
+        .collect()
+}
+
+fn doc_block(doc: &str) -> Option<&str> {
+    let trimmed = doc.trim();
+    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 pub(crate) fn render_tree(spec: &WorkspaceSpec) -> Result<String> {

@@ -12,7 +12,7 @@ pub(super) struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum Commands {
-    /// List every fully-qualified task label available from the current workspace.
+    /// List every task from the current workspace with its label, dependencies, and description.
     List,
     /// Render the current workspace task graph as a tree.
     Tree,

@@ -9,7 +9,7 @@ use ratatui::buffer::Buffer;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use tak_core::model::{TaskLabel, WorkspaceSpec};
+use tak_core::model::{ResolvedTask, TaskLabel, WorkspaceSpec};
 
 const LIST_TASK: &str = "\x1b[1;36m";
 const LIST_DEP: &str = "\x1b[1;33m";
