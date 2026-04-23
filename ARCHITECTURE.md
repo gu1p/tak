@@ -31,6 +31,10 @@ The `takd` crate contains two related server-side capabilities:
 `tak` itself does not currently manage local daemon lifecycle. `tak status` remains an unsupported
 placeholder in the current client-only build.
 
+For remote onboarding, `tak` now accepts either the raw `takd` invite/token string or the Tor-v3
+word phrase emitted by `takd token show --words`. The phrase encodes the onion host directly and
+includes a checksum word so typo rejection happens locally before probing the remote node.
+
 ## Runtime Topology
 
 ```mermaid

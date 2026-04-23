@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 
 use crate::logging::{init_service_logging, read_service_log_tail};
 use crate::qr_render::render_onboarding_view;
+use tak_proto::encode_tor_invite_words;
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
     read_token_wait,
@@ -78,6 +79,8 @@ enum TokenCommands {
         timeout_secs: u64,
         #[arg(long, default_value_t = false)]
         qr: bool,
+        #[arg(long, default_value_t = false, conflicts_with = "qr")]
+        words: bool,
     },
 }
 
@@ -141,6 +144,7 @@ pub async fn run_cli() -> Result<()> {
                 wait,
                 timeout_secs,
                 qr,
+                words,
             } => {
                 let state_root = state_root.unwrap_or(default_state_root()?);
                 let token = if wait {
@@ -150,6 +154,8 @@ pub async fn run_cli() -> Result<()> {
                 };
                 if qr {
                     print!("{}", render_onboarding_view(&token)?);
+                } else if words {
+                    println!("{}", encode_tor_invite_words(&token)?);
                 } else {
                     println!("{token}");
                 }

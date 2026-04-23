@@ -5736,6 +5736,7 @@ dependencies = [
  "protoc-bin-vendored",
  "serde",
  "serde_json",
+ "sha3",
 ]
 
 [[package]]

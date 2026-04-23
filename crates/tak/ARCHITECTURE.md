@@ -35,6 +35,7 @@ High-level flow:
 | `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
 | `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
+| `tak remote add --words <word>...` | "Add a Tor remote execution agent by manual typing" | Tor invite words decode + existing remote-add probe/write path | `added remote <node_id>`. |
 | `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
 | `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each configured remote node doing right now?" | config read + `/v1/node/status` fetch per matching remote | Node summary section plus active-job section; watch mode refreshes the snapshot in place. |

@@ -7,7 +7,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
-use tak_proto::decode_tor_invite;
+use tak_proto::{decode_tor_invite, encode_tor_invite_words};
 use tui_qrcode::{Colors, QrCodeWidget};
 
 const MIN_VIEW_WIDTH: u16 = 84;
@@ -17,8 +17,12 @@ const BLOCK_HORIZONTAL_CHROME: u16 = 6;
 
 pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
     let is_tor_invite = decode_tor_invite(token).is_ok();
+    let word_phrase = encode_tor_invite_words(token).ok();
     let qr_code = QrCode::new(token.as_bytes())?;
     let command = format!("tak remote add '{token}'");
+    let words_command = word_phrase
+        .as_ref()
+        .map(|phrase| format!("tak remote add --words {phrase}"));
     let qr_title = if is_tor_invite {
         " Takd Invite "
     } else {
@@ -34,20 +38,32 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
     let qr_block_height = qr_size.height + BLOCK_VERTICAL_CHROME;
     let command_block_height = command_height + BLOCK_VERTICAL_CHROME;
     let token_block_height = token_height + BLOCK_VERTICAL_CHROME;
-    let view_height = TITLE_HEIGHT + qr_block_height + command_block_height + token_block_height;
+    let words_block_height = word_phrase
+        .as_ref()
+        .map(|phrase| wrapped_text_height(phrase, text_width) + BLOCK_VERTICAL_CHROME)
+        .unwrap_or(0);
+    let view_height = TITLE_HEIGHT
+        + qr_block_height
+        + command_block_height
+        + token_block_height
+        + words_block_height;
 
     let backend = TestBackend::new(view_width, view_height);
     let mut terminal = Terminal::new(backend)?;
 
     terminal.draw(|frame| {
+        let mut constraints = vec![
+            Constraint::Length(TITLE_HEIGHT),
+            Constraint::Length(qr_block_height),
+            Constraint::Length(command_block_height),
+            Constraint::Length(token_block_height),
+        ];
+        if words_block_height > 0 {
+            constraints.push(Constraint::Length(words_block_height));
+        }
         let rows = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(TITLE_HEIGHT),
-                Constraint::Length(qr_block_height),
-                Constraint::Length(command_block_height),
-                Constraint::Length(token_block_height),
-            ])
+            .constraints(constraints)
             .split(frame.area());
         let title = Paragraph::new(Line::from("Scan this QR code"))
             .style(Style::default().add_modifier(Modifier::BOLD));
@@ -82,14 +98,41 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             Paragraph::new(Text::from(token.to_string())).wrap(Wrap { trim: false }),
             token_area,
         );
+
+        if let Some(phrase) = &word_phrase {
+            let words_block = Block::default().borders(Borders::ALL).title(" Words ");
+            let words_area = words_block.inner(rows[4]).inner(Margin {
+                vertical: 1,
+                horizontal: 2,
+            });
+            frame.render_widget(words_block, rows[4]);
+            frame.render_widget(
+                Paragraph::new(Text::from(phrase.to_string())).wrap(Wrap { trim: false }),
+                words_area,
+            );
+        }
     })?;
 
-    Ok(format!(
-        "{}\n\n{}\n{}\n",
+    Ok(render_plain_text_view(
         buffer_to_plain_text(terminal.backend().buffer()),
-        command,
-        token
+        &command,
+        token,
+        words_command.as_deref(),
     ))
+}
+
+fn render_plain_text_view(
+    view: String,
+    command: &str,
+    token: &str,
+    words_command: Option<&str>,
+) -> String {
+    let mut output = format!("{view}\n\n{command}\n{token}\n");
+    if let Some(words_command) = words_command {
+        output.push_str(words_command);
+        output.push('\n');
+    }
+    output
 }
 
 fn buffer_to_plain_text(buffer: &Buffer) -> String {

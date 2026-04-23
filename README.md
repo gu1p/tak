@@ -72,6 +72,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Report coordination status when supported; the current client-only build returns an unsupported error.
 - `tak remote add <token>`
   - Import a `takd` agent token into local client config.
+- `tak remote add --words <word>...`
+  - Import a Tor v3 `takd` invite from the 19-word manual-entry phrase emitted by `takd token show --words`.
 - `tak remote scan`
   - Pick a camera, preview its feed in the terminal, and add a remote from a scanned QR token.
 - `tak remote list`
@@ -90,8 +92,10 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Print the most recent server-side `takd` log lines from the agent state directory.
 - `takd token show`
   - Reprint the persisted onboarding token, or wait until it is advertised with `--wait`.
+- `takd token show --words`
+  - Print the 19-word Tor v3 onboarding phrase for manual typing.
 - `takd token show --qr`
-  - Render the onboarding token as a terminal QR code plus the exact `tak remote add '...'` command.
+  - Render the onboarding token as a terminal QR code plus the exact `tak remote add '...'` command, and show the 19-word phrase when the invite targets a real Tor v3 onion host.
 
 ## Run Output Signals
 
@@ -124,6 +128,7 @@ takd init
 takd serve
 takd status
 tak remote add "$(takd token show --wait)"
+tak remote add --words "$(takd token show --words --wait)"
 tak remote scan
 tak remote status
 ```
@@ -153,6 +158,8 @@ Runtime model:
 - remote containerized execution
 
 For Tor onboarding, `takd token show --wait` now waits until the local `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
+
+If you need to type the invite instead of scanning it, use `takd token show --words --wait`. The emitted 19-word phrase encodes the Tor v3 onion host directly and ends with a checksum word, so `tak remote add --words ...` can reject typos before any network probe.
 
 If `tak remote add` still times out probing a new onion endpoint, inspect the server directly:
 

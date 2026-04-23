@@ -38,6 +38,7 @@ mod remote_cli_status_tor_transport_contract;
 mod remote_cli_status_unsupported_transport_contract;
 mod remote_cli_status_watch_contract;
 mod remote_cli_tor_invite_pinning_contract;
+mod remote_cli_words_contract;
 mod remote_probe_contract;
 mod repo_bootstrap_docs_contract;
 mod root_check_contract;

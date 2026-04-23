@@ -115,10 +115,19 @@ pub(super) enum DocsCommands {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum RemoteCommands {
-    /// Add one remote agent from an onboarding token.
+    /// Add one remote agent from an onboarding token or Tor word phrase.
     Add {
         /// The onboarding token emitted by `takd token show`.
-        token: String,
+        #[arg(required_unless_present = "words", conflicts_with = "words")]
+        token: Option<String>,
+        /// One or more onboarding words emitted by `takd token show --words`.
+        #[arg(
+            long = "words",
+            value_name = "WORD",
+            num_args = 1..,
+            required_unless_present = "token"
+        )]
+        words: Vec<String>,
     },
     /// Scan a QR code and add the discovered remote agent.
     Scan,

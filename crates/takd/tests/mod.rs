@@ -60,6 +60,8 @@ mod service_tor_recovery_behavior;
 mod service_tor_startup_recovery_behavior;
 mod submit_store_contract;
 mod token_show_qr_contract;
+mod token_show_qr_non_v3_contract;
+mod token_show_words_contract;
 mod token_wait_contract;
 mod tor_hidden_service_cleanup_contract;
 mod tor_hidden_service_contract;

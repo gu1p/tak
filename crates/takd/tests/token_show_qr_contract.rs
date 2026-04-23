@@ -9,15 +9,18 @@ mod qr_output;
 use qr_output::{extract_block, qr_block_body_height, visible_text};
 use qrcode::QrCode;
 use ratatui::layout::Rect;
-use tak_proto::encode_tor_invite;
+use tak_proto::{encode_tor_invite, encode_tor_invite_words};
 use tui_qrcode::QrCodeWidget;
 
+const V3_BASE_URL: &str = "http://pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion";
+
 #[test]
-fn token_show_qr_renders_onboarding_command_and_qr_block() {
+fn token_show_qr_renders_onboarding_command_qr_block_and_words_for_real_v3_invites() {
     let temp = tempfile::tempdir().expect("tempdir");
     let state_root = temp.path().join("state");
     fs::create_dir_all(&state_root).expect("create state root");
-    let invite = encode_tor_invite("http://builder-qr.onion").expect("encode invite");
+    let invite = encode_tor_invite(V3_BASE_URL).expect("encode invite");
+    let words = encode_tor_invite_words(&invite).expect("encode invite words");
     fs::write(state_root.join("agent.token"), format!("{invite}\n")).expect("write invite");
 
     let show = StdCommand::new(support::takd_bin())
@@ -41,6 +44,10 @@ fn token_show_qr_renders_onboarding_command_and_qr_block() {
     assert!(
         stdout.contains(&format!("tak remote add '{invite}'")),
         "missing client command:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("tak remote add --words"),
+        "missing words client command:\n{stdout}"
     );
     assert!(
         stdout.lines().filter(|line| line.contains('█')).count() >= 4,
@@ -76,5 +83,15 @@ fn token_show_qr_renders_onboarding_command_and_qr_block() {
             .filter(|ch| !ch.is_whitespace())
             .collect::<String>(),
         "invite block should contain the full wrapped invite:\n{stdout}"
+    );
+
+    let words_block = extract_block(&stdout, " Words ");
+    assert_eq!(
+        visible_text(&words_block),
+        words
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect::<String>(),
+        "words block should contain the full wrapped phrase:\n{stdout}"
     );
 }

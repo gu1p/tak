@@ -130,7 +130,8 @@ pub async fn run_cli() -> Result<ExitCode> {
             .await?;
         }
         Commands::Remote { command } => match command {
-            super::command_model::RemoteCommands::Add { token } => {
+            super::command_model::RemoteCommands::Add { token, words } => {
+                let token = resolve_remote_add_token(token, &words)?;
                 let remote = add_remote(&token).await?;
                 println!("added remote {}", remote.node_id);
             }
@@ -171,4 +172,20 @@ pub async fn run_cli() -> Result<ExitCode> {
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+fn resolve_remote_add_token(token: Option<String>, words: &[String]) -> Result<String> {
+    if let Some(token) = token {
+        return Ok(token);
+    }
+
+    let phrase = words
+        .iter()
+        .flat_map(|value| value.split_whitespace())
+        .collect::<Vec<_>>();
+    if phrase.is_empty() {
+        bail!("remote add requires a token or `--words`");
+    }
+
+    tak_proto::decode_tor_invite_words(&phrase.join(" "))
 }

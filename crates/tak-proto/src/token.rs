@@ -91,7 +91,7 @@ fn encode_tor_invite_checksum(bytes: &[u8]) -> String {
     encoded
 }
 
-fn crc32c(bytes: &[u8]) -> u32 {
+pub(crate) fn crc32c(bytes: &[u8]) -> u32 {
     let mut crc = !0_u32;
     for byte in bytes {
         crc ^= u32::from(*byte);
