@@ -1,4 +1,12 @@
-use super::*;
+use std::fs;
+use std::path::Path;
+
+use anyhow::{Context, Result, bail};
+use tak_core::model::{
+    CurrentStateOrigin, CurrentStateSpec, IgnoreSourceSpec, PathAnchor, PathRef,
+};
+
+use super::workspace_sync::normalize_filesystem_relative_path;
 
 pub(crate) fn collect_workspace_files(
     workspace_root: &Path,

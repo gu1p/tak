@@ -6,7 +6,7 @@ Run a task remotely via Tor transport and consume synced artifacts locally.
 Large tier: remote transport parity and artifact roundtrip flow.
 
 ## What This Example Exercises
-- `RemoteTransportMode.TorOnionService`
+- `TorOnionService()`
 - remote execution over Tor transport abstraction
 - local consumption of remote-produced artifacts
 

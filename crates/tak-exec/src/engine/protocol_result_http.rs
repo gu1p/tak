@@ -1,17 +1,18 @@
-use super::*;
+use std::time::Duration;
 
+use anyhow::{Context, Result, bail};
 use http_body_util::BodyExt;
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
 
-/// Fetches terminal result metadata for one remote attempt.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
+use super::{
+    RemoteHttpExchangeError, StrictRemoteTarget, remote_models::RemoteProtocolResult, transport,
+};
+use crate::{
+    remote_endpoint::remote_protocol_bearer_token,
+    remote_protocol_codec::parse_remote_result_outputs,
+};
+
 pub(crate) async fn remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,
@@ -109,7 +110,7 @@ pub(crate) async fn remote_protocol_http_request(
     phase: &str,
     timeout: Duration,
 ) -> std::result::Result<(u16, Vec<u8>), RemoteHttpExchangeError> {
-    let socket_addr = TransportFactory::socket_addr(target)
+    let socket_addr = transport::socket_addr(target)
         .with_context(|| {
             format!(
                 "infra error: remote node {} has invalid endpoint {}",
@@ -123,7 +124,7 @@ pub(crate) async fn remote_protocol_http_request(
     let payload = body.unwrap_or(&[]);
 
     let exchange = async {
-        let stream = TransportFactory::connect(target)
+        let stream = transport::connect(target)
             .await
             .map_err(|err| RemoteHttpExchangeError::connect(format!("{err:#}")))?;
         let (mut sender, connection) =
@@ -178,7 +179,7 @@ pub(crate) async fn remote_protocol_http_request(
         Ok((status, body))
     };
 
-    let effective_timeout = TransportFactory::phase_timeout(target, timeout);
+    let effective_timeout = transport::phase_timeout(target, timeout);
     tokio::time::timeout(effective_timeout, exchange)
         .await
         .map_err(|_| {

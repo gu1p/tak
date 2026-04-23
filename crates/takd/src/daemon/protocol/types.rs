@@ -61,7 +61,10 @@ pub struct PendingInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(
+    try_from = "super::request_wire::RequestEnvelope",
+    into = "super::request_wire::RequestEnvelope"
+)]
 pub enum Request {
     AcquireLease(AcquireLeaseRequest),
     RenewLease(RenewLeaseRequest),

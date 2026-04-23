@@ -1,13 +1,24 @@
-use super::*;
+use anyhow::{Context, Result, bail};
+use tak_core::model::ResolvedTask;
 
-/// Selects the first reachable remote endpoint in declaration order.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
+use super::{
+    RemotePreflightExhaustedError, RemotePreflightFailure, TaskOutputObserver,
+    preflight_failure::{
+        RemoteNodeInfoFailure, remote_preflight_error_failure, remote_preflight_timeout_failure,
+        remote_preflight_unhealthy_failure,
+    },
+    preflight_status_output::{
+        emit_remote_accepted, emit_remote_connected, emit_remote_probe, emit_remote_submit,
+        emit_remote_unavailable, next_candidate_available,
+    },
+    protocol_detection::detect_remote_protocol_mode,
+    protocol_submit::remote_protocol_submit,
+    remote_models::{RemoteSubmitContext, StrictRemoteTarget},
+    remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind},
+    transport,
+};
+use crate::client_observations::record_remote_observation;
+
 pub(crate) async fn preflight_ordered_remote_target(
     task: &ResolvedTask,
     candidates: &[StrictRemoteTarget],
@@ -38,18 +49,10 @@ pub(crate) async fn preflight_ordered_remote_target(
     .into())
 }
 
-/// Performs strict remote preflight by checking endpoint reachability before task execution.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
 pub(crate) async fn preflight_strict_remote_target(
     target: &StrictRemoteTarget,
 ) -> std::result::Result<(), RemotePreflightFailure> {
-    if let Err(err) = TransportFactory::socket_addr(target).with_context(|| {
+    if let Err(err) = transport::socket_addr(target).with_context(|| {
         format!(
             "infra error: remote node {} has invalid endpoint {}",
             target.node_id, target.endpoint
@@ -61,7 +64,7 @@ pub(crate) async fn preflight_strict_remote_target(
         ));
     }
 
-    let preflight_timeout = TransportFactory::preflight_timeout(target);
+    let preflight_timeout = transport::preflight_timeout(target);
     match tokio::time::timeout(preflight_timeout, detect_remote_protocol_mode(target)).await {
         Ok(Ok(node)) => {
             let _ = record_remote_observation(&node);

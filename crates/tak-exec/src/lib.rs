@@ -24,13 +24,9 @@ pub use client_observations::{
     record_remote_observation, write_remote_observation, write_remote_observation_at,
 };
 pub use client_tor::default_client_tor_config;
-#[allow(unused_imports)]
 pub(crate) use engine::{
-    ContainerExecutionPlan, LeaseContext, ParsedRemoteEvents, RemoteHttpExchangeError,
-    RemoteHttpExchangeErrorKind, RemoteNodeInfoFailureKind, RemoteSubmitFailure,
-    RemoteSubmitFailureKind, RemoteTargetSelection, RemoteWorkspaceStage, StrictRemoteTarget,
-    classify_preflight_failure_kind, emit_task_output, is_auth_submit_failure,
-    parse_remote_protocol_result, remote_protocol_http_request,
+    ContainerExecutionPlan, LeaseContext, ParsedRemoteEvents, RemoteTargetSelection,
+    RemoteWorkspaceStage, StrictRemoteTarget, emit_task_output,
 };
 pub use engine::{
     NoMatchingRemoteError, OutputStream, PlacementMode, RemoteCandidateDiagnostic,
@@ -42,15 +38,14 @@ pub use engine::{
     run_tasks,
 };
 pub use summary::target_set_from_summary;
+#[path = "client_remotes_tests.rs"]
+mod client_remotes_tests;
 #[path = "engine/preflight_failure_classification_tests.rs"]
 mod preflight_failure_classification_tests;
 #[path = "engine/preflight_fallback_classification_tests.rs"]
 mod preflight_fallback_classification_tests;
-#[cfg(test)]
 mod protocol_result_http_connection_cleanup_tests;
-#[cfg(test)]
 mod protocol_result_http_tests;
-#[cfg(test)]
 mod protocol_result_http_timeout_tests;
 
 pub use remote_endpoint::{endpoint_host_port, endpoint_socket_addr, socket_addr_from_host_port};

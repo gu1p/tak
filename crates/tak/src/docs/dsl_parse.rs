@@ -31,13 +31,14 @@ fn parse_typed_dict_class(
             let Some(name_end) = rest.find('(') else {
                 bail!("failed to parse Python method name from `{trimmed}`");
             };
+            let (signature, next_index) = parse_function_signature(lines, index);
             methods.push(DslMethodEntry {
                 owner: name.clone(),
                 name: rest[..name_end].trim().to_string(),
-                signature: trimmed.to_string(),
+                signature,
                 summary: consume_pending_comments(&mut pending_comments),
             });
-            index += 1;
+            index = next_index;
             continue;
         }
         if let Some((field_name, field_ty)) = parse_annotated_name_and_type(trimmed) {

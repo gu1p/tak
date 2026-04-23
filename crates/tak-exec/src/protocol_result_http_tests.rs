@@ -1,12 +1,16 @@
+#![cfg(test)]
+
 use std::time::Duration;
 
 use prost::Message;
-use tak_core::model::RemoteTransportKind;
 use tak_proto::GetTaskResultResponse;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use super::{StrictRemoteTarget, parse_remote_protocol_result, remote_protocol_http_request};
+use crate::engine::protocol_result_http::{
+    parse_remote_protocol_result, remote_protocol_http_request,
+};
+use crate::engine::remote_models::{StrictRemoteTarget, StrictRemoteTransportKind};
 
 #[tokio::test]
 async fn remote_protocol_http_request_reads_a_complete_http_body_without_waiting_for_eof() {
@@ -31,7 +35,7 @@ async fn remote_protocol_http_request_reads_a_complete_http_body_without_waiting
     let target = StrictRemoteTarget {
         node_id: "builder-a".into(),
         endpoint: format!("http://{addr}"),
-        transport_kind: RemoteTransportKind::Direct,
+        transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
     };
@@ -55,7 +59,7 @@ fn parse_remote_protocol_result_preserves_failure_stderr_tail() {
     let target = StrictRemoteTarget {
         node_id: "builder-a".into(),
         endpoint: "http://127.0.0.1:65535".into(),
-        transport_kind: RemoteTransportKind::Direct,
+        transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
     };

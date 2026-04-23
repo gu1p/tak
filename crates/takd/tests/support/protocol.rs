@@ -10,6 +10,11 @@ use tokio::net::UnixStream;
 use tokio::time::{Duration, sleep};
 
 pub async fn send_request(socket_path: &Path, request: &Request) -> Response {
+    let frame = send_request_frame(socket_path, request).await;
+    serde_json::from_str(frame.trim_end()).expect("decode response")
+}
+
+pub async fn send_request_frame(socket_path: &Path, request: &Request) -> String {
     for _ in 0..50 {
         if let Ok(stream) = UnixStream::connect(socket_path).await {
             return exchange(stream, request).await;
@@ -19,7 +24,7 @@ pub async fn send_request(socket_path: &Path, request: &Request) -> Response {
     panic!("timed out connecting to socket {}", socket_path.display());
 }
 
-async fn exchange(stream: UnixStream, request: &Request) -> Response {
+async fn exchange(stream: UnixStream, request: &Request) -> String {
     let mut stream = stream;
     let encoded = serde_json::to_string(request).expect("encode request");
     stream
@@ -32,7 +37,7 @@ async fn exchange(stream: UnixStream, request: &Request) -> Response {
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
     reader.read_line(&mut line).await.expect("read response");
-    serde_json::from_str(line.trim_end()).expect("decode response")
+    line
 }
 
 pub fn acquire_request(request_id: &str) -> AcquireLeaseRequest {

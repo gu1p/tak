@@ -1,7 +1,12 @@
-use super::*;
+use std::time::Duration;
 
 use prost::Message;
 use tak_proto::NodeInfo;
+
+use super::StrictRemoteTarget;
+
+use super::preflight_failure::RemoteNodeInfoFailure;
+use super::protocol_result_http::remote_protocol_http_request;
 
 /// Probes the remote node info endpoint and confirms V1 protobuf support.
 ///

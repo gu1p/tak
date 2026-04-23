@@ -29,7 +29,7 @@ const REQUIRED_TYPED_STUB_DOC_TOKENS: [&str; 4] = [
     "Top-level TASKS.py module payload returned by `module_spec(...)`.",
     "Task dictionary returned by `task(...)` after dependency normalization.",
     "Machine-wide coordination scope.",
-    "No public methods are currently exposed by the shipped TASKS.py DSL.",
+    "Return an explicit local placement decision from a custom policy.",
 ];
 
 fn run_docs_dump(cwd: &Path) -> Result<String> {

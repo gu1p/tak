@@ -1,8 +1,9 @@
 #![cfg(test)]
 
-use super::{
-    RemoteNodeInfoFailureKind, RemotePreflightFailureKind, classify_preflight_failure_kind,
+use crate::engine::preflight_failure::{
+    RemoteNodeInfoFailureKind, classify_preflight_failure_kind,
 };
+use crate::engine::remote_diagnostics::RemotePreflightFailureKind;
 
 #[test]
 fn typed_node_info_failures_map_to_preflight_failure_kinds() {

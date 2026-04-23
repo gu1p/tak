@@ -1,9 +1,11 @@
+#![cfg(test)]
+
 use std::time::Duration;
 
-use tak_core::model::RemoteTransportKind;
 use tokio::net::TcpListener;
 
-use super::{StrictRemoteTarget, remote_protocol_http_request};
+use crate::engine::protocol_result_http::remote_protocol_http_request;
+use crate::engine::remote_models::{StrictRemoteTarget, StrictRemoteTransportKind};
 
 #[tokio::test]
 async fn remote_protocol_http_request_timeout_mentions_endpoint_and_transport() {
@@ -19,7 +21,7 @@ async fn remote_protocol_http_request_timeout_mentions_endpoint_and_transport() 
     let target = StrictRemoteTarget {
         node_id: "builder-a".into(),
         endpoint: endpoint.clone(),
-        transport_kind: RemoteTransportKind::Direct,
+        transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
     };

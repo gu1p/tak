@@ -3,6 +3,8 @@
 //! The CLI loads the current directory's `TASKS.py`, resolves the workspace graph,
 //! and dispatches local, remote, and graph-inspection flows through one testable library.
 
+#![recursion_limit = "256"]
+
 extern crate self as tak;
 
 mod cli;

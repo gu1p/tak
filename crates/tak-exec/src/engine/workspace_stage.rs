@@ -6,7 +6,20 @@
 /// #     Ok(())
 /// # }
 /// ```
-use super::*;
+use std::fs;
+use std::io::{Read, Write};
+use std::path::Path;
+
+use anyhow::{Context, Result};
+use base64::Engine;
+use tak_core::model::{ResolvedTask, build_current_state_manifest};
+use zip::write::SimpleFileOptions;
+
+use super::{RemoteWorkspaceStage, TaskOutputObserver, TaskStatusPhase};
+
+use super::output_observer::emit_task_status_message;
+use super::workspace_collect::{collect_workspace_files, materialize_manifest_files};
+use super::workspace_sync::normalize_filesystem_relative_path;
 
 pub(crate) fn stage_remote_workspace(
     task: &ResolvedTask,

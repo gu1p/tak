@@ -3,17 +3,17 @@ use std::collections::BTreeMap;
 use base64::Engine;
 use tak_core::model::{
     CurrentStateSpec, Hold, LimiterRef, NeedDef, OutputSelectorSpec, PathAnchor, PathRef,
-    RemoteRuntimeSpec, RemoteTransportKind, ResolvedTask, RetryDef, Scope, StepDef,
-    TaskExecutionSpec, TaskLabel,
+    RemoteRuntimeSpec, ResolvedTask, RetryDef, Scope, StepDef, TaskExecutionSpec, TaskLabel,
 };
 
 use super::*;
+use crate::engine::remote_models::StrictRemoteTransportKind;
 
 pub(super) fn direct_target(runtime: Option<RemoteRuntimeSpec>) -> StrictRemoteTarget {
     StrictRemoteTarget {
         node_id: "builder-a".into(),
         endpoint: "http://127.0.0.1:43123".into(),
-        transport_kind: RemoteTransportKind::Direct,
+        transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime,
     }

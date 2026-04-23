@@ -6,7 +6,21 @@
 /// #     Ok(())
 /// # }
 /// ```
-use super::*;
+use std::time::Duration;
+
+use anyhow::{Result, bail};
+use tak_core::model::TaskLabel;
+
+use super::{
+    RemoteLogChunk, StrictRemoteTarget, TaskOutputObserver, TaskStatusPhase, emit_task_output,
+};
+
+use crate::remote_protocol_codec::parse_remote_events_response;
+
+use super::output_observer::emit_task_status_message;
+use super::protocol_result_http::{remote_protocol_http_request, try_remote_protocol_result};
+use super::remote_models::RemoteProtocolResult;
+use super::remote_wait_status::{remote_wait_heartbeat_interval, render_remote_wait_heartbeat};
 
 pub(crate) async fn remote_protocol_events(
     target: &StrictRemoteTarget,

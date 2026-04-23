@@ -1,4 +1,9 @@
-use super::*;
+use anyhow::Result;
+use tak_core::model::TaskLabel;
+
+use super::{StrictRemoteTarget, TaskOutputObserver, TaskStatusPhase};
+
+use super::output_observer::emit_task_status_message;
 
 pub(crate) fn emit_remote_probe(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,

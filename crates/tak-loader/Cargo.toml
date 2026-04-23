@@ -14,6 +14,9 @@ ignore.workspace = true
 hex.workspace = true
 monty.workspace = true
 monty_type_checking.workspace = true
+ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "6ded4bed1651e30b34dd04cdaa50c763036abb0d" }
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "6ded4bed1651e30b34dd04cdaa50c763036abb0d" }
+ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "6ded4bed1651e30b34dd04cdaa50c763036abb0d" }
 serde_json.workspace = true
 serde.workspace = true
 sha2.workspace = true

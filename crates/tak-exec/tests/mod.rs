@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 pub mod support;
 
 mod client_observation_cache_contract;

@@ -187,14 +187,14 @@ class PolicyContextSpec(TypedDict):
     local: PolicyLocalContextSpec
 
 
-# Explicit local placement decision returned by `Decision_local(...)`.
+# Explicit local placement decision returned by `Decision.local(...)`.
 class LocalDecisionSpec(TypedDict, total=False):
     mode: Literal["local"]
     reason: str
     local: LocalSpec
 
 
-# Explicit remote placement decision returned by `Decision_remote(...)`.
+# Explicit remote placement decision returned by `Decision.remote(...)`.
 class RemoteDecisionSpec(TypedDict):
     mode: Literal["remote"]
     reason: str
@@ -301,18 +301,34 @@ PRIORITY: Literal["priority"]
 REPO_ZIP_SNAPSHOT: Literal["REPO_ZIP_SNAPSHOT"]
 # Result sync mode that returns declared outputs plus logs.
 OUTPUTS_AND_LOGS: Literal["OUTPUTS_AND_LOGS"]
-# Placement reason for tasks with side effects.
-REASON_SIDE_EFFECTING_TASK: Literal["SIDE_EFFECTING_TASK"]
-# Placement reason when no remote target is reachable.
-REASON_NO_REMOTE_REACHABLE: Literal["NO_REMOTE_REACHABLE"]
-# Placement reason when local CPU is busy but ARM remains idle.
-REASON_LOCAL_CPU_HIGH_ARM_IDLE: Literal["LOCAL_CPU_HIGH_ARM_IDLE"]
-# Placement reason when local CPU is busy.
-REASON_LOCAL_CPU_HIGH: Literal["LOCAL_CPU_HIGH"]
-# Default placement reason for local execution.
-REASON_DEFAULT_LOCAL_POLICY: Literal["DEFAULT_LOCAL_POLICY"]
-# Named reason-code lookup used by custom placement policies.
-Reason: dict[str, str]
+
+
+# Named placement reason constants used by custom placement policies.
+class Reason:
+    SIDE_EFFECTING_TASK: Literal["SIDE_EFFECTING_TASK"]
+    NO_REMOTE_REACHABLE: Literal["NO_REMOTE_REACHABLE"]
+    LOCAL_CPU_HIGH_ARM_IDLE: Literal["LOCAL_CPU_HIGH_ARM_IDLE"]
+    LOCAL_CPU_HIGH: Literal["LOCAL_CPU_HIGH"]
+    DEFAULT_LOCAL_POLICY: Literal["DEFAULT_LOCAL_POLICY"]
+
+
+# Placement decision namespace used by custom placement policies.
+# Only literal direct calls `Decision.local(...)` and `Decision.remote(...)`
+# are supported by the loader. Do not alias `Decision` or its methods.
+class Decision:
+    # Return an explicit local placement decision from a custom policy.
+    @staticmethod
+    def local(
+        local: LocalSpec | None = ...,
+        reason: str = ...,
+    ) -> LocalDecisionSpec: ...
+
+    # Return an explicit remote placement decision from a custom policy.
+    @staticmethod
+    def remote(
+        remote: RemoteSpec,
+        reason: str = ...,
+    ) -> RemoteDecisionSpec: ...
 
 def module_spec(
     tasks: list[TaskSpec],
@@ -450,14 +466,6 @@ def PolicyContext(
     task_side_effecting: bool = ...,
     local_cpu_percent: float = ...,
 ) -> PolicyContextSpec: ...
-def Decision_local(
-    local: LocalSpec | None = ...,
-    reason: str = ...,
-) -> LocalDecisionSpec: ...
-def Decision_remote(
-    remote: RemoteSpec,
-    reason: str = ...,
-) -> RemoteDecisionSpec: ...
 def LocalOnly(local: LocalSpec) -> LocalOnlyExecutionSpec: ...
 def RemoteOnly(remote: RemoteSpec) -> RemoteOnlyExecutionSpec: ...
 def ByCustomPolicy(policy: object) -> ByCustomPolicyExecutionSpec: ...

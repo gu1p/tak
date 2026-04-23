@@ -39,6 +39,33 @@ fn tak_exec_uses_real_module_boundaries_instead_of_include_assembly() -> Result<
     Ok(())
 }
 
+#[test]
+fn tak_exec_engine_uses_explicit_imports_without_unused_import_shims() -> Result<()> {
+    assert_no_unused_import_allow("src/lib.rs");
+    assert_no_unused_import_allow("src/engine/mod.rs");
+
+    for entry in fs::read_dir(crate_root().join("src/engine")).context("read src/engine")? {
+        let entry = entry.context("read engine entry")?;
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+
+        let relative_path = path
+            .strip_prefix(crate_root())
+            .expect("engine path under crate root")
+            .display()
+            .to_string();
+        let source = read(&relative_path)?;
+        assert!(
+            !source.contains("use super::*;"),
+            "{relative_path} should use explicit imports instead of super::*",
+        );
+    }
+
+    Ok(())
+}
+
 fn assert_no_include_assembly(relative_path: &str, fragments: &[&str]) {
     let source = read(relative_path).expect("source");
     for fragment in fragments {
@@ -47,4 +74,12 @@ fn assert_no_include_assembly(relative_path: &str, fragments: &[&str]) {
             "{relative_path} should not include-expand {fragment} modules",
         );
     }
+}
+
+fn assert_no_unused_import_allow(relative_path: &str) {
+    let source = read(relative_path).expect("source");
+    assert!(
+        !source.contains("#[allow(unused_imports)]"),
+        "{relative_path} should not suppress unused-import warnings to support hidden import hubs",
+    );
 }

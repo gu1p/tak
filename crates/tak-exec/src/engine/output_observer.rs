@@ -1,4 +1,7 @@
-use super::*;
+use anyhow::Result;
+use tak_core::model::TaskLabel;
+
+use super::{OutputStream, TaskOutputChunk, TaskOutputObserver, TaskStatusEvent, TaskStatusPhase};
 
 pub(crate) fn emit_task_output(
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,

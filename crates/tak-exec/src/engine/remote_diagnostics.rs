@@ -1,4 +1,5 @@
-use super::*;
+use tak_core::model::{RemoteSpec, RemoteTransportKind};
+
 use crate::RemoteObservation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

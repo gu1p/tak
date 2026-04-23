@@ -1,4 +1,11 @@
-use super::*;
+use std::time::Duration;
+
+use anyhow::{Context, Result};
+use arti_client::TorClient;
+
+use super::StrictRemoteTarget;
+
+use crate::default_client_tor_config;
 
 const DEFAULT_TOR_CONNECT_TIMEOUT: Duration = Duration::from_secs(120);
 const DEFAULT_TOR_CONNECT_RETRY_DELAY: Duration = Duration::from_secs(1);

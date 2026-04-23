@@ -1,16 +1,17 @@
 use std::env;
 
 use anyhow::{Result, bail};
-use tak_core::model::RemoteTransportKind;
+
+use crate::engine::remote_models::StrictRemoteTransportKind;
 
 pub(crate) fn remote_protocol_bearer_token<'a>(
     node_id: &str,
     bearer_token: &'a str,
-    transport_kind: RemoteTransportKind,
+    transport_kind: StrictRemoteTransportKind,
 ) -> Result<Option<&'a str>> {
     let token = bearer_token.trim();
     if token.is_empty() {
-        return if transport_kind == RemoteTransportKind::Tor {
+        return if transport_kind == StrictRemoteTransportKind::Tor {
             Ok(None)
         } else {
             bail!("infra error: remote node {} bearer token is empty", node_id)

@@ -8,11 +8,12 @@ fn coverage_script_builds_checkout_binaries_under_llvm_cov_environment() {
 
     for needle in [
         "cargo llvm-cov clean --workspace",
-        "cargo llvm-cov show-env --export-prefix --sh",
+        "cargo llvm-cov show-env --sh",
+        "coverage_target_dir=\"${CARGO_TARGET_DIR:-${CARGO_LLVM_COV_TARGET_DIR:-target}}\"",
         "cargo build --all-features -p tak --bin tak",
         "cargo build --all-features -p takd --bin takd",
-        "export TAK_TEST_TAK_BIN=",
-        "export TAK_TEST_TAKD_BIN=",
+        "export TAK_TEST_TAK_BIN=\"${coverage_target_dir}/debug/tak\"",
+        "export TAK_TEST_TAKD_BIN=\"${coverage_target_dir}/debug/takd\"",
         "cargo llvm-cov report",
     ] {
         assert!(
@@ -24,6 +25,10 @@ fn coverage_script_builds_checkout_binaries_under_llvm_cov_environment() {
     assert!(
         !script.contains("cargo llvm-cov \\\n  --workspace"),
         "run_coverage.sh should not combine environment setup and report generation in one direct cargo llvm-cov invocation anymore:\n{script}"
+    );
+    assert!(
+        !script.contains("${CARGO_TARGET_DIR}/debug"),
+        "run_coverage.sh should not require CARGO_TARGET_DIR to be exported directly:\n{script}"
     );
 }
 

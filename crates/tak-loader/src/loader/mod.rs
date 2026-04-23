@@ -3,11 +3,13 @@ use std::path::PathBuf;
 
 use tak_core::model::{LimiterDef, LimiterKey, QueueDef, ResolvedTask, TaskLabel};
 
+mod authored_source;
 mod context_resolution;
 mod execution_resolution;
 mod load_options;
 mod module_eval;
 mod module_merge;
+mod monty_deserializer;
 mod output_resolution;
 mod project_resolution;
 mod remote_validation;

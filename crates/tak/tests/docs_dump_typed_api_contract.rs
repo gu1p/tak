@@ -6,7 +6,7 @@ use support::run_tak_expect_success;
 
 const REQUIRED_TASKS_API_SUBSECTIONS: [&str; 4] =
     ["### Types", "### Constants", "### Functions", "### Methods"];
-const REQUIRED_TYPED_API_TOKENS: [&str; 9] = [
+const REQUIRED_TYPED_API_TOKENS: [&str; 10] = [
     "#### `ModuleSpec`",
     "class ModuleSpec(TypedDict):",
     "- `spec_version`: `Literal[1]`",
@@ -15,7 +15,8 @@ const REQUIRED_TYPED_API_TOKENS: [&str; 9] = [
     "`MACHINE: Literal[\"machine\"]`",
     "-> ModuleSpec: ...",
     "-> TaskSpec: ...",
-    "No public methods are currently exposed by the shipped TASKS.py DSL.",
+    "#### `Decision.local`",
+    "#### `Decision.remote`",
 ];
 
 fn run_docs_dump(cwd: &Path) -> Result<String> {

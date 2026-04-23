@@ -11,6 +11,7 @@ use crate::daemon::lease::{AcquireLeaseResponse, SharedLeaseManager};
 
 mod dispatch;
 mod local_protocol_io;
+mod request_wire;
 mod types;
 mod unix_server;
 mod validation;

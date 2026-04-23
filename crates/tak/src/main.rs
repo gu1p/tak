@@ -3,6 +3,8 @@
 //! The binary is intentionally thin and delegates command execution to the
 //! library-backed CLI runtime in `tak::run_cli`.
 
+#![recursion_limit = "256"]
+
 use std::process::ExitCode;
 
 /// Starts the Tak CLI process.

@@ -11,9 +11,10 @@ use tak_core::model::{
 
 use super::{
     LoadOptions, MergeState, PRELUDE,
+    authored_source::{prepare_authored_source, runtime_input_names, runtime_inputs},
     execution_resolution::resolve_policy_decision,
-    module_eval::{monty_to_json, sanitize_canonical_v1_imports},
     module_merge::merge_module,
+    monty_deserializer::deserialize_from_monty,
     project_resolution::{package_for_file, resolve_project_id},
     workspace_discovery::{detect_workspace_root, discover_tasks_files},
 };
@@ -94,7 +95,7 @@ pub fn evaluate_named_policy_decision(
     }
 
     let source = fs::read_to_string(tasks_file)?;
-    let source = sanitize_canonical_v1_imports(&source);
+    let prepared = prepare_authored_source(tasks_file, &source)?;
     let mut chars = policy_name.chars();
     let Some(first_char) = chars.next() else {
         bail!("policy_name is required");
@@ -107,11 +108,12 @@ pub fn evaluate_named_policy_decision(
     let code = format!(
         r#"{PRELUDE}
 
-{source}
+{}
 
 __TAK_RUNTIME_POLICY_CONTEXT__ = POLICY_CONTEXT if isinstance(POLICY_CONTEXT, dict) else PolicyContext()
 _compile_policy_decision({policy_name}, __TAK_RUNTIME_POLICY_CONTEXT__)
-"#
+"#,
+        prepared.runtime_source
     );
 
     let limits = ResourceLimits::new()
@@ -120,14 +122,13 @@ _compile_policy_decision({policy_name}, __TAK_RUNTIME_POLICY_CONTEXT__)
         .max_allocations(200_000);
     let tracker = LimitedTracker::new(limits);
 
-    let runner = MontyRun::new(code, &tasks_file.to_string_lossy(), Vec::new(), Vec::new())
+    let runner = MontyRun::new(code, &tasks_file.to_string_lossy(), runtime_input_names())
         .map_err(|e| anyhow!("failed to compile {}: {e}", tasks_file.display()))?;
     let value = runner
-        .run(Vec::new(), tracker, &mut PrintWriter::Disabled)
+        .run(runtime_inputs(), tracker, PrintWriter::Disabled)
         .map_err(|e| anyhow!("failed to evaluate {}: {e}", tasks_file.display()))?;
 
-    let json = monty_to_json(value)?;
-    let decision: PolicyDecisionDef = serde_json::from_value(json)
+    let decision: PolicyDecisionDef = deserialize_from_monty(value)
         .map_err(|e| anyhow!("invalid policy decision in {}: {e}", tasks_file.display()))?;
     resolve_policy_decision(decision, package)
 }

@@ -1,4 +1,20 @@
-use super::*;
+use std::path::Path;
+
+use anyhow::{Result, anyhow};
+use tak_core::model::ResolvedTask;
+
+use super::{PlacementMode, TaskOutputObserver, TaskStatusPhase};
+
+use super::output_observer::emit_task_status_message;
+use super::placement::resolve_task_placement;
+use super::preflight_fallback::{
+    fallback_after_auth_submit_failure, is_auth_submit_failure, preflight_ordered_remote_target,
+};
+use super::protocol_submit::remote_protocol_submit;
+use super::remote_models::{
+    RemoteSubmitContext, RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
+};
+use super::runtime_metadata::resolve_runtime_execution_metadata;
 
 pub(crate) async fn preflight_task_placement(
     task: &ResolvedTask,

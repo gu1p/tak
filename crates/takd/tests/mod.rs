@@ -8,6 +8,8 @@ mod agent_status_contract;
 mod agent_status_recovering_contract;
 mod cli_binary_contract;
 mod container_behavior;
+mod daemon_protocol_lifecycle_behavior;
+mod daemon_protocol_request_behavior;
 mod daemon_runtime_behavior;
 mod daemon_tor_runtime_behavior;
 mod direct_agent_base_url_contract;

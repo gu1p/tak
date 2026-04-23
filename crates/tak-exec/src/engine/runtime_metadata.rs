@@ -1,4 +1,18 @@
-use super::*;
+use std::collections::BTreeMap;
+use std::env;
+
+use anyhow::{Result, anyhow, bail};
+use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, ResolvedTask};
+use uuid::Uuid;
+
+use super::{ContainerExecutionPlan, PlacementMode, StrictRemoteTarget};
+
+use crate::container_engine::{
+    ContainerEngine, ShellContainerEngineProbe, resolve_container_engine_host_platform,
+    select_container_engine_with_probe,
+};
+
+use super::remote_models::{ContainerLifecycleStage, RuntimeExecutionMetadata, TaskPlacement};
 
 pub(crate) fn resolve_runtime_execution_metadata(
     task: &ResolvedTask,

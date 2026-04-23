@@ -6,7 +6,17 @@
 /// #     Ok(())
 /// # }
 /// ```
-use super::*;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use tak_core::model::{PolicyDecisionSpec, RemoteSpec, ResolvedTask, TaskExecutionSpec, TaskLabel};
+use tak_loader::evaluate_named_policy_decision;
+
+use super::{NoMatchingRemoteError, PlacementMode};
+
+use crate::client_remotes::configured_remote_targets;
+
+use super::remote_models::TaskPlacement;
 
 pub(crate) fn resolve_task_placement(
     task: &ResolvedTask,

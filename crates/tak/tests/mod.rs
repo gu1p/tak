@@ -39,6 +39,7 @@ mod remote_probe_contract;
 mod repo_bootstrap_docs_contract;
 mod root_check_contract;
 mod root_check_rust_contract;
+mod root_coverage_script_behavior_contract;
 mod root_coverage_script_contract;
 mod root_docs_check_contract;
 mod root_docs_wiki_contract;

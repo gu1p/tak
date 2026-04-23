@@ -3,10 +3,11 @@ use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
-use tak_core::model::{RemoteSpec, RemoteTransportKind};
+use tak_core::model::RemoteSpec;
 
 use crate::{
     RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteTargetSelection, StrictRemoteTarget,
+    engine::remote_models::StrictRemoteTransportKind,
 };
 
 #[derive(Debug, Deserialize)]
@@ -94,15 +95,9 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
             });
         }
 
-        let transport_kind = match candidate.transport.as_str() {
-            "direct" => Some(RemoteTransportKind::Direct),
-            "tor" => Some(RemoteTransportKind::Tor),
-            _ => None,
-        };
-        if transport_kind.is_none()
-            || (remote.transport_kind != RemoteTransportKind::Any
-                && transport_kind != Some(remote.transport_kind))
-        {
+        let transport_kind =
+            StrictRemoteTransportKind::from_inventory_value(candidate.transport.as_str());
+        if transport_kind.is_none_or(|kind| !kind.matches_requested(remote.transport_kind)) {
             rejection_reasons.push(RemoteCandidateRejection::TransportMismatch {
                 required: remote.transport_kind,
                 available: candidate.transport.clone(),

@@ -1,12 +1,54 @@
-use super::*;
+use std::collections::BTreeMap;
+
+use tak_core::model::{
+    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteTransportKind,
+};
+
+use crate::container_engine::ContainerEngine;
+
+use super::{PlacementMode, RemoteCandidateDiagnostic, RemoteLogChunk, SyncedOutput};
 
 #[derive(Debug, Clone)]
 pub(crate) struct StrictRemoteTarget {
     pub(crate) node_id: String,
     pub(crate) endpoint: String,
-    pub(crate) transport_kind: RemoteTransportKind,
+    pub(crate) transport_kind: StrictRemoteTransportKind,
     pub(crate) bearer_token: String,
     pub(crate) runtime: Option<RemoteRuntimeSpec>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StrictRemoteTransportKind {
+    Direct,
+    Tor,
+}
+
+impl StrictRemoteTransportKind {
+    pub(crate) fn from_inventory_value(value: &str) -> Option<Self> {
+        match value {
+            "direct" => Some(Self::Direct),
+            "tor" => Some(Self::Tor),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn matches_requested(self, requested: RemoteTransportKind) -> bool {
+        requested == RemoteTransportKind::Any || self.as_requested_kind() == requested
+    }
+
+    pub(crate) fn as_result_value(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::Tor => "tor",
+        }
+    }
+
+    fn as_requested_kind(self) -> RemoteTransportKind {
+        match self {
+            Self::Direct => RemoteTransportKind::Direct,
+            Self::Tor => RemoteTransportKind::Tor,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -11,20 +11,10 @@ use support::protocol::{acquire_request, free_bind_addr, send_request};
 #[tokio::test(flavor = "multi_thread")]
 async fn run_daemon_serves_protocol_and_remote_v1_http() {
     let _env_lock = env_lock();
-    let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
-    let socket_path = temp.path().join("run/takd.sock");
     let bind_addr = free_bind_addr();
-    env.set(
-        "TAKD_DB_PATH",
-        temp.path().join("state/takd.sqlite").display().to_string(),
-    );
-    env.set("TAKD_REMOTE_V1_BIND_ADDR", bind_addr.clone());
-    env.set("TAKD_NODE_ID", "daemon-direct");
-    env.set("TAKD_DISPLAY_NAME", "daemon-direct");
-    env.set("TAKD_BEARER_TOKEN", "secret");
-    env.set("TAKD_NODE_TRANSPORT", "direct");
-
+    let socket_path = temp.path().join("run/takd.sock");
+    let _env = configure_daemon_env(&temp, Some(bind_addr.clone()));
     let socket_for_task = socket_path.clone();
     let daemon = tokio::spawn(async move { run_daemon(&socket_for_task).await });
     let node = wait_for_node_info(&bind_addr, &bind_addr, "secret").await;
@@ -73,4 +63,21 @@ async fn run_daemon_serves_protocol_and_remote_v1_http() {
         Response::LeaseReleased { .. }
     ));
     daemon.abort();
+}
+
+fn configure_daemon_env(temp: &tempfile::TempDir, bind_addr: Option<String>) -> EnvGuard {
+    let mut env = EnvGuard::default();
+    env.set(
+        "TAKD_DB_PATH",
+        temp.path().join("state/takd.sqlite").display().to_string(),
+    );
+    env.remove("TAKD_REMOTE_V1_BIND_ADDR");
+    env.set("TAKD_NODE_ID", "daemon-direct");
+    env.set("TAKD_DISPLAY_NAME", "daemon-direct");
+    env.set("TAKD_BEARER_TOKEN", "secret");
+    env.set("TAKD_NODE_TRANSPORT", "direct");
+    if let Some(bind_addr) = bind_addr {
+        env.set("TAKD_REMOTE_V1_BIND_ADDR", bind_addr);
+    }
+    env
 }

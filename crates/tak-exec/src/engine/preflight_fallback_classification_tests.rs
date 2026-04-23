@@ -2,7 +2,8 @@
 
 use anyhow::anyhow;
 
-use super::{RemoteSubmitFailure, RemoteSubmitFailureKind, is_auth_submit_failure};
+use crate::engine::preflight_fallback::is_auth_submit_failure;
+use crate::engine::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
 
 #[test]
 fn auth_submit_fallback_requires_typed_submit_classification() {
