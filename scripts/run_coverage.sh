@@ -24,7 +24,6 @@ cargo test \
 
 cargo llvm-cov report \
   --workspace \
-  --all-features \
   --fail-under-lines 75 \
   --lcov \
   --output-path .tmp/coverage/lcov.info

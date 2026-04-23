@@ -40,7 +40,9 @@ case "$1" in
       report)
         shift
         ensure_contains "--workspace" "$@"
-        ensure_contains "--all-features" "$@"
+        case " $* " in
+          *" --all-features "*) fail "invalid option --all-features for cargo llvm-cov report: $*" ;;
+        esac
         ensure_contains "--lcov" "$@"
         output_path=""
         prev=""
