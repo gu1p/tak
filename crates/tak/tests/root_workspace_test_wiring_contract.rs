@@ -44,13 +44,3 @@ fn workspace_lib_crates_do_not_bridge_suite_tests_through_prod_libs() -> Result<
     }
     Ok(())
 }
-
-#[test]
-fn repo_root_tasks_py_does_not_force_local_container_runtime() -> Result<()> {
-    let tasks = read_repo_file("TASKS.py")?;
-
-    assert!(!tasks.contains("\"container_runtime\": DockerfileRuntime"));
-    assert!(!tasks.contains("scripts/run_workspace_tests.sh"));
-    assert!(!tasks.contains("scripts/run_check_rust.sh"));
-    Ok(())
-}

@@ -132,6 +132,12 @@ PACKAGE_RELEASE_AARCH64_APPLE_DARWIN = release_package_task(
 
 SPEC = module_spec(
     project_id="tak",
+    defaults={
+        "container_runtime": DockerfileRuntime(
+            dockerfile=path("docker/tak-tests/Dockerfile"),
+            build_context=path("docker/tak-tests"),
+        ),
+    },
     tasks=[
         task("fmt-check", steps=FMT_CHECK_STEPS),
         task("line-limits-check", steps=LINE_LIMITS_CHECK_STEPS),
