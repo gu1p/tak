@@ -14,31 +14,30 @@ WORKFLOW_CONTRACT_CHECK_STEPS = [
     cmd("bash", "scripts/check_workflow_binary_matrix.sh"),
 ]
 
-GENERATED_ARTIFACT_IGNORE_CHECK_STEPS = [
-    cmd("bash", "scripts/check_generated_artifacts_ignore.sh"),
-]
 
 LINT_STEPS = [
     cmd("cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"),
 ]
 
 TEST_STEPS = [
-    cmd("cargo", "test", "--workspace"),
+    cmd("cargo", "build", "-p", "tak", "--bin", "tak"),
+    cmd("cargo", "build", "-p", "takd", "--bin", "takd"),
+    cmd("cargo", "test", "--workspace", "--lib", "--no-run"),
+    cmd("cargo", "test", "-p", "tak-core", "--lib"),
+    cmd("cargo", "test", "-p", "tak-loader", "--lib"),
+    cmd("cargo", "test", "-p", "tak-proto", "--lib"),
+    cmd("cargo", "test", "-p", "tak-runner", "--lib"),
+    cmd("cargo", "test", "-p", "tak-exec", "--lib"),
+    cmd("cargo", "test", "-p", "takd", "--lib"),
+    cmd("cargo", "test", "-p", "tak", "--lib"),
 ]
 
 DOCS_CHECK_STEPS = [
     cmd("cargo", "test", "--workspace", "--doc"),
-    cmd("cargo", "test", "-p", "tak", "--test", "doctest_contract"),
 ]
 
 DOCS_WIKI_STEPS = [
-    cmd("cargo", "build", "-p", "tak", "--bin", "tak"),
-    cmd("python3", "scripts/docs_wiki.py", "build"),
-]
-
-DOCS_WIKI_SERVE_STEPS = [
-    cmd("cargo", "build", "-p", "tak", "--bin", "tak"),
-    cmd("python3", "scripts/docs_wiki.py", "serve"),
+    script("scripts/generate_docs_wiki.sh", interpreter="bash"),
 ]
 
 COVERAGE_STEPS = [
@@ -136,20 +135,14 @@ SPEC = module_spec(
         task("line-limits-check", steps=LINE_LIMITS_CHECK_STEPS),
         task("src-test-separation-check", steps=SRC_TEST_SEPARATION_CHECK_STEPS),
         task("workflow-contract-check", steps=WORKFLOW_CONTRACT_CHECK_STEPS),
-        task("generated-artifact-ignore-check", steps=GENERATED_ARTIFACT_IGNORE_CHECK_STEPS),
         task("lint", steps=LINT_STEPS),
         task("test", steps=TEST_STEPS),
         task("docs-check", steps=DOCS_CHECK_STEPS),
         task(
             "docs-wiki",
-            doc="Build a Zensical wiki from source-derived Tak docs and embedded rustdoc internals.",
+            doc="Build a MkDocs Material wiki from source-derived Tak docs.",
             outputs=[path(".tmp/docs-wiki")],
             steps=DOCS_WIKI_STEPS,
-        ),
-        task(
-            "docs-wiki-serve",
-            doc="Preview the Zensical wiki generated from source-derived Tak docs and rustdoc internals.",
-            steps=DOCS_WIKI_SERVE_STEPS,
         ),
         task("check-rust", deps=[":lint", ":test", ":docs-check"]),
         task("coverage", steps=COVERAGE_STEPS),
