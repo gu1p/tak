@@ -117,18 +117,6 @@ jobs:
         with:
           ref: ${{ needs.prepare_tag.outputs.tag }}
 
-      - name: Install Tak
-        shell: bash
-        env:
-          TAK_INSTALL_DIR: ${{ runner.temp }}/tak-bin
-        run: |
-          set -euo pipefail
-          ./get-tak.sh
-          echo "$TAK_INSTALL_DIR" >> "$GITHUB_PATH"
-
-      - name: Show Tak version
-        run: tak --version
-
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -136,6 +124,16 @@ jobs:
 
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
+
+      - name: Install Tak from checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --bins -p tak -p takd
+          echo "$PWD/target/debug" >> "$GITHUB_PATH"
+
+      - name: Show Tak version
+        run: tak --version
 
       - name: Setup Zig
         if: matrix.use_zig
