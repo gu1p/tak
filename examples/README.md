@@ -19,7 +19,7 @@ Use these 8 examples first. They are the fastest path to using Tak in real proje
 | [`medium/11_machine_lock_shared_ui`](medium/11_machine_lock_shared_ui/README.md) | Safe shared resources | `lock`, `need`, machine scope coordination | `//:ui_test` |
 | [`medium/18_multi_package_monorepo`](medium/18_multi_package_monorepo/README.md) | Real monorepo composition | explicit `includes=[...]`, cross-package deps | `//apps/web:all` |
 | [`large/24_full_feature_matrix_end_to_end`](large/24_full_feature_matrix_end_to_end/README.md) | Combined high-load flow | limiters, queues, defaults, retries, scripts | `//apps/qa:release` |
-| [`large/25_remote_direct_build_and_artifact_roundtrip`](large/25_remote_direct_build_and_artifact_roundtrip/README.md) | Practical remote build | `RemoteOnly`, artifact sync, local verify | `//services/api:release` |
+| [`large/25_remote_direct_build_and_artifact_roundtrip`](large/25_remote_direct_build_and_artifact_roundtrip/README.md) | Practical remote build | `Execution.Remote`, artifact sync, local verify | `//services/api:release` |
 | [`large/28_hybrid_local_remote_test_suite_failure_with_logs`](large/28_hybrid_local_remote_test_suite_failure_with_logs/README.md) | Failure diagnostics at scale | hybrid local+remote, non-zero remote suite, log retention | `//apps/web:remote_suite` |
 
 Need more context before jumping into examples?

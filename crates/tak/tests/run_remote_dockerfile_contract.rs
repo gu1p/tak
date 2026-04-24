@@ -26,11 +26,11 @@ fn run_remote_dockerfile_runtime_reports_containerized_summary() -> Result<()> {
     fs::write(
         workspace_root.join("TASKS.py"),
         r#"
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")),
+  runtime=Runtime.Dockerfile(path("docker/Dockerfile")),
 )
 
 SPEC = module_spec(tasks=[
@@ -38,7 +38,7 @@ SPEC = module_spec(tasks=[
     "remote_container",
     outputs=[path("out")],
     steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")],
-    execution=RemoteOnly(REMOTE),
+    execution=REMOTE,
   ),
 ])
 SPEC

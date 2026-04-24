@@ -13,10 +13,10 @@ fn loader_preserves_use_session_cascade_flag() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SPEC = module_spec(
-  sessions=[session("cargo", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=ShareWorkspace())],
-  tasks=[task("check", steps=[cmd("true")], execution=UseSession("cargo", cascade=True))],
+  sessions=[session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())],
+  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("cargo", cascade=True))],
 )
 SPEC
 "#,
@@ -39,10 +39,10 @@ fn loader_defaults_use_session_cascade_to_false() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SPEC = module_spec(
-  sessions=[session("cargo", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=ShareWorkspace())],
-  tasks=[task("check", steps=[cmd("true")], execution=UseSession("cargo"))],
+  sessions=[session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())],
+  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("cargo"))],
 )
 SPEC
 "#,

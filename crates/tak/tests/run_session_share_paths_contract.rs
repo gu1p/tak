@@ -17,18 +17,18 @@ fn share_paths_preserves_only_declared_paths_between_session_tasks() -> Result<(
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SESSION = session(
   "cargo",
-  execution=LocalOnly(Local("local", runtime=RUNTIME)),
-  reuse=SharePaths([path("target")]),
+  execution=Execution.Local(runtime=RUNTIME),
+  reuse=SessionReuse.Paths([path("target")]),
 )
 
 SPEC = module_spec(
   sessions=[SESSION],
   tasks=[
-    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=UseSession("cargo")),
-    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/cache.txt")], execution=UseSession("cargo")),
+    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=Execution.Session("cargo")),
+    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/cache.txt")], execution=Execution.Session("cargo")),
   ],
 )
 SPEC
@@ -57,14 +57,14 @@ fn remote_share_paths_preserves_only_declared_paths_between_session_tasks() -> R
     let roots = LiveDirectRoots::new(temp.path());
     write_tasks(
         &workspace,
-        r#"REMOTE = Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps(), runtime=ContainerRuntime(image="alpine:3.20"))
-SESSION = session("remote-cargo", execution=RemoteOnly(REMOTE), reuse=SharePaths([path("target")]))
+        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), runtime=Runtime.Image("alpine:3.20"))
+SESSION = session("remote-cargo", execution=REMOTE, reuse=SessionReuse.Paths([path("target")]))
 
 SPEC = module_spec(
   sessions=[SESSION],
   tasks=[
-    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo remote-cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=UseSession("remote-cargo")),
-    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/remote-cache.txt")], execution=UseSession("remote-cargo")),
+    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo remote-cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=Execution.Session("remote-cargo")),
+    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/remote-cache.txt")], execution=Execution.Session("remote-cargo")),
   ],
 )
 SPEC

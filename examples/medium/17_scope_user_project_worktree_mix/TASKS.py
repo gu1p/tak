@@ -8,9 +8,9 @@ SPEC = module_spec(
     task(
       "scoped_task",
       needs=[
-        need("user_gate", 1, scope=USER),
-        need("project_gate", 1, scope=PROJECT),
-        need("worktree_gate", 1, scope=WORKTREE),
+        need("user_gate", 1, scope=Scope.User),
+        need("project_gate", 1, scope=Scope.Project),
+        need("worktree_gate", 1, scope=Scope.Worktree),
       ],
       steps=[cmd("sh", "-c", "mkdir -p out && echo scoped > out/scopes.txt")]
     )

@@ -11,8 +11,8 @@ fn resolves_local_dockerfile_runtime_with_default_build_context_to_package_root(
     write_root_and_app_tasks(
         temp.path(),
         r#"
-LOCAL = Local(id="dev", runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")))
-SPEC = module_spec(tasks=[task("local_only", steps=[cmd("echo", "ok")], execution=LocalOnly(LOCAL))])
+LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
+SPEC = module_spec(tasks=[task("local_only", steps=[cmd("echo", "ok")], execution=LOCAL)])
 SPEC
 "#,
     );

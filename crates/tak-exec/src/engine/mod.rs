@@ -15,6 +15,8 @@ mod protocol_detection;
 mod protocol_events;
 pub(crate) mod protocol_result_http;
 mod protocol_submit;
+#[path = "protocol_submit_tests.rs"]
+mod protocol_submit_tests;
 mod public_types;
 pub(crate) mod remote_diagnostics;
 mod remote_http_exchange_error;

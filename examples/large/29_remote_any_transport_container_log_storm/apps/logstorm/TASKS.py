@@ -2,10 +2,10 @@
 # File: apps/logstorm/TASKS.py
 # Scenario: transport-agnostic remote container log storm
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   required_tags=[],
   required_capabilities=["linux"],
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -48,7 +48,7 @@ printf 'runtime=%s\nengine=%s\nimage=%s\nstdout_lines=%s\nstderr_lines=%s\nburst
   > out/container-log-storm-summary.txt""",
         )
       ],
-      execution=RemoteOnly(REMOTE),
+      execution=REMOTE,
     ),
     task(
       "observe_container_log_storm",

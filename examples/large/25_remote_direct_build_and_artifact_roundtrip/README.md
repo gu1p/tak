@@ -7,12 +7,12 @@ This is the core remote-delivery pattern: build remotely, sync artifacts back, t
 ## Copy-Paste Starter
 
 ```python
-REMOTE = Remote(
+REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    transport=DirectHttps(),
-    runtime=ContainerRuntime(image="alpine:3.20"),
+    transport=Transport.DirectHttps(),
+    runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -28,7 +28,7 @@ SPEC = module_spec(
                     "echo remote-build-ok > out/remote-build.log",
                 )
             ],
-            execution=RemoteOnly(REMOTE),
+            execution=REMOTE,
         ),
         task(
             "verify_artifact",
@@ -51,9 +51,9 @@ SPEC
 
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
-| execution mode | `RemoteOnly(REMOTE)` | `LocalOnly(Local(...))`, `ByCustomPolicy(...)` | Force remote, force local, or pick dynamically with policy logic. |
+| execution mode | `REMOTE` | `Execution.Local(...)`, `Execution.Policy(...)` | Force remote, force local, or pick dynamically with policy logic. |
 | remote transport | direct client-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
-| remote runtime | `ContainerRuntime(image="alpine:3.20")` | `DockerfileRuntime(...)` | Remote execution is always containerized; choose the image or Dockerfile that defines the runtime. |
+| remote runtime | `Runtime.Image("alpine:3.20")` | `Runtime.Dockerfile(...)` | Remote execution is always containerized; choose the image or Dockerfile that defines the runtime. |
 
 ## Runbook
 

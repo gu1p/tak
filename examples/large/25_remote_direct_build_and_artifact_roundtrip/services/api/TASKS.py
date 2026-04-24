@@ -2,12 +2,12 @@
 # File: services/api/TASKS.py
 # Scenario: remote direct build and artifact roundtrip
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=DirectHttps(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.DirectHttps(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -24,7 +24,7 @@ SPEC = module_spec(
           "mkdir -p out && echo artifact-from-remote-build > out/remote-build-artifact.txt && echo remote-build-ok > out/remote-build.log",
         )
       ],
-      execution=RemoteOnly(REMOTE),
+      execution=REMOTE,
     ),
     task(
       "verify_artifact",

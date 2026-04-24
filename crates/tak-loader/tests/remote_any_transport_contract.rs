@@ -11,15 +11,13 @@ fn omitted_transport_resolves_to_any_transport() {
     fs::write(
         temp.path().join("TASKS.py"),
         r#"
-REMOTE = Remote(
-  pool="build",
-  required_tags=["builder"],
-  required_capabilities=["linux"],
-  runtime=ContainerRuntime(image="alpine:3.20"),
-)
-
 SPEC = module_spec(tasks=[
-  task("remote_only", steps=[cmd("echo", "ok")], execution=RemoteOnly(REMOTE)),
+  task("remote_only", steps=[cmd("echo", "ok")], execution=Execution.Remote(
+    pool="build",
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    runtime=Runtime.Image("alpine:3.20"),
+  )),
 ])
 SPEC
 "#,
@@ -52,13 +50,11 @@ fn any_transport_helper_resolves_to_any_transport() {
     fs::write(
         temp.path().join("TASKS.py"),
         r#"
-REMOTE = Remote(
-  pool="build",
-  transport=AnyTransport(),
-)
-
 SPEC = module_spec(tasks=[
-  task("remote_only", steps=[cmd("echo", "ok")], execution=RemoteOnly(REMOTE)),
+  task("remote_only", steps=[cmd("echo", "ok")], execution=Execution.Remote(
+    pool="build",
+    transport=Transport.Any(),
+  )),
 ])
 SPEC
 "#,

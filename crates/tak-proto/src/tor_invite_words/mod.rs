@@ -37,6 +37,10 @@ pub fn decode_tor_invite_words(words: &str) -> Result<String> {
     encode_tor_invite(&format!("http://{label}.onion"))
 }
 
+pub fn normalize_tor_invite_word(word: &str) -> Result<String> {
+    dictionary::normalize_word(word)
+}
+
 fn checksum_word_index(onion_bytes: &[u8]) -> Result<u16> {
     let mut payload = Vec::with_capacity(CHECKSUM_PREFIX.len() + onion_bytes.len());
     payload.extend_from_slice(CHECKSUM_PREFIX);

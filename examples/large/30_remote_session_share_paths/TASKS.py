@@ -2,18 +2,18 @@
 # File: TASKS.py
 # Scenario: remote Cargo-style cache reuse with explicit shared paths
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    transport=DirectHttps(),
-    runtime=ContainerRuntime(image="alpine:3.20"),
+    transport=Transport.DirectHttps(),
+    runtime=Runtime.Image("alpine:3.20"),
 )
 
 CARGO_SESSION = session(
     "cargo-cache",
-    execution=RemoteOnly(REMOTE),
-    reuse=SharePaths([path("target"), path("out")]),
+    execution=REMOTE,
+    reuse=SessionReuse.Paths([path("target"), path("out")]),
 )
 
 SPEC = module_spec(
@@ -32,7 +32,7 @@ SPEC = module_spec(
                     "printf 'build-complete\\n' > out/build-marker.txt",
                 )
             ],
-            execution=UseSession("cargo-cache"),
+            execution=Execution.Session("cargo-cache"),
         ),
         task(
             "cargo_test",
@@ -47,7 +47,7 @@ SPEC = module_spec(
                     "printf 'reused-target-cache\\n' > out/test-marker.txt",
                 )
             ],
-            execution=UseSession("cargo-cache"),
+            execution=Execution.Session("cargo-cache"),
         ),
     ],
 )

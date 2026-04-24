@@ -58,14 +58,14 @@ class CargoProvider:
 Shaping chain:
 
 ```python
-TEST_DOCKER = DockerfileRuntime(dockerfile=path("docker/tak-tests/Dockerfile"))
+TEST_DOCKER = Runtime.Dockerfile(path("docker/tak-tests/Dockerfile"))
 
 cargo = CargoProvider(workspace_root=".")
 
 cargo_integration = (
     cargo.discover()
     .where(MetadataEquals("kind", "integration"))
-    .with_execution(LocalOnly(Local(id="docker-local", runtime=TEST_DOCKER)))
+    .with_execution(Execution.Local(runtime=TEST_DOCKER))
     .with_timeout(600)
     .with_tags("generated", "dockerized")
 )

@@ -6,8 +6,10 @@ use ruff_python_ast::visitor::Visitor;
 use ruff_python_parser::parse_module;
 
 mod boundary;
+mod expr_helpers;
 mod helpers;
 mod reason_namespace;
+mod replacements;
 
 pub(crate) struct PreparedAuthoredSource {
     pub(crate) authored_source: String,

@@ -11,13 +11,13 @@ fn local_session_workspace_prefers_workspace_tmp_directory() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
-SESSION = session("rust", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=ShareWorkspace())
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
+SESSION = session("rust", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
   sessions=[SESSION],
   tasks=[
-    task("capture", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && pwd > out/session-root.txt")], execution=UseSession("rust")),
+    task("capture", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && pwd > out/session-root.txt")], execution=Execution.Session("rust")),
   ],
 )
 SPEC

@@ -11,8 +11,9 @@ fn evaluates_named_policy_to_remote_selector() {
         &tasks_file,
         r#"def choose_remote(ctx):
   return Decision.remote(
-    Remote(pool="build", transport=TorOnionService()),
     reason=Reason.LOCAL_CPU_HIGH,
+    pool="build",
+    transport=Transport.TorOnionService(),
   )
 "#,
     )

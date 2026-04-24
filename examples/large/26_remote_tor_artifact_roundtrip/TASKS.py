@@ -2,12 +2,12 @@
 # File: TASKS.py
 # Scenario: remote tor artifact roundtrip
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=TorOnionService(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.TorOnionService(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -23,7 +23,7 @@ SPEC = module_spec(
           "mkdir -p out && echo tor-remote-artifact > out/tor-remote-artifact.txt && echo tor-transport-ok > out/tor-remote.log",
         )
       ],
-      execution=RemoteOnly(REMOTE),
+      execution=REMOTE,
     ),
     task(
       "consume_remote_report",

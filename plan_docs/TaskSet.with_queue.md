@@ -26,7 +26,7 @@ def with_queue(self, queue) -> "TaskSet": ...
 ## Example
 
 ```python
-tasks.with_queue(queue_use("qa_fifo", scope=MACHINE))
+tasks.with_queue(queue_use("qa_fifo", scope=Scope.Machine))
 ```
 
 ## See also

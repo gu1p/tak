@@ -40,11 +40,29 @@ pub(crate) fn validate_runtime(
         return Ok(None);
     };
 
+    if runtime.kind.trim() == "host" {
+        bail!("Runtime.Host() is only valid for Execution.Local");
+    }
+
     let validated = validate_container_runtime_execution_spec(&runtime)
         .map_err(|err| anyhow!("execution {owner}.runtime {err}"))?;
     let source = resolve_container_runtime_source(validated.source, package, owner)?;
 
     Ok(Some(RemoteRuntimeSpec::Containerized { source }))
+}
+
+pub(crate) fn validate_local_runtime(
+    runtime: Option<RemoteRuntimeDef>,
+    package: &str,
+    owner: &str,
+) -> Result<Option<RemoteRuntimeSpec>> {
+    let Some(runtime) = runtime else {
+        return Ok(None);
+    };
+    if runtime.kind.trim() == "host" {
+        return Ok(None);
+    }
+    validate_runtime(Some(runtime), package, owner)
 }
 
 fn resolve_container_runtime_source(

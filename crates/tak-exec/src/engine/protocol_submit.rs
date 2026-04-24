@@ -47,7 +47,7 @@ pub(crate) async fn remote_protocol_submit(
         "/v1/tasks/submit",
         Some(&body),
         "submit",
-        Duration::from_secs(1),
+        remote_submit_timeout(),
     )
     .await
     .map_err(|err| RemoteSubmitFailure {
@@ -102,4 +102,8 @@ pub(crate) async fn remote_protocol_submit(
     }
 
     Ok(())
+}
+
+pub(super) fn remote_submit_timeout() -> Duration {
+    Duration::from_secs(10)
 }

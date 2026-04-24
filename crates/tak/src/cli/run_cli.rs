@@ -131,9 +131,15 @@ pub async fn run_cli() -> Result<ExitCode> {
         }
         Commands::Remote { command } => match command {
             super::command_model::RemoteCommands::Add { token, words } => {
-                let token = resolve_remote_add_token(token, &words)?;
-                let remote = add_remote(&token).await?;
-                println!("added remote {}", remote.node_id);
+                if token.is_none() && words.is_none() {
+                    run_remote_add(StartMode::Menu).await?;
+                } else if words.as_ref().is_some_and(|values| values.is_empty()) {
+                    run_remote_add(StartMode::Words).await?;
+                } else {
+                    let token = resolve_remote_add_token(token, words.as_deref())?;
+                    let remote = add_remote(&token).await?;
+                    println!("added remote {}", remote.node_id);
+                }
             }
             super::command_model::RemoteCommands::Scan => {
                 run_remote_scan().await?;
@@ -174,12 +180,13 @@ pub async fn run_cli() -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-fn resolve_remote_add_token(token: Option<String>, words: &[String]) -> Result<String> {
+fn resolve_remote_add_token(token: Option<String>, words: Option<&[String]>) -> Result<String> {
     if let Some(token) = token {
         return Ok(token);
     }
 
     let phrase = words
+        .unwrap_or_default()
         .iter()
         .flat_map(|value| value.split_whitespace())
         .collect::<Vec<_>>();

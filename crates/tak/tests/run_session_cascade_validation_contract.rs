@@ -10,15 +10,15 @@ fn cascaded_session_rejects_child_with_different_explicit_session() -> Result<()
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
-SESSION_A = session("a", execution=LocalOnly(Local("a", runtime=RUNTIME)), reuse=ShareWorkspace())
-SESSION_B = session("b", execution=LocalOnly(Local("b", runtime=RUNTIME)), reuse=ShareWorkspace())
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
+SESSION_A = session("a", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
+SESSION_B = session("b", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
   sessions=[SESSION_A, SESSION_B],
   tasks=[
-    task("child", steps=[cmd("true")], execution=UseSession("b")),
-    task("check", deps=[":child"], execution=UseSession("a", cascade=True)),
+    task("child", steps=[cmd("true")], execution=Execution.Session("b")),
+    task("check", deps=[":child"], execution=Execution.Session("a", cascade=True)),
   ],
 )
 SPEC

@@ -27,7 +27,7 @@ const REQUIRED_EXAMPLE_SOURCE_TOKENS: [&str; 4] = [
     "#### Source Files",
     "##### `apps/web/TASKS.py`",
     "##### `services/api/TASKS.py`",
-    "execution=RemoteOnly(REMOTE)",
+    "execution=REMOTE",
 ];
 
 fn repo_root() -> &'static Path {

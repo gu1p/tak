@@ -16,7 +16,7 @@ fn run_remote_auth_fallback_preserves_timeout_guidance() -> Result<()> {
     let remote_exec_root = temp.path().join("remote-exec");
     write_tasks(
         temp.path(),
-        "REMOTE = Remote(pool=\"build\", required_tags=[\"builder\"], required_capabilities=[\"linux\"], transport=DirectHttps(), runtime=ContainerRuntime(image=\"alpine:3.20\"))\nSPEC = module_spec(tasks=[task(\"check\", steps=[cmd(\"sh\", \"-c\", \"echo should-not-run\")], execution=RemoteOnly(REMOTE))])\nSPEC\n",
+        "REMOTE = Execution.Remote(pool=\"build\", required_tags=[\"builder\"], required_capabilities=[\"linux\"], transport=Transport.DirectHttps(), runtime=Runtime.Image(\"alpine:3.20\"))\nSPEC = module_spec(tasks=[task(\"check\", steps=[cmd(\"sh\", \"-c\", \"echo should-not-run\")], execution=REMOTE)])\nSPEC\n",
     )?;
 
     let (auth_base_url, auth_handle) = spawn_auth_rejecting_submit_server("builder-auth-fail");

@@ -2,18 +2,18 @@
 # File: TASKS.py
 # Scenario: remote workspace reuse across fresh task invocations
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    transport=DirectHttps(),
-    runtime=ContainerRuntime(image="alpine:3.20"),
+    transport=Transport.DirectHttps(),
+    runtime=Runtime.Image("alpine:3.20"),
 )
 
 WORKSPACE_SESSION = session(
     "workspace-state",
-    execution=RemoteOnly(REMOTE),
-    reuse=ShareWorkspace(),
+    execution=REMOTE,
+    reuse=SessionReuse.Workspace(),
 )
 
 SPEC = module_spec(
@@ -29,7 +29,7 @@ SPEC = module_spec(
                     "mkdir -p .session && printf 'prepared\\n' > .session/state.txt",
                 )
             ],
-            execution=UseSession("workspace-state"),
+            execution=Execution.Session("workspace-state"),
         ),
         task(
             "verify_workspace",
@@ -44,7 +44,7 @@ SPEC = module_spec(
                     "printf 'workspace-state-reused\\n' > out/workspace-session.txt",
                 )
             ],
-            execution=UseSession("workspace-state"),
+            execution=Execution.Session("workspace-state"),
         ),
     ],
 )

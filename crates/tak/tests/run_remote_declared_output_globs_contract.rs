@@ -20,7 +20,7 @@ fn run_remote_syncs_declared_output_globs_only() -> Result<()> {
         r#"SPEC = module_spec(tasks=[task(
   "check",
   outputs=[glob("reports/**")],
-  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps(), runtime=ContainerRuntime(image="alpine:3.20"))),
+  execution=Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), runtime=Runtime.Image("alpine:3.20")),
   steps=[cmd("sh", "-ceu", """
 mkdir -p reports/nested artifacts
 printf 'keep-one\n' > reports/summary.txt
@@ -62,7 +62,7 @@ fn run_remote_fails_when_declared_output_is_missing() -> Result<()> {
         r#"SPEC = module_spec(tasks=[task(
   "check",
   outputs=[path("out/missing.txt")],
-  execution=RemoteOnly(Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps(), runtime=ContainerRuntime(image="alpine:3.20"))),
+  execution=Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), runtime=Runtime.Image("alpine:3.20")),
   steps=[cmd("sh", "-c", "printf 'done\n'")],
 )])
 SPEC

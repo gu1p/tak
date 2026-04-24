@@ -11,11 +11,11 @@ fn parent_use_session_cascades_share_paths_to_dependency_tasks() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SESSION = session(
   "cargo",
-  execution=LocalOnly(Local("local", runtime=RUNTIME)),
-  reuse=SharePaths([path("target")]),
+  execution=Execution.Local(runtime=RUNTIME),
+  reuse=SessionReuse.Paths([path("target")]),
 )
 
 SPEC = module_spec(
@@ -23,7 +23,7 @@ SPEC = module_spec(
   tasks=[
     task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo cached > target/cache.txt && echo leak > scratch/leak.txt")]),
     task("check-artifact", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/cache.txt")]),
-    task("check", deps=[":check-artifact"], execution=UseSession("cargo", cascade=True)),
+    task("check", deps=[":check-artifact"], execution=Execution.Session("cargo", cascade=True)),
   ],
 )
 SPEC

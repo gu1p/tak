@@ -43,7 +43,7 @@ pub(crate) fn resolve_session(session: SessionDef, package: &str) -> Result<Sess
     }
     if session.lifetime.trim() != "per_run" {
         bail!(
-            "session `{}` lifetime `{}` is unsupported; expected PER_RUN",
+            "session `{}` lifetime `{}` is unsupported; expected SessionLifetime.PerRun",
             name,
             session.lifetime
         );
@@ -75,9 +75,9 @@ pub(crate) fn bind_task_sessions(
         let TaskExecutionSpec::UseSession { name, .. } = &task.execution else {
             continue;
         };
-        let session = sessions
-            .get(name)
-            .ok_or_else(|| anyhow::anyhow!("UseSession references unknown session `{name}`"))?;
+        let session = sessions.get(name).ok_or_else(|| {
+            anyhow::anyhow!("Execution.Session references unknown session `{name}`")
+        })?;
         if session.context.is_none() {
             validate_implicit_session_context(&mut contexts, name, label, &task.context)?;
         }
@@ -124,7 +124,7 @@ fn resolve_session_reuse(
         SessionReuseDef::ShareWorkspace => Ok(SessionReuseSpec::ShareWorkspace),
         SessionReuseDef::SharePaths { paths } => {
             if paths.is_empty() {
-                bail!("session `{name}` SharePaths requires at least one path");
+                bail!("session `{name}` SessionReuse.Paths requires at least one path");
             }
             Ok(SessionReuseSpec::SharePaths {
                 paths: resolve_output_selectors(paths, package)?,

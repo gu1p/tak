@@ -28,8 +28,13 @@ struct RemoteInventoryFile {
 }
 
 pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
-    let mut inventory = load_inventory()?;
-    let record = if token.trim().starts_with("takd:v1:") {
+    let record = resolve_remote_record(token).await?;
+    save_remote_record(&record)?;
+    Ok(record)
+}
+
+pub(super) async fn resolve_remote_record(token: &str) -> Result<RemoteRecord> {
+    if token.trim().starts_with("takd:v1:") {
         let payload = decode_remote_token(token)?;
         let node = payload
             .node
@@ -52,11 +57,8 @@ pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
                 probed.node_id
             );
         }
-        inventory
-            .remotes
-            .retain(|remote| remote.node_id != node.node_id);
         let _ = record_remote_observation(&probed);
-        RemoteRecord {
+        Ok(RemoteRecord {
             node_id: probed.node_id,
             display_name: probed.display_name,
             base_url: probed.base_url,
@@ -66,18 +68,15 @@ pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
             capabilities: probed.capabilities,
             transport: probed.transport,
             enabled: true,
-        }
+        })
     } else if token.trim().starts_with("takd:tor:") {
         let base_url = decode_tor_invite(token)?;
         let probed = probe_node(&base_url, "tor", "")
             .await
             .with_context(|| format!("failed to probe remote node at {base_url} via tor"))?;
         ensure_tor_invite_matches_probe(&base_url, &probed)?;
-        inventory
-            .remotes
-            .retain(|remote| remote.node_id != probed.node_id);
         let _ = record_remote_observation(&probed);
-        RemoteRecord {
+        Ok(RemoteRecord {
             node_id: probed.node_id,
             display_name: probed.display_name,
             base_url,
@@ -87,13 +86,20 @@ pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
             capabilities: probed.capabilities,
             transport: "tor".to_string(),
             enabled: true,
-        }
+        })
     } else {
         bail!("remote invite must start with `takd:v1:` or `takd:tor:`");
-    };
+    }
+}
+
+pub(super) fn save_remote_record(record: &RemoteRecord) -> Result<()> {
+    let mut inventory = load_inventory()?;
+    inventory
+        .remotes
+        .retain(|remote| remote.node_id != record.node_id);
     inventory.remotes.push(record.clone());
     save_inventory(&inventory)?;
-    Ok(record)
+    Ok(())
 }
 
 fn ensure_tor_invite_matches_probe(invited_base_url: &str, probed: &NodeInfo) -> Result<()> {

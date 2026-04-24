@@ -13,19 +13,19 @@ fn run_remote_mismatch_lists_enabled_nodes_and_rejection_reasons_in_plain_text()
     write_tasks(
         temp.path(),
         r#"
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=TorOnionService(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.TorOnionService(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(tasks=[
   task(
     "collect_remote_report",
     steps=[cmd("sh", "-c", "echo should-not-run")],
-    execution=RemoteOnly(REMOTE),
+    execution=REMOTE,
   ),
 ])
 SPEC

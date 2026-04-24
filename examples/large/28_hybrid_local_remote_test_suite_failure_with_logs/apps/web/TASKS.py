@@ -2,12 +2,12 @@
 # File: apps/web/TASKS.py
 # Scenario: hybrid local + remote test suite (failure path with logs)
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="test",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=DirectHttps(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.DirectHttps(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -28,7 +28,7 @@ SPEC = module_spec(
           "mkdir -p out && echo test_auth_pass > out/remote-test-output.log && echo test_payments_fail_expected_200_got_500 >> out/remote-test-output.log && echo failure_reason_assertion_mismatch_in_payments_handler > out/remote-failure-reason.txt && exit 3",
         )
       ],
-      execution=RemoteOnly(REMOTE),
+      execution=REMOTE,
     ),
   ]
 )

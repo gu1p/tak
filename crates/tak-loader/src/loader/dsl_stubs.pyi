@@ -32,8 +32,13 @@ class ContainerResourceLimitsSpec(TypedDict, total=False):
     memory_mb: int
 
 
-# Remote container runtime built from a prebuilt image.
-class ContainerRuntimeSpec(TypedDict):
+# Explicit local host runtime returned by `Runtime.Host(...)`.
+class HostRuntimeSpec(TypedDict):
+    kind: Literal["host"]
+
+
+# Container runtime built from a prebuilt image.
+class ImageRuntimeSpec(TypedDict):
     kind: Literal["containerized"]
     image: str
     dockerfile: None
@@ -44,7 +49,7 @@ class ContainerRuntimeSpec(TypedDict):
     resource_limits: ContainerResourceLimitsSpec | None
 
 
-# Remote container runtime built from a workspace Dockerfile path.
+# Container runtime built from a workspace Dockerfile path.
 class DockerfileRuntimeSpec(TypedDict):
     kind: Literal["containerized"]
     image: None
@@ -71,20 +76,20 @@ class TorOnionServiceTransportSpec(TypedDict):
     kind: Literal["tor"]
 
 
-# Local execution pool returned by `Local(...)`.
+# Internal local execution profile emitted by `Execution.Local(...)`.
 class LocalSpec(TypedDict):
     id: str
     max_parallel_tasks: int
-    runtime: ContainerRuntimeSpec | DockerfileRuntimeSpec | None
+    runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None
 
 
-# Remote execution target returned by `Remote(...)`.
+# Remote execution target emitted by `Execution.Remote(...)`.
 class RemoteSpec(TypedDict):
     pool: str | None
     required_tags: list[str]
     required_capabilities: list[str]
     transport: DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
-    runtime: ContainerRuntimeSpec | DockerfileRuntimeSpec | None
+    runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None
 
 
 # Name plus scope reference reused by needs and queue usage.
@@ -201,39 +206,39 @@ class RemoteDecisionSpec(TypedDict):
     remote: RemoteSpec
 
 
-# Execution selector returned by `LocalOnly(...)`.
-class LocalOnlyExecutionSpec(TypedDict):
+# Execution selector returned by `Execution.Local(...)`.
+class LocalExecutionSpec(TypedDict):
     kind: Literal["local_only"]
     local: LocalSpec
 
 
-# Execution selector returned by `RemoteOnly(...)`.
-class RemoteOnlyExecutionSpec(TypedDict):
+# Execution selector returned by `Execution.Remote(...)`.
+class RemoteExecutionSpec(TypedDict):
     kind: Literal["remote_only"]
     remote: RemoteSpec
 
 
-# Execution selector returned by `ByCustomPolicy(...)`.
-class ByCustomPolicyExecutionSpec(TypedDict, total=False):
+# Execution selector returned by `Execution.Policy(...)`.
+class PolicyExecutionSpec(TypedDict, total=False):
     kind: Literal["by_custom_policy"]
     policy_name: str
     decision: LocalDecisionSpec | RemoteDecisionSpec
 
 
-# Execution selector returned by `UseSession(...)`.
-class UseSessionExecutionSpec(TypedDict):
+# Execution selector returned by `Execution.Session(...)`.
+class SessionExecutionSpec(TypedDict):
     kind: Literal["use_session"]
     name: str
     cascade: bool
 
 
 # Reuse the same workspace filesystem across tasks in one session.
-class ShareWorkspaceReuseSpec(TypedDict):
+class WorkspaceReuseSpec(TypedDict):
     kind: Literal["share_workspace"]
 
 
 # Persist only selected paths or globs across tasks in one session.
-class SharePathsReuseSpec(TypedDict):
+class PathsReuseSpec(TypedDict):
     kind: Literal["share_paths"]
     paths: list[PathSelector | GlobOutput]
 
@@ -241,8 +246,8 @@ class SharePathsReuseSpec(TypedDict):
 # Named session returned by `session(...)`.
 class SessionSpec(TypedDict):
     name: str
-    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec
-    reuse: ShareWorkspaceReuseSpec | SharePathsReuseSpec
+    execution: LocalExecutionSpec | RemoteExecutionSpec
+    reuse: WorkspaceReuseSpec | PathsReuseSpec
     lifetime: Literal["per_run"]
     context: CurrentStateSpec | None
 
@@ -276,7 +281,7 @@ class CurrentStateSpec(TypedDict):
 class ModuleDefaults(TypedDict, total=False):
     queue: QueueUseSpec
     retry: RetrySpec
-    container_runtime: ContainerRuntimeSpec | DockerfileRuntimeSpec
+    container_runtime: ImageRuntimeSpec | DockerfileRuntimeSpec
     tags: list[str]
 
 
@@ -291,7 +296,7 @@ class TaskSpec(TypedDict):
     timeout_s: int | None
     context: CurrentStateSpec | None
     outputs: list[PathSelector | GlobOutput]
-    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec | ByCustomPolicyExecutionSpec | UseSessionExecutionSpec | None
+    execution: LocalExecutionSpec | RemoteExecutionSpec | PolicyExecutionSpec | SessionExecutionSpec | None
     tags: list[str]
     doc: str
 
@@ -309,28 +314,38 @@ class ModuleSpec(TypedDict):
     defaults: ModuleDefaults
 
 
-# Machine-wide coordination scope.
-MACHINE: Literal["machine"]
-# User-wide coordination scope.
-USER: Literal["user"]
-# Project-wide coordination scope.
-PROJECT: Literal["project"]
-# Worktree-wide coordination scope.
-WORKTREE: Literal["worktree"]
-# Need hold mode that lasts for the whole task.
-DURING: Literal["during"]
-# Need hold mode that applies only at task start.
-AT_START: Literal["at_start"]
-# FIFO queue discipline.
-FIFO: Literal["fifo"]
-# Priority queue discipline.
-PRIORITY: Literal["priority"]
-# Workspace transfer mode for repository zip snapshots.
-REPO_ZIP_SNAPSHOT: Literal["REPO_ZIP_SNAPSHOT"]
-# Result sync mode that returns declared outputs plus logs.
-OUTPUTS_AND_LOGS: Literal["OUTPUTS_AND_LOGS"]
-# Per-run session lifetime. Cross-run sessions are not supported in v1.
-PER_RUN: Literal["per_run"]
+# Coordination scope constants.
+class Scope:
+    # Machine-wide coordination scope.
+    Machine: Literal["machine"]
+    # User-wide coordination scope.
+    User: Literal["user"]
+    # Project-wide coordination scope.
+    Project: Literal["project"]
+    # Worktree-wide coordination scope.
+    Worktree: Literal["worktree"]
+
+
+# Limiter hold mode constants.
+class Hold:
+    # Need hold mode that lasts for the whole task.
+    During: Literal["during"]
+    # Need hold mode that applies only at task start.
+    AtStart: Literal["at_start"]
+
+
+# Queue scheduling discipline constants.
+class QueueDiscipline:
+    # FIFO queue discipline.
+    Fifo: Literal["fifo"]
+    # Priority queue discipline.
+    Priority: Literal["priority"]
+
+
+# Session lifetime constants.
+class SessionLifetime:
+    # Per-run session lifetime. Cross-run sessions are not supported in v1.
+    PerRun: Literal["per_run"]
 
 
 # Named placement reason constants used by custom placement policies.
@@ -349,16 +364,105 @@ class Decision:
     # Return an explicit local placement decision from a custom policy.
     @staticmethod
     def local(
-        local: LocalSpec | None = ...,
         reason: str = ...,
+        runtime: HostRuntimeSpec | ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
     ) -> LocalDecisionSpec: ...
 
     # Return an explicit remote placement decision from a custom policy.
     @staticmethod
     def remote(
-        remote: RemoteSpec,
         reason: str = ...,
+        pool: str | None = ...,
+        required_tags: list[str] | None = ...,
+        required_capabilities: list[str] | None = ...,
+        transport: (
+            DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
+        ) = ...,
+        runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
     ) -> RemoteDecisionSpec: ...
+
+
+# Execution selector namespace.
+class Execution:
+    # Force a task to run locally. Defaults to host execution.
+    @staticmethod
+    def Local(
+        runtime: HostRuntimeSpec | ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+    ) -> LocalExecutionSpec: ...
+
+    # Force a task to run remotely. Remote execution requires a container runtime.
+    @staticmethod
+    def Remote(
+        pool: str | None = ...,
+        required_tags: list[str] | None = ...,
+        required_capabilities: list[str] | None = ...,
+        transport: (
+            DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
+        ) = ...,
+        runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+    ) -> RemoteExecutionSpec: ...
+
+    # Resolve task placement from a named or inline custom policy.
+    @staticmethod
+    def Policy(policy: object) -> PolicyExecutionSpec: ...
+
+    # Run a task in a named session, optionally cascading it to dependencies.
+    @staticmethod
+    def Session(name: str, cascade: bool = ...) -> SessionExecutionSpec: ...
+
+
+# Runtime namespace.
+class Runtime:
+    # Run local work directly on the host without a container.
+    @staticmethod
+    def Host() -> HostRuntimeSpec: ...
+
+    # Run work inside a prebuilt container image.
+    @staticmethod
+    def Image(
+        image: str,
+        command: list[str] | None = ...,
+        mounts: list[ContainerMountSpec] | None = ...,
+        env: dict[str, str] | None = ...,
+        resources: ContainerResourceLimitsSpec | None = ...,
+    ) -> ImageRuntimeSpec: ...
+
+    # Build a container runtime from a Dockerfile in the workspace.
+    @staticmethod
+    def Dockerfile(
+        dockerfile: PathSelector | str,
+        build_context: PathSelector | str | None = ...,
+        command: list[str] | None = ...,
+        mounts: list[ContainerMountSpec] | None = ...,
+        env: dict[str, str] | None = ...,
+        resources: ContainerResourceLimitsSpec | None = ...,
+    ) -> DockerfileRuntimeSpec: ...
+
+
+# Remote transport namespace.
+class Transport:
+    # Force direct HTTPS transport for a remote target.
+    @staticmethod
+    def DirectHttps() -> DirectHttpsTransportSpec: ...
+
+    # Allow Tak to choose direct or Tor transport from the available remote endpoint.
+    @staticmethod
+    def Any() -> AnyTransportSpec: ...
+
+    # Force Tor onion-service transport for a remote target.
+    @staticmethod
+    def TorOnionService() -> TorOnionServiceTransportSpec: ...
+
+
+# Session reuse namespace.
+class SessionReuse:
+    # Reuse one per-run session workspace across every task in the session.
+    @staticmethod
+    def Workspace() -> WorkspaceReuseSpec: ...
+
+    # Persist only the selected paths or globs between tasks in one session.
+    @staticmethod
+    def Paths(paths: list[PathSelector | GlobOutput]) -> PathsReuseSpec: ...
 
 def module_spec(
     tasks: list[TaskSpec],
@@ -389,10 +493,10 @@ def task(
     context: CurrentStateSpec | None = ...,
     outputs: list[PathSelector | GlobOutput] | None = ...,
     execution: (
-        LocalOnlyExecutionSpec
-        | RemoteOnlyExecutionSpec
-        | ByCustomPolicyExecutionSpec
-        | UseSessionExecutionSpec
+        LocalExecutionSpec
+        | RemoteExecutionSpec
+        | PolicyExecutionSpec
+        | SessionExecutionSpec
         | None
     ) = ...,
     tags: list[str] | None = ...,
@@ -462,55 +566,17 @@ def exp_jitter(
     max_s: float = ...,
     jitter: str = ...,
 ) -> ExpJitterBackoffSpec: ...
-def Local(
-    id: str,
-    max_parallel_tasks: int = ...,
-    runtime: ContainerRuntimeSpec | DockerfileRuntimeSpec | None = ...,
-) -> LocalSpec: ...
-def Remote(
-    pool: str | None = ...,
-    required_tags: list[str] | None = ...,
-    required_capabilities: list[str] | None = ...,
-    transport: (
-        DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
-    ) = ...,
-    runtime: ContainerRuntimeSpec | DockerfileRuntimeSpec | None = ...,
-) -> RemoteSpec: ...
-def DirectHttps() -> DirectHttpsTransportSpec: ...
-def AnyTransport() -> AnyTransportSpec: ...
-def TorOnionService() -> TorOnionServiceTransportSpec: ...
-def ContainerRuntime(
-    image: str,
-    command: list[str] | None = ...,
-    mounts: list[ContainerMountSpec] | None = ...,
-    env: dict[str, str] | None = ...,
-    resources: ContainerResourceLimitsSpec | None = ...,
-) -> ContainerRuntimeSpec: ...
-def DockerfileRuntime(
-    dockerfile: PathSelector | str,
-    build_context: PathSelector | str | None = ...,
-    command: list[str] | None = ...,
-    mounts: list[ContainerMountSpec] | None = ...,
-    env: dict[str, str] | None = ...,
-    resources: ContainerResourceLimitsSpec | None = ...,
-) -> DockerfileRuntimeSpec: ...
 def PolicyContext(
     task_side_effecting: bool = ...,
     local_cpu_percent: float = ...,
 ) -> PolicyContextSpec: ...
-def LocalOnly(local: LocalSpec) -> LocalOnlyExecutionSpec: ...
-def RemoteOnly(remote: RemoteSpec) -> RemoteOnlyExecutionSpec: ...
-def ByCustomPolicy(policy: object) -> ByCustomPolicyExecutionSpec: ...
-def ShareWorkspace() -> ShareWorkspaceReuseSpec: ...
-def SharePaths(paths: list[PathSelector | GlobOutput]) -> SharePathsReuseSpec: ...
 def session(
     name: str,
-    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec,
-    reuse: ShareWorkspaceReuseSpec | SharePathsReuseSpec,
+    execution: LocalExecutionSpec | RemoteExecutionSpec,
+    reuse: WorkspaceReuseSpec | PathsReuseSpec,
     lifetime: Literal["per_run"] = ...,
     context: CurrentStateSpec | None = ...,
 ) -> SessionSpec: ...
-def UseSession(name: str, cascade: bool = ...) -> UseSessionExecutionSpec: ...
 def path(value: str) -> PathSelector: ...
 def glob(value: str) -> GlobOutput: ...
 def gitignore() -> GitignoreSource: ...

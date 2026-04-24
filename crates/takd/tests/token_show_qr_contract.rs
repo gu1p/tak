@@ -86,12 +86,15 @@ fn token_show_qr_renders_onboarding_command_qr_block_and_words_for_real_v3_invit
     );
 
     let words_block = extract_block(&stdout, " Words ");
-    assert_eq!(
-        visible_text(&words_block),
-        words
-            .chars()
-            .filter(|ch| !ch.is_whitespace())
-            .collect::<String>(),
-        "words block should contain the full wrapped phrase:\n{stdout}"
+    let words_text = visible_text(&words_block);
+    assert!(
+        words_text.contains("01") && words_text.contains("19"),
+        "words block should number each copied cell:\n{stdout}"
     );
+    for word in words.split_whitespace() {
+        assert!(
+            words_text.contains(word),
+            "words block should contain copied word `{word}`:\n{stdout}"
+        );
+    }
 }

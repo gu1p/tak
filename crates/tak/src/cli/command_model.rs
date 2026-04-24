@@ -118,16 +118,15 @@ pub(super) enum RemoteCommands {
     /// Add one remote agent from an onboarding token or Tor word phrase.
     Add {
         /// The onboarding token emitted by `takd token show`.
-        #[arg(required_unless_present = "words", conflicts_with = "words")]
+        #[arg(conflicts_with = "words")]
         token: Option<String>,
         /// One or more onboarding words emitted by `takd token show --words`.
         #[arg(
             long = "words",
             value_name = "WORD",
-            num_args = 1..,
-            required_unless_present = "token"
+            num_args = 0..
         )]
-        words: Vec<String>,
+        words: Option<Vec<String>>,
     },
     /// Scan a QR code and add the discovered remote agent.
     Scan,

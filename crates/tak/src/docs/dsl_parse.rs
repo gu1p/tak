@@ -42,11 +42,12 @@ fn parse_typed_dict_class(
             continue;
         }
         if let Some((field_name, field_ty)) = parse_annotated_name_and_type(trimmed) {
+            let summary = consume_pending_comments(&mut pending_comments);
             fields.push(DslFieldEntry {
                 name: field_name,
                 ty: field_ty,
+                summary,
             });
-            pending_comments.clear();
         }
         index += 1;
     }

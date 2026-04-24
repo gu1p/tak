@@ -27,7 +27,7 @@ def with_needs(self, *needs) -> "TaskSet": ...
 ## Example
 
 ```python
-tasks.with_needs(need("cpu", 2, scope=MACHINE))
+tasks.with_needs(need("cpu", 2, scope=Scope.Machine))
 ```
 
 ## See also

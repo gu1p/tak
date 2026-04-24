@@ -4,7 +4,9 @@ use tak_core::model::{
     RemoteSpec, TaskExecutionDef, TaskExecutionSpec,
 };
 
-use super::remote_validation::{validate_remote_transport, validate_runtime};
+use super::remote_validation::{
+    validate_local_runtime, validate_remote_transport, validate_runtime,
+};
 
 pub(crate) fn resolve_execution(
     execution: TaskExecutionDef,
@@ -19,7 +21,7 @@ pub(crate) fn resolve_execution(
             if local.max_parallel_tasks == 0 {
                 bail!("execution LocalOnly.local.max_parallel_tasks must be >= 1");
             }
-            let runtime = validate_runtime(local.runtime, package, "LocalOnly.local")?;
+            let runtime = validate_local_runtime(local.runtime, package, "Execution.Local")?;
             Ok(TaskExecutionSpec::LocalOnly(LocalSpec {
                 id,
                 max_parallel_tasks: local.max_parallel_tasks,
@@ -118,7 +120,7 @@ fn resolve_local(local: LocalDef, package: &str, field: &str) -> Result<LocalSpe
     if local.max_parallel_tasks == 0 {
         bail!("{field}.max_parallel_tasks must be >= 1");
     }
-    let runtime = validate_runtime(local.runtime, package, field)?;
+    let runtime = validate_local_runtime(local.runtime, package, field)?;
 
     Ok(LocalSpec {
         id,

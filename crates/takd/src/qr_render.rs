@@ -10,6 +10,8 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use tak_proto::{decode_tor_invite, encode_tor_invite_words};
 use tui_qrcode::{Colors, QrCodeWidget};
 
+use crate::word_table::numbered_words_text;
+
 const MIN_VIEW_WIDTH: u16 = 84;
 const TITLE_HEIGHT: u16 = 3;
 const BLOCK_VERTICAL_CHROME: u16 = 4;
@@ -18,6 +20,9 @@ const BLOCK_HORIZONTAL_CHROME: u16 = 6;
 pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
     let is_tor_invite = decode_tor_invite(token).is_ok();
     let word_phrase = encode_tor_invite_words(token).ok();
+    let word_table = word_phrase
+        .as_ref()
+        .map(|phrase| numbered_words_text(phrase));
     let qr_code = QrCode::new(token.as_bytes())?;
     let command = format!("tak remote add '{token}'");
     let words_command = word_phrase
@@ -38,9 +43,9 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
     let qr_block_height = qr_size.height + BLOCK_VERTICAL_CHROME;
     let command_block_height = command_height + BLOCK_VERTICAL_CHROME;
     let token_block_height = token_height + BLOCK_VERTICAL_CHROME;
-    let words_block_height = word_phrase
+    let words_block_height = word_table
         .as_ref()
-        .map(|phrase| wrapped_text_height(phrase, text_width) + BLOCK_VERTICAL_CHROME)
+        .map(|table| wrapped_text_height(table, text_width) + BLOCK_VERTICAL_CHROME)
         .unwrap_or(0);
     let view_height = TITLE_HEIGHT
         + qr_block_height
@@ -99,7 +104,7 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             token_area,
         );
 
-        if let Some(phrase) = &word_phrase {
+        if let Some(table) = &word_table {
             let words_block = Block::default().borders(Borders::ALL).title(" Words ");
             let words_area = words_block.inner(rows[4]).inner(Margin {
                 vertical: 1,
@@ -107,7 +112,7 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             });
             frame.render_widget(words_block, rows[4]);
             frame.render_widget(
-                Paragraph::new(Text::from(phrase.to_string())).wrap(Wrap { trim: false }),
+                Paragraph::new(Text::from(table.clone())).wrap(Wrap { trim: false }),
                 words_area,
             );
         }

@@ -8,11 +8,11 @@ UI and device-bound tests often cannot run in parallel safely. This example show
 
 ```python
 SPEC = module_spec(
-    limiters=[lock("ui_lock", scope=MACHINE)],
+    limiters=[lock("ui_lock", scope=Scope.Machine)],
     tasks=[
         task(
             "ui_test",
-            needs=[need("ui_lock", 1, scope=MACHINE)],
+            needs=[need("ui_lock", 1, scope=Scope.Machine)],
             steps=[cmd("sh", "-c", "mkdir -p out && echo ui-lock > out/ui_lock.txt")],
         )
     ],
@@ -25,8 +25,8 @@ SPEC
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
 | limiter kind | `lock("ui_lock")` | `resource(...)`, `rate_limit(...)`, `process_cap(...)` | Switch between exclusive lock, capacity pool, token rate, or process match guard. |
-| `scope` | `MACHINE` | `USER`, `PROJECT`, `WORKTREE` | Changes the contention boundary and fairness domain. |
-| `hold` in `need(...)` | default `DURING` | `AT_START` | `AT_START` acquires at start and releases earlier after admission. |
+| `scope` | `Scope.Machine` | `Scope.User`, `Scope.Project`, `Scope.Worktree` | Changes the contention boundary and fairness domain. |
+| `hold` in `need(...)` | default `Hold.During` | `Hold.AtStart` | `Hold.AtStart` acquires at start and releases earlier after admission. |
 
 ## Runbook
 

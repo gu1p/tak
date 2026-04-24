@@ -5,6 +5,7 @@ use anyhow::Result;
 mod cli;
 mod logging;
 mod qr_render;
+mod word_table;
 
 #[tokio::main]
 /// Starts the `takd` CLI.

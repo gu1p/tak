@@ -10,7 +10,7 @@ fn use_session_rejects_missing_session_name() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"SPEC = module_spec(tasks=[task("check", steps=[cmd("true")], execution=UseSession("missing"))])
+        r#"SPEC = module_spec(tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("missing"))])
 SPEC
 "#,
     )?;
@@ -19,7 +19,7 @@ SPEC
     let (_stdout, stderr) = run_tak_expect_failure(&workspace, &["run", "check"], &env)?;
 
     assert!(
-        stderr.contains("UseSession references unknown session `missing`"),
+        stderr.contains("Execution.Session references unknown session `missing`"),
         "stderr:\n{stderr}"
     );
     Ok(())
@@ -32,11 +32,11 @@ fn docs_dump_includes_session_dsl_surface() -> Result<()> {
     let output = run_tak_expect_success(temp.path(), &["docs", "dump"], &env)?;
 
     for token in [
-        "ShareWorkspace",
-        "SharePaths",
-        "UseSession",
+        "SessionReuse.Workspace",
+        "SessionReuse.Paths",
+        "Execution.Session",
         "cascade",
-        "PER_RUN",
+        "SessionLifetime.PerRun",
     ] {
         assert!(output.contains(token), "missing {token} in docs:\n{output}");
     }

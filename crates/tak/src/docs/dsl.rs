@@ -27,6 +27,7 @@ pub(super) struct DslTypeEntry {
 pub(super) struct DslFieldEntry {
     pub(super) name: String,
     pub(super) ty: String,
+    pub(super) summary: String,
 }
 
 #[derive(Debug)]
@@ -88,6 +89,18 @@ pub(super) fn collect_dsl_docs() -> Result<DslDocs> {
         if trimmed.starts_with("class ") {
             let summary = consume_pending_comments(&mut pending_comments);
             let (entry, methods, next_index) = parse_typed_dict_class(&lines, index, summary)?;
+            if !entry.signature.contains("TypedDict") {
+                docs.constants
+                    .extend(entry.fields.iter().map(|field| DslConstantEntry {
+                        name: format!("{}.{}", entry.name, field.name),
+                        signature: format!("{}.{}: {}", entry.name, field.name, field.ty),
+                        summary: if field.summary.is_empty() {
+                            format!("Typed constant with value type `{}`.", field.ty)
+                        } else {
+                            field.summary.clone()
+                        },
+                    }));
+            }
             docs.types.push(entry);
             docs.methods.extend(methods);
             index = next_index;

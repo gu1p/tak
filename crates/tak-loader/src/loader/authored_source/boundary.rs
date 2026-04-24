@@ -7,15 +7,15 @@ use ruff_text_size::{Ranged, TextRange};
 
 use super::{
     PreparedAuthoredSource,
-    helpers::{is_tak_module, line_and_column},
+    expr_helpers::{is_tak_module, line_and_column},
 };
 
 pub(super) struct AuthoredDslBoundary<'a> {
     path: &'a Path,
     source: &'a str,
     replacements: Vec<Replacement>,
-    allowed_decision_attribute_ranges: Vec<TextRange>,
-    allowed_decision_name_ranges: Vec<TextRange>,
+    allowed_namespace_attribute_ranges: Vec<TextRange>,
+    allowed_namespace_name_ranges: Vec<TextRange>,
     error: Option<String>,
 }
 
@@ -30,8 +30,8 @@ impl<'a> AuthoredDslBoundary<'a> {
             path,
             source,
             replacements: Vec::new(),
-            allowed_decision_attribute_ranges: Vec::new(),
-            allowed_decision_name_ranges: Vec::new(),
+            allowed_namespace_attribute_ranges: Vec::new(),
+            allowed_namespace_name_ranges: Vec::new(),
             error: None,
         }
     }
@@ -80,20 +80,28 @@ impl<'a> AuthoredDslBoundary<'a> {
         });
     }
 
-    pub(super) fn allow_direct_decision_call(&mut self, expr: &Expr) {
-        self.allowed_decision_attribute_ranges.push(expr.range());
+    pub(super) fn allow_namespace_attribute(&mut self, expr: &Expr) {
+        self.allowed_namespace_attribute_ranges.push(expr.range());
         if let Expr::Attribute(attribute) = expr {
-            self.allowed_decision_name_ranges
+            self.allowed_namespace_name_ranges
                 .push(attribute.value.as_ref().range());
         }
     }
 
-    pub(super) fn is_allowed_decision_attribute(&self, range: TextRange) -> bool {
-        self.allowed_decision_attribute_ranges.contains(&range)
+    pub(super) fn is_allowed_namespace_attribute(&self, range: TextRange) -> bool {
+        self.allowed_namespace_attribute_ranges.contains(&range)
     }
 
-    pub(super) fn is_allowed_decision_name(&self, range: TextRange) -> bool {
-        self.allowed_decision_name_ranges.contains(&range)
+    pub(super) fn is_allowed_namespace_name(&self, range: TextRange) -> bool {
+        self.allowed_namespace_name_ranges.contains(&range)
+    }
+
+    fn should_reject_name(&self, name: &str, range: TextRange) -> bool {
+        is_namespace_name(name) && !self.is_allowed_namespace_name(range)
+    }
+
+    fn name_rejection_message(&self, name: &str) -> String {
+        format!("`{name}` may only be used through the shipped TASKS.py namespace methods.")
     }
 }
 
@@ -135,14 +143,8 @@ impl<'a> Visitor<'a> for AuthoredDslBoundary<'a> {
             match expr {
                 Expr::Call(call) => self.handle_call(call.func.as_ref()),
                 Expr::Attribute(attribute) => self.handle_attribute(expr, attribute.range()),
-                Expr::Name(name)
-                    if name.id.as_str() == "Decision"
-                        && !self.is_allowed_decision_name(name.range()) =>
-                {
-                    self.reject(
-                        name.range(),
-                        "`Decision` may only be used as a direct call to `Decision.local(...)` or `Decision.remote(...)`.",
-                    );
+                Expr::Name(name) if self.should_reject_name(name.id.as_str(), name.range()) => {
+                    self.reject(name.range(), self.name_rejection_message(name.id.as_str()));
                 }
                 _ => {}
             }
@@ -150,4 +152,19 @@ impl<'a> Visitor<'a> for AuthoredDslBoundary<'a> {
 
         visitor::walk_expr(self, expr);
     }
+}
+
+fn is_namespace_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Decision"
+            | "Execution"
+            | "Runtime"
+            | "Transport"
+            | "SessionReuse"
+            | "Scope"
+            | "Hold"
+            | "QueueDiscipline"
+            | "SessionLifetime"
+    )
 }

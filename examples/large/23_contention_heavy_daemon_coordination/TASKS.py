@@ -5,7 +5,7 @@
 SPEC = module_spec(
   project_id="example_large_23",
   includes=[path("apps/a"), path("apps/b"), path("apps/c")],
-  limiters=[lock("ui_lock", scope=MACHINE)],
+  limiters=[lock("ui_lock", scope=Scope.Machine)],
   tasks=[
     task(
       "orchestrate",

@@ -62,15 +62,15 @@ CI_COVERAGE_STEPS = [
 
 CHECK_CONTEXT = CurrentState(ignored=[gitignore()])
 
-CHECK_RUNTIME = DockerfileRuntime(
-    dockerfile=path("docker/tak-tests/Dockerfile"),
+CHECK_RUNTIME = Runtime.Dockerfile(
+    path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
 )
 
 CHECK_SESSION = session(
     "check-workspace",
-    execution=LocalOnly(Local("check", runtime=CHECK_RUNTIME)),
-    reuse=ShareWorkspace(),
+    execution=Execution.Local(runtime=CHECK_RUNTIME),
+    reuse=SessionReuse.Workspace(),
     context=CHECK_CONTEXT,
 )
 
@@ -217,7 +217,7 @@ SPEC = module_spec(
                 ":generated-artifact-ignore-check",
                 ":check-rust",
             ],
-            execution=UseSession("check-workspace", cascade=True),
+            execution=Execution.Session("check-workspace", cascade=True),
         ),
     ],
 )

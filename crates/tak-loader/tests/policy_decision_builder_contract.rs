@@ -16,7 +16,7 @@ fn rejects_remote_builder_reference_with_direct_call_guidance() {
     let message = policy_error(
         r#"def choose_remote(ctx):
   builder = Decision.remote
-  return builder(Remote(pool="build", transport=TorOnionService()), reason=Reason.LOCAL_CPU_HIGH)
+  return builder(pool="build", transport=Transport.TorOnionService(), reason=Reason.LOCAL_CPU_HIGH)
 "#,
         "choose_remote",
     );
@@ -35,7 +35,7 @@ fn rejects_local_builder_reference_with_direct_call_guidance() {
     let message = policy_error(
         r#"def choose_local(ctx):
   builder = Decision.local
-  return builder(Local(id="dev"), reason=Reason.DEFAULT_LOCAL_POLICY)
+  return builder(runtime=Runtime.Host(), reason=Reason.DEFAULT_LOCAL_POLICY)
 "#,
         "choose_local",
     );
@@ -54,16 +54,17 @@ fn rejects_bare_decision_namespace_reference_with_direct_call_guidance() {
     let message = policy_error(
         r#"def choose_remote(ctx):
   namespace = Decision
-  return namespace.remote(Remote(pool="build"), reason=Reason.LOCAL_CPU_HIGH)
+  return namespace.remote(pool="build", reason=Reason.LOCAL_CPU_HIGH)
 "#,
         "choose_remote",
     );
     assert!(
-        message.contains("`Decision` may only be used as a direct call"),
+        message
+            .contains("`Decision` may only be used through the shipped TASKS.py namespace methods"),
         "missing direct-call restriction: {message:#}"
     );
     assert!(
-        message.contains("`Decision.local(...)` or `Decision.remote(...)`"),
+        message.contains("namespace methods"),
         "missing direct-call guidance: {message:#}"
     );
 }

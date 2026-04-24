@@ -8,22 +8,22 @@ SPEC = module_spec(
       "validate",
       deps=["//libs/common:lint"],
       needs=[
-        need("cpu", 2, scope=MACHINE),
-        need("ram_gib", 2, scope=MACHINE),
-        need("ui_lock", 1, scope=MACHINE),
-        need("start_rl", 1, scope=MACHINE, hold=AT_START),
-        need("simulator", 1, scope=MACHINE),
-        need("project_gate", 1, scope=PROJECT),
-        need("user_gate", 1, scope=USER),
-        need("worktree_gate", 1, scope=WORKTREE),
+        need("cpu", 2, scope=Scope.Machine),
+        need("ram_gib", 2, scope=Scope.Machine),
+        need("ui_lock", 1, scope=Scope.Machine),
+        need("start_rl", 1, scope=Scope.Machine, hold=Hold.AtStart),
+        need("simulator", 1, scope=Scope.Machine),
+        need("project_gate", 1, scope=Scope.Project),
+        need("user_gate", 1, scope=Scope.User),
+        need("worktree_gate", 1, scope=Scope.Worktree),
       ],
-      queue=queue_use("qa_priority", scope=MACHINE, slots=1, priority=10),
+      queue=queue_use("qa_priority", scope=Scope.Machine, slots=1, priority=10),
       steps=[cmd("sh", "-c", "mkdir -p out && echo qa-validate >> out/full_matrix.log")]
     ),
     task(
       "release",
       deps=[":validate"],
-      queue=queue_use("qa_fifo", scope=MACHINE, slots=1, priority=0),
+      queue=queue_use("qa_fifo", scope=Scope.Machine, slots=1, priority=0),
       steps=[script("scripts/matrix_release.sh", interpreter="sh")]
     )
   ]

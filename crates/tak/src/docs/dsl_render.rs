@@ -15,6 +15,9 @@ pub(super) fn render_dsl_docs(output: &mut String, docs: &DslDocs) {
         }
         for field in &entry.fields {
             let _ = writeln!(output, "- `{}`: `{}`", field.name, field.ty);
+            if !field.summary.trim().is_empty() {
+                let _ = writeln!(output, "  - {}", field.summary.trim());
+            }
         }
         if !entry.fields.is_empty() {
             output.push('\n');

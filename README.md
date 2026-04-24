@@ -72,8 +72,12 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Report coordination status when supported; the current client-only build returns an unsupported error.
 - `tak remote add <token>`
   - Import a `takd` agent token into local client config.
+- `tak remote add`
+  - Open an interactive terminal flow for adding a remote from words, a token, or a Tor `.onion` location.
 - `tak remote add --words <word>...`
   - Import a Tor v3 `takd` invite from the 19-word manual-entry phrase emitted by `takd token show --words`.
+- `tak remote add --words`
+  - Open the interactive word-entry flow directly.
 - `tak remote scan`
   - Pick a camera, preview its feed in the terminal, and add a remote from a scanned QR token.
 - `tak remote list`
@@ -94,8 +98,10 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Reprint the persisted onboarding token, or wait until it is advertised with `--wait`.
 - `takd token show --words`
   - Print the 19-word Tor v3 onboarding phrase for manual typing.
+- `takd token show --words-table`
+  - Print the same Tor v3 onboarding phrase as numbered cells for human copying.
 - `takd token show --qr`
-  - Render the onboarding token as a terminal QR code plus the exact `tak remote add '...'` command, and show the 19-word phrase when the invite targets a real Tor v3 onion host.
+  - Render the onboarding token as a terminal QR code plus the exact `tak remote add '...'` command, and show numbered word cells when the invite targets a real Tor v3 onion host.
 
 ## Run Output Signals
 
@@ -138,16 +144,13 @@ Direct transport examples need matching agent settings, for example `takd init -
 Containerized tasks can point at either a prebuilt image or a checked-in Dockerfile:
 
 ```python
-LOCAL = Local(
-    id="dev",
-    runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")),
-)
+LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    runtime=ContainerRuntime(image="alpine:3.20"),
+    runtime=Runtime.Image("alpine:3.20"),
 )
 ```
 
@@ -205,7 +208,7 @@ test = task(
 SPEC = module_spec(
     project_id="hello_project",
     tasks=[build, test],
-    limiters=[lock("ci_lock", scope=MACHINE)],
+    limiters=[lock("ci_lock", scope=Scope.Machine)],
 )
 SPEC
 ```

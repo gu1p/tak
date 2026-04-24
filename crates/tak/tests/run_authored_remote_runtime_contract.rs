@@ -1,4 +1,4 @@
-//! Black-box contract for authored `RemoteOnly(...)` runtime resolution.
+//! Black-box contract for authored `Execution.Remote(...)` runtime resolution.
 
 use crate::support;
 
@@ -16,8 +16,8 @@ fn authored_remote_only_inherits_module_default_container_runtime() -> Result<()
     let _agent = start_direct_agent(temp.path(), &workspace_root, "authored-remote-default");
     write_tasks(
         &workspace_root,
-        r#"REMOTE = Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps())
-SPEC = module_spec(defaults={"container_runtime": ContainerRuntime(image="alpine:3.20")}, tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=RemoteOnly(REMOTE))])
+        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps())
+SPEC = module_spec(defaults={"container_runtime": Runtime.Image("alpine:3.20")}, tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=REMOTE)])
 SPEC
 "#,
     )?;
@@ -39,8 +39,8 @@ fn authored_remote_only_without_runtime_fails_closed() -> Result<()> {
     let _agent = start_direct_agent(temp.path(), &workspace_root, "authored-remote-missing");
     write_tasks(
         &workspace_root,
-        r#"REMOTE = Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=DirectHttps())
-SPEC = module_spec(tasks=[task("check", steps=[cmd("sh", "-c", "echo should-not-run")], execution=RemoteOnly(REMOTE))])
+        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps())
+SPEC = module_spec(tasks=[task("check", steps=[cmd("sh", "-c", "echo should-not-run")], execution=REMOTE)])
 SPEC
 "#,
     )?;
@@ -54,7 +54,7 @@ SPEC
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "task //:check requires a containerized runtime for remote execution; provide Remote(..., runtime=...), Policy Decision.remote(Remote(..., runtime=...)), or TASKS.py defaults.container_runtime"
+            "task //:check requires a containerized runtime for remote execution; provide Execution.Remote(..., runtime=Runtime.Image(...)), Decision.remote(..., runtime=Runtime.Image(...)), or TASKS.py defaults.container_runtime"
         ),
         "stderr:\n{stderr}"
     );

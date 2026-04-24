@@ -13,7 +13,7 @@ def with_execution(self, execution) -> "TaskSet": ...
 ## Parameters
 
 - `self`: [[TaskSet]]. Required. The set being decorated.
-- `execution`: existing Tak execution object. Examples include `LocalOnly(...)`, `RemoteOnly(...)`, or another valid execution selector.
+- `execution`: existing Tak execution object. Examples include `Execution.Local(...)`, `Execution.Remote(...)`, or another valid execution selector.
 
 ## Returns
 
@@ -28,7 +28,7 @@ def with_execution(self, execution) -> "TaskSet": ...
 
 ```python
 integration_tasks.with_execution(
-    LocalOnly(Local(id="docker-local", runtime=TEST_DOCKER))
+    Execution.Local(runtime=TEST_DOCKER)
 )
 ```
 

@@ -1,5 +1,6 @@
 use tak_proto::{
     TOR_INVITE_WORD_COUNT, decode_tor_invite_words, encode_tor_invite, encode_tor_invite_words,
+    normalize_tor_invite_word,
 };
 
 const V3_BASE_URL: &str = "http://pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion";
@@ -44,6 +45,19 @@ fn tor_invite_word_decoder_rejects_unknown_words() {
     .expect_err("unknown words should fail");
 
     assert!(error.to_string().contains("unknown"));
+}
+
+#[test]
+fn tor_invite_word_normalizer_accepts_dictionary_words_case_insensitively() {
+    let invite = encode_tor_invite(V3_BASE_URL).expect("encode tor invite");
+    let phrase = encode_tor_invite_words(&invite).expect("encode tor invite words");
+    let first = phrase.split_whitespace().next().expect("first word");
+
+    assert_eq!(
+        normalize_tor_invite_word(&first.to_ascii_uppercase()).expect("normalize word"),
+        first
+    );
+    assert!(normalize_tor_invite_word("zzzzzzz").is_err());
 }
 
 #[test]

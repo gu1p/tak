@@ -1,13 +1,15 @@
-MACHINE  = "machine"
-USER     = "user"
-PROJECT  = "project"
-WORKTREE = "worktree"
+_Scope_Machine  = "machine"
+_Scope_User     = "user"
+_Scope_Project  = "project"
+_Scope_Worktree = "worktree"
 
-DURING   = "during"
-AT_START = "at_start"
+_Hold_During   = "during"
+_Hold_AtStart = "at_start"
 
-FIFO     = "fifo"
-PRIORITY = "priority"
+_QueueDiscipline_Fifo     = "fifo"
+_QueueDiscipline_Priority = "priority"
+
+_SessionLifetime_PerRun = "per_run"
 
 def _or_empty_list(value):
     return value if value is not None else []
@@ -47,16 +49,24 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, 
         "defaults": defaults if defaults is not None else {},
     }
 
-def Local(id, max_parallel_tasks=1, runtime=None):
-    """Describe the local execution pool and its optional default runtime."""
+def _is_host_runtime(value):
+    return isinstance(value, dict) and value.get("kind") == "host"
+
+def _normalize_local_runtime(runtime):
+    if runtime is None or _is_host_runtime(runtime):
+        return None
+    return runtime
+
+def _local_spec(runtime=None):
     return {
-        "id": id,
-        "max_parallel_tasks": max_parallel_tasks,
-        "runtime": runtime,
+        "id": "local",
+        "max_parallel_tasks": 1,
+        "runtime": _normalize_local_runtime(runtime),
     }
 
-def Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
-    """Describe a remote execution target by pool, capability filters, transport, and runtime."""
+def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
+    if _is_host_runtime(runtime):
+        raise TypeError("Runtime.Host() is only valid for Execution.Local")
     return {
         "pool": pool,
         "required_tags": _or_empty_list(required_tags),
@@ -65,29 +75,32 @@ def Remote(pool=None, required_tags=None, required_capabilities=None, transport=
         "runtime": runtime,
     }
 
-def DirectHttps():
+def Transport_DirectHttps():
     """Force direct HTTPS transport for a remote target."""
     return {
         "kind": "direct",
     }
 
-def AnyTransport():
+def Transport_Any():
     """Allow Tak to choose direct or Tor transport from the available remote endpoint."""
     return {
         "kind": "any",
     }
 
-def TorOnionService():
+def Transport_TorOnionService():
     """Force Tor onion-service transport for a remote target."""
     return {
         "kind": "tor",
     }
 
-REPO_ZIP_SNAPSHOT = "REPO_ZIP_SNAPSHOT"
-OUTPUTS_AND_LOGS = "OUTPUTS_AND_LOGS"
+def Runtime_Host():
+    """Run local work directly on the host without a container."""
+    return {
+        "kind": "host",
+    }
 
-def ContainerRuntime(image, command=None, mounts=None, env=None, resources=None):
-    """Run remote work inside a prebuilt container image."""
+def Runtime_Image(image, command=None, mounts=None, env=None, resources=None):
+    """Run work inside a prebuilt container image."""
     return {
         "kind": "containerized",
         "image": str(image),
@@ -99,7 +112,7 @@ def ContainerRuntime(image, command=None, mounts=None, env=None, resources=None)
         "resource_limits": resources,
     }
 
-def DockerfileRuntime(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
+def Runtime_Dockerfile(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
     """Build a container runtime from a Dockerfile in the workspace."""
     return {
         "kind": "containerized",
@@ -113,12 +126,6 @@ def DockerfileRuntime(dockerfile, build_context=None, command=None, mounts=None,
         "env": _or_empty_dict(env),
         "resource_limits": resources,
     }
-
-REASON_SIDE_EFFECTING_TASK = "SIDE_EFFECTING_TASK"
-REASON_NO_REMOTE_REACHABLE = "NO_REMOTE_REACHABLE"
-REASON_LOCAL_CPU_HIGH_ARM_IDLE = "LOCAL_CPU_HIGH_ARM_IDLE"
-REASON_LOCAL_CPU_HIGH = "LOCAL_CPU_HIGH"
-REASON_DEFAULT_LOCAL_POLICY = "DEFAULT_LOCAL_POLICY"
 
 def PolicyContext(task_side_effecting=False, local_cpu_percent=0.0):
     """Provide the runtime facts exposed to a custom placement policy."""
@@ -138,23 +145,28 @@ def _is_local_constructor_value(value):
 def _is_remote_constructor_value(value):
     return isinstance(value, dict) and "max_parallel_tasks" not in value
 
-def Decision_local(local=None, reason=REASON_DEFAULT_LOCAL_POLICY):
+def Decision_local(reason="DEFAULT_LOCAL_POLICY", runtime=None):
     """Return an explicit local placement decision from a custom policy."""
-    if local is not None and not _is_local_constructor_value(local):
-        raise TypeError("Decision.local requires Local(...)")
     decision = {
         "mode": "local",
         "reason": str(reason),
     }
-    if local is not None:
-        decision["local"] = local
+    normalized_runtime = _normalize_local_runtime(runtime)
+    if normalized_runtime is not None:
+        decision["local"] = _local_spec(runtime=normalized_runtime)
     return decision
 
-def Decision_remote(remote, reason="DEFAULT_REMOTE_POLICY"):
+def Decision_remote(reason="DEFAULT_REMOTE_POLICY", pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
     """Return an explicit remote placement decision from a custom policy."""
     return {
         "mode": "remote",
-        "remote": remote,
+        "remote": _remote_spec(
+            pool=pool,
+            required_tags=required_tags,
+            required_capabilities=required_capabilities,
+            transport=transport,
+            runtime=runtime,
+        ),
         "reason": str(reason),
     }
 
@@ -179,22 +191,24 @@ def Decision_resolve(*args, **kwargs):
 
 POLICY_CONTEXT = PolicyContext()
 
-def LocalOnly(local):
-    """Force a task to run on the supplied local execution pool."""
-    if not _is_local_constructor_value(local):
-        raise TypeError("LocalOnly expects Local(...)")
+def Execution_Local(runtime=None):
+    """Force a task to run locally, on the host by default or inside the supplied runtime."""
     return {
         "kind": "local_only",
-        "local": local,
+        "local": _local_spec(runtime=runtime),
     }
 
-def RemoteOnly(remote):
-    """Force a task to run on the supplied remote execution target."""
-    if not _is_remote_constructor_value(remote):
-        raise TypeError("RemoteOnly expects Remote(...)")
+def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
+    """Force a task to run remotely with the supplied target filters and runtime."""
     return {
         "kind": "remote_only",
-        "remote": remote,
+        "remote": _remote_spec(
+            pool=pool,
+            required_tags=required_tags,
+            required_capabilities=required_capabilities,
+            transport=transport,
+            runtime=runtime,
+        ),
     }
 
 def _compile_policy_decision(policy, context):
@@ -213,12 +227,12 @@ def _compile_policy_decision(policy, context):
         )
 
     mode = decision.get("mode")
-    reason = str(decision.get("reason", REASON_DEFAULT_LOCAL_POLICY))
+    reason = str(decision.get("reason", "DEFAULT_LOCAL_POLICY"))
 
     if mode == "local":
         local = decision.get("local")
         if local is not None and not _is_local_constructor_value(local):
-            raise TypeError("Decision.local requires Local(...)")
+            raise TypeError("Decision.local requires Runtime.Host/Image/Dockerfile")
         compiled = {
             "mode": "local",
             "reason": reason,
@@ -230,7 +244,7 @@ def _compile_policy_decision(policy, context):
     if mode == "remote":
         remote = decision.get("remote")
         if not _is_remote_constructor_value(remote):
-            raise TypeError("Decision.remote requires Remote(...)")
+            raise TypeError("Decision.remote requires remote execution arguments")
         return {
             "mode": "remote",
             "reason": reason,
@@ -239,7 +253,7 @@ def _compile_policy_decision(policy, context):
 
     raise TypeError("unsupported policy decision mode: " + str(mode))
 
-def ByCustomPolicy(policy):
+def Execution_Policy(policy):
     """Resolve task placement from a named or inline custom policy."""
     if not isinstance(POLICY_CONTEXT, dict):
         raise TypeError("POLICY_CONTEXT must be PolicyContext(...)")
@@ -256,22 +270,20 @@ def ByCustomPolicy(policy):
         "policy_name": str(policy),
     }
 
-PER_RUN = "per_run"
-
-def ShareWorkspace():
+def SessionReuse_Workspace():
     """Reuse one per-run session workspace across every task in the session."""
     return {
         "kind": "share_workspace",
     }
 
-def SharePaths(paths):
+def SessionReuse_Paths(paths):
     """Persist only the selected paths or globs between tasks in one session."""
     return {
         "kind": "share_paths",
         "paths": _or_empty_list(paths),
     }
 
-def session(name, execution, reuse, lifetime=PER_RUN, context=None):
+def session(name, execution, reuse, lifetime=_SessionLifetime_PerRun, context=None):
     """Declare a named per-run execution session for containerized task chains."""
     return {
         "name": str(name),
@@ -281,7 +293,7 @@ def session(name, execution, reuse, lifetime=PER_RUN, context=None):
         "context": context,
     }
 
-def UseSession(name, cascade=False):
+def Execution_Session(name, cascade=False):
     """Run a task in a named session, optionally cascading it to dependencies."""
     return {
         "kind": "use_session",
@@ -354,7 +366,7 @@ def script(path, *argv, interpreter=None, cwd=None, env=None):
         "env": _or_empty_dict(env),
     }
 
-def need(name, slots=1, scope=PROJECT, hold=DURING):
+def need(name, slots=1, scope=_Scope_Project, hold=_Hold_During):
     """Acquire slots from a limiter while a task runs or starts."""
     return {
         "limiter": {"name": name, "scope": scope},
@@ -362,7 +374,7 @@ def need(name, slots=1, scope=PROJECT, hold=DURING):
         "hold": hold,
     }
 
-def queue_use(name, scope=MACHINE, slots=1, priority=0):
+def queue_use(name, scope=_Scope_Machine, slots=1, priority=0):
     """Join a named queue before the task starts."""
     return {
         "queue": {"name": name, "scope": scope},
@@ -370,7 +382,7 @@ def queue_use(name, scope=MACHINE, slots=1, priority=0):
         "priority": priority,
     }
 
-def resource(name, capacity, unit=None, scope=MACHINE):
+def resource(name, capacity, unit=None, scope=_Scope_Machine):
     """Define a capacity-based limiter such as CPU or RAM slots."""
     return {
         "kind": "resource",
@@ -380,7 +392,7 @@ def resource(name, capacity, unit=None, scope=MACHINE):
         "unit": unit,
     }
 
-def lock(name, scope=MACHINE):
+def lock(name, scope=_Scope_Machine):
     """Define an exclusive limiter with one available slot."""
     return {
         "kind": "lock",
@@ -388,7 +400,7 @@ def lock(name, scope=MACHINE):
         "scope": scope,
     }
 
-def queue_def(name, slots, discipline=FIFO, max_pending=None, scope=MACHINE):
+def queue_def(name, slots, discipline=_QueueDiscipline_Fifo, max_pending=None, scope=_Scope_Machine):
     """Define a queue and its scheduling discipline."""
     return {
         "name": name,
@@ -398,7 +410,7 @@ def queue_def(name, slots, discipline=FIFO, max_pending=None, scope=MACHINE):
         "max_pending": max_pending,
     }
 
-def rate_limit(name, burst, refill_per_second, scope=MACHINE):
+def rate_limit(name, burst, refill_per_second, scope=_Scope_Machine):
     """Define a token-bucket limiter."""
     return {
         "kind": "rate_limit",
@@ -408,7 +420,7 @@ def rate_limit(name, burst, refill_per_second, scope=MACHINE):
         "refill_per_second": refill_per_second,
     }
 
-def process_cap(name, max_running, match=None, scope=MACHINE):
+def process_cap(name, max_running, match=None, scope=_Scope_Machine):
     """Define a limiter that matches and caps external processes."""
     return {
         "kind": "process_cap",

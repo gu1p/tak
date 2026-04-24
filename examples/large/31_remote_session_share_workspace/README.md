@@ -2,7 +2,7 @@
 
 ## Why This Matters
 
-Use `ShareWorkspace` when every task in a named session should see the same remote workspace filesystem. Each task still launches as a fresh process/container invocation, but files created by earlier session tasks remain available to later ones.
+Use `SessionReuse.Workspace` when every task in a named session should see the same remote workspace filesystem. Each task still launches as a fresh process/container invocation, but files created by earlier session tasks remain available to later ones.
 
 ## Runbook
 

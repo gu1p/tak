@@ -23,16 +23,14 @@ SPEC
     fs::write(
         app_dir.join("TASKS.py"),
         r#"
-REMOTE = Remote(
-  pool="build",
-  required_tags=["builder"],
-  required_capabilities=["linux"],
-  transport=TorOnionService(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
-)
-
 SPEC = module_spec(tasks=[
-  task("remote_only", steps=[cmd("echo", "ok")], execution=RemoteOnly(REMOTE)),
+  task("remote_only", steps=[cmd("echo", "ok")], execution=Execution.Remote(
+    pool="build",
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    transport=Transport.TorOnionService(),
+    runtime=Runtime.Image("alpine:3.20"),
+  )),
 ])
 SPEC
 "#,
@@ -63,13 +61,12 @@ SPEC
 }
 
 #[test]
-fn rejects_legacy_task_side_remote_identity_and_endpoint() {
+fn rejects_removed_task_side_remote_identity_and_endpoint() {
     let temp = tempfile::tempdir().expect("tempdir");
     fs::write(
         temp.path().join("TASKS.py"),
         r#"
-REMOTE = Remote(id="builder-a", endpoint="http://127.0.0.1:43123")
-SPEC = module_spec(tasks=[task("legacy", steps=[cmd("echo", "ok")], execution=RemoteOnly(REMOTE))])
+SPEC = module_spec(tasks=[task("removed-remote-fields", steps=[cmd("echo", "ok")], execution=Execution.Remote(id="builder-a", endpoint="http://127.0.0.1:43123"))])
 SPEC
 "#,
     )
@@ -77,8 +74,7 @@ SPEC
 
     let err = load_workspace(temp.path(), &LoadOptions::default()).expect_err("load should fail");
     assert!(
-        err.to_string()
-            .contains("does not match any known parameter"),
-        "legacy endpoint/id should be rejected explicitly: {err:#}"
+        err.to_string().contains("unexpected keyword argument 'id'"),
+        "removed endpoint/id should be rejected explicitly: {err:#}"
     );
 }

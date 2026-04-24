@@ -13,7 +13,7 @@ const REQUIRED_CLI_DOC_TOKENS: [&str; 4] = [
 const REQUIRED_DSL_DOC_TOKENS: [&str; 4] = [
     "Declare the module boundary that Tak loads from one TASKS.py file.",
     "Declare one task, including its steps, dependencies, execution policy, and outputs.",
-    "Describe a remote execution target by pool, capability filters, transport, and runtime.",
+    "Force a task to run remotely. Remote execution requires a container runtime.",
     "Capture the current workspace contents as an execution input snapshot.",
 ];
 const REQUIRED_EXAMPLE_DOC_TOKENS: [&str; 6] = [

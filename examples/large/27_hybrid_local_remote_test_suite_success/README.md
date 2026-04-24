@@ -7,7 +7,7 @@ Large tier: hybrid execution where local and remote test phases are both require
 
 ## What This Example Exercises
 - local test/bootstrap tasks and remote integration task in one dependency chain
-- strict `RemoteOnly` execution for the remote test phase
+- strict `Execution.Remote` execution for the remote test phase
 - artifact roundtrip where remote test outputs are consumed by a local summary step
 
 ## Runbook

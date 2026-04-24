@@ -24,15 +24,15 @@ default_retry: RetrySpec = retry(
   on_exit=[44],
   backoff=exp_jitter(min_s=1, max_s=2, jitter="full"),
 )
-default_runtime: DockerfileRuntimeSpec = DockerfileRuntime(
-  dockerfile=path("docker/Dockerfile"),
+default_runtime: DockerfileRuntimeSpec = Runtime.Dockerfile(
+  path("docker/Dockerfile"),
 )
-remote: RemoteSpec = Remote(
+remote: RemoteExecutionSpec = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=DirectHttps(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.DirectHttps(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 context: CurrentStateSpec = CurrentState(
   roots=[path("src")],
@@ -47,25 +47,25 @@ check: TaskSpec = task(
     script("scripts/check.sh", interpreter="bash"),
   ],
   needs=[
-    need("cpu", 1, scope=MACHINE),
-    need("ui_lock", 1, scope=MACHINE, hold=AT_START),
+    need("cpu", 1, scope=Scope.Machine),
+    need("ui_lock", 1, scope=Scope.Machine, hold=Hold.AtStart),
   ],
-  queue=queue_use("qa", scope=MACHINE, slots=1, priority=1),
+  queue=queue_use("qa", scope=Scope.Machine, slots=1, priority=1),
   retry=retry(attempts=2, on_exit=[42], backoff=fixed(0.2)),
   timeout_s=120,
   context=context,
   outputs=[path("out"), glob("dist/*.txt")],
-  execution=RemoteOnly(remote),
+  execution=remote,
   tags=["typed-surface"],
 )
 spec: ModuleSpec = module_spec(
   project_id="typed_stub_contract",
   tasks=[build, check],
   limiters=[
-    resource("cpu", 8, unit="slots", scope=MACHINE),
-    lock("ui_lock", scope=MACHINE),
+    resource("cpu", 8, unit="slots", scope=Scope.Machine),
+    lock("ui_lock", scope=Scope.Machine),
   ],
-  queues=[queue_def("qa", slots=1, discipline=FIFO, scope=MACHINE)],
+  queues=[queue_def("qa", slots=1, discipline=QueueDiscipline.Fifo, scope=Scope.Machine)],
   defaults={
     "retry": default_retry,
     "tags": ["default-tag"],

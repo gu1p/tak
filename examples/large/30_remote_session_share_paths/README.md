@@ -2,7 +2,7 @@
 
 ## Why This Matters
 
-Use `SharePaths` when remote tasks should stay isolated except for explicit cache directories. This example models a Rust/Cargo pipeline where `target/` is reused between remote build and test tasks.
+Use `SessionReuse.Paths` when remote tasks should stay isolated except for explicit cache directories. This example models a Rust/Cargo pipeline where `target/` is reused between remote build and test tasks.
 
 ## Runbook
 

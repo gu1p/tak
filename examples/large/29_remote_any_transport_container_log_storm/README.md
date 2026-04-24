@@ -6,32 +6,32 @@ Run a very noisy app inside a containerized remote runtime without pinning the t
 Large tier: transport-agnostic remote execution, containerized runtime metadata, and sustained stdout/stderr streaming.
 
 ## What This Example Exercises
-- omitted `transport` in `Remote(...)`, which means any matching enabled remote transport
-- `ContainerRuntime(image="alpine:3.20")`
+- omitted `transport` in `Execution.Remote(...)`, which means any matching enabled remote transport
+- `Runtime.Image("alpine:3.20")`
 - heavy remote stdout and stderr streaming while the task is still running
 - local verification of remote-produced artifacts after sync
 
 ## Copy-Paste Starter
 
 ```python
-REMOTE = Remote(
+REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    runtime=ContainerRuntime(image="alpine:3.20"),
+    runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(tasks=[
     task(
         "container_log_storm",
         steps=[cmd("sh", "-c", "printf 'log-storm-stdout-001\n'")],
-        execution=RemoteOnly(REMOTE),
+        execution=REMOTE,
     ),
 ])
 SPEC
 ```
 
-`AnyTransport()` also exists if you want to make that choice explicit, but the intended user path is to omit `transport` entirely.
+`Transport.Any()` also exists if you want to make that choice explicit, but the intended user path is to omit `transport` entirely.
 
 ## Runbook
 

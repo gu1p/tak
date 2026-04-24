@@ -14,18 +14,18 @@ fn run_remote_any_transport_lists_any_requirement_without_transport_mismatch_rej
     write_tasks(
         temp.path(),
         r#"
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(tasks=[
   task(
     "collect_remote_report",
     steps=[cmd("sh", "-c", "echo should-not-run")],
-    execution=RemoteOnly(REMOTE),
+    execution=REMOTE,
   ),
 ])
 SPEC

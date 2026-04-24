@@ -13,18 +13,18 @@ fn run_command_remote_flag_keeps_existing_remote_requirements() -> Result<()> {
     write_tasks(
         temp.path(),
         r#"
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=TorOnionService(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.TorOnionService(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(tasks=[task(
   "check",
   steps=[cmd("sh", "-c", "echo should-not-run")],
-  execution=RemoteOnly(REMOTE),
+  execution=REMOTE,
 )])
 SPEC
 "#,

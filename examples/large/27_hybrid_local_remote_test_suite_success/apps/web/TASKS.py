@@ -2,12 +2,12 @@
 # File: apps/web/TASKS.py
 # Scenario: hybrid local + remote test suite (success path)
 
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="test",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=DirectHttps(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.DirectHttps(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -28,7 +28,7 @@ SPEC = module_spec(
           "mkdir -p out && echo integration-remote-pass > out/remote-integration.log && echo junit-remote-all-pass > out/remote-junit.txt",
         )
       ],
-      execution=RemoteOnly(REMOTE),
+      execution=REMOTE,
     ),
     task(
       "suite_success",

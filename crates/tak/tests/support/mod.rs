@@ -22,6 +22,7 @@ pub mod live_tor;
 pub mod live_tor_remote;
 pub mod live_tor_roots;
 pub mod local_daemon;
+pub mod remote_add;
 pub mod remote_cli;
 pub mod remote_declared_outputs;
 pub mod remote_inventory;

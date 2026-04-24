@@ -16,7 +16,7 @@ fn run_command_uses_tasks_default_container_runtime_with_remote_flag() -> Result
     let _agent = start_direct_agent(temp.path(), &workspace_root, "override-remote-builder");
     write_tasks(
         &workspace_root,
-        r#"SPEC = module_spec(defaults={"container_runtime": ContainerRuntime(image="alpine:3.20")}, tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
+        r#"SPEC = module_spec(defaults={"container_runtime": Runtime.Image("alpine:3.20")}, tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
 SPEC
 "#,
     )?;

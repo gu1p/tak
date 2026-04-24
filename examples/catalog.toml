@@ -376,7 +376,7 @@ check_files = ["out/workspace-session.txt"]
 capabilities = ["remote-session", "share-workspace", "workspace-state"]
 use_when = "Remote task chains should reuse the whole session workspace while still launching each task as a fresh process/container invocation."
 project_shapes = ["stateful-pipeline", "remote-ci"]
-avoid_when = ["Only a small cache directory should be reused; prefer SharePaths for tighter state boundaries."]
+avoid_when = ["Only a small cache directory should be reused; prefer SessionReuse.Paths for tighter state boundaries."]
 
 [[example.check_file_contains]]
 path = "out/workspace-session.txt"

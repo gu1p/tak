@@ -16,7 +16,7 @@ fn run_command_uses_tasks_default_container_runtime_with_local_container_flags()
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n")?;
     write_tasks(
         temp.path(),
-        r#"SPEC = module_spec(defaults={"container_runtime": DockerfileRuntime(dockerfile=path("docker/Dockerfile"))}, tasks=[task("check", steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
+        r#"SPEC = module_spec(defaults={"container_runtime": Runtime.Dockerfile(path("docker/Dockerfile"))}, tasks=[task("check", steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
 SPEC
 "#,
     )?;

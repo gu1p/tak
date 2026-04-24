@@ -1,13 +1,13 @@
 # medium/13_queue_fifo_behavior
 
 ## Scenario Goal
-FIFO queue discipline usage contract.
+QueueDiscipline.Fifo queue discipline usage contract.
 
 Medium tier: combines multiple runtime and modeling features.
 
 ## What This Example Exercises
 - queue declarations
-- FIFO ordering semantics
+- QueueDiscipline.Fifo ordering semantics
 - command trio contract: `list`, `explain`, `graph`, `run`
 
 ## Runbook

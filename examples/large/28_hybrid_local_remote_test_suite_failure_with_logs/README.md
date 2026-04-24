@@ -7,12 +7,12 @@ Successful systems also need deterministic failure behavior. This example proves
 ## Copy-Paste Starter
 
 ```python
-REMOTE = Remote(
+REMOTE = Execution.Remote(
     pool="test",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    transport=DirectHttps(),
-    runtime=ContainerRuntime(image="alpine:3.20"),
+    transport=Transport.DirectHttps(),
+    runtime=Runtime.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -35,7 +35,7 @@ SPEC = module_spec(
                     "exit 3",
                 )
             ],
-            execution=RemoteOnly(REMOTE),
+            execution=REMOTE,
         ),
     ]
 )
@@ -47,7 +47,7 @@ SPEC
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
 | remote task exit behavior | `exit 3` | `exit 0` or retried failure codes | Controls fail-fast behavior and whether pipeline ends as failure. |
-| execution mode | `RemoteOnly(REMOTE)` | `ByCustomPolicy(...)` | Allows dynamic fallback when remote is unavailable. |
+| execution mode | `REMOTE` | `Execution.Policy(...)` | Allows dynamic fallback when remote is unavailable. |
 | run strategy | default fail-fast | `tak run ... --keep-going` | Continue running independent targets after failures. |
 
 ## Runbook

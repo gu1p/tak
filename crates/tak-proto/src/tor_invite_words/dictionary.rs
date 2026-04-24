@@ -39,6 +39,17 @@ pub(super) fn lookup_word_indices(words: &str, expected_len: usize) -> Result<Ve
         .collect()
 }
 
+pub(super) fn normalize_word(word: &str) -> Result<String> {
+    let value = word.trim().to_ascii_lowercase();
+    if value.is_empty() {
+        bail!("tor invite word is empty");
+    }
+    if word_index().contains_key(value.as_str()) {
+        return Ok(value);
+    }
+    bail!("unknown tor invite word: {value}");
+}
+
 fn word_index() -> &'static HashMap<&'static str, u16> {
     WORD_INDEX.get_or_init(|| {
         word_list()

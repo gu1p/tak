@@ -8,8 +8,8 @@ fn rejects_dockerfile_outside_resolved_build_context() {
     write_root_and_app_tasks(
         temp.path(),
         r#"
-REMOTE = Remote(runtime=DockerfileRuntime(dockerfile=path("../Dockerfile")))
-SPEC = module_spec(tasks=[task("remote_only", steps=[cmd("echo", "ok")], execution=RemoteOnly(REMOTE))])
+REMOTE = Execution.Remote(runtime=Runtime.Dockerfile(path("../Dockerfile")))
+SPEC = module_spec(tasks=[task("remote_only", steps=[cmd("echo", "ok")], execution=REMOTE)])
 SPEC
 "#,
     );

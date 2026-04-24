@@ -57,16 +57,14 @@ fn run_command_executes_local_dockerfile_runtime_with_containerized_summary() {
     fs::write(
         temp.path().join("TASKS.py"),
         r#"
-LOCAL = Local(
-  id="dev",
-  runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")),
+LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")),
 )
 
 SPEC = module_spec(tasks=[
   task(
     "local_container",
     steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")],
-    execution=LocalOnly(LOCAL),
+    execution=LOCAL,
   ),
 ])
 SPEC

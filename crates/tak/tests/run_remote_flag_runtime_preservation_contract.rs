@@ -24,7 +24,7 @@ fn run_command_remote_flag_preserves_declared_local_container_runtime() -> Resul
     )?;
     write_tasks(
         &workspace_root,
-        r#"LOCAL = Local(id="dev", runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")))
+        r#"LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
 
 SPEC = module_spec(tasks=[task(
   "check",
@@ -34,7 +34,7 @@ SPEC = module_spec(tasks=[task(
     "-c",
     "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt",
   )],
-  execution=LocalOnly(LOCAL),
+  execution=LOCAL,
 )])
 SPEC
 "#,

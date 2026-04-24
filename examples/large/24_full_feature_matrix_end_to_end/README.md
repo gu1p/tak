@@ -9,21 +9,21 @@ This scenario composes nearly every major Tak primitive in one realistic release
 ```python
 SPEC = module_spec(
     limiters=[
-        resource("cpu", 8, unit="slots", scope=MACHINE),
-        lock("ui_lock", scope=MACHINE),
-        rate_limit("start_rl", burst=5, refill_per_second=10, scope=MACHINE),
+        resource("cpu", 8, unit="slots", scope=Scope.Machine),
+        lock("ui_lock", scope=Scope.Machine),
+        rate_limit("start_rl", burst=5, refill_per_second=10, scope=Scope.Machine),
     ],
-    queues=[queue_def("qa_priority", slots=1, discipline=PRIORITY, scope=MACHINE)],
+    queues=[queue_def("qa_priority", slots=1, discipline=QueueDiscipline.Priority, scope=Scope.Machine)],
     defaults={"retry": retry(attempts=2, on_exit=[44], backoff=fixed(0))},
     tasks=[
         task(
             "validate",
             needs=[
-                need("cpu", 2, scope=MACHINE),
-                need("ui_lock", 1, scope=MACHINE),
-                need("start_rl", 1, scope=MACHINE, hold=AT_START),
+                need("cpu", 2, scope=Scope.Machine),
+                need("ui_lock", 1, scope=Scope.Machine),
+                need("start_rl", 1, scope=Scope.Machine, hold=Hold.AtStart),
             ],
-            queue=queue_use("qa_priority", scope=MACHINE, slots=1, priority=10),
+            queue=queue_use("qa_priority", scope=Scope.Machine, slots=1, priority=10),
             steps=[cmd("sh", "-c", "mkdir -p out && echo qa-validate >> out/full_matrix.log")],
         ),
         task(
@@ -40,10 +40,10 @@ SPEC
 
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
-| queue discipline | `PRIORITY` | `FIFO` | `PRIORITY` enables urgent tasks to jump ahead of default traffic. |
-| limiter scope | mostly `MACHINE` | `USER`, `PROJECT`, `WORKTREE` | Choose where contention is isolated. |
+| queue discipline | `QueueDiscipline.Priority` | `QueueDiscipline.Fifo` | `QueueDiscipline.Priority` enables urgent tasks to jump ahead of default traffic. |
+| limiter scope | mostly `Scope.Machine` | `Scope.User`, `Scope.Project`, `Scope.Worktree` | Choose where contention is isolated. |
 | `defaults.retry` | shared retry default | task-specific retry overrides | Keeps global policy consistent while allowing targeted exceptions. |
-| `hold` | `AT_START` for rate limiter | `DURING` | `AT_START` can reduce long token hold time for admission-style limits. |
+| `hold` | `Hold.AtStart` for rate limiter | `Hold.During` | `Hold.AtStart` can reduce long token hold time for admission-style limits. |
 
 ## Runbook
 

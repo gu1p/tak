@@ -15,10 +15,10 @@ fn run_command_prefers_task_runtime_over_workspace_default_when_infering_contain
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n")?;
     write_tasks(
         temp.path(),
-        r#"LOCAL = Local(id="dev", runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")))
+        r#"LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
 
 SPEC = module_spec(
-  defaults={"container_runtime": ContainerRuntime("alpine:3.20")},
+  defaults={"container_runtime": Runtime.Image("alpine:3.20")},
   tasks=[task(
     "check",
     steps=[cmd(
@@ -26,7 +26,7 @@ SPEC = module_spec(
       "-c",
       "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt",
     )],
-    execution=LocalOnly(LOCAL),
+    execution=LOCAL,
   )],
 )
 SPEC

@@ -26,17 +26,17 @@ pub fn write_remote_streaming_tasks(root: &std::path::Path) -> Result<()> {
     write_tasks(
         root,
         r#"
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=DirectHttps(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.DirectHttps(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 remote_stream = task(
   "remote_stream",
-  execution=RemoteOnly(REMOTE),
+  execution=REMOTE,
   steps=[
     cmd(
       "sh",
@@ -55,17 +55,17 @@ pub fn write_remote_waiting_tasks(root: &std::path::Path) -> Result<()> {
     write_tasks(
         root,
         r#"
-REMOTE = Remote(
+REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=DirectHttps(),
-  runtime=ContainerRuntime(image="alpine:3.20"),
+  transport=Transport.DirectHttps(),
+  runtime=Runtime.Image("alpine:3.20"),
 )
 
 remote_wait = task(
   "remote_wait",
-  execution=RemoteOnly(REMOTE),
+  execution=REMOTE,
   steps=[
     cmd(
       "sh",

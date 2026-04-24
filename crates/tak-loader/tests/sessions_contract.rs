@@ -12,10 +12,10 @@ fn loader_resolves_named_share_workspace_session() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SPEC = module_spec(
-  sessions=[session("cargo", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=ShareWorkspace())],
-  tasks=[task("check", steps=[cmd("true")], execution=UseSession("cargo"))],
+  sessions=[session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())],
+  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("cargo"))],
 )
 SPEC
 "#,
@@ -43,11 +43,11 @@ fn loader_rejects_duplicate_session_names() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SPEC = module_spec(
   sessions=[
-    session("cargo", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=ShareWorkspace()),
-    session("cargo", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=ShareWorkspace()),
+    session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace()),
+    session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace()),
   ],
   tasks=[],
 )
@@ -69,9 +69,9 @@ fn loader_rejects_empty_share_paths() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = ContainerRuntime(image="alpine:3.20")
+        r#"RUNTIME = Runtime.Image("alpine:3.20")
 SPEC = module_spec(
-  sessions=[session("cargo", execution=LocalOnly(Local("local", runtime=RUNTIME)), reuse=SharePaths([]))],
+  sessions=[session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Paths([]))],
   tasks=[],
 )
 SPEC
@@ -82,7 +82,7 @@ SPEC
 
     assert!(
         err.to_string()
-            .contains("SharePaths requires at least one path"),
+            .contains("SessionReuse.Paths requires at least one path"),
         "{err:#}"
     );
 }

@@ -55,12 +55,12 @@ fn run_command_local_flag_preserves_declared_remote_container_runtime() -> Resul
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n")?;
     write_tasks(
         temp.path(),
-        r#"REMOTE = Remote(runtime=DockerfileRuntime(dockerfile=path("docker/Dockerfile")))
+        r#"REMOTE = Execution.Remote(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
 
 SPEC = module_spec(tasks=[task(
   "check",
   steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")],
-  execution=RemoteOnly(REMOTE),
+  execution=REMOTE,
 )])
 SPEC
 "#,

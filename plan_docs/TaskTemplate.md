@@ -33,7 +33,7 @@ class TaskTemplate:
 - `timeout_s`: `int | None`. Optional. Default `None`. Timeout in seconds.
 - `context`: `dict | None`. Optional. Default `None`. Normal Tak execution context object.
 - `outputs`: `list[dict]`. Optional. Default empty list. Normal Tak output selectors such as `path(...)` or `glob(...)`.
-- `execution`: `dict | None`. Optional. Default `None`. Normal Tak execution selector such as `LocalOnly(...)` or `RemoteOnly(...)`.
+- `execution`: `dict | None`. Optional. Default `None`. Normal Tak execution selector such as `Execution.Local(...)` or `Execution.Remote(...)`.
 - `tags`: `list[str]`. Optional. Default empty list. User-facing task tags.
 
 ## Rules

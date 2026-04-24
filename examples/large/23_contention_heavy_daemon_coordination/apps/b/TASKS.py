@@ -6,7 +6,7 @@ SPEC = module_spec(
   tasks=[
     task(
       "ui",
-      needs=[need("ui_lock", 1, scope=MACHINE)],
+      needs=[need("ui_lock", 1, scope=Scope.Machine)],
       steps=[cmd("sh", "-c", "mkdir -p out && echo app-b-ui >> out/contention.log")]
     )
   ]
