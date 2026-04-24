@@ -25,6 +25,9 @@ mod remote_worker;
 mod run_single_task;
 mod run_tasks;
 mod runtime_metadata;
+mod session_cascade;
+mod session_workspace_files;
+pub(crate) mod session_workspaces;
 mod step_execution;
 mod task_result;
 mod transport;
@@ -32,6 +35,7 @@ mod transport;
 mod transport_tests;
 mod transport_tor;
 mod workspace_collect;
+mod workspace_outputs;
 mod workspace_stage;
 mod workspace_sync;
 
@@ -71,5 +75,5 @@ pub async fn run_resolved_task(
     options: &RunOptions,
 ) -> Result<TaskRunResult> {
     let lease_context = lease_context::LeaseContext::from_options(options);
-    run_single_task::run_single_task(task, workspace_root, options, &lease_context).await
+    run_single_task::run_single_task(task, workspace_root, options, &lease_context, None).await
 }

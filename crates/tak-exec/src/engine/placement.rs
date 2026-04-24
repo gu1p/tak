@@ -67,6 +67,34 @@ pub(crate) fn resolve_task_placement(
                 }
             }
         }
+        TaskExecutionSpec::UseSession { name, .. } => {
+            let session = task.session.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "task {} references session `{name}` but no resolved session is attached",
+                    task.label
+                )
+            })?;
+            match &session.execution {
+                TaskExecutionSpec::LocalOnly(local) => Ok(TaskPlacement {
+                    placement_mode: PlacementMode::Local,
+                    remote_node_id: None,
+                    strict_remote_target: None,
+                    ordered_remote_targets: Vec::new(),
+                    decision_reason: None,
+                    local: Some(local.clone()),
+                }),
+                TaskExecutionSpec::RemoteOnly(remote) => remote_task_placement(task, remote, None),
+                TaskExecutionSpec::ByCustomPolicy { .. } => {
+                    bail!(
+                        "session `{}` uses unsupported ByCustomPolicy execution",
+                        session.name
+                    )
+                }
+                TaskExecutionSpec::UseSession { .. } => {
+                    bail!("session `{}` cannot use another session", session.name)
+                }
+            }
+        }
     }
 }
 

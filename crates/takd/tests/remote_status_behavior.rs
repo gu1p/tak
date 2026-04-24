@@ -41,6 +41,7 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
             slots: 2.0,
         }],
         outputs: Vec::new(),
+        session: None,
     };
     let submit = handle_remote_v1_request(
         &context,

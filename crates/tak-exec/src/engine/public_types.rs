@@ -111,6 +111,8 @@ pub struct TaskRunResult {
     pub context_manifest_hash: Option<String>,
     pub remote_runtime_kind: Option<String>,
     pub remote_runtime_engine: Option<String>,
+    pub session_name: Option<String>,
+    pub session_reuse: Option<String>,
     pub remote_logs: Vec<RemoteLogChunk>,
     pub synced_outputs: Vec<SyncedOutput>,
 }

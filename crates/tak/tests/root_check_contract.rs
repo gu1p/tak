@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
+use tak_core::model::TaskExecutionSpec;
 
 use crate::support::root_task_contracts::{load_root_spec, parse};
 
@@ -24,5 +25,13 @@ fn repo_root_check_runs_light_checks_then_shared_rust_lane() -> Result<()> {
         task.steps.is_empty(),
         "//:check should be an aggregate task"
     );
+    assert!(spec.sessions.contains_key("check-workspace"));
+    match &task.execution {
+        TaskExecutionSpec::UseSession { name, cascade } => {
+            assert_eq!(name, "check-workspace");
+            assert!(*cascade, "//:check should cascade its shared session");
+        }
+        other => panic!("//:check should use check-workspace session: {other:?}"),
+    }
     Ok(())
 }

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateRecord {
@@ -30,6 +31,7 @@ pub struct FakeDockerConfig {
     pub image_present: bool,
     pub arch: String,
     pub version_fails: bool,
+    pub wait_response_delay: Duration,
 }
 
 impl Default for FakeDockerConfig {
@@ -39,6 +41,7 @@ impl Default for FakeDockerConfig {
             image_present: true,
             arch: "x86_64".to_string(),
             version_fails: false,
+            wait_response_delay: Duration::ZERO,
         }
     }
 }

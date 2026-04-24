@@ -220,6 +220,33 @@ class ByCustomPolicyExecutionSpec(TypedDict, total=False):
     decision: LocalDecisionSpec | RemoteDecisionSpec
 
 
+# Execution selector returned by `UseSession(...)`.
+class UseSessionExecutionSpec(TypedDict):
+    kind: Literal["use_session"]
+    name: str
+    cascade: bool
+
+
+# Reuse the same workspace filesystem across tasks in one session.
+class ShareWorkspaceReuseSpec(TypedDict):
+    kind: Literal["share_workspace"]
+
+
+# Persist only selected paths or globs across tasks in one session.
+class SharePathsReuseSpec(TypedDict):
+    kind: Literal["share_paths"]
+    paths: list[PathSelector | GlobOutput]
+
+
+# Named session returned by `session(...)`.
+class SessionSpec(TypedDict):
+    name: str
+    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec
+    reuse: ShareWorkspaceReuseSpec | SharePathsReuseSpec
+    lifetime: Literal["per_run"]
+    context: CurrentStateSpec | None
+
+
 # Command step returned by `cmd(...)`.
 class CommandStepSpec(TypedDict):
     kind: Literal["cmd"]
@@ -264,7 +291,7 @@ class TaskSpec(TypedDict):
     timeout_s: int | None
     context: CurrentStateSpec | None
     outputs: list[PathSelector | GlobOutput]
-    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec | ByCustomPolicyExecutionSpec | None
+    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec | ByCustomPolicyExecutionSpec | UseSessionExecutionSpec | None
     tags: list[str]
     doc: str
 
@@ -274,6 +301,7 @@ class ModuleSpec(TypedDict):
     spec_version: Literal[1]
     project_id: str | None
     tasks: list[TaskSpec]
+    sessions: list[SessionSpec]
     limiters: list[ResourceLimiterSpec | LockLimiterSpec | RateLimitLimiterSpec | ProcessCapLimiterSpec]
     queues: list[QueueDefinition]
     exclude: list[str]
@@ -301,6 +329,8 @@ PRIORITY: Literal["priority"]
 REPO_ZIP_SNAPSHOT: Literal["REPO_ZIP_SNAPSHOT"]
 # Result sync mode that returns declared outputs plus logs.
 OUTPUTS_AND_LOGS: Literal["OUTPUTS_AND_LOGS"]
+# Per-run session lifetime. Cross-run sessions are not supported in v1.
+PER_RUN: Literal["per_run"]
 
 
 # Named placement reason constants used by custom placement policies.
@@ -332,6 +362,7 @@ class Decision:
 
 def module_spec(
     tasks: list[TaskSpec],
+    sessions: list[SessionSpec] | None = ...,
     limiters: (
         list[
             ResourceLimiterSpec
@@ -361,6 +392,7 @@ def task(
         LocalOnlyExecutionSpec
         | RemoteOnlyExecutionSpec
         | ByCustomPolicyExecutionSpec
+        | UseSessionExecutionSpec
         | None
     ) = ...,
     tags: list[str] | None = ...,
@@ -469,6 +501,16 @@ def PolicyContext(
 def LocalOnly(local: LocalSpec) -> LocalOnlyExecutionSpec: ...
 def RemoteOnly(remote: RemoteSpec) -> RemoteOnlyExecutionSpec: ...
 def ByCustomPolicy(policy: object) -> ByCustomPolicyExecutionSpec: ...
+def ShareWorkspace() -> ShareWorkspaceReuseSpec: ...
+def SharePaths(paths: list[PathSelector | GlobOutput]) -> SharePathsReuseSpec: ...
+def session(
+    name: str,
+    execution: LocalOnlyExecutionSpec | RemoteOnlyExecutionSpec,
+    reuse: ShareWorkspaceReuseSpec | SharePathsReuseSpec,
+    lifetime: Literal["per_run"] = ...,
+    context: CurrentStateSpec | None = ...,
+) -> SessionSpec: ...
+def UseSession(name: str, cascade: bool = ...) -> UseSessionExecutionSpec: ...
 def path(value: str) -> PathSelector: ...
 def glob(value: str) -> GlobOutput: ...
 def gitignore() -> GitignoreSource: ...

@@ -12,6 +12,7 @@ use super::protocol_events::remote_protocol_events;
 use super::protocol_result_http::remote_protocol_result;
 use super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement};
 use super::step_execution::run_task_steps_with_runtime;
+use super::workspace_outputs::collect_workspace_outputs;
 use super::workspace_sync::{sync_remote_outputs, sync_remote_outputs_from_remote};
 
 pub(crate) struct AttemptExecutionContext<'a> {
@@ -87,11 +88,12 @@ pub(crate) async fn execute_task_attempt(
     };
 
     let run = run_result?;
+    let has_remote_protocol_result = protocol_result.is_some();
     let (
         attempt_success,
         last_exit_code,
         failure_detail,
-        synced_outputs,
+        mut synced_outputs,
         remote_runtime_kind,
         remote_runtime_engine,
     ) = match protocol_result {
@@ -105,6 +107,14 @@ pub(crate) async fn execute_task_attempt(
         ),
         None => (run.success, run.exit_code, None, Vec::new(), None, None),
     };
+
+    if !has_remote_protocol_result
+        && run_local_attempt
+        && context.run_root != context.workspace_root
+    {
+        synced_outputs =
+            collect_workspace_outputs(context.run_root, &context.task.outputs, attempt_success)?;
+    }
 
     if !synced_outputs.is_empty() {
         if context.placement.placement_mode == PlacementMode::Remote {
@@ -137,7 +147,9 @@ async fn sync_attempt_outputs(
     run_local_attempt: bool,
 ) -> Result<()> {
     if run_local_attempt {
-        if let Some(staged_workspace) = context.remote_workspace {
+        if context.run_root != context.workspace_root {
+            sync_remote_outputs(context.run_root, context.workspace_root, synced_outputs)?;
+        } else if let Some(staged_workspace) = context.remote_workspace {
             sync_remote_outputs(
                 staged_workspace.temp_dir.path(),
                 context.workspace_root,

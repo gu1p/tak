@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
 use prost::Message;
-use std::thread;
-use std::time::Duration;
+use std::{thread, time::Duration};
 use tak_proto::{
     CmdStep, ContainerRuntime, NodeInfo, PollTaskEventsResponse, RuntimeSpec, Step,
     SubmitTaskRequest, runtime_spec, step,
@@ -55,6 +54,7 @@ pub fn streaming_submit_request_with_command(
         task_label: "//apps/web:stream".to_string(),
         needs: Vec::new(),
         outputs: Vec::new(),
+        session: None,
     }
 }
 pub fn wait_for_streaming_events(

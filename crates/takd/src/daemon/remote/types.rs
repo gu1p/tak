@@ -19,6 +19,19 @@ pub(super) struct RemoteWorkerSubmitPayload {
     pub(super) timeout_s: Option<u64>,
     pub(super) runtime: Option<RemoteRuntimeSpec>,
     pub(super) outputs: Vec<OutputSelectorSpec>,
+    pub(super) session: Option<RemoteWorkerSession>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct RemoteWorkerSession {
+    pub(super) key: String,
+    pub(super) reuse: RemoteWorkerSessionReuse,
+}
+
+#[derive(Debug, Clone)]
+pub(super) enum RemoteWorkerSessionReuse {
+    ShareWorkspace,
+    SharePaths { paths: Vec<OutputSelectorSpec> },
 }
 
 #[derive(Debug, Clone, Serialize)]

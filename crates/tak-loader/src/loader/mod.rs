@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
-use tak_core::model::{LimiterDef, LimiterKey, QueueDef, ResolvedTask, TaskLabel};
+use tak_core::model::{LimiterDef, LimiterKey, QueueDef, ResolvedTask, SessionSpec, TaskLabel};
 
 mod authored_source;
 mod context_resolution;
@@ -13,6 +13,7 @@ mod monty_deserializer;
 mod output_resolution;
 mod project_resolution;
 mod remote_validation;
+mod session_resolution;
 mod workspace_discovery;
 mod workspace_load_and_policy_eval;
 
@@ -31,6 +32,8 @@ const DSL_STUBS: &str = include_str!("dsl_stubs.pyi");
 pub(crate) struct MergeState {
     pub(crate) tasks: BTreeMap<TaskLabel, ResolvedTask>,
     pub(crate) task_origins: BTreeMap<TaskLabel, PathBuf>,
+    pub(crate) sessions: BTreeMap<String, SessionSpec>,
+    pub(crate) session_origins: BTreeMap<String, PathBuf>,
     pub(crate) limiters: HashMap<LimiterKey, LimiterDef>,
     pub(crate) limiter_origins: HashMap<LimiterKey, PathBuf>,
     pub(crate) queues: HashMap<LimiterKey, QueueDef>,

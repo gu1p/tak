@@ -62,6 +62,7 @@ pub fn submit_shell_task_with_outputs(
         task_label: "//apps/web:test".to_string(),
         needs: Vec::new(),
         outputs,
+        session: None,
     };
     let submit = handle_remote_v1_request(
         context,

@@ -44,38 +44,10 @@ pub(super) fn explicit_container_runtime_override(
     }))
 }
 
+#[allow(dead_code)]
 pub(super) fn resolve_container_runtime_for_task(
     task: &ResolvedTask,
     explicit_runtime: Option<&RemoteRuntimeSpec>,
-) -> Result<RemoteRuntimeSpec> {
-    resolve_container_runtime_for_task_with_message(
-        task,
-        explicit_runtime,
-        format!(
-            "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container_runtime when using --container",
-            canonical_label(&task.label)
-        ),
-    )
-}
-
-pub(super) fn resolve_container_runtime_for_remote_override(
-    task: &ResolvedTask,
-    explicit_runtime: Option<&RemoteRuntimeSpec>,
-) -> Result<RemoteRuntimeSpec> {
-    resolve_container_runtime_for_task_with_message(
-        task,
-        explicit_runtime,
-        format!(
-            "task {} requires a containerized runtime for --remote; provide --container-image, --container-dockerfile, Remote(..., runtime=...), or TASKS.py defaults.container_runtime",
-            canonical_label(&task.label)
-        ),
-    )
-}
-
-fn resolve_container_runtime_for_task_with_message(
-    task: &ResolvedTask,
-    explicit_runtime: Option<&RemoteRuntimeSpec>,
-    missing_runtime_message: String,
 ) -> Result<RemoteRuntimeSpec> {
     if let Some(runtime) = explicit_runtime {
         return Ok(runtime.clone());
@@ -87,7 +59,10 @@ fn resolve_container_runtime_for_task_with_message(
         return Ok(runtime);
     }
 
-    bail!(missing_runtime_message)
+    bail!(
+        "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container_runtime when using --container",
+        canonical_label(&task.label)
+    )
 }
 
 pub(super) fn declared_container_runtime(
@@ -107,7 +82,7 @@ pub(super) fn declared_container_runtime(
             decision: Some(PolicyDecisionSpec::Remote { remote, .. }),
             ..
         } => remote.runtime.clone(),
-        TaskExecutionSpec::ByCustomPolicy { .. } => None,
+        TaskExecutionSpec::ByCustomPolicy { .. } | TaskExecutionSpec::UseSession { .. } => None,
     }
 }
 

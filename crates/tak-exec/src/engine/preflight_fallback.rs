@@ -155,6 +155,7 @@ pub(crate) async fn fallback_after_auth_submit_failure(
             submit.task_label,
             task,
             submit.remote_workspace,
+            submit.session,
         )
         .await
         {

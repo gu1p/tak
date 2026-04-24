@@ -15,6 +15,15 @@ use super::remote_models::{
     RemoteSubmitContext, RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
 use super::runtime_metadata::resolve_runtime_execution_metadata;
+use super::session_workspaces::PreparedTaskSession;
+
+pub(crate) struct AttemptSubmitState<'a> {
+    pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    pub(crate) task_run_id: &'a str,
+    pub(crate) task_label: &'a str,
+    pub(crate) attempt: u32,
+    pub(crate) session: Option<&'a PreparedTaskSession>,
+}
 
 pub(crate) async fn preflight_task_placement(
     task: &ResolvedTask,
@@ -47,10 +56,7 @@ pub(crate) async fn resolve_initial_runtime_metadata(
 pub(crate) async fn resolve_attempt_submit_state(
     task: &ResolvedTask,
     placement: &mut TaskPlacement,
-    remote_workspace: Option<&RemoteWorkspaceStage>,
-    task_run_id: &str,
-    task_label: &str,
-    attempt: u32,
+    submit: AttemptSubmitState<'_>,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<()> {
     if placement.placement_mode != PlacementMode::Remote {
@@ -63,7 +69,7 @@ pub(crate) async fn resolve_attempt_submit_state(
             task.label
         )
     })?;
-    let remote_workspace = remote_workspace.ok_or_else(|| {
+    let remote_workspace = submit.remote_workspace.ok_or_else(|| {
         anyhow!(
             "infra error: missing staged remote workspace during submit for task {}",
             task.label
@@ -72,7 +78,7 @@ pub(crate) async fn resolve_attempt_submit_state(
     emit_task_status_message(
         output_observer,
         &task.label,
-        attempt,
+        submit.attempt,
         TaskStatusPhase::RemoteSubmit,
         Some(target.node_id.as_str()),
         format!("submitting to remote node {}", target.node_id),
@@ -80,11 +86,12 @@ pub(crate) async fn resolve_attempt_submit_state(
 
     match remote_protocol_submit(
         &target,
-        task_run_id,
-        attempt,
-        task_label,
+        submit.task_run_id,
+        submit.attempt,
+        submit.task_label,
         task,
         remote_workspace,
+        submit.session,
     )
     .await
     {
@@ -92,7 +99,7 @@ pub(crate) async fn resolve_attempt_submit_state(
             emit_task_status_message(
                 output_observer,
                 &task.label,
-                attempt,
+                submit.attempt,
                 TaskStatusPhase::RemoteSubmit,
                 Some(target.node_id.as_str()),
                 format!("remote task accepted by {}", target.node_id),
@@ -108,10 +115,11 @@ pub(crate) async fn resolve_attempt_submit_state(
                     &placement.ordered_remote_targets,
                     &failed_node_id,
                     RemoteSubmitContext {
-                        task_run_id,
-                        attempt,
-                        task_label,
+                        task_run_id: submit.task_run_id,
+                        attempt: submit.attempt,
+                        task_label: submit.task_label,
                         remote_workspace,
+                        session: submit.session,
                     },
                     submit_error.to_string(),
                     output_observer,

@@ -114,6 +114,7 @@ pub(crate) struct RemoteSubmitContext<'a> {
     pub(crate) attempt: u32,
     pub(crate) task_label: &'a str,
     pub(crate) remote_workspace: &'a RemoteWorkspaceStage,
+    pub(crate) session: Option<&'a super::session_workspaces::PreparedTaskSession>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

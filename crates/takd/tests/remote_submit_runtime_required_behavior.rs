@@ -27,6 +27,7 @@ fn remote_submit_without_runtime_is_rejected_as_invalid_input() {
         task_label: "//apps/web:test".to_string(),
         needs: Vec::new(),
         outputs: Vec::new(),
+        session: None,
     };
 
     let response = handle_remote_v1_request(

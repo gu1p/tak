@@ -1,7 +1,8 @@
 use crate::support;
 
+use support::container_runtime::simulated_container_runtime_env;
 use support::example_workspace::{assert_file_contains, stage_example_workspace};
-use support::live_tor::{LiveTorRoots, init_tor_agent, spawn_tor_agent, wait_for_token};
+use support::live_tor::{LiveTorRoots, init_tor_agent, spawn_tor_agent_with_env, wait_for_token};
 use support::live_tor_remote::{add_remote, assert_remote_list, assert_remote_status_ok};
 use support::tor_smoke::{assert_success_with_log, tak_command, takd_bin};
 
@@ -14,7 +15,10 @@ fn live_tor_smoke_runs_example_26_over_real_onion_and_roundtrips_artifacts() {
 
     let takd = takd_bin();
     init_tor_agent(&takd, &roots, "remote-tor-artifacts");
-    let _child = spawn_tor_agent(&takd, &roots);
+    let serve_env = simulated_container_runtime_env(temp.path())
+        .into_iter()
+        .collect::<Vec<_>>();
+    let _child = spawn_tor_agent_with_env(&takd, &roots, &serve_env);
     let token = wait_for_token(&takd, &roots);
     add_remote(&workspace_root, &roots, &token);
     assert_remote_list(&workspace_root, &roots, "remote-tor-artifacts");

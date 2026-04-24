@@ -36,6 +36,7 @@ pub(super) async fn run_exec_command(args: ExecCliArgs) -> Result<ExitCode> {
         project_id: "tak-exec".to_string(),
         root: workspace_root,
         tasks,
+        sessions: std::collections::BTreeMap::new(),
         limiters: HashMap::new(),
         queues: HashMap::new(),
     };
@@ -99,6 +100,7 @@ fn synthetic_exec_task(
         outputs: Vec::new(),
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
+        session: None,
         tags: vec!["exec".to_string()],
     }
 }

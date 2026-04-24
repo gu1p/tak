@@ -78,6 +78,14 @@ message SubmitTaskRequest {
   string task_label = 7;
   repeated SubmittedNeed needs = 8;
   repeated OutputSelector outputs = 9;
+  optional ExecutionSession session = 10;
+}
+
+message ExecutionSession {
+  string key = 1;
+  string name = 2;
+  string reuse = 3;
+  repeated OutputSelector share_paths = 4;
 }
 
 message SubmitTaskResponse {

@@ -26,6 +26,7 @@ async fn containerized_remote_tasks_fall_back_to_registry_probe_image_for_unknow
             image_present: true,
             arch: "s390x".to_string(),
             version_fails: false,
+            ..Default::default()
         },
     );
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)

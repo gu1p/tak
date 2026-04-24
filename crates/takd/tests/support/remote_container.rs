@@ -61,6 +61,7 @@ pub fn submit_container_task(
         task_label: "//apps/web:test".to_string(),
         needs: Vec::new(),
         outputs: Vec::new(),
+        session: None,
     };
     let submit = handle_remote_v1_request(
         context,

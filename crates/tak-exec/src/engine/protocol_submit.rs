@@ -26,13 +26,21 @@ pub(crate) async fn remote_protocol_submit(
     _task_label: &str,
     task: &ResolvedTask,
     remote_workspace: &RemoteWorkspaceStage,
+    session: Option<&super::session_workspaces::PreparedTaskSession>,
 ) -> std::result::Result<(), RemoteSubmitFailure> {
-    let body = build_remote_submit_payload(target, task_run_id, attempt, task, remote_workspace)
-        .map_err(|err| RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!("{err:#}"),
-        })?
-        .encode_to_vec();
+    let body = build_remote_submit_payload(
+        target,
+        task_run_id,
+        attempt,
+        task,
+        remote_workspace,
+        session,
+    )
+    .map_err(|err| RemoteSubmitFailure {
+        kind: RemoteSubmitFailureKind::Other,
+        message: format!("{err:#}"),
+    })?
+    .encode_to_vec();
     let (status, response_body) = remote_protocol_http_request(
         target,
         "POST",

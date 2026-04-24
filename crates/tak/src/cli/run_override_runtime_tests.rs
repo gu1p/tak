@@ -47,6 +47,7 @@ fn resolved_task(
         outputs: Vec::new(),
         container_runtime,
         execution,
+        session: None,
         tags: Vec::new(),
     }
 }

@@ -12,5 +12,7 @@ mod remote_requirements_contract;
 #[path = "runtime_resolution_contract.rs"]
 mod runtime_resolution_contract;
 mod runtime_value_deserializer_contract;
+mod sessions_cascade_contract;
+mod sessions_contract;
 mod typed_stub_contract;
 mod workspace_resolution_contract;

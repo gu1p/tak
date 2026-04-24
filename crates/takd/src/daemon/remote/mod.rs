@@ -77,7 +77,10 @@ use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tor_server::{
     remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,
 };
-use types::{RemoteWorkerOutputRecord, RemoteWorkerSubmitPayload};
+use types::{
+    RemoteWorkerOutputRecord, RemoteWorkerSession, RemoteWorkerSessionReuse,
+    RemoteWorkerSubmitPayload,
+};
 use worker_output_artifacts::{read_staged_remote_output, stage_remote_worker_outputs};
 use worker_submit_execution::spawn_remote_worker_submit_execution;
 use worker_workspace_outputs::{

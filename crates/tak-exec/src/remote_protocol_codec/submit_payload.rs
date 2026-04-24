@@ -6,8 +6,9 @@ use tak_core::model::{
     Scope, StepDef,
 };
 use tak_proto::{
-    CmdStep, ContainerRuntime, GetTaskResultResponse, PollTaskEventsResponse, RuntimeSpec,
-    ScriptStep, Step, SubmitTaskRequest, SubmittedNeed, runtime_spec, step,
+    CmdStep, ContainerRuntime, ExecutionSession, GetTaskResultResponse,
+    PollTaskEventsResponse, RuntimeSpec, ScriptStep, Step, SubmitTaskRequest,
+    SubmittedNeed, runtime_spec, step,
 };
 
 use crate::{
@@ -21,6 +22,7 @@ pub(crate) fn build_remote_submit_payload(
     attempt: u32,
     task: &ResolvedTask,
     remote_workspace: &RemoteWorkspaceStage,
+    session: Option<&crate::engine::session_workspaces::PreparedTaskSession>,
 ) -> Result<SubmitTaskRequest> {
     let _ = &remote_workspace.manifest_hash;
     Ok(SubmitTaskRequest {
@@ -39,7 +41,25 @@ pub(crate) fn build_remote_submit_payload(
         task_label: task.label.to_string(),
         needs: task.needs.iter().map(need_submit_value).collect(),
         outputs: task.outputs.iter().map(output_selector_submit_value).collect(),
+        session: session.map(session_submit_value),
     })
+}
+
+fn session_submit_value(
+    session: &crate::engine::session_workspaces::PreparedTaskSession,
+) -> ExecutionSession {
+    let share_paths = match &session.reuse {
+        tak_core::model::SessionReuseSpec::ShareWorkspace => Vec::new(),
+        tak_core::model::SessionReuseSpec::SharePaths { paths } => {
+            paths.iter().map(output_selector_submit_value).collect()
+        }
+    };
+    ExecutionSession {
+        key: session.key.clone(),
+        name: session.name.clone(),
+        reuse: session.reuse.as_str().to_string(),
+        share_paths,
+    }
 }
 
 fn step_submit_value(step_def: &StepDef) -> Result<Step> {

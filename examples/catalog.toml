@@ -245,6 +245,7 @@ explain_target = "//:consume_remote_report"
 expect_success = true
 requires_daemon = false
 remote_fixture = "tor_onion_http"
+simulate_container_runtime = true
 expect_stdout_contains = ["placement=remote", "transport=tor", "remote_node=remote-tor-artifacts"]
 check_files = ["out/tor-remote-artifact.txt", "out/tor-remote.log", "out/tor-roundtrip.txt"]
 
@@ -329,3 +330,54 @@ contains = "stderr_lines=60"
 [[example.check_file_contains]]
 path = "out/container-log-storm-report.txt"
 contains = "runtime=containerized"
+
+[[example]]
+name = "large/30_remote_session_share_paths"
+run_target = "//:cargo_test"
+explain_target = "//:cargo_test"
+expect_success = true
+requires_daemon = false
+remote_fixture = "direct_http"
+simulate_container_runtime = true
+expect_stdout_contains = [
+  "placement=remote",
+  "remote_node=remote-session-share-paths",
+  "session=cargo-cache",
+  "reuse=share_paths",
+]
+check_files = [
+  "out/build-marker.txt",
+  "out/test-marker.txt",
+]
+capabilities = ["remote-session", "share-paths", "cargo-cache"]
+use_when = "Remote task chains need explicit cache reuse, such as Cargo target directories, without sharing the whole workspace."
+project_shapes = ["rust", "remote-ci", "cache-heavy"]
+avoid_when = ["Every task should stay fully isolated or the whole workspace should be reused."]
+
+[[example.check_file_contains]]
+path = "out/test-marker.txt"
+contains = "reused-target-cache"
+
+[[example]]
+name = "large/31_remote_session_share_workspace"
+run_target = "//:verify_workspace"
+explain_target = "//:verify_workspace"
+expect_success = true
+requires_daemon = false
+remote_fixture = "direct_http"
+simulate_container_runtime = true
+expect_stdout_contains = [
+  "placement=remote",
+  "remote_node=remote-session-share-workspace",
+  "session=workspace-state",
+  "reuse=share_workspace",
+]
+check_files = ["out/workspace-session.txt"]
+capabilities = ["remote-session", "share-workspace", "workspace-state"]
+use_when = "Remote task chains should reuse the whole session workspace while still launching each task as a fresh process/container invocation."
+project_shapes = ["stateful-pipeline", "remote-ci"]
+avoid_when = ["Only a small cache directory should be reused; prefer SharePaths for tighter state boundaries."]
+
+[[example.check_file_contains]]
+path = "out/workspace-session.txt"
+contains = "workspace-state-reused"

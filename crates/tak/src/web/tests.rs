@@ -37,6 +37,7 @@ fn task(label: TaskLabel, deps: Vec<TaskLabel>) -> ResolvedTask {
         outputs: Vec::new(),
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
+        session: None,
         tags: Vec::new(),
     }
 }
@@ -57,6 +58,7 @@ fn workspace_fixture() -> WorkspaceSpec {
         project_id: "project-test".to_string(),
         root: PathBuf::from("/tmp"),
         tasks,
+        sessions: BTreeMap::new(),
         limiters: HashMap::new(),
         queues: HashMap::new(),
     }

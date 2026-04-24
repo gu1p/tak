@@ -29,7 +29,38 @@ pub(super) fn parse_remote_worker_submit_payload(
             .iter()
             .map(parse_remote_worker_output_selector)
             .collect::<Result<Vec<_>>>()?,
+        session: request
+            .session
+            .as_ref()
+            .map(parse_remote_worker_session)
+            .transpose()?,
     })
+}
+
+fn parse_remote_worker_session(
+    session: &tak_proto::ExecutionSession,
+) -> Result<RemoteWorkerSession> {
+    let key = session.key.trim().to_string();
+    if key.is_empty() {
+        bail!("invalid_submit_fields: session.key is required");
+    }
+    let reuse = match session.reuse.as_str() {
+        "share_workspace" => RemoteWorkerSessionReuse::ShareWorkspace,
+        "share_paths" => {
+            if session.share_paths.is_empty() {
+                bail!("invalid_submit_fields: session.share_paths cannot be empty");
+            }
+            RemoteWorkerSessionReuse::SharePaths {
+                paths: session
+                    .share_paths
+                    .iter()
+                    .map(parse_remote_worker_output_selector)
+                    .collect::<Result<Vec<_>>>()?,
+            }
+        }
+        other => bail!("invalid_submit_fields: unsupported session.reuse `{other}`"),
+    };
+    Ok(RemoteWorkerSession { key, reuse })
 }
 
 fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {

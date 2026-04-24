@@ -19,10 +19,12 @@ mod run_override_runtime;
 #[cfg(test)]
 mod run_override_runtime_tests;
 mod run_overrides;
+mod run_overrides_closure;
 #[cfg(test)]
 mod run_overrides_local_tests;
 #[cfg(test)]
 mod run_overrides_remote_tests;
+mod run_overrides_support;
 #[cfg(test)]
 mod run_overrides_test_support;
 mod workspace_helpers;

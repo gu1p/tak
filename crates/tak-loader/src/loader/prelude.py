@@ -33,12 +33,13 @@ def _normalize_deps(value):
         return [_dep_to_label(item) for item in value]
     return [_dep_to_label(value)]
 
-def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None):
+def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None, sessions=None):
     """Declare the module boundary that Tak loads from one TASKS.py file."""
     return {
         "spec_version": 1,
         "project_id": project_id,
         "tasks": tasks,
+        "sessions": _or_empty_list(sessions),
         "limiters": _or_empty_list(limiters),
         "queues": _or_empty_list(queues),
         "exclude": _or_empty_list(exclude),
@@ -253,6 +254,39 @@ def ByCustomPolicy(policy):
     return {
         "kind": "by_custom_policy",
         "policy_name": str(policy),
+    }
+
+PER_RUN = "per_run"
+
+def ShareWorkspace():
+    """Reuse one per-run session workspace across every task in the session."""
+    return {
+        "kind": "share_workspace",
+    }
+
+def SharePaths(paths):
+    """Persist only the selected paths or globs between tasks in one session."""
+    return {
+        "kind": "share_paths",
+        "paths": _or_empty_list(paths),
+    }
+
+def session(name, execution, reuse, lifetime=PER_RUN, context=None):
+    """Declare a named per-run execution session for containerized task chains."""
+    return {
+        "name": str(name),
+        "execution": execution,
+        "reuse": reuse,
+        "lifetime": lifetime,
+        "context": context,
+    }
+
+def UseSession(name, cascade=False):
+    """Run a task in a named session, optionally cascading it to dependencies."""
+    return {
+        "kind": "use_session",
+        "name": str(name),
+        "cascade": bool(cascade),
     }
 
 def path(value):

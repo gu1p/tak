@@ -41,6 +41,7 @@ mod remote_output_legacy_root_behavior;
 mod remote_output_query_decode_behavior;
 mod remote_output_query_reserved_character_behavior;
 mod remote_output_root_switch_behavior;
+mod remote_session_contract;
 mod remote_status_behavior;
 mod remote_status_unavailable_behavior;
 mod remote_streaming_binary_contract;

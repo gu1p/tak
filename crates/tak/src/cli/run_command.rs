@@ -67,7 +67,7 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
 
     for (label, result) in summary.results {
         println!(
-            "{}: {} (attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={})",
+            "{}: {} (attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={}, session={}, reuse={})",
             canonical_label(&label),
             if result.success { "ok" } else { "failed" },
             result.attempts,
@@ -80,7 +80,9 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
             result.decision_reason.as_deref().unwrap_or("none"),
             result.context_manifest_hash.as_deref().unwrap_or("none"),
             result.remote_runtime_kind.as_deref().unwrap_or("none"),
-            result.remote_runtime_engine.as_deref().unwrap_or("none")
+            result.remote_runtime_engine.as_deref().unwrap_or("none"),
+            result.session_name.as_deref().unwrap_or("none"),
+            result.session_reuse.as_deref().unwrap_or("none")
         );
     }
 

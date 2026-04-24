@@ -9,6 +9,8 @@ pub struct ModuleSpec {
     #[serde(default)]
     pub tasks: Vec<TaskDef>,
     #[serde(default)]
+    pub sessions: Vec<SessionDef>,
+    #[serde(default)]
     pub limiters: Vec<LimiterDef>,
     #[serde(default)]
     pub queues: Vec<QueueDef>,
@@ -69,6 +71,36 @@ pub struct TaskDef {
     pub execution: Option<TaskExecutionDef>,
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionDef {
+    pub name: String,
+    pub execution: TaskExecutionDef,
+    pub reuse: SessionReuseDef,
+    #[serde(default = "default_session_lifetime")]
+    pub lifetime: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<CurrentStateDef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SessionReuseDef {
+    ShareWorkspace,
+    SharePaths { paths: Vec<OutputSelectorDef> },
+}
+
+/// Returns the only supported session lifetime in v1.
+///
+/// ```no_run
+/// # // Reason: This behavior depends on internal state and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
+fn default_session_lifetime() -> String {
+    "per_run".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

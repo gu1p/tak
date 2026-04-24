@@ -48,6 +48,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
             slots: 1.0,
         }],
         outputs: Vec::new(),
+        session: None,
     };
     let submit = handle_remote_v1_request(
         &context,

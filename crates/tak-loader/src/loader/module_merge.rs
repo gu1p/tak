@@ -10,6 +10,7 @@ use tak_core::model::{
 use super::{
     MergeState, context_resolution::resolve_current_state, execution_resolution::resolve_execution,
     output_resolution::resolve_output_selectors, remote_validation::validate_runtime,
+    session_resolution::register_module_sessions,
 };
 
 pub(crate) fn merge_module(
@@ -20,6 +21,8 @@ pub(crate) fn merge_module(
     module: ModuleSpec,
     state: &mut MergeState,
 ) -> Result<()> {
+    register_module_sessions(module_path, package, module.sessions, state)?;
+
     for limiter in module.limiters {
         let key = limiter_key_for_limiter(&limiter, project_id, root);
         if let Some(previous) = state.limiter_origins.get(&key) {
@@ -125,6 +128,7 @@ pub(crate) fn merge_module(
             outputs,
             container_runtime,
             execution,
+            session: None,
             tags,
         };
 

@@ -2,6 +2,7 @@ use super::{RemoteWorkspaceStage, TaskRunResult};
 
 use super::attempt_execution::AttemptExecutionOutcome;
 use super::remote_models::{RuntimeExecutionMetadata, TaskPlacement};
+use super::session_workspaces::PreparedTaskSession;
 
 pub(crate) fn build_task_run_result(
     attempt: u32,
@@ -9,6 +10,7 @@ pub(crate) fn build_task_run_result(
     placement: &TaskPlacement,
     remote_workspace: Option<&RemoteWorkspaceStage>,
     runtime_metadata: Option<&RuntimeExecutionMetadata>,
+    session: Option<&PreparedTaskSession>,
     outcome: AttemptExecutionOutcome,
 ) -> TaskRunResult {
     TaskRunResult {
@@ -30,6 +32,8 @@ pub(crate) fn build_task_run_result(
         remote_runtime_engine: outcome
             .remote_runtime_engine
             .or_else(|| runtime_metadata.and_then(|meta| meta.engine.clone())),
+        session_name: session.map(|session| session.name.clone()),
+        session_reuse: session.map(|session| session.reuse.as_str().to_string()),
         remote_logs: outcome.remote_logs,
         synced_outputs: outcome.synced_outputs,
     }

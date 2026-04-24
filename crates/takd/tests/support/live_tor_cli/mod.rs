@@ -69,6 +69,7 @@ pub fn spawn_tor_agent(roots: &LiveTorRoots) -> ChildGuard {
             &roots.state_root.display().to_string(),
         ])
         .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
+        .env("TAKD_TOR_STARTUP_SESSION_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")
         .stdout(Stdio::null())
         .stderr(Stdio::null())

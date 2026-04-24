@@ -33,6 +33,7 @@ pub async fn execute_remote_worker_steps_with_output(
         outputs: Vec::new(),
         container_runtime: None,
         execution: TaskExecutionSpec::LocalOnly(tak_core::model::LocalSpec::default()),
+        session: None,
         tags: Vec::new(),
     };
 

@@ -28,6 +28,7 @@ pub(super) fn workspace_with_task(task: ResolvedTask) -> WorkspaceSpec {
         project_id: "tak-test".to_string(),
         root: PathBuf::from("/tmp"),
         tasks,
+        sessions: BTreeMap::new(),
         limiters: HashMap::new(),
         queues: HashMap::new(),
     }
@@ -47,6 +48,7 @@ pub(super) fn resolved_task(label: TaskLabel, execution: TaskExecutionSpec) -> R
         outputs: Vec::new(),
         container_runtime: None,
         execution,
+        session: None,
         tags: Vec::new(),
     }
 }

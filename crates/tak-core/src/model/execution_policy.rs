@@ -32,6 +32,15 @@ pub enum TaskExecutionDef {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         decision: Option<Box<PolicyDecisionDef>>,
     },
+    UseSession {
+        name: String,
+        #[serde(default, skip_serializing_if = "is_false")]
+        cascade: bool,
+    },
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

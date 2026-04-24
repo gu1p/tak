@@ -63,6 +63,8 @@ fn tak_exec_crate_root_public_api_stays_available() {
         context_manifest_hash: None,
         remote_runtime_kind: None,
         remote_runtime_engine: None,
+        session_name: None,
+        session_reuse: None,
         remote_logs: Vec::new(),
         synced_outputs: Vec::new(),
     };

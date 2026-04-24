@@ -36,6 +36,7 @@ pub fn build_remote_task_spec(
             },
         }),
         execution: TaskExecutionSpec::RemoteOnly(remote),
+        session: None,
         tags: Vec::new(),
     };
     let mut tasks = BTreeMap::new();
@@ -45,6 +46,7 @@ pub fn build_remote_task_spec(
             project_id: "tak-test".into(),
             root: workspace_root.to_path_buf(),
             tasks,
+            sessions: BTreeMap::new(),
             limiters: HashMap::<LimiterKey, _>::new(),
             queues: HashMap::<LimiterKey, QueueDef>::new(),
         },

@@ -1,5 +1,15 @@
+CARGO_SHARED_ENV_SCRIPT = (
+    'mkdir -p /var/tmp/tak-tests .tmp/cargo-home && '
+    'TMPDIR="/var/tmp/tak-tests" CARGO_HOME="$PWD/.tmp/cargo-home" exec "$@"'
+)
+
+
+def cargo_cmd(*argv):
+    return cmd("sh", "-c", CARGO_SHARED_ENV_SCRIPT, "tak-cargo", "cargo", *argv)
+
+
 FMT_CHECK_STEPS = [
-    cmd("cargo", "fmt", "--all", "--", "--check"),
+    cargo_cmd("fmt", "--all", "--", "--check"),
 ]
 
 LINE_LIMITS_CHECK_STEPS = [
@@ -20,25 +30,25 @@ GENERATED_ARTIFACT_IGNORE_CHECK_STEPS = [
 
 
 LINT_STEPS = [
-    cmd("cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"),
+    cargo_cmd("clippy", "--workspace", "--all-targets", "--", "-D", "warnings"),
 ]
 
 TEST_STEPS = [
-    cmd("cargo", "test", "--workspace"),
+    cargo_cmd("test", "--workspace"),
 ]
 
 DOCS_CHECK_STEPS = [
-    cmd("cargo", "test", "--workspace", "--doc"),
-    cmd("cargo", "test", "-p", "tak", "--test", "doctest_contract"),
+    cargo_cmd("test", "--workspace", "--doc"),
+    cargo_cmd("test", "-p", "tak", "--test", "doctest_contract"),
 ]
 
 DOCS_WIKI_STEPS = [
-    cmd("cargo", "build", "-p", "tak", "--bin", "tak"),
+    cargo_cmd("build", "-p", "tak", "--bin", "tak"),
     cmd("python3", "scripts/docs_wiki.py", "build"),
 ]
 
 DOCS_WIKI_SERVE_STEPS = [
-    cmd("cargo", "build", "-p", "tak", "--bin", "tak"),
+    cargo_cmd("build", "-p", "tak", "--bin", "tak"),
     cmd("python3", "scripts/docs_wiki.py", "serve"),
 ]
 
@@ -49,6 +59,20 @@ COVERAGE_STEPS = [
 CI_COVERAGE_STEPS = [
     script("scripts/run_ci_coverage.sh", interpreter="bash"),
 ]
+
+CHECK_CONTEXT = CurrentState(ignored=[gitignore()])
+
+CHECK_RUNTIME = DockerfileRuntime(
+    dockerfile=path("docker/tak-tests/Dockerfile"),
+    build_context=path("docker/tak-tests"),
+)
+
+CHECK_SESSION = session(
+    "check-workspace",
+    execution=LocalOnly(Local("check", runtime=CHECK_RUNTIME)),
+    reuse=ShareWorkspace(),
+    context=CHECK_CONTEXT,
+)
 
 
 def release_build_task(name, target, build_mode):
@@ -133,11 +157,9 @@ PACKAGE_RELEASE_AARCH64_APPLE_DARWIN = release_package_task(
 SPEC = module_spec(
     project_id="tak",
     defaults={
-        "container_runtime": DockerfileRuntime(
-            dockerfile=path("docker/tak-tests/Dockerfile"),
-            build_context=path("docker/tak-tests"),
-        ),
+        "container_runtime": CHECK_RUNTIME,
     },
+    sessions=[CHECK_SESSION],
     tasks=[
         task("fmt-check", steps=FMT_CHECK_STEPS),
         task("line-limits-check", steps=LINE_LIMITS_CHECK_STEPS),
@@ -162,7 +184,7 @@ SPEC = module_spec(
         task("coverage", steps=COVERAGE_STEPS),
         task(
             "ci",
-            context=CurrentState(ignored=[gitignore()]),
+            context=CHECK_CONTEXT,
             outputs=[],
             deps=[
                 ":fmt-check",
@@ -185,7 +207,7 @@ SPEC = module_spec(
         PACKAGE_RELEASE_AARCH64_APPLE_DARWIN,
         task(
             "check",
-            context=CurrentState(ignored=[gitignore()]),
+            context=CHECK_CONTEXT,
             outputs=[],
             deps=[
                 ":fmt-check",
@@ -195,6 +217,7 @@ SPEC = module_spec(
                 ":generated-artifact-ignore-check",
                 ":check-rust",
             ],
+            execution=UseSession("check-workspace", cascade=True),
         ),
     ],
 )

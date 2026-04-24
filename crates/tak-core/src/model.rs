@@ -24,6 +24,7 @@ mod module_spec;
 mod path_anchor;
 mod relative_path;
 mod remote_config;
+mod resolved_session;
 mod resolved_workspace;
 mod task_identity;
 
@@ -43,17 +44,21 @@ pub use self::execution_policy::{
 pub use self::limiter_retry::{BackoffDef, LimiterDef, QueueDef, QueueDiscipline, RetryDef};
 pub use self::module_spec::{
     CurrentStateDef, Defaults, IgnoreSourceDef, LocalDef, ModuleSpec, OutputSelectorDef,
-    PathInputDef, TaskDef,
+    PathInputDef, SessionDef, SessionReuseDef, TaskDef,
 };
+pub use self::path_anchor::PathNormalizationError;
 pub use self::remote_config::{
     ContainerMountDef, ContainerResourceLimitsDef, RemoteDef, RemoteRuntimeDef, RemoteTransportDef,
     RemoteTransportKind,
 };
+pub use self::resolved_session::{
+    SessionLifetimeSpec, SessionReuseSpec, SessionSpec, SessionUseSpec,
+};
 pub use self::resolved_workspace::{
     ContainerRuntimeSourceSpec, ContextManifest, CurrentStateOrigin, CurrentStateSpec,
-    IgnoreSourceSpec, LimiterKey, LocalSpec, OutputSelectorSpec, PathAnchor,
-    PathNormalizationError, PathRef, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec,
-    ResolvedTask, TaskExecutionSpec, WorkspaceSpec,
+    IgnoreSourceSpec, LimiterKey, LocalSpec, OutputSelectorSpec, PathAnchor, PathRef,
+    PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec, ResolvedTask, TaskExecutionSpec,
+    WorkspaceSpec,
 };
 pub use self::task_identity::{LimiterRef, Scope, TaskLabel};
 

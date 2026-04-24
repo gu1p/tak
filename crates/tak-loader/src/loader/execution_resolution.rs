@@ -45,6 +45,13 @@ pub(crate) fn resolve_execution(
                 decision,
             })
         }
+        TaskExecutionDef::UseSession { name, cascade } => {
+            let name = name.trim().to_string();
+            if name.is_empty() {
+                bail!("execution UseSession.name cannot be empty");
+            }
+            Ok(TaskExecutionSpec::UseSession { name, cascade })
+        }
     }
 }
 

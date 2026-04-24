@@ -6,6 +6,7 @@ use std::sync::{
     Mutex,
     atomic::{AtomicU64, Ordering},
 };
+use std::time::Duration;
 
 use super::CreateRecord;
 
@@ -13,6 +14,7 @@ pub(super) struct FakeDockerDaemonState {
     visible_roots: Vec<PathBuf>,
     daemon_arch: String,
     version_fails: bool,
+    pub(super) wait_response_delay: Duration,
     next_container_id: AtomicU64,
     pull_count: AtomicU64,
     present_images: Mutex<BTreeSet<String>>,
@@ -26,6 +28,7 @@ impl FakeDockerDaemonState {
         image_present: bool,
         daemon_arch: String,
         version_fails: bool,
+        wait_response_delay: Duration,
     ) -> Self {
         let mut present_images = BTreeSet::new();
         if image_present {
@@ -35,6 +38,7 @@ impl FakeDockerDaemonState {
             visible_roots,
             daemon_arch,
             version_fails,
+            wait_response_delay,
             next_container_id: AtomicU64::new(1),
             pull_count: AtomicU64::new(0),
             present_images: Mutex::new(present_images),

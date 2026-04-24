@@ -21,6 +21,7 @@ pub struct ResolvedTask {
     pub outputs: Vec<OutputSelectorSpec>,
     pub container_runtime: Option<RemoteRuntimeSpec>,
     pub execution: TaskExecutionSpec,
+    pub session: Option<SessionUseSpec>,
     pub tags: Vec<String>,
 }
 
@@ -94,9 +95,13 @@ pub enum TaskExecutionSpec {
         policy_name: String,
         decision: Option<PolicyDecisionSpec>,
     },
+    UseSession {
+        name: String,
+        cascade: bool,
+    },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IgnoreSourceSpec {
     Path(PathRef),
     GitIgnore,
@@ -108,7 +113,7 @@ pub enum CurrentStateOrigin {
     Explicit,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrentStateSpec {
     pub roots: Vec<PathRef>,
     pub ignored: Vec<IgnoreSourceSpec>,
@@ -163,6 +168,7 @@ pub struct WorkspaceSpec {
     pub project_id: String,
     pub root: PathBuf,
     pub tasks: BTreeMap<TaskLabel, ResolvedTask>,
+    pub sessions: BTreeMap<String, SessionSpec>,
     pub limiters: HashMap<LimiterKey, LimiterDef>,
     pub queues: HashMap<LimiterKey, QueueDef>,
 }
@@ -184,16 +190,4 @@ pub struct PathRef {
 pub struct ContextManifest {
     pub entries: Vec<PathRef>,
     pub hash: String,
-}
-
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum PathNormalizationError {
-    #[error("path anchor cannot be empty")]
-    EmptyAnchor,
-    #[error("repo anchor name cannot be empty")]
-    EmptyRepoAnchor,
-    #[error("unsupported anchor `{0}`")]
-    UnsupportedAnchor(String),
-    #[error("path escapes anchor `{anchor}`: {path}")]
-    EscapesAnchor { anchor: String, path: String },
 }

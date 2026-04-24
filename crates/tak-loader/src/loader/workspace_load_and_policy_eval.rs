@@ -16,6 +16,7 @@ use super::{
     module_merge::merge_module,
     monty_deserializer::deserialize_from_monty,
     project_resolution::{package_for_file, resolve_project_id},
+    session_resolution::bind_task_sessions,
     workspace_discovery::{detect_workspace_root, discover_tasks_files},
 };
 
@@ -59,6 +60,7 @@ pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpe
             }
         }
     }
+    bind_task_sessions(&mut state.tasks, &state.sessions)?;
 
     let dep_map: BTreeMap<TaskLabel, Vec<TaskLabel>> = state
         .tasks
@@ -71,6 +73,7 @@ pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpe
         project_id,
         root: workspace_root,
         tasks: state.tasks,
+        sessions: state.sessions,
         limiters: state.limiters,
         queues: state.queues,
     })

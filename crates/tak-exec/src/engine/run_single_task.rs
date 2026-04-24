@@ -12,9 +12,13 @@ use crate::retry::{retry_backoff_delay, should_retry};
 
 use super::attempt_execution::{AttemptExecutionContext, execute_task_attempt};
 use super::attempt_submit::{
-    preflight_task_placement, resolve_attempt_submit_state, resolve_initial_runtime_metadata,
+    AttemptSubmitState, preflight_task_placement, resolve_attempt_submit_state,
+    resolve_initial_runtime_metadata,
 };
 use super::output_observer::emit_task_status_message;
+use super::remote_models::TaskPlacement;
+use super::session_cascade::task_with_session_context;
+use super::session_workspaces::PreparedTaskSession;
 use super::task_result::build_task_run_result;
 use super::workspace_stage::stage_remote_workspace;
 
@@ -31,20 +35,28 @@ pub(crate) async fn run_single_task(
     workspace_root: &Path,
     options: &RunOptions,
     lease_context: &LeaseContext,
+    session: Option<&PreparedTaskSession>,
 ) -> Result<TaskRunResult> {
+    if task.steps.is_empty() {
+        return Ok(empty_task_result());
+    }
     let mut placement =
         preflight_task_placement(task, workspace_root, options.output_observer.as_ref()).await?;
     let runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
+    let remote_stage_task = task_with_session_context(task);
+    let stage_task = remote_stage_task.as_ref().unwrap_or(task);
     let remote_workspace = if placement.placement_mode == PlacementMode::Remote {
         Some(stage_remote_workspace(
-            task,
+            stage_task,
             workspace_root,
             options.output_observer.as_ref(),
         )?)
     } else {
         None
     };
-    let run_root = if runtime_metadata
+    let run_root = if let Some(root) = session.and_then(|session| session.root.as_ref()) {
+        root.clone()
+    } else if runtime_metadata
         .as_ref()
         .and_then(|metadata| metadata.container_plan.as_ref())
         .is_some()
@@ -68,10 +80,13 @@ pub(crate) async fn run_single_task(
         resolve_attempt_submit_state(
             task,
             &mut placement,
-            remote_workspace.as_ref(),
-            &task_run_id,
-            &task_label,
-            attempt,
+            AttemptSubmitState {
+                remote_workspace: remote_workspace.as_ref(),
+                task_run_id: &task_run_id,
+                task_label: &task_label,
+                attempt,
+                session,
+            },
             options.output_observer.as_ref(),
         )
         .await?;
@@ -104,6 +119,7 @@ pub(crate) async fn run_single_task(
                 &placement,
                 remote_workspace.as_ref(),
                 runtime_metadata.as_ref(),
+                session,
                 outcome,
             ));
         }
@@ -117,6 +133,7 @@ pub(crate) async fn run_single_task(
                 &placement,
                 remote_workspace.as_ref(),
                 runtime_metadata.as_ref(),
+                session,
                 outcome,
             ));
         }
@@ -141,6 +158,34 @@ pub(crate) async fn run_single_task(
             tokio::time::sleep(wait).await;
         }
     }
+}
+
+fn empty_task_result() -> TaskRunResult {
+    let placement = TaskPlacement {
+        placement_mode: PlacementMode::Local,
+        remote_node_id: None,
+        strict_remote_target: None,
+        ordered_remote_targets: Vec::new(),
+        decision_reason: None,
+        local: None,
+    };
+    build_task_run_result(
+        1,
+        true,
+        &placement,
+        None,
+        None,
+        None,
+        super::attempt_execution::AttemptExecutionOutcome {
+            attempt_success: true,
+            last_exit_code: Some(0),
+            failure_detail: None,
+            synced_outputs: Vec::new(),
+            remote_runtime_kind: None,
+            remote_runtime_engine: None,
+            remote_logs: Vec::new(),
+        },
+    )
 }
 
 fn format_status_duration(duration: Duration) -> String {

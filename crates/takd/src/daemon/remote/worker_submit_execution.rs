@@ -180,4 +180,5 @@ fn failure_stderr_tail(error: &anyhow::Error, stderr_tail: &str) -> String {
 }
 
 include!("worker_submit_execution/output_observer.rs");
+include!("worker_submit_execution/session_paths.rs");
 include!("worker_submit_execution/execute_submit.rs");

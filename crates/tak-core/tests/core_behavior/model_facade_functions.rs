@@ -28,6 +28,7 @@ fn model_facade_reexports_root_functions() {
         project_id: "demo".to_string(),
         root: PathBuf::from("."),
         tasks: BTreeMap::new(),
+        sessions: BTreeMap::new(),
         limiters: HashMap::new(),
         queues: HashMap::new(),
     };

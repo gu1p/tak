@@ -56,6 +56,7 @@ fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> SubmitTask
         task_label: "//apps/web:build".into(),
         needs: Vec::new(),
         outputs,
+        session: None,
     }
 }
 

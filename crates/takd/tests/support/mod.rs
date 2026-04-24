@@ -10,6 +10,7 @@ pub mod protocol_server;
 pub mod remote_binary;
 pub mod remote_container;
 pub mod remote_output;
+pub mod remote_session;
 pub mod remote_v1_http;
 pub mod remote_v1_http_submit;
 pub mod transport_health;
