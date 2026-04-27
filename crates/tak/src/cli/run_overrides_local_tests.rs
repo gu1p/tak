@@ -3,8 +3,8 @@ use super::run_overrides_test_support::{
     image_runtime, resolved_task, task_label, workspace_with_task,
 };
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, RemoteRuntimeSpec, RemoteSpec, RemoteTransportKind,
-    TaskExecutionSpec,
+    ContainerRuntimeSourceSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
+    RemoteTransportKind, TaskExecutionSpec,
 };
 
 #[test]
@@ -18,6 +18,7 @@ fn local_override_preserves_existing_runtime_without_container_flag() {
             required_capabilities: vec!["linux".to_string()],
             transport_kind: RemoteTransportKind::Direct,
             runtime: Some(image_runtime("alpine:3.20")),
+            selection: RemoteSelectionSpec::Sequential,
         }),
     ));
 

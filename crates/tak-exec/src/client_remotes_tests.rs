@@ -49,6 +49,7 @@ fn any_transport_request_builds_only_concrete_strict_targets() {
         required_capabilities: vec!["linux".into()],
         transport_kind: RemoteTransportKind::Any,
         runtime: None,
+        selection: tak_core::model::RemoteSelectionSpec::Sequential,
     })
     .expect("selection should succeed");
 

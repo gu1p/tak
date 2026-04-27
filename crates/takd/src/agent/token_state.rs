@@ -9,6 +9,7 @@ use super::paths::token_path;
 #[derive(Debug)]
 pub(super) enum ReadTokenError {
     NotReady,
+    TransportNotReady(String),
     Invalid(Error),
 }
 
@@ -32,12 +33,16 @@ pub(super) fn read_token_state(state_root: &Path) -> std::result::Result<String,
 }
 
 pub(super) fn should_retry_token_error(err: &ReadTokenError) -> bool {
-    matches!(err, ReadTokenError::NotReady)
+    matches!(
+        err,
+        ReadTokenError::NotReady | ReadTokenError::TransportNotReady(_)
+    )
 }
 
 pub(super) fn read_token_error_into_anyhow(err: ReadTokenError) -> Error {
     match err {
         ReadTokenError::NotReady => anyhow!("agent token not ready"),
+        ReadTokenError::TransportNotReady(detail) => anyhow!(detail),
         ReadTokenError::Invalid(err) => err,
     }
 }

@@ -13,6 +13,7 @@ struct CreateContainerPayload {
     image: Option<String>,
     #[serde(default)]
     cmd: Vec<String>,
+    user: Option<String>,
     working_dir: Option<String>,
     host_config: Option<HostConfigPayload>,
 }
@@ -44,6 +45,7 @@ pub(super) fn create_container(
             container_id,
             image: payload.image,
             cmd: payload.cmd,
+            user: payload.user,
             working_dir: payload.working_dir,
             binds,
         },

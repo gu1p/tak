@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use tak_core::model::{RemoteSpec, RemoteTransportKind};
+use tak_core::model::{RemoteSelectionSpec, RemoteSpec, RemoteTransportKind};
 use tak_exec::{RunOptions, run_tasks};
 
 use crate::support;
@@ -19,6 +19,7 @@ fn any_transport_remote_spec() -> RemoteSpec {
         required_capabilities: vec!["linux".into()],
         transport_kind: RemoteTransportKind::Any,
         runtime: None,
+        selection: RemoteSelectionSpec::Sequential,
     }
 }
 

@@ -76,6 +76,16 @@ class TorOnionServiceTransportSpec(TypedDict):
     kind: Literal["tor"]
 
 
+# Preserve remote inventory order when trying matching remotes.
+class SequentialRemoteSelectionSpec(TypedDict):
+    kind: Literal["sequential"]
+
+
+# Deterministically spread attempts across matching remotes.
+class ShuffleRemoteSelectionSpec(TypedDict):
+    kind: Literal["shuffle"]
+
+
 # Internal local execution profile emitted by `Execution.Local(...)`.
 class LocalSpec(TypedDict):
     id: str
@@ -90,6 +100,7 @@ class RemoteSpec(TypedDict):
     required_capabilities: list[str]
     transport: DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
     runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None
+    selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec
 
 
 # Name plus scope reference reused by needs and queue usage.
@@ -246,10 +257,18 @@ class PathsReuseSpec(TypedDict):
 # Named session returned by `session(...)`.
 class SessionSpec(TypedDict):
     name: str
-    execution: LocalExecutionSpec | RemoteExecutionSpec
+    execution: LocalExecutionSpec | RemoteExecutionSpec | None
+    execution_policy: str | None
     reuse: WorkspaceReuseSpec | PathsReuseSpec
     lifetime: Literal["per_run"]
     context: CurrentStateSpec | None
+
+
+# Named ordered execution policy returned by `execution_policy(...)`.
+class ExecutionPolicySpec(TypedDict):
+    name: str
+    placements: list[LocalExecutionSpec | RemoteExecutionSpec]
+    doc: str
 
 
 # Command step returned by `cmd(...)`.
@@ -282,6 +301,7 @@ class ModuleDefaults(TypedDict, total=False):
     queue: QueueUseSpec
     retry: RetrySpec
     container_runtime: ImageRuntimeSpec | DockerfileRuntimeSpec
+    execution_policy: str
     tags: list[str]
 
 
@@ -297,6 +317,7 @@ class TaskSpec(TypedDict):
     context: CurrentStateSpec | None
     outputs: list[PathSelector | GlobOutput]
     execution: LocalExecutionSpec | RemoteExecutionSpec | PolicyExecutionSpec | SessionExecutionSpec | None
+    execution_policy: str | None
     tags: list[str]
     doc: str
 
@@ -309,6 +330,7 @@ class ModuleSpec(TypedDict):
     sessions: list[SessionSpec]
     limiters: list[ResourceLimiterSpec | LockLimiterSpec | RateLimitLimiterSpec | ProcessCapLimiterSpec]
     queues: list[QueueDefinition]
+    execution_policies: list[ExecutionPolicySpec]
     exclude: list[str]
     includes: list[PathSelector]
     defaults: ModuleDefaults
@@ -400,6 +422,7 @@ class Execution:
             DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
         ) = ...,
         runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+        selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec | None = ...,
     ) -> RemoteExecutionSpec: ...
 
     # Resolve task placement from a named or inline custom policy.
@@ -454,6 +477,17 @@ class Transport:
     def TorOnionService() -> TorOnionServiceTransportSpec: ...
 
 
+# Remote selection namespace.
+class RemoteSelection:
+    # Try matching remotes in inventory order.
+    @staticmethod
+    def Sequential() -> SequentialRemoteSelectionSpec: ...
+
+    # Spread attempts across matching remotes deterministically.
+    @staticmethod
+    def Shuffle() -> ShuffleRemoteSelectionSpec: ...
+
+
 # Session reuse namespace.
 class SessionReuse:
     # Reuse one per-run session workspace across every task in the session.
@@ -481,6 +515,7 @@ def module_spec(
     includes: list[PathSelector] | None = ...,
     defaults: ModuleDefaults | None = ...,
     project_id: str | None = ...,
+    execution_policies: list[ExecutionPolicySpec] | None = ...,
 ) -> ModuleSpec: ...
 def task(
     name: str,
@@ -499,6 +534,7 @@ def task(
         | SessionExecutionSpec
         | None
     ) = ...,
+    execution_policy: str | None = ...,
     tags: list[str] | None = ...,
     doc: str | None = ...,
 ) -> TaskSpec: ...
@@ -572,11 +608,17 @@ def PolicyContext(
 ) -> PolicyContextSpec: ...
 def session(
     name: str,
-    execution: LocalExecutionSpec | RemoteExecutionSpec,
-    reuse: WorkspaceReuseSpec | PathsReuseSpec,
+    execution: LocalExecutionSpec | RemoteExecutionSpec | None = ...,
+    reuse: WorkspaceReuseSpec | PathsReuseSpec = ...,
     lifetime: Literal["per_run"] = ...,
     context: CurrentStateSpec | None = ...,
+    execution_policy: str | None = ...,
 ) -> SessionSpec: ...
+def execution_policy(
+    name: str,
+    placements: list[LocalExecutionSpec | RemoteExecutionSpec],
+    doc: str | None = ...,
+) -> ExecutionPolicySpec: ...
 def path(value: str) -> PathSelector: ...
 def glob(value: str) -> GlobOutput: ...
 def gitignore() -> GitignoreSource: ...

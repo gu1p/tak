@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use tak_core::model::ResolvedTask;
+use tak_core::model::{RemoteSelectionSpec, ResolvedTask};
 use uuid::Uuid;
 
 use super::{LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStatusPhase};
@@ -11,9 +11,9 @@ use crate::lease_client::{acquire_task_lease, release_task_lease};
 use crate::retry::{retry_backoff_delay, should_retry};
 
 use super::attempt_execution::{AttemptExecutionContext, execute_task_attempt};
+use super::attempt_placement::preflight_task_placement;
 use super::attempt_submit::{
-    AttemptSubmitState, preflight_task_placement, resolve_attempt_submit_state,
-    resolve_initial_runtime_metadata,
+    AttemptSubmitState, resolve_attempt_submit_state, resolve_initial_runtime_metadata,
 };
 use super::output_observer::emit_task_status_message;
 use super::remote_models::TaskPlacement;
@@ -22,14 +22,6 @@ use super::session_workspaces::PreparedTaskSession;
 use super::task_result::build_task_run_result;
 use super::workspace_stage::stage_remote_workspace;
 
-/// Runs one task with retries, acquiring and releasing leases per attempt when configured.
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
 pub(crate) async fn run_single_task(
     task: &ResolvedTask,
     workspace_root: &Path,
@@ -40,8 +32,18 @@ pub(crate) async fn run_single_task(
     if task.steps.is_empty() {
         return Ok(empty_task_result());
     }
-    let mut placement =
-        preflight_task_placement(task, workspace_root, options.output_observer.as_ref()).await?;
+    let total_attempts = task.retry.attempts.max(1);
+    let mut attempt = 0;
+    let task_run_id = Uuid::new_v4().to_string();
+    let task_label = task.label.to_string();
+    let mut placement = preflight_task_placement(
+        task,
+        workspace_root,
+        &task_run_id,
+        1,
+        options.output_observer.as_ref(),
+    )
+    .await?;
     let runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
     let remote_stage_task = task_with_session_context(task);
     let stage_task = remote_stage_task.as_ref().unwrap_or(task);
@@ -68,11 +70,6 @@ pub(crate) async fn run_single_task(
             .map(|staged| staged.temp_dir.path().to_path_buf())
             .unwrap_or_else(|| workspace_root.to_path_buf())
     };
-
-    let total_attempts = task.retry.attempts.max(1);
-    let mut attempt = 0;
-    let task_run_id = Uuid::new_v4().to_string();
-    let task_label = task.label.to_string();
 
     loop {
         attempt += 1;
@@ -166,6 +163,7 @@ fn empty_task_result() -> TaskRunResult {
         remote_node_id: None,
         strict_remote_target: None,
         ordered_remote_targets: Vec::new(),
+        remote_selection: RemoteSelectionSpec::Sequential,
         decision_reason: None,
         local: None,
     };

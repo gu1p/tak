@@ -24,6 +24,7 @@ mod module_spec;
 mod path_anchor;
 mod relative_path;
 mod remote_config;
+mod resolved_execution;
 mod resolved_session;
 mod resolved_workspace;
 mod task_identity;
@@ -39,7 +40,8 @@ pub use self::container_runtime_validation::{
 pub use self::context_manifest::normalize_path_ref;
 pub use self::current_state_manifest::build_current_state_manifest;
 pub use self::execution_policy::{
-    Hold, NeedDef, PolicyDecisionDef, PolicyDecisionModeDef, QueueUseDef, StepDef, TaskExecutionDef,
+    ExecutionPolicyDef, Hold, NeedDef, PolicyDecisionDef, PolicyDecisionModeDef, QueueUseDef,
+    StepDef, TaskExecutionDef,
 };
 pub use self::limiter_retry::{BackoffDef, LimiterDef, QueueDef, QueueDiscipline, RetryDef};
 pub use self::module_spec::{
@@ -48,17 +50,19 @@ pub use self::module_spec::{
 };
 pub use self::path_anchor::PathNormalizationError;
 pub use self::remote_config::{
-    ContainerMountDef, ContainerResourceLimitsDef, RemoteDef, RemoteRuntimeDef, RemoteTransportDef,
-    RemoteTransportKind,
+    ContainerMountDef, ContainerResourceLimitsDef, RemoteDef, RemoteRuntimeDef, RemoteSelectionDef,
+    RemoteTransportDef, RemoteTransportKind,
+};
+pub use self::resolved_execution::{
+    ContainerRuntimeSourceSpec, ExecutionPlacementSpec, ExecutionPolicySpec, LocalSpec,
+    PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec, TaskExecutionSpec,
 };
 pub use self::resolved_session::{
     SessionLifetimeSpec, SessionReuseSpec, SessionSpec, SessionUseSpec,
 };
 pub use self::resolved_workspace::{
-    ContainerRuntimeSourceSpec, ContextManifest, CurrentStateOrigin, CurrentStateSpec,
-    IgnoreSourceSpec, LimiterKey, LocalSpec, OutputSelectorSpec, PathAnchor, PathRef,
-    PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec, ResolvedTask, TaskExecutionSpec,
-    WorkspaceSpec,
+    ContextManifest, CurrentStateOrigin, CurrentStateSpec, IgnoreSourceSpec, LimiterKey,
+    OutputSelectorSpec, PathAnchor, PathRef, ResolvedTask, WorkspaceSpec,
 };
 pub use self::task_identity::{LimiterRef, Scope, TaskLabel};
 

@@ -5762,6 +5762,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "ignore",
+ "libc",
  "prost",
  "qrcode",
  "ratatui",

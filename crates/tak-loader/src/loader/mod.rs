@@ -1,11 +1,16 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
-use tak_core::model::{LimiterDef, LimiterKey, QueueDef, ResolvedTask, SessionSpec, TaskLabel};
+use tak_core::model::{
+    ExecutionPolicySpec, LimiterDef, LimiterKey, QueueDef, ResolvedTask, SessionSpec, TaskLabel,
+};
 
 mod authored_source;
 mod context_resolution;
+mod execution_policy_registry;
+mod execution_policy_resolution;
 mod execution_resolution;
+mod global_config;
 mod load_options;
 mod module_eval;
 mod module_merge;
@@ -34,6 +39,10 @@ pub(crate) struct MergeState {
     pub(crate) task_origins: BTreeMap<TaskLabel, PathBuf>,
     pub(crate) sessions: BTreeMap<String, SessionSpec>,
     pub(crate) session_origins: BTreeMap<String, PathBuf>,
+    pub(crate) execution_policies: BTreeMap<String, ExecutionPolicySpec>,
+    pub(crate) execution_policy_origins: BTreeMap<String, PathBuf>,
+    pub(crate) global_execution_policy_names: BTreeSet<String>,
+    pub(crate) default_execution_policy: Option<String>,
     pub(crate) limiters: HashMap<LimiterKey, LimiterDef>,
     pub(crate) limiter_origins: HashMap<LimiterKey, PathBuf>,
     pub(crate) queues: HashMap<LimiterKey, QueueDef>,

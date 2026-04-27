@@ -1,6 +1,9 @@
 mod authored_dsl_boundary_contract;
 mod current_directory_workspace_contract;
 mod current_state_origin_contract;
+mod execution_policy_contract;
+mod execution_policy_rejection_contract;
+mod global_execution_policy_contract;
 mod includes_contract;
 mod module_layout_contract;
 mod namespaced_execution_contract;
@@ -15,6 +18,7 @@ mod removed_dsl_names_contract;
 #[path = "runtime_resolution_contract.rs"]
 mod runtime_resolution_contract;
 mod runtime_value_deserializer_contract;
+mod session_execution_policy_contract;
 mod sessions_cascade_contract;
 mod sessions_contract;
 mod typed_stub_contract;

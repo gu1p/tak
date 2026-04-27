@@ -1,10 +1,14 @@
 use std::collections::BTreeSet;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 
 use super::*;
+
+#[cfg(test)]
+mod cleanup_janitor_permission_tests;
 
 pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
     let interval = context.runtime_config().remote_cleanup_interval();
@@ -71,6 +75,18 @@ fn cleanup_stale_remote_entries(
     active_jobs: &BTreeSet<String>,
     ttl: Duration,
 ) -> Result<()> {
+    cleanup_stale_remote_entries_with(root, active_jobs, ttl, remove_stale_remote_entry)
+}
+
+fn cleanup_stale_remote_entries_with<F>(
+    root: &Path,
+    active_jobs: &BTreeSet<String>,
+    ttl: Duration,
+    mut remove_stale: F,
+) -> Result<()>
+where
+    F: FnMut(&Path) -> Result<()>,
+{
     let read_dir = match std::fs::read_dir(root) {
         Ok(read_dir) => read_dir,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -90,7 +106,16 @@ fn cleanup_stale_remote_entries(
         if active_jobs.contains(name) || !is_stale(&path, ttl)? {
             continue;
         }
-        remove_stale_remote_entry(&path)?;
+        if let Err(err) = remove_stale(&path) {
+            if is_permission_denied(&err) {
+                tracing::warn!(
+                    "remote cleanup janitor skipped stale entry {}: {err:#}",
+                    path.display()
+                );
+                continue;
+            }
+            return Err(err);
+        }
     }
 
     Ok(())
@@ -118,4 +143,12 @@ fn remove_stale_remote_entry(path: &Path) -> Result<()> {
             .with_context(|| format!("failed to remove stale file {}", path.display()))?;
     }
     Ok(())
+}
+
+fn is_permission_denied(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|err| err.kind() == ErrorKind::PermissionDenied)
+    })
 }

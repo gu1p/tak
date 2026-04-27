@@ -32,6 +32,7 @@ fn execute_remote_worker_submit(
                 timeout_s: payload.timeout_s,
                 runtime: payload.runtime.clone(),
                 node_id: selected_node_id.to_string(),
+                container_user: remote_container_user(),
             },
             Some(output_observer),
         ))?;
@@ -79,6 +80,29 @@ fn execution_root_for_payload(
         idempotency_key,
         execution_root_base,
     ))
+}
+
+fn remote_container_user() -> Option<String> {
+    match std::env::var("TAKD_REMOTE_CONTAINER_USER") {
+        Ok(value) if value == "image" => None,
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => default_remote_container_user(),
+        Err(std::env::VarError::NotUnicode(_)) => default_remote_container_user(),
+    }
+}
+
+#[cfg(unix)]
+fn default_remote_container_user() -> Option<String> {
+    Some(format!(
+        "{}:{}",
+        unsafe { libc::geteuid() },
+        unsafe { libc::getegid() }
+    ))
+}
+
+#[cfg(not(unix))]
+fn default_remote_container_user() -> Option<String> {
+    None
 }
 
 fn prepare_execution_root(execution_root: &Path, payload: &RemoteWorkerSubmitPayload) -> Result<()> {

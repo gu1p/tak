@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use tak_core::model::{
-    CurrentStateSpec, OutputSelectorSpec, ResolvedTask, SessionReuseSpec, TaskExecutionSpec,
+    CurrentStateSpec, ExecutionPlacementSpec, OutputSelectorSpec, ResolvedTask, SessionReuseSpec,
+    TaskExecutionSpec,
 };
 
 use super::session_workspace_files::{
@@ -46,7 +47,7 @@ impl ExecutionSessionManager {
         let Some(session) = task.session.as_ref() else {
             return Ok(None);
         };
-        if !matches!(session.execution, TaskExecutionSpec::LocalOnly(_)) {
+        if !session_uses_local_workspace(&session.execution) {
             return Ok(Some(PreparedTaskSession {
                 key: self.session_key(&session.name),
                 name: session.name.clone(),
@@ -148,6 +149,16 @@ impl ExecutionSessionManager {
             copy_directory_contents(store.path(), workspace.path())?;
         }
         Ok(workspace)
+    }
+}
+
+fn session_uses_local_workspace(execution: &TaskExecutionSpec) -> bool {
+    match execution {
+        TaskExecutionSpec::LocalOnly(_) => true,
+        TaskExecutionSpec::ByExecutionPolicy { placements, .. } => placements
+            .iter()
+            .all(|placement| matches!(placement, ExecutionPlacementSpec::Local(_))),
+        _ => false,
     }
 }
 

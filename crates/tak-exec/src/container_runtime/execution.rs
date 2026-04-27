@@ -26,6 +26,7 @@ pub(super) async fn run_step_in_container(
         cmd: Some(step.argv.clone()),
         env: Some(env),
         working_dir: Some(step.cwd.to_string_lossy().to_string()),
+        user: run_context.container_user.map(ToString::to_string),
         attach_stdout: Some(true),
         attach_stderr: Some(true),
         tty: Some(false),

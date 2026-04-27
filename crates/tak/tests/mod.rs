@@ -16,6 +16,7 @@ mod exec_local_contract;
 mod exec_remote_override_contract;
 mod exec_remote_runtime_requirement_contract;
 mod get_takd_installer_contract;
+mod get_takd_installer_rerun_contract;
 mod invalid_input_guidance_contract;
 mod list_docs_contract;
 mod local_installer_contract;

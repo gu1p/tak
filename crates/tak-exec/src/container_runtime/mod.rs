@@ -46,6 +46,7 @@ struct ContainerStepRunContext<'a> {
     task_label: &'a TaskLabel,
     attempt: u32,
     output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
+    container_user: Option<&'a str>,
 }
 
 pub(crate) async fn run_task_steps_in_container(
@@ -63,10 +64,16 @@ pub(crate) async fn run_task_steps_in_container(
         task_label: &task.label,
         attempt,
         output_observer,
+        container_user: plan.container_user.as_deref(),
     };
 
     for step in &task.steps {
-        let step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
+        let mut step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
+        apply_container_user_defaults(
+            &mut step_spec,
+            workspace_root,
+            plan.container_user.as_deref(),
+        );
         let status = run_step_in_container(
             &client.docker,
             plan.engine,
@@ -139,5 +146,29 @@ pub(crate) fn build_container_step_spec(
     }
 }
 
+fn apply_container_user_defaults(
+    step_spec: &mut ContainerStepSpec,
+    workspace_root: &Path,
+    container_user: Option<&str>,
+) {
+    let Some(container_user) = container_user else {
+        return;
+    };
+    if container_user_uses_numeric_uid(container_user) {
+        step_spec
+            .env
+            .entry("HOME".to_string())
+            .or_insert_with(|| workspace_root.display().to_string());
+    }
+}
+
+fn container_user_uses_numeric_uid(container_user: &str) -> bool {
+    let uid = container_user.split(':').next().unwrap_or_default();
+    !uid.is_empty() && uid.chars().all(|value| value.is_ascii_digit())
+}
+
 #[cfg(test)]
 mod execution_wait_tests;
+
+#[cfg(test)]
+mod container_user_tests;

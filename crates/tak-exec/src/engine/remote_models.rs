@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteTransportKind,
+    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec,
+    RemoteTransportKind,
 };
 
 use crate::container_engine::ContainerEngine;
@@ -65,6 +66,7 @@ pub(crate) struct TaskPlacement {
     pub(crate) remote_node_id: Option<String>,
     pub(crate) strict_remote_target: Option<StrictRemoteTarget>,
     pub(crate) ordered_remote_targets: Vec<StrictRemoteTarget>,
+    pub(crate) remote_selection: RemoteSelectionSpec,
     pub(crate) decision_reason: Option<String>,
     pub(crate) local: Option<LocalSpec>,
 }
@@ -106,6 +108,7 @@ pub(crate) struct ContainerExecutionPlan {
     pub(crate) engine: ContainerEngine,
     pub(crate) source: ContainerRuntimeSourceSpec,
     pub(crate) image: String,
+    pub(crate) container_user: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -26,6 +26,14 @@ pub(super) fn transport_method_replacement(name: &str) -> Option<&'static str> {
     }
 }
 
+pub(super) fn remote_selection_method_replacement(name: &str) -> Option<&'static str> {
+    match name {
+        "Sequential" => Some("RemoteSelection_Sequential"),
+        "Shuffle" => Some("RemoteSelection_Shuffle"),
+        _ => None,
+    }
+}
+
 pub(super) fn session_reuse_method_replacement(name: &str) -> Option<&'static str> {
     match name {
         "Workspace" => Some("SessionReuse_Workspace"),

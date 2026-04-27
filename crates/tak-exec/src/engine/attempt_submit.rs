@@ -1,12 +1,9 @@
-use std::path::Path;
-
 use anyhow::{Result, anyhow};
 use tak_core::model::ResolvedTask;
 
 use super::{PlacementMode, TaskOutputObserver, TaskStatusPhase};
 
 use super::output_observer::emit_task_status_message;
-use super::placement::resolve_task_placement;
 use super::preflight_fallback::{
     fallback_after_auth_submit_failure, is_auth_submit_failure, preflight_ordered_remote_target,
 };
@@ -14,6 +11,7 @@ use super::protocol_submit::remote_protocol_submit;
 use super::remote_models::{
     RemoteSubmitContext, RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
+use super::remote_selection::ordered_remote_targets_for_attempt;
 use super::runtime_metadata::resolve_runtime_execution_metadata;
 use super::session_workspaces::PreparedTaskSession;
 
@@ -23,24 +21,6 @@ pub(crate) struct AttemptSubmitState<'a> {
     pub(crate) task_label: &'a str,
     pub(crate) attempt: u32,
     pub(crate) session: Option<&'a PreparedTaskSession>,
-}
-
-pub(crate) async fn preflight_task_placement(
-    task: &ResolvedTask,
-    workspace_root: &Path,
-    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
-) -> Result<TaskPlacement> {
-    let mut placement = resolve_task_placement(task, workspace_root)?;
-    if placement.ordered_remote_targets.is_empty() {
-        return Ok(placement);
-    }
-
-    let selected =
-        preflight_ordered_remote_target(task, &placement.ordered_remote_targets, output_observer)
-            .await?;
-    placement.remote_node_id = Some(selected.node_id.clone());
-    placement.strict_remote_target = Some(selected);
-    Ok(placement)
 }
 
 pub(crate) async fn resolve_initial_runtime_metadata(
@@ -62,6 +42,14 @@ pub(crate) async fn resolve_attempt_submit_state(
     if placement.placement_mode != PlacementMode::Remote {
         return Ok(());
     }
+    refresh_remote_target_for_attempt(
+        task,
+        placement,
+        submit.task_run_id,
+        submit.attempt,
+        output_observer,
+    )
+    .await?;
 
     let target = placement.strict_remote_target.clone().ok_or_else(|| {
         anyhow!(
@@ -133,5 +121,29 @@ pub(crate) async fn resolve_attempt_submit_state(
         }
     }
 
+    Ok(())
+}
+
+async fn refresh_remote_target_for_attempt(
+    task: &ResolvedTask,
+    placement: &mut TaskPlacement,
+    task_run_id: &str,
+    attempt: u32,
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+) -> Result<()> {
+    if attempt == 1 && placement.strict_remote_target.is_some() {
+        return Ok(());
+    }
+    let ordered = ordered_remote_targets_for_attempt(
+        &placement.ordered_remote_targets,
+        placement.remote_selection,
+        &task.label.to_string(),
+        task_run_id,
+        attempt,
+    );
+    let selected = preflight_ordered_remote_target(task, &ordered, output_observer).await?;
+    placement.ordered_remote_targets = ordered;
+    placement.remote_node_id = Some(selected.node_id.clone());
+    placement.strict_remote_target = Some(selected);
     Ok(())
 }

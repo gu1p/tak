@@ -39,6 +39,14 @@ pub enum TaskExecutionDef {
     },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionPolicyDef {
+    pub name: String,
+    pub placements: Vec<TaskExecutionDef>,
+    #[serde(default)]
+    pub doc: String,
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }

@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use tak_core::model::{
-    CurrentStateSpec, OutputSelectorSpec, RemoteSpec, RemoteTransportKind, StepDef, TaskLabel,
+    CurrentStateSpec, OutputSelectorSpec, RemoteSelectionSpec, RemoteSpec, RemoteTransportKind,
+    StepDef, TaskLabel,
 };
 
 use super::workspace_task_spec::build_remote_task_spec;
@@ -24,6 +25,7 @@ pub fn remote_builder_spec(transport_kind: RemoteTransportKind) -> RemoteSpec {
         required_capabilities: vec!["linux".into()],
         transport_kind,
         runtime: None,
+        selection: RemoteSelectionSpec::Sequential,
     }
 }
 

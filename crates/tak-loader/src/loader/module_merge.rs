@@ -8,9 +8,9 @@ use tak_core::model::{
 };
 
 use super::{
-    MergeState, context_resolution::resolve_current_state, execution_resolution::resolve_execution,
-    output_resolution::resolve_output_selectors, remote_validation::validate_runtime,
-    session_resolution::register_module_sessions,
+    MergeState, context_resolution::resolve_current_state,
+    execution_policy_registry::resolve_task_execution, output_resolution::resolve_output_selectors,
+    remote_validation::validate_runtime, session_resolution::register_module_sessions,
 };
 
 pub(crate) fn merge_module(
@@ -64,6 +64,7 @@ pub(crate) fn merge_module(
     }
 
     for task in module.tasks {
+        let task_name = task.name.clone();
         let label = parse_label(&format!("{package}:{}", task.name), package)
             .map_err(|e| anyhow!("invalid task label in package {package}: {e}"))?;
 
@@ -107,11 +108,15 @@ pub(crate) fn merge_module(
         let mut tags = module.defaults.tags.clone();
         tags.extend(task.tags);
 
-        let execution = task
-            .execution
-            .map(|execution| resolve_execution(execution, package))
-            .transpose()?
-            .unwrap_or_default();
+        let execution = resolve_task_execution(
+            &task_name,
+            task.execution,
+            task.execution_policy,
+            module.defaults.execution_policy.as_deref(),
+            state.default_execution_policy.as_deref(),
+            package,
+            state,
+        )?;
         let context = resolve_current_state(task.context, package)?;
         let outputs = resolve_output_selectors(task.outputs, package)?;
 

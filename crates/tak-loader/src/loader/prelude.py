@@ -35,7 +35,7 @@ def _normalize_deps(value):
         return [_dep_to_label(item) for item in value]
     return [_dep_to_label(value)]
 
-def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None, sessions=None):
+def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None, sessions=None, execution_policies=None):
     """Declare the module boundary that Tak loads from one TASKS.py file."""
     return {
         "spec_version": 1,
@@ -44,6 +44,7 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, 
         "sessions": _or_empty_list(sessions),
         "limiters": _or_empty_list(limiters),
         "queues": _or_empty_list(queues),
+        "execution_policies": _or_empty_list(execution_policies),
         "exclude": _or_empty_list(exclude),
         "includes": _or_empty_list(includes),
         "defaults": defaults if defaults is not None else {},
@@ -64,7 +65,10 @@ def _local_spec(runtime=None):
         "runtime": _normalize_local_runtime(runtime),
     }
 
-def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
+def _remote_selection(selection=None):
+    return selection if selection is not None else {"kind": "sequential"}
+
+def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None):
     if _is_host_runtime(runtime):
         raise TypeError("Runtime.Host() is only valid for Execution.Local")
     return {
@@ -73,6 +77,19 @@ def _remote_spec(pool=None, required_tags=None, required_capabilities=None, tran
         "required_capabilities": _or_empty_list(required_capabilities),
         "transport": transport,
         "runtime": runtime,
+        "selection": _remote_selection(selection),
+    }
+
+def RemoteSelection_Sequential():
+    """Try matching remotes in inventory order."""
+    return {
+        "kind": "sequential",
+    }
+
+def RemoteSelection_Shuffle():
+    """Spread attempts across matching remotes with deterministic per-attempt ordering."""
+    return {
+        "kind": "shuffle",
     }
 
 def Transport_DirectHttps():
@@ -198,7 +215,7 @@ def Execution_Local(runtime=None):
         "local": _local_spec(runtime=runtime),
     }
 
-def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
+def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None):
     """Force a task to run remotely with the supplied target filters and runtime."""
     return {
         "kind": "remote_only",
@@ -208,6 +225,7 @@ def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, 
             required_capabilities=required_capabilities,
             transport=transport,
             runtime=runtime,
+            selection=selection,
         ),
     }
 
@@ -283,11 +301,22 @@ def SessionReuse_Paths(paths):
         "paths": _or_empty_list(paths),
     }
 
-def session(name, execution, reuse, lifetime=_SessionLifetime_PerRun, context=None):
+def execution_policy(name, placements, doc=None):
+    """Declare an ordered named execution policy for local and remote placements."""
+    return {
+        "name": str(name),
+        "placements": _or_empty_list(placements),
+        "doc": doc if doc is not None else "",
+    }
+
+def session(name, execution=None, reuse=None, lifetime=_SessionLifetime_PerRun, context=None, execution_policy=None):
     """Declare a named per-run execution session for containerized task chains."""
+    if execution is not None and execution_policy is not None:
+        raise TypeError("session `" + str(name) + "` cannot set both execution and execution_policy")
     return {
         "name": str(name),
         "execution": execution,
+        "execution_policy": execution_policy,
         "reuse": reuse,
         "lifetime": lifetime,
         "context": context,
@@ -329,8 +358,10 @@ def CurrentState(roots=None, ignored=None, include=None):
         "include": _or_empty_list(include),
     }
 
-def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, tags=None, doc=None):
+def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, execution_policy=None, tags=None, doc=None):
     """Declare one task, including its steps, dependencies, execution policy, and outputs."""
+    if execution is not None and execution_policy is not None:
+        raise TypeError("task `" + str(name) + "` cannot set both execution and execution_policy")
     return {
         "name": name,
         "deps": _normalize_deps(deps),
@@ -342,6 +373,7 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         "context": context,
         "outputs": _or_empty_list(outputs),
         "execution": execution,
+        "execution_policy": execution_policy,
         "tags": _or_empty_list(tags),
         "doc": doc if doc is not None else "",
     }

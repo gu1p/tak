@@ -139,6 +139,7 @@ pub struct RemoteWorkerExecutionSpec {
     pub timeout_s: Option<u64>,
     pub runtime: Option<RemoteRuntimeSpec>,
     pub node_id: String,
+    pub container_user: Option<String>,
 }
 
 #[derive(Debug, Clone)]

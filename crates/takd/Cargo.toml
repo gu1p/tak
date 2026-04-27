@@ -25,6 +25,7 @@ http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 ignore.workspace = true
+libc = "0.2"
 prost.workspace = true
 qrcode.workspace = true
 ratatui.workspace = true

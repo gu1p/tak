@@ -1,6 +1,6 @@
 use tak_core::model::{
-    LocalSpec, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSpec, RemoteTransportKind,
-    ResolvedTask, TaskExecutionSpec,
+    ExecutionPlacementSpec, LocalSpec, PolicyDecisionSpec, RemoteRuntimeSpec, RemoteSelectionSpec,
+    RemoteSpec, RemoteTransportKind, ResolvedTask, TaskExecutionSpec,
 };
 
 use super::run_override_runtime::declared_container_runtime;
@@ -95,6 +95,9 @@ fn existing_local_spec(execution: &TaskExecutionSpec) -> Option<LocalSpec> {
                 }),
             ..
         } => Some(local.clone()),
+        TaskExecutionSpec::ByExecutionPolicy { placements, .. } => {
+            placements.iter().find_map(local_placement_spec)
+        }
         TaskExecutionSpec::RemoteOnly(_)
         | TaskExecutionSpec::ByCustomPolicy { .. }
         | TaskExecutionSpec::UseSession { .. } => None,
@@ -108,6 +111,9 @@ fn existing_remote_spec(execution: &TaskExecutionSpec) -> Option<RemoteSpec> {
             decision: Some(PolicyDecisionSpec::Remote { remote, .. }),
             ..
         } => Some(remote.clone()),
+        TaskExecutionSpec::ByExecutionPolicy { placements, .. } => {
+            placements.iter().find_map(remote_placement_spec)
+        }
         TaskExecutionSpec::LocalOnly(_)
         | TaskExecutionSpec::ByCustomPolicy { .. }
         | TaskExecutionSpec::UseSession { .. } => None,
@@ -121,6 +127,21 @@ fn default_remote_spec() -> RemoteSpec {
         required_capabilities: Vec::new(),
         transport_kind: RemoteTransportKind::Any,
         runtime: None,
+        selection: RemoteSelectionSpec::Sequential,
+    }
+}
+
+fn remote_placement_spec(placement: &ExecutionPlacementSpec) -> Option<RemoteSpec> {
+    match placement {
+        ExecutionPlacementSpec::Remote(remote) => Some(remote.clone()),
+        ExecutionPlacementSpec::Local(_) => None,
+    }
+}
+
+fn local_placement_spec(placement: &ExecutionPlacementSpec) -> Option<LocalSpec> {
+    match placement {
+        ExecutionPlacementSpec::Local(local) => Some(local.clone()),
+        ExecutionPlacementSpec::Remote(_) => None,
     }
 }
 

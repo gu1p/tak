@@ -37,7 +37,7 @@ pub async fn execute_remote_worker_steps_with_output(
         tags: Vec::new(),
     };
 
-    let runtime_metadata = match spec.runtime.as_ref() {
+    let mut runtime_metadata = match spec.runtime.as_ref() {
         Some(runtime) => resolve_runtime_execution_metadata_for_node_runtime(
             &task,
             &spec.node_id,
@@ -45,6 +45,12 @@ pub async fn execute_remote_worker_steps_with_output(
         )?,
         None => None,
     };
+    if let Some(container_user) = spec.container_user.clone()
+        && let Some(metadata) = runtime_metadata.as_mut()
+        && let Some(container_plan) = metadata.container_plan.as_mut()
+    {
+        container_plan.container_user = Some(container_user);
+    }
 
     let result = run_task_steps_with_runtime(
         &task,

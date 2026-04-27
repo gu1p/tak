@@ -113,6 +113,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
                     engine,
                     source: source.clone(),
                     image: image.clone(),
+                    container_user: None,
                 })
             };
             Ok(Some(RuntimeExecutionMetadata {

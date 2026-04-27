@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, PolicyDecisionSpec, RemoteRuntimeSpec, ResolvedTask,
-    TaskExecutionSpec, normalize_container_image_reference, normalize_path_ref,
+    ContainerRuntimeSourceSpec, ExecutionPlacementSpec, PolicyDecisionSpec, RemoteRuntimeSpec,
+    ResolvedTask, TaskExecutionSpec, normalize_container_image_reference, normalize_path_ref,
 };
 
 use super::*;
@@ -82,7 +82,17 @@ pub(super) fn declared_container_runtime(
             decision: Some(PolicyDecisionSpec::Remote { remote, .. }),
             ..
         } => remote.runtime.clone(),
+        TaskExecutionSpec::ByExecutionPolicy { placements, .. } => {
+            placements.iter().find_map(placement_runtime)
+        }
         TaskExecutionSpec::ByCustomPolicy { .. } | TaskExecutionSpec::UseSession { .. } => None,
+    }
+}
+
+fn placement_runtime(placement: &ExecutionPlacementSpec) -> Option<RemoteRuntimeSpec> {
+    match placement {
+        ExecutionPlacementSpec::Local(local) => local.runtime.clone(),
+        ExecutionPlacementSpec::Remote(remote) => remote.runtime.clone(),
     }
 }
 

@@ -57,6 +57,7 @@ pub fn worker_spec(
         timeout_s,
         runtime,
         node_id: node_id.to_string(),
+        container_user: None,
     }
 }
 

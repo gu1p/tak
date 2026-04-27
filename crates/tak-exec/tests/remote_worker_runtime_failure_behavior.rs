@@ -34,6 +34,7 @@ async fn remote_worker_reports_injected_container_lifecycle_failure() {
             },
         }),
         node_id: "builder-a".to_string(),
+        container_user: None,
     };
 
     let err = execute_remote_worker_steps(&workspace_root, &spec)

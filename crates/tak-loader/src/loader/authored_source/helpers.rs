@@ -37,6 +37,13 @@ impl<'a> AuthoredDslBoundary<'a> {
         if self.lower_namespace_call(callee, "Transport", transport_method_replacement) {
             return;
         }
+        if self.lower_namespace_call(
+            callee,
+            "RemoteSelection",
+            remote_selection_method_replacement,
+        ) {
+            return;
+        }
         if self.lower_namespace_call(callee, "SessionReuse", session_reuse_method_replacement) {
             return;
         }
@@ -92,7 +99,13 @@ impl<'a> AuthoredDslBoundary<'a> {
             return;
         }
 
-        for namespace in ["Execution", "Runtime", "Transport", "SessionReuse"] {
+        for namespace in [
+            "Execution",
+            "Runtime",
+            "Transport",
+            "RemoteSelection",
+            "SessionReuse",
+        ] {
             if let Some(member_name) = namespace_attribute_name(expr, namespace) {
                 if self.is_allowed_namespace_attribute(range) {
                     return;

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use tokio::net::{UnixListener, UnixStream};
 
+use super::create::parse_create_request;
 use super::request::{FakeDockerRequest, read_request};
 use super::response::{write_empty_response, write_logs_response, write_response};
 use super::tar::{tar_file_entries, tar_file_modes};
@@ -50,6 +51,7 @@ async fn handle_connection(
             .await?;
         }
         "POST" if path.ends_with("/containers/create") => {
+            state.record_create(parse_create_request(&request)?);
             let body = format!(r#"{{"Id":"{CONTAINER_ID}","Warnings":[]}}"#);
             write_response(
                 &mut stream,

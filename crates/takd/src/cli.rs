@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 
 use crate::logging::{init_service_logging, read_service_log_tail};
 use crate::qr_render::render_onboarding_view;
+use crate::serve_lock::ServiceStateLock;
 use crate::word_table::render_words_table_view;
 use tak_proto::encode_tor_invite_words;
 use takd::agent::{
@@ -124,6 +125,7 @@ pub async fn run_cli() -> Result<()> {
             let config_root = config_root.unwrap_or(default_config_root()?);
             let state_root = state_root.unwrap_or(default_state_root()?);
             init_service_logging(&state_root)?;
+            let _serve_lock = ServiceStateLock::acquire(&state_root)?;
             if let Err(err) = serve_agent(&config_root, &state_root).await {
                 tracing::error!("takd serve failed: {err:#}");
                 return Err(err);

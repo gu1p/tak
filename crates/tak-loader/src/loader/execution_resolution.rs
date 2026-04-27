@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use tak_core::model::{
     LocalDef, LocalSpec, PolicyDecisionDef, PolicyDecisionModeDef, PolicyDecisionSpec, RemoteDef,
-    RemoteSpec, TaskExecutionDef, TaskExecutionSpec,
+    RemoteSelectionDef, RemoteSelectionSpec, RemoteSpec, TaskExecutionDef, TaskExecutionSpec,
 };
 
 use super::remote_validation::{
@@ -136,6 +136,7 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         required_capabilities,
         transport,
         runtime,
+        selection,
     } = remote;
 
     let pool = pool
@@ -160,5 +161,13 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         required_capabilities,
         transport_kind,
         runtime,
+        selection: resolve_remote_selection(selection),
     })
+}
+
+fn resolve_remote_selection(selection: RemoteSelectionDef) -> RemoteSelectionSpec {
+    match selection {
+        RemoteSelectionDef::Sequential => RemoteSelectionSpec::Sequential,
+        RemoteSelectionDef::Shuffle => RemoteSelectionSpec::Shuffle,
+    }
 }

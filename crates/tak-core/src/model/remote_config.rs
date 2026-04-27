@@ -12,11 +12,21 @@ pub struct RemoteDef {
     pub transport: Option<RemoteTransportDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<RemoteRuntimeDef>,
+    #[serde(default)]
+    pub selection: RemoteSelectionDef,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteTransportDef {
     pub kind: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum RemoteSelectionDef {
+    #[default]
+    Sequential,
+    Shuffle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

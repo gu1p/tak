@@ -3,13 +3,15 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 use tak_core::model::{
-    CurrentStateSpec, RemoteRuntimeSpec, ResolvedTask, SessionDef, SessionLifetimeSpec,
-    SessionReuseDef, SessionReuseSpec, SessionSpec, SessionUseSpec, TaskExecutionSpec, TaskLabel,
+    CurrentStateSpec, ExecutionPlacementSpec, ExecutionPolicySpec, RemoteRuntimeSpec, ResolvedTask,
+    SessionDef, SessionLifetimeSpec, SessionReuseDef, SessionReuseSpec, SessionSpec,
+    SessionUseSpec, TaskExecutionSpec, TaskLabel,
 };
 
 use super::{
-    MergeState, context_resolution::resolve_current_state, execution_resolution::resolve_execution,
-    output_resolution::resolve_output_selectors,
+    MergeState, context_resolution::resolve_current_state,
+    execution_policy_resolution::resolve_execution_policy_reference,
+    execution_resolution::resolve_execution, output_resolution::resolve_output_selectors,
 };
 
 pub(crate) fn register_module_sessions(
@@ -19,7 +21,7 @@ pub(crate) fn register_module_sessions(
     state: &mut MergeState,
 ) -> Result<()> {
     for session in sessions {
-        let resolved = resolve_session(session, package)?;
+        let resolved = resolve_session(session, package, &state.execution_policies)?;
         if let Some(previous) = state.session_origins.get(&resolved.name) {
             bail!(
                 "duplicate session definition: {}\nfirst defined in {}\nconflicts with {}",
@@ -36,7 +38,11 @@ pub(crate) fn register_module_sessions(
     Ok(())
 }
 
-pub(crate) fn resolve_session(session: SessionDef, package: &str) -> Result<SessionSpec> {
+pub(crate) fn resolve_session(
+    session: SessionDef,
+    package: &str,
+    policies: &BTreeMap<String, ExecutionPolicySpec>,
+) -> Result<SessionSpec> {
     let name = session.name.trim().to_string();
     if name.is_empty() {
         bail!("session.name cannot be empty");
@@ -49,7 +55,15 @@ pub(crate) fn resolve_session(session: SessionDef, package: &str) -> Result<Sess
         );
     }
 
-    let execution = resolve_execution(session.execution, package)?;
+    if session.execution.is_some() && session.execution_policy.is_some() {
+        bail!("session `{name}` cannot set both execution and execution_policy");
+    }
+    let execution = match (session.execution, session.execution_policy) {
+        (Some(execution), None) => resolve_execution(execution, package)?,
+        (None, Some(policy_name)) => resolve_execution_policy_reference(&policy_name, policies)?,
+        (None, None) => bail!("session `{name}` requires execution or execution_policy"),
+        (Some(_), Some(_)) => unreachable!("mixed session execution rejected above"),
+    };
     validate_session_execution(&name, &execution)?;
     let reuse = resolve_session_reuse(&name, session.reuse, package)?;
     let context = session
@@ -102,10 +116,33 @@ fn validate_session_execution(name: &str, execution: &TaskExecutionSpec) -> Resu
         TaskExecutionSpec::ByCustomPolicy { .. } => {
             bail!("session `{name}` execution cannot use ByCustomPolicy in v1")
         }
+        TaskExecutionSpec::ByExecutionPolicy {
+            name: policy_name,
+            placements,
+        } => validate_session_policy_execution(name, policy_name, placements),
         TaskExecutionSpec::UseSession { .. } => {
             bail!("session `{name}` execution cannot use UseSession")
         }
     }
+}
+
+fn validate_session_policy_execution(
+    name: &str,
+    policy_name: &str,
+    placements: &[ExecutionPlacementSpec],
+) -> Result<()> {
+    for placement in placements {
+        let runtime = match placement {
+            ExecutionPlacementSpec::Local(local) => local.runtime.as_ref(),
+            ExecutionPlacementSpec::Remote(remote) => remote.runtime.as_ref(),
+        };
+        if runtime.is_none() {
+            bail!(
+                "session `{name}` execution_policy `{policy_name}` requires every placement to use a containerized runtime"
+            );
+        }
+    }
+    Ok(())
 }
 
 fn validate_session_runtime(name: &str, runtime: Option<&RemoteRuntimeSpec>) -> Result<()> {

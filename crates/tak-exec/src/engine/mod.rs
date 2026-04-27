@@ -4,6 +4,7 @@ use anyhow::Result;
 use tak_core::model::ResolvedTask;
 
 mod attempt_execution;
+mod attempt_placement;
 mod attempt_submit;
 mod lease_context;
 mod output_observer;
@@ -21,6 +22,9 @@ mod public_types;
 pub(crate) mod remote_diagnostics;
 mod remote_http_exchange_error;
 pub(crate) mod remote_models;
+mod remote_selection;
+#[path = "remote_selection_tests.rs"]
+mod remote_selection_tests;
 pub(crate) mod remote_submit_failure;
 mod remote_wait_status;
 mod remote_worker;

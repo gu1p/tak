@@ -7,6 +7,7 @@ mod client_tor_config_contract;
 mod client_tor_config_precedence_contract;
 mod container_runtime_bollard_contract;
 mod doctest_policy_contract;
+mod execution_policy_fallback_behavior;
 mod module_layout_contract;
 mod no_matching_remote_error_disabled_inventory_contract;
 mod no_matching_remote_error_rejections_contract;
@@ -32,6 +33,7 @@ mod remote_progress_retry_behavior;
 mod remote_wait_activity_reset_behavior;
 mod remote_wait_heartbeat_behavior;
 mod remote_wait_unavailable_telemetry_behavior;
+mod remote_worker_container_user_behavior;
 #[path = "remote_worker_runtime_behavior.rs"]
 mod remote_worker_runtime_behavior;
 mod remote_worker_runtime_failure_behavior;
