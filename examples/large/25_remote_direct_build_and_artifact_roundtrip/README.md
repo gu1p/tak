@@ -51,7 +51,7 @@ SPEC
 
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
-| execution mode | `REMOTE` | `Execution.Local(...)`, `Execution.Policy(...)` | Force remote, force local, or pick dynamically with policy logic. |
+| execution mode | `REMOTE` | `Execution.Local(...)`, `Execution.Decide(...)` | Force remote, force local, or pick dynamically with policy logic. |
 | remote transport | direct client-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
 | remote runtime | `Runtime.Image("alpine:3.20")` | `Runtime.Dockerfile(...)` | Remote execution is always containerized; choose the image or Dockerfile that defines the runtime. |
 

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -8,6 +7,7 @@ use tak_core::model::{
     TaskExecutionSpec,
 };
 
+use super::session_tempdir::session_tempdir;
 use super::session_workspace_files::{
     copy_directory_contents, extract_share_paths, materialize_seed_workspace,
 };
@@ -16,6 +16,7 @@ use super::session_workspace_files::{
 pub(crate) struct PreparedTaskSession {
     pub(crate) key: String,
     pub(crate) name: String,
+    pub(crate) display_name: String,
     pub(crate) reuse: SessionReuseSpec,
     pub(crate) root: Option<PathBuf>,
     _task_workspace: Option<tempfile::TempDir>,
@@ -51,6 +52,7 @@ impl ExecutionSessionManager {
             return Ok(Some(PreparedTaskSession {
                 key: self.session_key(&session.name),
                 name: session.name.clone(),
+                display_name: session.display_name.clone(),
                 reuse: session.reuse.clone(),
                 root: None,
                 _task_workspace: None,
@@ -63,6 +65,7 @@ impl ExecutionSessionManager {
                 Ok(Some(PreparedTaskSession {
                     key: self.session_key(&session.name),
                     name: session.name.clone(),
+                    display_name: session.display_name.clone(),
                     reuse: session.reuse.clone(),
                     root: Some(root),
                     _task_workspace: None,
@@ -73,6 +76,7 @@ impl ExecutionSessionManager {
                 Ok(Some(PreparedTaskSession {
                     key: self.session_key(&session.name),
                     name: session.name.clone(),
+                    display_name: session.display_name.clone(),
                     reuse: session.reuse.clone(),
                     root: Some(prepared.path().to_path_buf()),
                     _task_workspace: Some(prepared),
@@ -160,40 +164,4 @@ fn session_uses_local_workspace(execution: &TaskExecutionSpec) -> bool {
             .all(|placement| matches!(placement, ExecutionPlacementSpec::Local(_))),
         _ => false,
     }
-}
-
-fn session_tempdir(workspace_root: &Path, purpose: &str) -> Result<tempfile::TempDir> {
-    if let Some(base) = explicit_session_tmpdir() {
-        return tempdir_in(&base, purpose);
-    }
-    let workspace_tmp = workspace_root.join(".tmp");
-    if workspace_tmp.is_dir() {
-        return tempdir_in(&workspace_tmp.join("tak-sessions"), purpose);
-    }
-    tempfile::Builder::new()
-        .prefix(&format!("tak-session-{purpose}-"))
-        .tempdir()
-        .context("failed to allocate session temp directory")
-}
-
-fn explicit_session_tmpdir() -> Option<PathBuf> {
-    let value = std::env::var_os("TAK_SESSION_TMPDIR")?;
-    if value.is_empty() {
-        return None;
-    }
-    Some(PathBuf::from(value))
-}
-
-fn tempdir_in(base: &Path, purpose: &str) -> Result<tempfile::TempDir> {
-    fs::create_dir_all(base)
-        .with_context(|| format!("failed to create session temp base {}", base.display()))?;
-    tempfile::Builder::new()
-        .prefix(&format!("tak-session-{purpose}-"))
-        .tempdir_in(base)
-        .with_context(|| {
-            format!(
-                "failed to allocate session temp directory in {}",
-                base.display()
-            )
-        })
 }

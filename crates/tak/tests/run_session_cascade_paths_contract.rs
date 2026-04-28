@@ -19,11 +19,10 @@ SESSION = session(
 )
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
     task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo cached > target/cache.txt && echo leak > scratch/leak.txt")]),
     task("check-artifact", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/cache.txt")]),
-    task("check", deps=[":check-artifact"], execution=Execution.Session("cargo", cascade=True)),
+    task("check", deps=[":check-artifact"], execution=Execution.Session(SESSION, cascade=True)),
   ],
 )
 SPEC

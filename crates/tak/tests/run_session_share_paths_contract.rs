@@ -25,10 +25,9 @@ SESSION = session(
 )
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
-    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=Execution.Session("cargo")),
-    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/cache.txt")], execution=Execution.Session("cargo")),
+    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=Execution.Session(SESSION)),
+    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/cache.txt")], execution=Execution.Session(SESSION)),
   ],
 )
 SPEC
@@ -61,10 +60,9 @@ fn remote_share_paths_preserves_only_declared_paths_between_session_tasks() -> R
 SESSION = session("remote-cargo", execution=REMOTE, reuse=SessionReuse.Paths([path("target")]))
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
-    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo remote-cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=Execution.Session("remote-cargo")),
-    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/remote-cache.txt")], execution=Execution.Session("remote-cargo")),
+    task("compile", steps=[cmd("sh", "-c", "mkdir -p target scratch && echo remote-cached > target/cache.txt && echo leak > scratch/leak.txt")], execution=Execution.Session(SESSION)),
+    task("check", deps=[":compile"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f target/cache.txt && test ! -e scratch/leak.txt && mkdir -p out && cat target/cache.txt > out/remote-cache.txt")], execution=Execution.Session(SESSION)),
   ],
 )
 SPEC

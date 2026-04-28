@@ -9,13 +9,9 @@ pub struct ModuleSpec {
     #[serde(default)]
     pub tasks: Vec<TaskDef>,
     #[serde(default)]
-    pub sessions: Vec<SessionDef>,
-    #[serde(default)]
     pub limiters: Vec<LimiterDef>,
     #[serde(default)]
     pub queues: Vec<QueueDef>,
-    #[serde(default)]
-    pub execution_policies: Vec<ExecutionPolicyDef>,
     #[serde(default)]
     pub exclude: Vec<String>,
     #[serde(default)]
@@ -45,7 +41,7 @@ pub struct Defaults {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container_runtime: Option<RemoteRuntimeDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution_policy: Option<String>,
+    pub execution: Option<TaskExecutionDef>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -73,19 +69,16 @@ pub struct TaskDef {
     pub outputs: Vec<OutputSelectorDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<TaskExecutionDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution_policy: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionDef {
-    pub name: String,
+    pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution: Option<TaskExecutionDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub execution_policy: Option<String>,
+    pub name: Option<String>,
+    pub execution: TaskExecutionDef,
     pub reuse: SessionReuseDef,
     #[serde(default = "default_session_lifetime")]
     pub lifetime: String,

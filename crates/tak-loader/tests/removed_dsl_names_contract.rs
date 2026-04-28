@@ -12,7 +12,7 @@ SPEC
             "LocalOnly",
         ),
         (
-            r#"SPEC = module_spec(defaults={"container_runtime": ContainerRuntime("alpine:3.20")}, tasks=[])
+            r#"SPEC = module_spec(defaults=Defaults(container_runtime=ContainerRuntime("alpine:3.20")), tasks=[])
 SPEC
 "#,
             "ContainerRuntime",
@@ -32,9 +32,8 @@ SPEC
             "MACHINE",
         ),
         (
-            r#"SPEC = module_spec(sessions=[
-  session("x", execution=Execution.Local(), reuse=ShareWorkspace())
-], tasks=[])
+            r#"SESSION = session("x", execution=Execution.Local(), reuse=ShareWorkspace())
+SPEC = module_spec(tasks=[task("x", execution=Execution.Session(SESSION))])
 SPEC
 "#,
             "ShareWorkspace",
@@ -43,7 +42,7 @@ SPEC
             r#"def choose(ctx):
   return Decision.local(reason=REASON_LOCAL_CPU_HIGH)
 
-SPEC = module_spec(tasks=[task("x", execution=Execution.Policy(choose))])
+SPEC = module_spec(tasks=[task("x", execution=Execution.Decide(choose))])
 SPEC
 "#,
             "REASON_LOCAL_CPU_HIGH",

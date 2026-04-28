@@ -34,6 +34,22 @@ fn takd_live_tor_harness_extends_startup_session_timeout() -> anyhow::Result<()>
 }
 
 #[test]
+fn takd_live_tor_harness_extends_recovery_self_probe_timeout() -> anyhow::Result<()> {
+    let source =
+        std::fs::read_to_string(repo_root().join("crates/takd/tests/support/live_tor_cli/mod.rs"))?;
+
+    assert!(
+        source.contains("TAKD_TOR_RECOVERY_PROBE_TIMEOUT_MS"),
+        "takd live Tor harness must extend the recovery self-probe timeout so slow onion self-checks do not mark ready nodes recovering:\n{source}"
+    );
+    assert!(
+        source.contains("TAKD_TOR_RECOVERY_PROBE_BACKOFF_MS"),
+        "takd live Tor harness must keep recovery self-probe retries aligned with live Tor retry backoff:\n{source}"
+    );
+    Ok(())
+}
+
+#[test]
 fn live_tor_http_timeout_uses_env_override() {
     let _lock = env_lock();
     let mut env = EnvGuard::default();

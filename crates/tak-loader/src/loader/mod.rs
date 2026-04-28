@@ -18,7 +18,9 @@ mod monty_deserializer;
 mod output_resolution;
 mod project_resolution;
 mod remote_validation;
+mod scope_keys;
 mod session_resolution;
+mod session_validation;
 mod workspace_discovery;
 mod workspace_load_and_policy_eval;
 

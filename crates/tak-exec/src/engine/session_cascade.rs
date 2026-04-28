@@ -76,8 +76,8 @@ fn bind_cascaded_session(
         bail!(
             "session cascade conflict: task {} is reached by cascading session `{}` but declares session `{}`",
             canonical_label(label),
-            session.name,
-            explicit.name
+            session.display_name,
+            explicit.display_name
         );
     }
     if let Some(previous) = resolved.get(label) {
@@ -87,8 +87,8 @@ fn bind_cascaded_session(
         bail!(
             "session cascade conflict: task {} inherits session `{}` and session `{}`",
             canonical_label(label),
-            previous.name,
-            session.name
+            previous.display_name,
+            session.display_name
         );
     }
     resolved.insert(label.clone(), session.clone());

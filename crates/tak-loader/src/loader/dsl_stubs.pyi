@@ -229,8 +229,8 @@ class RemoteExecutionSpec(TypedDict):
     remote: RemoteSpec
 
 
-# Execution selector returned by `Execution.Policy(...)`.
-class PolicyExecutionSpec(TypedDict, total=False):
+# Execution selector returned by `Execution.Decide(...)`.
+class DecideExecutionSpec(TypedDict, total=False):
     kind: Literal["by_custom_policy"]
     policy_name: str
     decision: LocalDecisionSpec | RemoteDecisionSpec
@@ -241,6 +241,7 @@ class SessionExecutionSpec(TypedDict):
     kind: Literal["use_session"]
     name: str
     cascade: bool
+    session: "SessionSpec"
 
 
 # Reuse the same workspace filesystem across tasks in one session.
@@ -256,17 +257,19 @@ class PathsReuseSpec(TypedDict):
 
 # Named session returned by `session(...)`.
 class SessionSpec(TypedDict):
-    name: str
-    execution: LocalExecutionSpec | RemoteExecutionSpec | None
-    execution_policy: str | None
+    id: str
+    name: str | None
+    execution: LocalExecutionSpec | RemoteExecutionSpec | "ExecutionPolicySpec"
     reuse: WorkspaceReuseSpec | PathsReuseSpec
     lifetime: Literal["per_run"]
     context: CurrentStateSpec | None
 
 
-# Named ordered execution policy returned by `execution_policy(...)`.
+# Ordered execution policy returned by `execution_policy(...)`.
 class ExecutionPolicySpec(TypedDict):
-    name: str
+    kind: Literal["by_execution_policy"]
+    id: str
+    name: str | None
     placements: list[LocalExecutionSpec | RemoteExecutionSpec]
     doc: str
 
@@ -301,7 +304,13 @@ class ModuleDefaults(TypedDict, total=False):
     queue: QueueUseSpec
     retry: RetrySpec
     container_runtime: ImageRuntimeSpec | DockerfileRuntimeSpec
-    execution_policy: str
+    execution: (
+        LocalExecutionSpec
+        | RemoteExecutionSpec
+        | DecideExecutionSpec
+        | SessionExecutionSpec
+        | ExecutionPolicySpec
+    )
     tags: list[str]
 
 
@@ -316,8 +325,14 @@ class TaskSpec(TypedDict):
     timeout_s: int | None
     context: CurrentStateSpec | None
     outputs: list[PathSelector | GlobOutput]
-    execution: LocalExecutionSpec | RemoteExecutionSpec | PolicyExecutionSpec | SessionExecutionSpec | None
-    execution_policy: str | None
+    execution: (
+        LocalExecutionSpec
+        | RemoteExecutionSpec
+        | DecideExecutionSpec
+        | SessionExecutionSpec
+        | ExecutionPolicySpec
+        | None
+    )
     tags: list[str]
     doc: str
 
@@ -327,10 +342,8 @@ class ModuleSpec(TypedDict):
     spec_version: Literal[1]
     project_id: str | None
     tasks: list[TaskSpec]
-    sessions: list[SessionSpec]
     limiters: list[ResourceLimiterSpec | LockLimiterSpec | RateLimitLimiterSpec | ProcessCapLimiterSpec]
     queues: list[QueueDefinition]
-    execution_policies: list[ExecutionPolicySpec]
     exclude: list[str]
     includes: list[PathSelector]
     defaults: ModuleDefaults
@@ -425,13 +438,13 @@ class Execution:
         selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec | None = ...,
     ) -> RemoteExecutionSpec: ...
 
-    # Resolve task placement from a named or inline custom policy.
+    # Resolve task placement from an inline custom policy decision callable.
     @staticmethod
-    def Policy(policy: object) -> PolicyExecutionSpec: ...
+    def Decide(policy: object) -> DecideExecutionSpec: ...
 
-    # Run a task in a named session, optionally cascading it to dependencies.
+    # Run a task in a session object, optionally cascading it to dependencies.
     @staticmethod
-    def Session(name: str, cascade: bool = ...) -> SessionExecutionSpec: ...
+    def Session(session: SessionSpec, cascade: bool = ...) -> SessionExecutionSpec: ...
 
 
 # Runtime namespace.
@@ -500,7 +513,6 @@ class SessionReuse:
 
 def module_spec(
     tasks: list[TaskSpec],
-    sessions: list[SessionSpec] | None = ...,
     limiters: (
         list[
             ResourceLimiterSpec
@@ -515,8 +527,21 @@ def module_spec(
     includes: list[PathSelector] | None = ...,
     defaults: ModuleDefaults | None = ...,
     project_id: str | None = ...,
-    execution_policies: list[ExecutionPolicySpec] | None = ...,
 ) -> ModuleSpec: ...
+def Defaults(
+    container_runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+    execution: (
+        LocalExecutionSpec
+        | RemoteExecutionSpec
+        | DecideExecutionSpec
+        | SessionExecutionSpec
+        | ExecutionPolicySpec
+        | None
+    ) = ...,
+    retry: RetrySpec | None = ...,
+    queue: QueueUseSpec | None = ...,
+    tags: list[str] | None = ...,
+) -> ModuleDefaults: ...
 def task(
     name: str,
     deps: list[str | TaskSpec] | str | TaskSpec | None = ...,
@@ -530,11 +555,11 @@ def task(
     execution: (
         LocalExecutionSpec
         | RemoteExecutionSpec
-        | PolicyExecutionSpec
+        | DecideExecutionSpec
         | SessionExecutionSpec
+        | ExecutionPolicySpec
         | None
     ) = ...,
-    execution_policy: str | None = ...,
     tags: list[str] | None = ...,
     doc: str | None = ...,
 ) -> TaskSpec: ...
@@ -607,17 +632,16 @@ def PolicyContext(
     local_cpu_percent: float = ...,
 ) -> PolicyContextSpec: ...
 def session(
-    name: str,
-    execution: LocalExecutionSpec | RemoteExecutionSpec | None = ...,
+    name: str | None = ...,
+    execution: LocalExecutionSpec | RemoteExecutionSpec | ExecutionPolicySpec | None = ...,
     reuse: WorkspaceReuseSpec | PathsReuseSpec = ...,
     lifetime: Literal["per_run"] = ...,
     context: CurrentStateSpec | None = ...,
-    execution_policy: str | None = ...,
 ) -> SessionSpec: ...
 def execution_policy(
-    name: str,
     placements: list[LocalExecutionSpec | RemoteExecutionSpec],
     doc: str | None = ...,
+    name: str | None = ...,
 ) -> ExecutionPolicySpec: ...
 def path(value: str) -> PathSelector: ...
 def glob(value: str) -> GlobOutput: ...

@@ -16,10 +16,10 @@ SPEC = module_spec(
     queue_def("qa_fifo", slots=1, discipline=QueueDiscipline.Fifo, scope=Scope.Machine),
     queue_def("qa_priority", slots=1, discipline=QueueDiscipline.Priority, scope=Scope.Machine),
   ],
-  defaults={
-    "retry": retry(attempts=2, on_exit=[44], backoff=fixed(0)),
-    "tags": ["full-matrix"],
-  },
+  defaults=Defaults(
+    retry=retry(attempts=2, on_exit=[44], backoff=fixed(0)),
+    tags=["full-matrix"],
+  ),
   tasks=[
     task("bootstrap", steps=[cmd("sh", "-c", "mkdir -p out && echo bootstrap >> out/full_matrix.log")]),
     task(

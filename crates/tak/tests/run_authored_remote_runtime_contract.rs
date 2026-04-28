@@ -17,7 +17,7 @@ fn authored_remote_only_inherits_module_default_container_runtime() -> Result<()
     write_tasks(
         &workspace_root,
         r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps())
-SPEC = module_spec(defaults={"container_runtime": Runtime.Image("alpine:3.20")}, tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=REMOTE)])
+SPEC = module_spec(defaults=Defaults(container_runtime=Runtime.Image("alpine:3.20")), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=REMOTE)])
 SPEC
 "#,
     )?;

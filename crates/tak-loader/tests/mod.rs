@@ -19,6 +19,7 @@ mod removed_dsl_names_contract;
 mod runtime_resolution_contract;
 mod runtime_value_deserializer_contract;
 mod session_execution_policy_contract;
+mod session_object_boundary_contract;
 mod sessions_cascade_contract;
 mod sessions_contract;
 mod typed_stub_contract;

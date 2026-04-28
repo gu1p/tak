@@ -3,6 +3,7 @@ use super::{CurrentStateSpec, OutputSelectorSpec, TaskExecutionSpec};
 #[derive(Debug, Clone)]
 pub struct SessionUseSpec {
     pub name: String,
+    pub display_name: String,
     pub execution: TaskExecutionSpec,
     pub reuse: SessionReuseSpec,
     pub context: Option<CurrentStateSpec>,
@@ -40,6 +41,7 @@ impl SessionReuseSpec {
 #[derive(Debug, Clone)]
 pub struct SessionSpec {
     pub name: String,
+    pub display_name: String,
     pub execution: TaskExecutionSpec,
     pub reuse: SessionReuseSpec,
     pub lifetime: SessionLifetimeSpec,

@@ -32,6 +32,7 @@ mod run_single_task;
 mod run_tasks;
 mod runtime_metadata;
 mod session_cascade;
+mod session_tempdir;
 mod session_workspace_files;
 pub(crate) mod session_workspaces;
 mod step_execution;

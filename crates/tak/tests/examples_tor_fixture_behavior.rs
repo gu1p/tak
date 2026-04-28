@@ -57,6 +57,21 @@ fn tak_live_tor_harness_extends_startup_session_timeout() -> Result<()> {
 }
 
 #[test]
+fn tak_live_tor_harness_extends_recovery_self_probe_timeout() -> Result<()> {
+    let source = std::fs::read_to_string(repo_root().join("crates/tak/tests/support/live_tor.rs"))?;
+
+    assert!(
+        source.contains("TAKD_TOR_RECOVERY_PROBE_TIMEOUT_MS"),
+        "live Tor smoke harness must extend the recovery self-probe timeout so slow onion self-checks do not mark ready nodes recovering:\n{source}"
+    );
+    assert!(
+        source.contains("TAKD_TOR_RECOVERY_PROBE_BACKOFF_MS"),
+        "live Tor smoke harness must keep recovery self-probe retries aligned with live Tor retry backoff:\n{source}"
+    );
+    Ok(())
+}
+
+#[test]
 fn tor_catalog_example_uses_simulated_container_runtime_for_harness() -> Result<()> {
     let catalog = load_catalog()?;
     let entry = catalog

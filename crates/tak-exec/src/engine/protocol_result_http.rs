@@ -13,6 +13,8 @@ use crate::{
     remote_protocol_codec::parse_remote_result_outputs,
 };
 
+const REMOTE_RESULT_TIMEOUT: Duration = Duration::from_secs(10);
+
 pub(crate) async fn remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,
@@ -34,7 +36,7 @@ pub(crate) async fn try_remote_protocol_result(
 ) -> Result<Option<RemoteProtocolResult>> {
     let path = format!("/v1/tasks/{task_run_id}/result");
     let (status, response_body) =
-        remote_protocol_http_request(target, "GET", &path, None, "result", Duration::from_secs(1))
+        remote_protocol_http_request(target, "GET", &path, None, "result", REMOTE_RESULT_TIMEOUT)
             .await?;
     if status == 404 {
         return Ok(None);

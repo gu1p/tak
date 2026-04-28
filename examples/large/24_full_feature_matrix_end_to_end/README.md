@@ -14,7 +14,7 @@ SPEC = module_spec(
         rate_limit("start_rl", burst=5, refill_per_second=10, scope=Scope.Machine),
     ],
     queues=[queue_def("qa_priority", slots=1, discipline=QueueDiscipline.Priority, scope=Scope.Machine)],
-    defaults={"retry": retry(attempts=2, on_exit=[44], backoff=fixed(0))},
+    defaults=Defaults(retry=retry(attempts=2, on_exit=[44], backoff=fixed(0))),
     tasks=[
         task(
             "validate",

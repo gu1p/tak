@@ -32,7 +32,7 @@ pub(crate) fn build_task_run_result(
         remote_runtime_engine: outcome
             .remote_runtime_engine
             .or_else(|| runtime_metadata.and_then(|meta| meta.engine.clone())),
-        session_name: session.map(|session| session.name.clone()),
+        session_name: session.map(|session| session.display_name.clone()),
         session_reuse: session.map(|session| session.reuse.as_str().to_string()),
         remote_logs: outcome.remote_logs,
         synced_outputs: outcome.synced_outputs,

@@ -20,10 +20,6 @@ impl LiveTorRoots {
             state_root: base.join("state"),
         }
     }
-
-    pub fn service_log_path(&self) -> PathBuf {
-        self.state_root.join("service.log")
-    }
 }
 
 pub struct ChildGuard {
@@ -71,6 +67,8 @@ pub fn spawn_tor_agent(roots: &LiveTorRoots) -> ChildGuard {
         .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_SESSION_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")
+        .env("TAKD_TOR_RECOVERY_PROBE_TIMEOUT_MS", "300000")
+        .env("TAKD_TOR_RECOVERY_PROBE_BACKOFF_MS", "1000")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -91,7 +89,8 @@ pub fn wait_for_token(roots: &LiveTorRoots) -> String {
         ])
         .output()
         .expect("run takd token show --wait");
-    assert_success_with_log(&output, "takd token show --wait", &roots.service_log_path());
+    let log_path = roots.state_root.join("service.log");
+    assert_success_with_log(&output, "takd token show --wait", &log_path);
     String::from_utf8(output.stdout)
         .expect("token stdout utf8")
         .trim()

@@ -1,16 +1,19 @@
-use std::env;
 use std::path::Path;
 
 use anyhow::{Result, anyhow, bail};
 use tak_core::label::parse_label;
-use tak_core::model::{
-    LimiterDef, LimiterKey, LimiterRef, ModuleSpec, ResolvedTask, RetryDef, Scope,
-};
+use tak_core::model::{LimiterKey, ModuleSpec, ResolvedTask, RetryDef};
 
 use super::{
-    MergeState, context_resolution::resolve_current_state,
-    execution_policy_registry::resolve_task_execution, output_resolution::resolve_output_selectors,
-    remote_validation::validate_runtime, session_resolution::register_module_sessions,
+    MergeState,
+    context_resolution::resolve_current_state,
+    execution_policy_registry::resolve_task_execution,
+    output_resolution::resolve_output_selectors,
+    remote_validation::validate_runtime,
+    scope_keys::{
+        limiter_key_for_limiter, scope_key_for, scope_key_label, scope_label, with_scope_key,
+    },
+    session_resolution::register_reachable_sessions,
 };
 
 pub(crate) fn merge_module(
@@ -21,7 +24,15 @@ pub(crate) fn merge_module(
     module: ModuleSpec,
     state: &mut MergeState,
 ) -> Result<()> {
-    register_module_sessions(module_path, package, module.sessions, state)?;
+    register_reachable_sessions(
+        module_path,
+        package,
+        module.defaults.execution.as_ref(),
+        state,
+    )?;
+    for task in &module.tasks {
+        register_reachable_sessions(module_path, package, task.execution.as_ref(), state)?;
+    }
 
     for limiter in module.limiters {
         let key = limiter_key_for_limiter(&limiter, project_id, root);
@@ -64,7 +75,6 @@ pub(crate) fn merge_module(
     }
 
     for task in module.tasks {
-        let task_name = task.name.clone();
         let label = parse_label(&format!("{package}:{}", task.name), package)
             .map_err(|e| anyhow!("invalid task label in package {package}: {e}"))?;
 
@@ -109,10 +119,8 @@ pub(crate) fn merge_module(
         tags.extend(task.tags);
 
         let execution = resolve_task_execution(
-            &task_name,
             task.execution,
-            task.execution_policy,
-            module.defaults.execution_policy.as_deref(),
+            module.defaults.execution.clone(),
             state.default_execution_policy.as_deref(),
             package,
             state,
@@ -144,53 +152,4 @@ pub(crate) fn merge_module(
     }
 
     Ok(())
-}
-
-fn with_scope_key(reference: &LimiterRef, project_id: &str, root: &Path) -> LimiterRef {
-    LimiterRef {
-        name: reference.name.clone(),
-        scope: reference.scope.clone(),
-        scope_key: scope_key_for(&reference.scope, project_id, root),
-    }
-}
-
-fn limiter_key_for_limiter(limiter: &LimiterDef, project_id: &str, root: &Path) -> LimiterKey {
-    match limiter {
-        LimiterDef::Resource { name, scope, .. }
-        | LimiterDef::Lock { name, scope }
-        | LimiterDef::RateLimit { name, scope, .. }
-        | LimiterDef::ProcessCap { name, scope, .. } => LimiterKey {
-            scope: scope.clone(),
-            scope_key: scope_key_for(scope, project_id, root),
-            name: name.clone(),
-        },
-    }
-}
-
-fn scope_key_for(scope: &Scope, project_id: &str, root: &Path) -> Option<String> {
-    match scope {
-        Scope::Machine => None,
-        Scope::User => env::var("USER")
-            .or_else(|_| env::var("USERNAME"))
-            .ok()
-            .or(Some("unknown".to_string())),
-        Scope::Project => Some(project_id.to_string()),
-        Scope::Worktree => Some(root.to_string_lossy().into_owned()),
-    }
-}
-
-fn scope_label(scope: &Scope) -> &'static str {
-    match scope {
-        Scope::Machine => "machine",
-        Scope::User => "user",
-        Scope::Project => "project",
-        Scope::Worktree => "worktree",
-    }
-}
-
-fn scope_key_label(scope_key: &Option<String>) -> String {
-    scope_key
-        .as_deref()
-        .map(|value| format!("scope_key={value}"))
-        .unwrap_or_else(|| "scope_key=(none)".to_string())
 }

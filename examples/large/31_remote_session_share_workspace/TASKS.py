@@ -18,7 +18,6 @@ WORKSPACE_SESSION = session(
 
 SPEC = module_spec(
     project_id="example_large_31",
-    sessions=[WORKSPACE_SESSION],
     tasks=[
         task(
             "prepare_workspace",
@@ -29,7 +28,7 @@ SPEC = module_spec(
                     "mkdir -p .session && printf 'prepared\\n' > .session/state.txt",
                 )
             ],
-            execution=Execution.Session("workspace-state"),
+            execution=Execution.Session(WORKSPACE_SESSION),
         ),
         task(
             "verify_workspace",
@@ -44,7 +43,7 @@ SPEC = module_spec(
                     "printf 'workspace-state-reused\\n' > out/workspace-session.txt",
                 )
             ],
-            execution=Execution.Session("workspace-state"),
+            execution=Execution.Session(WORKSPACE_SESSION),
         ),
     ],
 )

@@ -34,7 +34,7 @@ fn global_config_default_execution_policy_applies_to_tasks_without_repo_default(
     assert_policy_remote_pool(&spec, "global");
 }
 #[test]
-fn repo_policy_definition_overrides_global_policy_with_same_name() {
+fn repo_default_execution_object_overrides_global_default_policy() {
     let _lock = ENV_LOCK.get_or_init(|| Mutex::new(())).lock();
     let temp = tempfile::tempdir().expect("tempdir");
     let _env = EnvGuard::set_xdg_config_home(&temp.path().join("config"));
@@ -42,8 +42,8 @@ fn repo_policy_definition_overrides_global_policy_with_same_name() {
     write_tasks(
         temp.path(),
         r#"RUNTIME = Runtime.Image("alpine:3.20")
-POLICY = execution_policy("default", [Execution.Remote(pool="repo", runtime=RUNTIME)])
-SPEC = module_spec(execution_policies=[POLICY], tasks=[task("check", steps=[cmd("true")])])
+POLICY = execution_policy(placements=[Execution.Remote(pool="repo", runtime=RUNTIME)])
+SPEC = module_spec(defaults=Defaults(execution=POLICY), tasks=[task("check", steps=[cmd("true")])])
 SPEC
 "#,
     );
@@ -83,8 +83,7 @@ runtime = {{ kind = "containerized", image = "alpine:3.20" }}
 fn assert_policy_remote_pool(spec: &tak_core::model::WorkspaceSpec, expected_pool: &str) {
     let task = spec.tasks.values().next().expect("task");
     match &task.execution {
-        TaskExecutionSpec::ByExecutionPolicy { name, placements } => {
-            assert_eq!(name, "default");
+        TaskExecutionSpec::ByExecutionPolicy { placements, .. } => {
             match placements.first().expect("placement") {
                 ExecutionPlacementSpec::Remote(remote) => {
                     assert_eq!(remote.pool.as_deref(), Some(expected_pool));

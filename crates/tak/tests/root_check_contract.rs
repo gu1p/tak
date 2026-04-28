@@ -25,11 +25,15 @@ fn repo_root_check_runs_light_checks_then_shared_rust_lane() -> Result<()> {
         task.steps.is_empty(),
         "//:check should be an aggregate task"
     );
-    assert!(spec.sessions.contains_key("check-workspace"));
     match &task.execution {
         TaskExecutionSpec::UseSession { name, cascade } => {
-            assert_eq!(name, "check-workspace");
+            let session = spec.sessions.get(name).expect("check session");
+            assert_eq!(session.display_name, "check-workspace");
             assert!(*cascade, "//:check should cascade its shared session");
+            assert!(matches!(
+                session.execution,
+                TaskExecutionSpec::ByExecutionPolicy { .. }
+            ));
         }
         other => panic!("//:check should use check-workspace session: {other:?}"),
     }

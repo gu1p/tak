@@ -23,7 +23,7 @@ SPEC
         r#"POLICY_CONTEXT = PolicyContext(local_cpu_percent=92.5)
 def choose_remote(ctx):
   return Decision.remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), reason=Reason.LOCAL_CPU_HIGH)
-SPEC = module_spec(project_id="proj-alpha", limiters=[resource("cpu", capacity=4, scope=Scope.Project)], queues=[queue_def("deploy", slots=2, scope=Scope.Project)], defaults={"queue": queue_use("deploy", scope=Scope.Project), "retry": retry(attempts=3, backoff=fixed(0)), "tags": ["default-tag"]}, tasks=[task("deploy", steps=[cmd("echo", "ok")], needs=[need("cpu", scope=Scope.Project)], context=CurrentState(roots=[path("//shared"), path("src")], ignored=[gitignore(), path("build")], include=[path("config/settings.json")]), execution=Execution.Policy(choose_remote), tags=["release"])])
+SPEC = module_spec(project_id="proj-alpha", limiters=[resource("cpu", capacity=4, scope=Scope.Project)], queues=[queue_def("deploy", slots=2, scope=Scope.Project)], defaults=Defaults(queue=queue_use("deploy", scope=Scope.Project), retry=retry(attempts=3, backoff=fixed(0)), tags=["default-tag"]), tasks=[task("deploy", steps=[cmd("echo", "ok")], needs=[need("cpu", scope=Scope.Project)], context=CurrentState(roots=[path("//shared"), path("src")], ignored=[gitignore(), path("build")], include=[path("config/settings.json")]), execution=Execution.Decide(choose_remote), tags=["release"])])
 SPEC
 "#,
     )

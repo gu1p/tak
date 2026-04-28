@@ -131,6 +131,13 @@ impl<'a> AuthoredDslBoundary<'a> {
             return false;
         };
         let Some(replacement) = replacement(member_name) else {
+            if namespace == "Execution" && member_name == "Policy" {
+                self.reject(
+                    callee.range(),
+                    "`Execution.Policy(...)` is unsupported; use `Execution.Decide(...)`.",
+                );
+                return true;
+            }
             self.reject(
                 callee.range(),
                 format!("`{namespace}.{member_name}(...)` is unsupported."),

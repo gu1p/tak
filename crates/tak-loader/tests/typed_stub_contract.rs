@@ -66,11 +66,11 @@ spec: ModuleSpec = module_spec(
     lock("ui_lock", scope=Scope.Machine),
   ],
   queues=[queue_def("qa", slots=1, discipline=QueueDiscipline.Fifo, scope=Scope.Machine)],
-  defaults={
-    "retry": default_retry,
-    "tags": ["default-tag"],
-    "container_runtime": default_runtime,
-  },
+  defaults=Defaults(
+    retry=default_retry,
+    tags=["default-tag"],
+    container_runtime=default_runtime,
+  ),
 )
 SPEC = spec
 SPEC

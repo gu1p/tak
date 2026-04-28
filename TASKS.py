@@ -67,9 +67,14 @@ CHECK_RUNTIME = Runtime.Dockerfile(
     build_context=path("docker/tak-tests"),
 )
 
+CHECK_WORKSPACE_POLICY = execution_policy(
+    placements=[Execution.Local(runtime=CHECK_RUNTIME)],
+    doc="Run check tasks inside the shared repo test workspace container.",
+)
+
 CHECK_SESSION = session(
     "check-workspace",
-    execution=Execution.Local(runtime=CHECK_RUNTIME),
+    execution=CHECK_WORKSPACE_POLICY,
     reuse=SessionReuse.Workspace(),
     context=CHECK_CONTEXT,
 )
@@ -156,10 +161,7 @@ PACKAGE_RELEASE_AARCH64_APPLE_DARWIN = release_package_task(
 
 SPEC = module_spec(
     project_id="tak",
-    defaults={
-        "container_runtime": CHECK_RUNTIME,
-    },
-    sessions=[CHECK_SESSION],
+    defaults=Defaults(container_runtime=CHECK_RUNTIME),
     tasks=[
         task("fmt-check", steps=FMT_CHECK_STEPS),
         task("line-limits-check", steps=LINE_LIMITS_CHECK_STEPS),
@@ -217,7 +219,7 @@ SPEC = module_spec(
                 ":generated-artifact-ignore-check",
                 ":check-rust",
             ],
-            execution=Execution.Session("check-workspace", cascade=True),
+            execution=Execution.Session(CHECK_SESSION, cascade=True),
         ),
     ],
 )

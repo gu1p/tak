@@ -21,10 +21,9 @@ fn share_workspace_preserves_session_files_without_syncing_them_back() -> Result
 SESSION = session("rust", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
-    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo cached > .session/build.txt")], execution=Execution.Session("rust")),
-    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/result.txt")], execution=Execution.Session("rust")),
+    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo cached > .session/build.txt")], execution=Execution.Session(SESSION)),
+    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/result.txt")], execution=Execution.Session(SESSION)),
   ],
 )
 SPEC
@@ -59,10 +58,9 @@ fn remote_share_workspace_preserves_files_between_session_tasks() -> Result<()> 
 SESSION = session("remote-rust", execution=REMOTE, reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
-    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo remote-cached > .session/build.txt")], execution=Execution.Session("remote-rust")),
-    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/remote-result.txt")], execution=Execution.Session("remote-rust")),
+    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo remote-cached > .session/build.txt")], execution=Execution.Session(SESSION)),
+    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/remote-result.txt")], execution=Execution.Session(SESSION)),
   ],
 )
 SPEC

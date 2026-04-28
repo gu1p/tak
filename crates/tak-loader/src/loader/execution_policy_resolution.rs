@@ -11,11 +11,38 @@ pub(crate) fn resolve_execution_policy(
     package: &str,
 ) -> Result<ExecutionPolicySpec> {
     let name = normalize_execution_policy_name(&policy.name)?;
-    if policy.placements.is_empty() {
+    resolve_execution_policy_parts(name, policy.placements, policy.doc, package)
+}
+
+pub(crate) fn resolve_inline_execution_policy(
+    id: String,
+    diagnostic_name: Option<String>,
+    placements: Vec<TaskExecutionDef>,
+    doc: String,
+    package: &str,
+) -> Result<TaskExecutionSpec> {
+    let id = normalize_execution_policy_name(&id)?;
+    let name = diagnostic_name
+        .map(|name| normalize_execution_policy_name(&name))
+        .transpose()?
+        .unwrap_or(id);
+    let policy = resolve_execution_policy_parts(name.clone(), placements, doc, package)?;
+    Ok(TaskExecutionSpec::ByExecutionPolicy {
+        name,
+        placements: policy.placements,
+    })
+}
+
+fn resolve_execution_policy_parts(
+    name: String,
+    placements: Vec<TaskExecutionDef>,
+    doc: String,
+    package: &str,
+) -> Result<ExecutionPolicySpec> {
+    if placements.is_empty() {
         bail!("execution_policy `{name}` requires at least one placement");
     }
-    let placements = policy
-        .placements
+    let placements = placements
         .into_iter()
         .map(|placement| resolve_policy_placement(&name, placement, package))
         .collect::<Result<Vec<_>>>()?;
@@ -23,7 +50,7 @@ pub(crate) fn resolve_execution_policy(
     Ok(ExecutionPolicySpec {
         name,
         placements,
-        doc: policy.doc,
+        doc,
     })
 }
 
@@ -58,7 +85,7 @@ fn resolve_policy_placement(
         TaskExecutionSpec::LocalOnly(local) => Ok(ExecutionPlacementSpec::Local(local)),
         TaskExecutionSpec::RemoteOnly(remote) => Ok(ExecutionPlacementSpec::Remote(remote)),
         TaskExecutionSpec::ByCustomPolicy { .. } => {
-            bail!("execution_policy `{policy_name}` placements cannot use Execution.Policy")
+            bail!("execution_policy `{policy_name}` placements cannot use Execution.Decide")
         }
         TaskExecutionSpec::UseSession { .. } => {
             bail!("execution_policy `{policy_name}` placements cannot use Execution.Session")

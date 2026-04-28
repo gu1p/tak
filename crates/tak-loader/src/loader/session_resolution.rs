@@ -3,69 +3,82 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 use tak_core::model::{
-    CurrentStateSpec, ExecutionPlacementSpec, ExecutionPolicySpec, RemoteRuntimeSpec, ResolvedTask,
-    SessionDef, SessionLifetimeSpec, SessionReuseDef, SessionReuseSpec, SessionSpec,
-    SessionUseSpec, TaskExecutionSpec, TaskLabel,
+    CurrentStateSpec, ResolvedTask, SessionDef, SessionLifetimeSpec, SessionReuseDef,
+    SessionReuseSpec, SessionSpec, SessionUseSpec, TaskExecutionDef, TaskExecutionSpec, TaskLabel,
 };
 
 use super::{
-    MergeState, context_resolution::resolve_current_state,
-    execution_policy_resolution::resolve_execution_policy_reference,
-    execution_resolution::resolve_execution, output_resolution::resolve_output_selectors,
+    MergeState,
+    context_resolution::resolve_current_state,
+    execution_resolution::{resolve_execution, scoped_session_name},
+    output_resolution::resolve_output_selectors,
+    session_validation::{validate_implicit_session_context, validate_session_execution},
 };
 
-pub(crate) fn register_module_sessions(
+pub(crate) fn register_reachable_sessions(
     module_path: &Path,
     package: &str,
-    sessions: Vec<SessionDef>,
+    execution: Option<&TaskExecutionDef>,
     state: &mut MergeState,
 ) -> Result<()> {
-    for session in sessions {
-        let resolved = resolve_session(session, package, &state.execution_policies)?;
-        if let Some(previous) = state.session_origins.get(&resolved.name) {
-            bail!(
-                "duplicate session definition: {}\nfirst defined in {}\nconflicts with {}",
-                resolved.name,
-                previous.display(),
-                module_path.display()
-            );
-        }
-        state
-            .session_origins
-            .insert(resolved.name.clone(), module_path.to_path_buf());
-        state.sessions.insert(resolved.name.clone(), resolved);
+    let Some(execution) = execution else {
+        return Ok(());
+    };
+    register_sessions_in_execution(module_path, package, execution, state)
+}
+
+fn register_sessions_in_execution(
+    module_path: &Path,
+    package: &str,
+    execution: &TaskExecutionDef,
+    state: &mut MergeState,
+) -> Result<()> {
+    let TaskExecutionDef::UseSession {
+        session: Some(session),
+        ..
+    } = execution
+    else {
+        return Ok(());
+    };
+    register_session(module_path, package, session.as_ref().clone(), state)
+}
+
+fn register_session(
+    module_path: &Path,
+    package: &str,
+    session: SessionDef,
+    state: &mut MergeState,
+) -> Result<()> {
+    let name = scoped_session_name(session.id.trim(), package);
+    if state.sessions.contains_key(&name) {
+        return Ok(());
     }
+    let resolved = resolve_session(session, package)?;
+    state
+        .session_origins
+        .insert(resolved.name.clone(), module_path.to_path_buf());
+    state.sessions.insert(resolved.name.clone(), resolved);
     Ok(())
 }
 
-pub(crate) fn resolve_session(
-    session: SessionDef,
-    package: &str,
-    policies: &BTreeMap<String, ExecutionPolicySpec>,
-) -> Result<SessionSpec> {
-    let name = session.name.trim().to_string();
+pub(crate) fn resolve_session(session: SessionDef, package: &str) -> Result<SessionSpec> {
+    let raw_id = session.id.trim().to_string();
+    let name = scoped_session_name(&raw_id, package);
     if name.is_empty() {
-        bail!("session.name cannot be empty");
+        bail!("session.id cannot be empty");
     }
+    let label = session.name.unwrap_or_else(|| name.clone());
     if session.lifetime.trim() != "per_run" {
         bail!(
             "session `{}` lifetime `{}` is unsupported; expected SessionLifetime.PerRun",
-            name,
+            label,
             session.lifetime
         );
     }
 
-    if session.execution.is_some() && session.execution_policy.is_some() {
-        bail!("session `{name}` cannot set both execution and execution_policy");
-    }
-    let execution = match (session.execution, session.execution_policy) {
-        (Some(execution), None) => resolve_execution(execution, package)?,
-        (None, Some(policy_name)) => resolve_execution_policy_reference(&policy_name, policies)?,
-        (None, None) => bail!("session `{name}` requires execution or execution_policy"),
-        (Some(_), Some(_)) => unreachable!("mixed session execution rejected above"),
-    };
-    validate_session_execution(&name, &execution)?;
-    let reuse = resolve_session_reuse(&name, session.reuse, package)?;
+    let execution = resolve_execution(session.execution, package)?;
+    validate_session_execution(&label, &execution)?;
+    let reuse = resolve_session_reuse(&label, session.reuse, package)?;
     let context = session
         .context
         .map(|context| resolve_current_state(Some(context), package))
@@ -73,6 +86,7 @@ pub(crate) fn resolve_session(
 
     Ok(SessionSpec {
         name,
+        display_name: label,
         execution,
         reuse,
         lifetime: SessionLifetimeSpec::PerRun,
@@ -89,67 +103,21 @@ pub(crate) fn bind_task_sessions(
         let TaskExecutionSpec::UseSession { name, .. } = &task.execution else {
             continue;
         };
-        let session = sessions.get(name).ok_or_else(|| {
+        let session = sessions.get(name.as_str()).ok_or_else(|| {
             anyhow::anyhow!("Execution.Session references unknown session `{name}`")
         })?;
         if session.context.is_none() {
-            validate_implicit_session_context(&mut contexts, name, label, &task.context)?;
+            validate_implicit_session_context(&mut contexts, name.as_str(), label, &task.context)?;
         }
         task.session = Some(SessionUseSpec {
             name: name.clone(),
+            display_name: session.display_name.clone(),
             execution: session.execution.clone(),
             reuse: session.reuse.clone(),
             context: session.context.clone(),
         });
     }
     Ok(())
-}
-
-fn validate_session_execution(name: &str, execution: &TaskExecutionSpec) -> Result<()> {
-    match execution {
-        TaskExecutionSpec::LocalOnly(local) => {
-            validate_session_runtime(name, local.runtime.as_ref())
-        }
-        TaskExecutionSpec::RemoteOnly(remote) => {
-            validate_session_runtime(name, remote.runtime.as_ref())
-        }
-        TaskExecutionSpec::ByCustomPolicy { .. } => {
-            bail!("session `{name}` execution cannot use ByCustomPolicy in v1")
-        }
-        TaskExecutionSpec::ByExecutionPolicy {
-            name: policy_name,
-            placements,
-        } => validate_session_policy_execution(name, policy_name, placements),
-        TaskExecutionSpec::UseSession { .. } => {
-            bail!("session `{name}` execution cannot use UseSession")
-        }
-    }
-}
-
-fn validate_session_policy_execution(
-    name: &str,
-    policy_name: &str,
-    placements: &[ExecutionPlacementSpec],
-) -> Result<()> {
-    for placement in placements {
-        let runtime = match placement {
-            ExecutionPlacementSpec::Local(local) => local.runtime.as_ref(),
-            ExecutionPlacementSpec::Remote(remote) => remote.runtime.as_ref(),
-        };
-        if runtime.is_none() {
-            bail!(
-                "session `{name}` execution_policy `{policy_name}` requires every placement to use a containerized runtime"
-            );
-        }
-    }
-    Ok(())
-}
-
-fn validate_session_runtime(name: &str, runtime: Option<&RemoteRuntimeSpec>) -> Result<()> {
-    if runtime.is_some() {
-        return Ok(());
-    }
-    bail!("session `{name}` execution requires a containerized runtime")
 }
 
 fn resolve_session_reuse(
@@ -168,22 +136,4 @@ fn resolve_session_reuse(
             })
         }
     }
-}
-
-fn validate_implicit_session_context(
-    contexts: &mut BTreeMap<String, CurrentStateSpec>,
-    session_name: &str,
-    label: &TaskLabel,
-    context: &CurrentStateSpec,
-) -> Result<()> {
-    let Some(previous) = contexts.get(session_name) else {
-        contexts.insert(session_name.to_string(), context.clone());
-        return Ok(());
-    };
-    if previous == context {
-        return Ok(());
-    }
-    bail!(
-        "session `{session_name}` has no context; task {label} does not match the first CurrentState used by the session"
-    )
 }

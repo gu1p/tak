@@ -18,7 +18,7 @@ fn run_command_prefers_task_runtime_over_workspace_default_when_infering_contain
         r#"LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
 
 SPEC = module_spec(
-  defaults={"container_runtime": Runtime.Image("alpine:3.20")},
+  defaults=Defaults(container_runtime=Runtime.Image("alpine:3.20")),
   tasks=[task(
     "check",
     steps=[cmd(

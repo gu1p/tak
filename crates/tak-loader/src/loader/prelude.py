@@ -11,6 +11,19 @@ _QueueDiscipline_Priority = "priority"
 
 _SessionLifetime_PerRun = "per_run"
 
+_TAK_NEXT_POLICY_ID = 0
+_TAK_NEXT_SESSION_ID = 0
+
+def _next_policy_id():
+    global _TAK_NEXT_POLICY_ID
+    _TAK_NEXT_POLICY_ID = _TAK_NEXT_POLICY_ID + 1
+    return "__tak_policy_" + str(_TAK_NEXT_POLICY_ID)
+
+def _next_session_id():
+    global _TAK_NEXT_SESSION_ID
+    _TAK_NEXT_SESSION_ID = _TAK_NEXT_SESSION_ID + 1
+    return "__tak_session_" + str(_TAK_NEXT_SESSION_ID)
+
 def _or_empty_list(value):
     return value if value is not None else []
 
@@ -35,16 +48,34 @@ def _normalize_deps(value):
         return [_dep_to_label(item) for item in value]
     return [_dep_to_label(value)]
 
+def _is_defaults_value(value):
+    return isinstance(value, dict) and value.get("__tak_kind") == "defaults"
+
+def Defaults(container_runtime=None, execution=None, retry=None, queue=None, tags=None):
+    """Build typed module-level defaults for tasks in this TASKS.py file."""
+    return {
+        "__tak_kind": "defaults",
+        "queue": queue,
+        "retry": retry,
+        "container_runtime": container_runtime,
+        "execution": execution,
+        "tags": _or_empty_list(tags),
+    }
+
 def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None, sessions=None, execution_policies=None):
     """Declare the module boundary that Tak loads from one TASKS.py file."""
+    if sessions is not None:
+        raise TypeError("module_spec(sessions=...) was removed; pass session objects through Execution.Session(session_obj)")
+    if execution_policies is not None:
+        raise TypeError("module_spec(execution_policies=...) was removed; pass execution_policy objects through execution=policy_obj")
+    if defaults is not None and not _is_defaults_value(defaults):
+        raise TypeError("module_spec(defaults=...) expects Defaults(...)")
     return {
         "spec_version": 1,
         "project_id": project_id,
         "tasks": tasks,
-        "sessions": _or_empty_list(sessions),
         "limiters": _or_empty_list(limiters),
         "queues": _or_empty_list(queues),
-        "execution_policies": _or_empty_list(execution_policies),
         "exclude": _or_empty_list(exclude),
         "includes": _or_empty_list(includes),
         "defaults": defaults if defaults is not None else {},
@@ -271,21 +302,18 @@ def _compile_policy_decision(policy, context):
 
     raise TypeError("unsupported policy decision mode: " + str(mode))
 
-def Execution_Policy(policy):
-    """Resolve task placement from a named or inline custom policy."""
+def Execution_Decide(policy):
+    """Resolve task placement from an inline custom policy decision callable."""
     if not isinstance(POLICY_CONTEXT, dict):
         raise TypeError("POLICY_CONTEXT must be PolicyContext(...)")
+    if isinstance(policy, str):
+        raise TypeError("Execution.Decide(...) expects a callable policy, not a string")
 
-    if not isinstance(policy, str):
-        decision = _compile_policy_decision(policy, POLICY_CONTEXT)
-        return {
-            "kind": "by_custom_policy",
-            "policy_name": str(policy),
-            "decision": decision,
-        }
+    decision = _compile_policy_decision(policy, POLICY_CONTEXT)
     return {
         "kind": "by_custom_policy",
         "policy_name": str(policy),
+        "decision": decision,
     }
 
 def SessionReuse_Workspace():
@@ -301,33 +329,49 @@ def SessionReuse_Paths(paths):
         "paths": _or_empty_list(paths),
     }
 
-def execution_policy(name, placements, doc=None):
-    """Declare an ordered named execution policy for local and remote placements."""
+def execution_policy(placements, doc=None, name=None):
+    """Declare an ordered execution policy for local and remote placements."""
     return {
-        "name": str(name),
+        "kind": "by_execution_policy",
+        "id": _next_policy_id(),
+        "name": str(name) if name is not None else None,
         "placements": _or_empty_list(placements),
         "doc": doc if doc is not None else "",
     }
 
-def session(name, execution=None, reuse=None, lifetime=_SessionLifetime_PerRun, context=None, execution_policy=None):
-    """Declare a named per-run execution session for containerized task chains."""
-    if execution is not None and execution_policy is not None:
-        raise TypeError("session `" + str(name) + "` cannot set both execution and execution_policy")
+def session(name=None, execution=None, reuse=None, lifetime=_SessionLifetime_PerRun, context=None, execution_policy=None):
+    """Declare a per-run execution session for containerized task chains."""
+    if execution_policy is not None:
+        label = str(name) if name is not None else "<unnamed>"
+        raise TypeError("session `" + label + "` uses removed execution_policy; pass execution=policy_object")
+    if execution is None:
+        label = str(name) if name is not None else "<unnamed>"
+        raise TypeError("session `" + label + "` requires execution")
     return {
-        "name": str(name),
+        "id": _next_session_id(),
+        "name": str(name) if name is not None else None,
         "execution": execution,
-        "execution_policy": execution_policy,
         "reuse": reuse,
         "lifetime": lifetime,
         "context": context,
     }
 
-def Execution_Session(name, cascade=False):
-    """Run a task in a named session, optionally cascading it to dependencies."""
+_SESSION_OBJECT_KEYS = ("id", "name", "execution", "reuse", "lifetime", "context")
+
+def _is_session_object(value):
+    return isinstance(value, dict) and all(key in value for key in _SESSION_OBJECT_KEYS)
+
+def Execution_Session(session, cascade=False):
+    """Run a task in a session object, optionally cascading it to dependencies."""
+    if isinstance(session, str):
+        raise TypeError("Execution.Session(...) expects a session(...) object, not a string")
+    if not _is_session_object(session):
+        raise TypeError("Execution.Session(...) expects a session(...) object")
     return {
         "kind": "use_session",
-        "name": str(name),
+        "name": str(session.get("id")),
         "cascade": bool(cascade),
+        "session": session,
     }
 
 def path(value):
@@ -360,8 +404,8 @@ def CurrentState(roots=None, ignored=None, include=None):
 
 def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, execution_policy=None, tags=None, doc=None):
     """Declare one task, including its steps, dependencies, execution policy, and outputs."""
-    if execution is not None and execution_policy is not None:
-        raise TypeError("task `" + str(name) + "` cannot set both execution and execution_policy")
+    if execution_policy is not None:
+        raise TypeError("task `" + str(name) + "` uses removed execution_policy; pass execution=policy_object")
     return {
         "name": name,
         "deps": _normalize_deps(deps),
@@ -373,7 +417,6 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         "context": context,
         "outputs": _or_empty_list(outputs),
         "execution": execution,
-        "execution_policy": execution_policy,
         "tags": _or_empty_list(tags),
         "doc": doc if doc is not None else "",
     }

@@ -5,7 +5,7 @@ use anyhow::Result;
 use crate::support::{run_tak_expect_failure, run_tak_expect_success, write_tasks};
 
 #[test]
-fn use_session_rejects_missing_session_name() -> Result<()> {
+fn use_session_rejects_removed_string_session_name() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let workspace = temp.path().join("workspace");
     write_tasks(
@@ -19,7 +19,7 @@ SPEC
     let (_stdout, stderr) = run_tak_expect_failure(&workspace, &["run", "check"], &env)?;
 
     assert!(
-        stderr.contains("Execution.Session references unknown session `missing`"),
+        stderr.contains("Execution.Session(...) expects a session(...) object, not a string"),
         "stderr:\n{stderr}"
     );
     Ok(())

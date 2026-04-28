@@ -32,10 +32,20 @@ pub enum TaskExecutionDef {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         decision: Option<Box<PolicyDecisionDef>>,
     },
+    ByExecutionPolicy {
+        id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        placements: Vec<TaskExecutionDef>,
+        #[serde(default)]
+        doc: String,
+    },
     UseSession {
         name: String,
         #[serde(default, skip_serializing_if = "is_false")]
         cascade: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        session: Option<Box<SessionDef>>,
     },
 }
 

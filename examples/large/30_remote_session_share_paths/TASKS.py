@@ -18,7 +18,6 @@ CARGO_SESSION = session(
 
 SPEC = module_spec(
     project_id="example_large_30",
-    sessions=[CARGO_SESSION],
     tasks=[
         task(
             "cargo_build",
@@ -32,7 +31,7 @@ SPEC = module_spec(
                     "printf 'build-complete\\n' > out/build-marker.txt",
                 )
             ],
-            execution=Execution.Session("cargo-cache"),
+            execution=Execution.Session(CARGO_SESSION),
         ),
         task(
             "cargo_test",
@@ -47,7 +46,7 @@ SPEC = module_spec(
                     "printf 'reused-target-cache\\n' > out/test-marker.txt",
                 )
             ],
-            execution=Execution.Session("cargo-cache"),
+            execution=Execution.Session(CARGO_SESSION),
         ),
     ],
 )

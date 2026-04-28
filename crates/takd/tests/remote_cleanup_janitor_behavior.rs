@@ -38,7 +38,7 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         temp.path(),
         FakeDockerConfig {
             visible_roots: vec![exec_root.clone()],
-            wait_response_delay: Duration::from_secs(5),
+            wait_response_delay: Duration::from_secs(30),
             ..Default::default()
         },
     );
@@ -55,7 +55,7 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         context.clone(),
     ));
 
-    let submit_ack = submit_shell_task(&context, &store, "active-job", "sleep 5");
+    let submit_ack = submit_shell_task(&context, &store, "active-job", "sleep 30");
     assert!(submit_ack.accepted);
 
     let active_key = build_submit_idempotency_key("active-job", Some(1)).expect("active key");

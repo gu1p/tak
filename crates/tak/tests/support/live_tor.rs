@@ -51,7 +51,9 @@ pub fn spawn_tor_agent_with_env(
     command
         .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_SESSION_TIMEOUT_MS", "300000")
-        .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000");
+        .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")
+        .env("TAKD_TOR_RECOVERY_PROBE_TIMEOUT_MS", "300000")
+        .env("TAKD_TOR_RECOVERY_PROBE_BACKOFF_MS", "1000");
     for (key, value) in extra_env {
         command.env(key, value);
     }

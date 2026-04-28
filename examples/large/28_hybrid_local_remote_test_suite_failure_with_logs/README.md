@@ -47,7 +47,7 @@ SPEC
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
 | remote task exit behavior | `exit 3` | `exit 0` or retried failure codes | Controls fail-fast behavior and whether pipeline ends as failure. |
-| execution mode | `REMOTE` | `Execution.Policy(...)` | Allows dynamic fallback when remote is unavailable. |
+| execution mode | `REMOTE` | `Execution.Decide(...)` | Allows dynamic fallback when remote is unavailable. |
 | run strategy | default fail-fast | `tak run ... --keep-going` | Continue running independent targets after failures. |
 
 ## Runbook

@@ -21,7 +21,6 @@ SESSION = session(
 )
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
     task("host", steps=[cmd("true")], execution=Execution.Local()),
     task("explicit_host", steps=[cmd("true")], execution=Execution.Local(runtime=Runtime.Host())),
@@ -31,7 +30,7 @@ SPEC = module_spec(
       transport=Transport.DirectHttps(),
       runtime=IMAGE_RUNTIME,
     )),
-    task("session_user", steps=[cmd("true")], execution=Execution.Session("container-check")),
+    task("session_user", steps=[cmd("true")], execution=Execution.Session(SESSION)),
   ],
 )
 SPEC
@@ -53,7 +52,12 @@ SPEC
         }
         other => panic!("expected remote execution, got {other:?}"),
     }
-    assert!(spec.sessions.contains_key("container-check"));
+    assert_eq!(spec.sessions.len(), 1);
+    let session = spec.sessions.keys().next().expect("session key");
+    assert!(
+        session.starts_with("__tak_session_"),
+        "session key should be internal: {session}"
+    );
 }
 
 fn assert_local_runtime(

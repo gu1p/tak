@@ -4,6 +4,7 @@ use tak_core::model::{
     RemoteSelectionDef, RemoteSelectionSpec, RemoteSpec, TaskExecutionDef, TaskExecutionSpec,
 };
 
+use super::execution_policy_resolution::resolve_inline_execution_policy;
 use super::remote_validation::{
     validate_local_runtime, validate_remote_transport, validate_runtime,
 };
@@ -47,14 +48,30 @@ pub(crate) fn resolve_execution(
                 decision,
             })
         }
-        TaskExecutionDef::UseSession { name, cascade } => {
+        TaskExecutionDef::ByExecutionPolicy {
+            id,
+            name,
+            placements,
+            doc,
+        } => resolve_inline_execution_policy(id, name, placements, doc, package),
+        TaskExecutionDef::UseSession { name, cascade, .. } => {
             let name = name.trim().to_string();
             if name.is_empty() {
                 bail!("execution UseSession.name cannot be empty");
             }
-            Ok(TaskExecutionSpec::UseSession { name, cascade })
+            Ok(TaskExecutionSpec::UseSession {
+                name: scoped_session_name(&name, package),
+                cascade,
+            })
         }
     }
+}
+
+pub(crate) fn scoped_session_name(name: &str, package: &str) -> String {
+    if !name.starts_with("__tak_session_") || package == "//" {
+        return name.to_string();
+    }
+    format!("{package}:{name}")
 }
 
 /// Resolves a policy-produced execution decision into strict runtime form.

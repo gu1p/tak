@@ -2,7 +2,7 @@ pub(super) fn execution_method_replacement(name: &str) -> Option<&'static str> {
     match name {
         "Local" => Some("Execution_Local"),
         "Remote" => Some("Execution_Remote"),
-        "Policy" => Some("Execution_Policy"),
+        "Decide" => Some("Execution_Decide"),
         "Session" => Some("Execution_Session"),
         _ => None,
     }

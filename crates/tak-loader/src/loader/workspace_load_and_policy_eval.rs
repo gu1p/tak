@@ -12,9 +12,7 @@ use tak_core::model::{
 use super::{
     LoadOptions, MergeState, PRELUDE,
     authored_source::{prepare_authored_source, runtime_input_names, runtime_inputs},
-    execution_policy_registry::{
-        register_global_execution_policies, register_module_execution_policies,
-    },
+    execution_policy_registry::register_global_execution_policies,
     execution_resolution::resolve_policy_decision,
     global_config::load_global_execution_config,
     module_merge::merge_module,
@@ -46,15 +44,6 @@ pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpe
 
     let mut state = MergeState::default();
     register_global_execution_policies(load_global_execution_config()?, &mut state)?;
-
-    for (module_path, package, module) in &modules {
-        register_module_execution_policies(
-            module_path,
-            package,
-            &module.execution_policies,
-            &mut state,
-        )?;
-    }
 
     for (module_path, package, module) in modules {
         merge_module(

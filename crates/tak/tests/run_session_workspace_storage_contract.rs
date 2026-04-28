@@ -15,9 +15,8 @@ fn local_session_workspace_prefers_workspace_tmp_directory() -> Result<()> {
 SESSION = session("rust", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
-  sessions=[SESSION],
   tasks=[
-    task("capture", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && pwd > out/session-root.txt")], execution=Execution.Session("rust")),
+    task("capture", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && pwd > out/session-root.txt")], execution=Execution.Session(SESSION)),
   ],
 )
 SPEC

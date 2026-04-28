@@ -15,10 +15,9 @@ SESSION_A = session("a", execution=Execution.Local(runtime=RUNTIME), reuse=Sessi
 SESSION_B = session("b", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
-  sessions=[SESSION_A, SESSION_B],
   tasks=[
-    task("child", steps=[cmd("true")], execution=Execution.Session("b")),
-    task("check", deps=[":child"], execution=Execution.Session("a", cascade=True)),
+    task("child", steps=[cmd("true")], execution=Execution.Session(SESSION_B)),
+    task("check", deps=[":child"], execution=Execution.Session(SESSION_A, cascade=True)),
   ],
 )
 SPEC

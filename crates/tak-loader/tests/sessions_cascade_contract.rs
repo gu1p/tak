@@ -14,9 +14,9 @@ fn loader_preserves_use_session_cascade_flag() {
     write_tasks(
         temp.path(),
         r#"RUNTIME = Runtime.Image("alpine:3.20")
+SESSION = session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 SPEC = module_spec(
-  sessions=[session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())],
-  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("cargo", cascade=True))],
+  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session(SESSION, cascade=True))],
 )
 SPEC
 "#,
@@ -27,7 +27,7 @@ SPEC
 
     match &task.execution {
         TaskExecutionSpec::UseSession { name, cascade } => {
-            assert_eq!(name, "cargo");
+            assert!(name.starts_with("__tak_session_"), "session name: {name}");
             assert!(*cascade);
         }
         other => panic!("unexpected execution: {other:?}"),
@@ -40,9 +40,9 @@ fn loader_defaults_use_session_cascade_to_false() {
     write_tasks(
         temp.path(),
         r#"RUNTIME = Runtime.Image("alpine:3.20")
+SESSION = session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
 SPEC = module_spec(
-  sessions=[session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())],
-  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("cargo"))],
+  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session(SESSION))],
 )
 SPEC
 "#,
@@ -53,7 +53,7 @@ SPEC
 
     match &task.execution {
         TaskExecutionSpec::UseSession { name, cascade } => {
-            assert_eq!(name, "cargo");
+            assert!(name.starts_with("__tak_session_"), "session name: {name}");
             assert!(!*cascade);
         }
         other => panic!("unexpected execution: {other:?}"),
