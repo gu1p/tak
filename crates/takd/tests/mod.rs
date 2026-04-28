@@ -35,6 +35,7 @@ mod remote_exec_root_probe_retry_behavior;
 mod remote_exec_root_probe_unknown_arch_behavior;
 mod remote_exec_root_probe_version_error_behavior;
 mod remote_exec_root_simulated_runtime_behavior;
+mod remote_image_cache_janitor_behavior;
 mod remote_node_transport_state_behavior;
 mod remote_output_cleanup_persistence_behavior;
 mod remote_output_cleanup_tolerance_behavior;

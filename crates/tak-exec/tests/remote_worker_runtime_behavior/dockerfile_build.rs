@@ -8,6 +8,9 @@ use crate::support::{
     EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock, shell_step, worker_spec,
 };
 
+#[path = "dockerfile_build/reuse.rs"]
+mod reuse;
+
 #[tokio::test]
 async fn remote_worker_builds_dockerfile_runtime_before_running_steps() {
     let _env_lock = env_lock();

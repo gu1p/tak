@@ -43,6 +43,8 @@ async fn serve_agent_simulated_tor_relaunches_in_process_and_keeps_the_same_onio
             pools: &empty,
             tags: &empty,
             capabilities: &empty,
+            image_cache_budget_percent: None,
+            image_cache_budget_gb: None,
         },
     )
     .expect("init tor agent");

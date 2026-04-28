@@ -55,6 +55,7 @@ fn node_status_messages_round_trip_as_binary() {
             execution_root_bytes: 256,
             runtime: Some("containerized".to_string()),
         }],
+        image_cache: None,
     };
     let encoded = status.encode_to_vec();
     let decoded = NodeStatusResponse::decode(encoded.as_slice()).expect("decode node status");

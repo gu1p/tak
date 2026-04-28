@@ -5,6 +5,7 @@ use tak_core::model::{
     RemoteTransportKind,
 };
 
+use crate::ImageCacheOptions;
 use crate::container_engine::ContainerEngine;
 
 use super::{PlacementMode, RemoteCandidateDiagnostic, RemoteLogChunk, SyncedOutput};
@@ -109,6 +110,14 @@ pub(crate) struct ContainerExecutionPlan {
     pub(crate) source: ContainerRuntimeSourceSpec,
     pub(crate) image: String,
     pub(crate) container_user: Option<String>,
+    pub(crate) image_cache: Option<ImageCachePlan>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ImageCachePlan {
+    pub(crate) options: ImageCacheOptions,
+    pub(crate) cache_key: String,
+    pub(crate) source_kind: String,
 }
 
 #[derive(Debug, Clone, Copy)]

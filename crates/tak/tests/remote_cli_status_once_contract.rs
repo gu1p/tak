@@ -8,6 +8,9 @@ use std::thread;
 use support::remote_cli::read_request;
 use support::remote_status::{status_payload, write_inventory};
 
+#[path = "remote_cli_status_once_contract/image_cache.rs"]
+mod image_cache;
+
 #[test]
 fn remote_status_lists_running_jobs_and_resources() {
     let temp = tempfile::tempdir().expect("tempdir");

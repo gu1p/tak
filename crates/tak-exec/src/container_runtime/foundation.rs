@@ -6,12 +6,12 @@ use futures::StreamExt;
 use crate::container_engine::{ContainerEngine, engine_name, podman_socket_candidates_from_env};
 
 #[derive(Debug)]
-pub(super) struct ContainerEngineClient {
-    pub(super) docker: Docker,
+pub(crate) struct ContainerEngineClient {
+    pub(crate) docker: Docker,
     pub(super) podman_wait_socket: Option<String>,
 }
 
-pub(super) async fn connect_container_engine(
+pub(crate) async fn connect_container_engine(
     engine: ContainerEngine,
 ) -> Result<ContainerEngineClient> {
     match engine {
@@ -63,6 +63,10 @@ pub(super) async fn ensure_container_image(docker: &Docker, image: &str) -> Resu
         }
     }
 
+    pull_container_image(docker, image).await
+}
+
+pub(super) async fn pull_container_image(docker: &Docker, image: &str) -> Result<()> {
     let mut stream = docker.create_image(
         Some(CreateImageOptions {
             from_image: image.to_string(),

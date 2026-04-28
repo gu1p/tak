@@ -58,7 +58,8 @@ async fn serve_direct_agent(
     };
     persist_ready_base_url(config_root, state_root, &advertised_base_url)?;
     tracing::info!("takd remote v1 direct service ready at {advertised_base_url}");
-    let context = crate::agent::ready_context(&read_config(config_root)?)?;
+    let context =
+        crate::agent::ready_context_with_state_root(&read_config(config_root)?, state_root)?;
     run_remote_v1_http_server(listener, store, context).await
 }
 

@@ -31,6 +31,8 @@ async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
             pools: &pools,
             tags: &tags,
             capabilities: &capabilities,
+            image_cache_budget_percent: None,
+            image_cache_budget_gb: None,
         },
     )
     .expect("init direct agent");

@@ -18,14 +18,18 @@ base64.workspace = true
 bollard.workspace = true
 bytes.workspace = true
 futures.workspace = true
+hex.workspace = true
 ignore.workspace = true
+rusqlite.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 prost.workspace = true
 tak-core = { path = "../tak-core" }
 tak-proto = { path = "../tak-proto" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+sysinfo.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true

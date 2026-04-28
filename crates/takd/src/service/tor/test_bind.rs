@@ -3,7 +3,7 @@ use tokio::net::TcpListener;
 use tokio::time::sleep;
 
 use crate::agent::{
-    TransportHealth, persist_ready_base_url, ready_context, write_transport_health,
+    TransportHealth, persist_ready_base_url, ready_context_with_state_root, write_transport_health,
 };
 use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
 
@@ -41,7 +41,7 @@ pub(super) async fn serve_test_bind_session(
     persist_ready_base_url(config_root, state_root, &base_url)?;
     write_transport_health(state_root, &TransportHealth::ready(Some(base_url.clone())))?;
     tracing::info!("takd remote v1 onion service ready at {}", base_url);
-    let context = ready_context(&ready_config(config, &base_url))?;
+    let context = ready_context_with_state_root(&ready_config(config, &base_url), state_root)?;
 
     if let Some(delay) = take_test_force_recovery_after(state_root) {
         let mut server = tokio::spawn(run_remote_v1_http_server(listener, store, context));

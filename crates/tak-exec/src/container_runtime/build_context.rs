@@ -4,17 +4,30 @@ use bollard::image::BuildImageOptions;
 use std::fs;
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef};
 
+#[path = "build_context/cache.rs"]
+mod cache;
+#[path = "build_context/key.rs"]
+mod key;
+
+pub(crate) use key::deterministic_dockerfile_image_tag;
+
 pub(super) async fn ensure_container_runtime_source(
     docker: &Docker,
     workspace_root: &Path,
     plan: &ContainerExecutionPlan,
 ) -> Result<()> {
+    if plan.image_cache.is_some() {
+        return cache::ensure_cached_container_runtime_source(docker, workspace_root, plan).await;
+    }
     match &plan.source {
         ContainerRuntimeSourceSpec::Image { image } => ensure_container_image(docker, image).await,
         ContainerRuntimeSourceSpec::Dockerfile {
             dockerfile,
             build_context,
         } => {
+            if docker.inspect_image(&plan.image).await.is_ok() {
+                return Ok(());
+            }
             build_container_image_from_dockerfile(
                 docker,
                 workspace_root,

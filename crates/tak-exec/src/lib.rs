@@ -12,6 +12,7 @@ mod container_engine;
 mod container_runtime;
 mod engine;
 mod execution_graph;
+mod image_cache;
 mod lease_client;
 mod remote_endpoint;
 mod remote_protocol_codec;
@@ -29,14 +30,15 @@ pub(crate) use engine::{
     RemoteWorkspaceStage, StrictRemoteTarget, emit_task_output,
 };
 pub use engine::{
-    NoMatchingRemoteError, OutputStream, PlacementMode, RemoteCandidateDiagnostic,
-    RemoteCandidateRejection, RemoteLogChunk, RemotePreflightExhaustedError,
-    RemotePreflightFailure, RemotePreflightFailureKind, RemoteWorkerExecutionResult,
-    RemoteWorkerExecutionSpec, RequiredRemoteDiagnostic, RunOptions, RunSummary, SyncedOutput,
-    TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStatusEvent, TaskStatusPhase,
-    execute_remote_worker_steps, execute_remote_worker_steps_with_output, run_resolved_task,
-    run_tasks,
+    ImageCacheOptions, NoMatchingRemoteError, OutputStream, PlacementMode,
+    RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteLogChunk,
+    RemotePreflightExhaustedError, RemotePreflightFailure, RemotePreflightFailureKind,
+    RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RequiredRemoteDiagnostic, RunOptions,
+    RunSummary, SyncedOutput, TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStatusEvent,
+    TaskStatusPhase, execute_remote_worker_steps, execute_remote_worker_steps_with_output,
+    run_resolved_task, run_tasks,
 };
+pub use image_cache::{image_cache_status, run_image_cache_janitor_once};
 pub use summary::target_set_from_summary;
 #[path = "client_remotes_tests.rs"]
 mod client_remotes_tests;

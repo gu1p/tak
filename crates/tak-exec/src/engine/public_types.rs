@@ -140,6 +140,7 @@ pub struct RemoteWorkerExecutionSpec {
     pub runtime: Option<RemoteRuntimeSpec>,
     pub node_id: String,
     pub container_user: Option<String>,
+    pub image_cache: Option<ImageCacheOptions>,
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +149,16 @@ pub struct RemoteWorkerExecutionResult {
     pub exit_code: Option<i32>,
     pub runtime_kind: Option<String>,
     pub runtime_engine: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImageCacheOptions {
+    pub db_path: PathBuf,
+    pub budget_bytes: u64,
+    pub mutable_tag_ttl_secs: u64,
+    pub sweep_interval_secs: u64,
+    pub low_disk_min_free_percent: f64,
+    pub low_disk_min_free_bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -39,6 +39,8 @@ async fn serve_agent_simulated_tor_uses_test_bind_addr_and_persists_onion_base_u
             pools: &empty,
             tags: &empty,
             capabilities: &empty,
+            image_cache_budget_percent: None,
+            image_cache_budget_gb: None,
         },
     )
     .expect("init tor agent");

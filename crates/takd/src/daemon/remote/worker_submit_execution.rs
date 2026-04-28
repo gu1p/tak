@@ -1,42 +1,32 @@
 use super::*;
 use std::sync::Arc;
 
+pub(super) struct RemoteWorkerSubmitExecution {
+    pub(super) store: SubmitAttemptStore,
+    pub(super) status_state: status_state::SharedNodeStatusState,
+    pub(super) idempotency_key: String,
+    pub(super) execution_root_base: std::path::PathBuf,
+    pub(super) selected_node_id: String,
+    pub(super) transport_kind: String,
+    pub(super) image_cache: Option<super::types::RemoteImageCacheRuntimeConfig>,
+    pub(super) payload: RemoteWorkerSubmitPayload,
+}
+
 pub(super) fn spawn_remote_worker_submit_execution(
-    store: SubmitAttemptStore,
-    status_state: status_state::SharedNodeStatusState,
-    idempotency_key: String,
-    execution_root_base: std::path::PathBuf,
-    selected_node_id: String,
-    transport_kind: String,
-    payload: RemoteWorkerSubmitPayload,
+    execution: RemoteWorkerSubmitExecution,
 ) -> Result<()> {
-    let thread_name = format!("takd-remote-worker-{idempotency_key}");
+    let thread_name = format!("takd-remote-worker-{}", execution.idempotency_key);
     std::thread::Builder::new()
         .name(thread_name)
-        .spawn(move || {
-            run_remote_worker_submit_execution(
-                &store,
-                &status_state,
-                &idempotency_key,
-                &execution_root_base,
-                &selected_node_id,
-                &transport_kind,
-                &payload,
-            )
-        })
+        .spawn(move || run_remote_worker_submit_execution(&execution))
         .context("failed to spawn remote worker thread")?;
     Ok(())
 }
 
-fn run_remote_worker_submit_execution(
-    store: &SubmitAttemptStore,
-    status_state: &status_state::SharedNodeStatusState,
-    idempotency_key: &str,
-    execution_root_base: &std::path::Path,
-    selected_node_id: &str,
-    transport_kind: &str,
-    payload: &RemoteWorkerSubmitPayload,
-) {
+fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
+    let store = &execution.store;
+    let status_state = &execution.status_state;
+    let idempotency_key = execution.idempotency_key.as_str();
     let started_at = unix_epoch_ms();
     let output_observer = Arc::new(RemoteWorkerEventObserver::new(
         store.clone(),
@@ -58,13 +48,14 @@ fn run_remote_worker_submit_execution(
 
     let execution_result = store
         .execution_root_base_for_submit(idempotency_key)
-        .map(|value| value.unwrap_or_else(|| execution_root_base.to_path_buf()))
+        .map(|value| value.unwrap_or_else(|| execution.execution_root_base.clone()))
         .and_then(|resolved_execution_root_base| {
             execute_remote_worker_submit(
                 idempotency_key,
                 &resolved_execution_root_base,
-                selected_node_id,
-                payload,
+                &execution.selected_node_id,
+                execution.image_cache.as_ref(),
+                &execution.payload,
                 output_observer.clone(),
             )
         });
@@ -91,7 +82,7 @@ fn run_remote_worker_submit_execution(
                     "started_at": started_at,
                     "finished_at": finished_at,
                     "duration_ms": duration_ms,
-                    "transport_kind": transport_kind,
+                    "transport_kind": execution.transport_kind.as_str(),
                     "sync_mode": "OUTPUTS_AND_LOGS",
                     "outputs": outputs,
                     "runtime": result.runtime_kind,
@@ -129,7 +120,7 @@ fn run_remote_worker_submit_execution(
                     "started_at": started_at,
                     "finished_at": finished_at,
                     "duration_ms": duration_ms,
-                    "transport_kind": transport_kind,
+                    "transport_kind": execution.transport_kind.as_str(),
                     "sync_mode": "OUTPUTS_AND_LOGS",
                     "outputs": serde_json::json!([]),
                     "stdout_tail": json_tail_value(&stdout_tail),

@@ -16,6 +16,7 @@ const TOKEN_FILE: &str = "agent.token";
 
 mod direct_base_url;
 mod helpers;
+mod image_cache_config;
 mod paths;
 #[path = "agent/token_readiness_tests.rs"]
 mod token_readiness_tests;
@@ -27,6 +28,8 @@ pub(crate) use direct_base_url::{
     DirectBaseUrlError, parse_direct_base_url, validate_direct_base_url,
 };
 pub(crate) use helpers::node_info_with_transport;
+pub use image_cache_config::AgentImageCacheConfig;
+use image_cache_config::resolve_init_image_cache_config;
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
 pub use token_wait::read_token_wait;
 pub use transport_health::{
@@ -45,6 +48,8 @@ pub struct AgentConfig {
     pub capabilities: Vec<String>,
     pub transport: String,
     pub hidden_service_nickname: String,
+    #[serde(default)]
+    pub image_cache: Option<AgentImageCacheConfig>,
 }
 
 pub struct InitAgentOptions<'a> {
@@ -55,6 +60,8 @@ pub struct InitAgentOptions<'a> {
     pub pools: &'a [String],
     pub tags: &'a [String],
     pub capabilities: &'a [String],
+    pub image_cache_budget_percent: Option<f64>,
+    pub image_cache_budget_gb: Option<f64>,
 }
 
 pub fn init_agent(
@@ -98,6 +105,7 @@ pub fn init_agent(
         capabilities: normalize_values(options.capabilities, "linux"),
         transport: transport.to_string(),
         hidden_service_nickname: hidden_service_nickname(&node_id),
+        image_cache: Some(resolve_init_image_cache_config(state_root, &options)?),
     };
     write_config(config_root, &config)?;
     let token_path = token_path(state_root);
@@ -152,6 +160,25 @@ pub fn ready_context(config: &AgentConfig) -> Result<RemoteNodeContext> {
         config.bearer_token.clone(),
         RemoteRuntimeConfig::from_env(),
     ))
+}
+
+pub fn ready_context_with_state_root(
+    config: &AgentConfig,
+    state_root: &Path,
+) -> Result<RemoteNodeContext> {
+    let base_url = config
+        .base_url
+        .clone()
+        .ok_or_else(|| anyhow!("agent token not ready"))?;
+    let mut context = RemoteNodeContext::new(
+        node_info(config, &base_url),
+        config.bearer_token.clone(),
+        RemoteRuntimeConfig::from_env(),
+    );
+    if let Some(image_cache) = &config.image_cache {
+        context = context.with_image_cache_config(image_cache.runtime_config(state_root)?);
+    }
+    Ok(context)
 }
 
 fn write_config(config_root: &Path, config: &AgentConfig) -> Result<()> {

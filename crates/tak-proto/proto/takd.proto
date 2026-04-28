@@ -156,6 +156,16 @@ message StorageUsage {
   uint64 tak_execution_bytes = 5;
 }
 
+message ImageCacheStatus {
+  uint64 used_bytes = 1;
+  uint64 budget_bytes = 2;
+  uint64 evictable_bytes = 3;
+  uint64 entry_count = 4;
+  uint64 filesystem_available_bytes = 5;
+  uint64 filesystem_total_bytes = 6;
+  uint64 free_floor_bytes = 7;
+}
+
 message AggregatedNeedUsage {
   string name = 1;
   string scope = 2;
@@ -181,6 +191,7 @@ message NodeStatusResponse {
   StorageUsage storage = 5;
   repeated AggregatedNeedUsage allocated_needs = 6;
   repeated ActiveJob active_jobs = 7;
+  ImageCacheStatus image_cache = 8;
 }
 
 message ErrorResponse {

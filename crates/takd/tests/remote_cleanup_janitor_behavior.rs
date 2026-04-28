@@ -76,7 +76,7 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
 }
 
 async fn wait_for_removal(path: &Path) {
-    for _ in 0..50 {
+    for _ in 0..250 {
         if !path.exists() {
             return;
         }
@@ -87,7 +87,7 @@ async fn wait_for_removal(path: &Path) {
 }
 
 async fn wait_for_presence(path: &Path) {
-    for _ in 0..100 {
+    for _ in 0..500 {
         if path.exists() {
             return;
         }

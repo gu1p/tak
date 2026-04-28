@@ -54,7 +54,7 @@ pub use router::handle_remote_v1_request;
 pub use runtime::RemoteRuntimeConfig;
 pub use submit_store::{SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key};
 pub use tor_server::run_remote_v1_tor_hidden_service;
-pub use types::{RemoteNodeContext, RemoteV1Response};
+pub use types::{RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteV1Response};
 
 pub(crate) use cleanup_janitor::spawn_remote_cleanup_janitor;
 use execution_root::{
@@ -82,7 +82,7 @@ use types::{
     RemoteWorkerSubmitPayload,
 };
 use worker_output_artifacts::{read_staged_remote_output, stage_remote_worker_outputs};
-use worker_submit_execution::spawn_remote_worker_submit_execution;
+use worker_submit_execution::{RemoteWorkerSubmitExecution, spawn_remote_worker_submit_execution};
 use worker_workspace_outputs::{
     collect_declared_remote_worker_outputs, unpack_remote_worker_workspace,
 };

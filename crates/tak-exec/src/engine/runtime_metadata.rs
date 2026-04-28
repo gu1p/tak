@@ -4,11 +4,17 @@ use crate::container_engine::{
     ContainerEngine, ShellContainerEngineProbe, resolve_container_engine_host_platform,
     select_container_engine_with_probe,
 };
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use std::collections::BTreeMap;
 use std::env;
+use std::path::Path;
 use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, ResolvedTask};
 use uuid::Uuid;
+
+#[path = "runtime_metadata/test_injection.rs"]
+mod test_injection;
+
+use test_injection::maybe_fail_injected_container_lifecycle_stage;
 
 pub(crate) fn resolve_runtime_execution_metadata(
     task: &ResolvedTask,
@@ -49,6 +55,15 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
     let Some(runtime) = runtime else {
         return Ok(None);
     };
+    resolve_runtime_execution_metadata_for_node_runtime_with_workspace(task, node_id, runtime, None)
+}
+
+pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace(
+    task: &ResolvedTask,
+    node_id: &str,
+    runtime: &RemoteRuntimeSpec,
+    workspace_root: Option<&Path>,
+) -> Result<Option<RuntimeExecutionMetadata>> {
     match runtime {
         RemoteRuntimeSpec::Containerized { source } => {
             maybe_fail_injected_container_lifecycle_stage(
@@ -86,8 +101,23 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
             };
             let (runtime_source, image) = match source {
                 ContainerRuntimeSourceSpec::Image { image } => ("image", image.clone()),
-                ContainerRuntimeSourceSpec::Dockerfile { .. } => {
-                    ("dockerfile", format!("tak-runtime-{}", Uuid::new_v4()))
+                ContainerRuntimeSourceSpec::Dockerfile {
+                    dockerfile,
+                    build_context,
+                } => {
+                    let image = if simulate_container_runtime {
+                        format!("tak-runtime-{}", Uuid::new_v4())
+                    } else if let Some(workspace_root) = workspace_root {
+                        crate::container_runtime::deterministic_dockerfile_image_tag(
+                            engine,
+                            workspace_root,
+                            dockerfile,
+                            build_context,
+                        )?
+                    } else {
+                        format!("tak-runtime-{}", Uuid::new_v4())
+                    };
+                    ("dockerfile", image)
                 }
             };
             let mut env_overrides = BTreeMap::new();
@@ -114,6 +144,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
                     source: source.clone(),
                     image: image.clone(),
                     container_user: None,
+                    image_cache: None,
                 })
             };
             Ok(Some(RuntimeExecutionMetadata {
@@ -126,61 +157,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime(
     }
 }
 
-fn should_use_simulated_container_runtime() -> bool {
+pub(super) fn should_use_simulated_container_runtime() -> bool {
     env::var("TAK_TEST_HOST_PLATFORM").is_ok()
         || env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok()
-}
-
-pub(crate) fn maybe_fail_injected_container_lifecycle_stage(
-    task: &ResolvedTask,
-    node_id: &str,
-    stage: ContainerLifecycleStage,
-) -> Result<()> {
-    let Some(injected_stage) = test_injected_container_lifecycle_stage(node_id) else {
-        return Ok(());
-    };
-    if injected_stage != stage {
-        return Ok(());
-    }
-
-    bail!(
-        "infra error: remote node {} container lifecycle {} failed for task {}: simulated deterministic failure",
-        node_id,
-        stage.as_str(),
-        task.label
-    );
-}
-
-pub(crate) fn test_injected_container_lifecycle_stage(
-    node_id: &str,
-) -> Option<ContainerLifecycleStage> {
-    let configured = env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").ok()?;
-    for entry in configured.split(',') {
-        let entry = entry.trim();
-        if entry.is_empty() {
-            continue;
-        }
-
-        let Some((entry_node, raw_stage)) = entry.split_once(':') else {
-            continue;
-        };
-        if entry_node.trim() != node_id {
-            continue;
-        }
-
-        let stage = raw_stage
-            .trim()
-            .split(':')
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        return match stage.as_str() {
-            "pull" => Some(ContainerLifecycleStage::Pull),
-            "start" => Some(ContainerLifecycleStage::Start),
-            "runtime" => Some(ContainerLifecycleStage::Runtime),
-            _ => None,
-        };
-    }
-
-    None
 }

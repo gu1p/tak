@@ -21,6 +21,30 @@ impl FakeDockerRequest {
         url::form_urlencoded::parse(query.as_bytes())
             .find_map(|(name, value)| (name == key).then(|| value.into_owned()))
     }
+
+    pub(super) fn requested_image_name(&self) -> Option<String> {
+        let path = self.path_without_query();
+        let tail = path.split("/images/").nth(1)?;
+        let image = tail.strip_suffix("/json")?;
+        Some(decode_image_reference(image))
+    }
+
+    pub(super) fn deleted_image_name(&self) -> Option<String> {
+        let path = self.path_without_query();
+        let image = path.split("/images/").nth(1)?;
+        Some(decode_image_reference(image))
+    }
+
+    pub(super) fn pull_image_name(&self) -> Option<String> {
+        self.query_param("fromImage").map(|image| image.to_string())
+    }
+}
+
+fn decode_image_reference(image: &str) -> String {
+    image
+        .replace("%3A", ":")
+        .replace("%2F", "/")
+        .replace("%40", "@")
 }
 
 pub(super) async fn read_request(stream: &mut UnixStream) -> io::Result<FakeDockerRequest> {

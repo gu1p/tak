@@ -122,6 +122,8 @@ async fn tor_test_bind_override_keeps_token_pending_until_listener_binds() {
             pools: &empty,
             tags: &empty,
             capabilities: &empty,
+            image_cache_budget_percent: None,
+            image_cache_budget_gb: None,
         },
     )
     .expect("init tor agent");
@@ -155,6 +157,7 @@ fn agent_config(base_url: Option<&str>) -> AgentConfig {
         capabilities: vec!["linux".into()],
         transport: "direct".into(),
         hidden_service_nickname: "builder".into(),
+        image_cache: None,
     }
 }
 

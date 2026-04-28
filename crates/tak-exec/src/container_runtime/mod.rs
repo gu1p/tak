@@ -26,9 +26,10 @@ mod foundation;
 mod log_stream;
 mod tar_archive;
 
+pub(crate) use build_context::deterministic_dockerfile_image_tag;
 use build_context::ensure_container_runtime_source;
 use execution::run_step_in_container;
-use foundation::connect_container_engine;
+pub(crate) use foundation::connect_container_engine;
 use log_stream::{finish_container_log_task, spawn_container_log_task};
 use tar_archive::{append_tar_entry, tar_builder};
 

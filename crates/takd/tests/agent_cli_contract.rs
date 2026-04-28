@@ -5,6 +5,9 @@ use crate::support;
 use std::fs;
 use std::process::Command as StdCommand;
 
+#[path = "agent_cli_contract/image_cache.rs"]
+mod image_cache;
+
 #[test]
 fn init_persists_pending_tor_agent_and_token_show_requires_readiness() {
     let temp = tempfile::tempdir().expect("tempdir");

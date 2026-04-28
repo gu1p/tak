@@ -49,7 +49,7 @@ pub(super) async fn serve_live_tor_session(
             .onion_address()
             .map(|value| format!("http://{}", value.display_unredacted()))
             .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
-        let context = pending_context(config, &base_url);
+        let context = pending_context(config, &base_url, state_root)?;
         persist_ready_base_url(config_root, state_root, &base_url)?;
         write_transport_health(
             state_root,

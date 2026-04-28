@@ -41,6 +41,8 @@ async fn serve_agent_simulated_tor_retries_initial_startup_failures_until_token_
             pools: &empty,
             tags: &empty,
             capabilities: &empty,
+            image_cache_budget_percent: None,
+            image_cache_budget_gb: None,
         },
     )
     .expect("init tor agent");

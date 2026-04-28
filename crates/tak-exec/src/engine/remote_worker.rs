@@ -1,11 +1,16 @@
 use std::path::Path;
 
 use anyhow::Result;
-use tak_core::model::{ResolvedTask, RetryDef, TaskExecutionSpec};
+use tak_core::model::{
+    ContainerRuntimeSourceSpec, ResolvedTask, RetryDef, TaskExecutionSpec,
+    normalize_container_image_reference,
+};
 
-use super::{RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, TaskOutputObserver};
+use super::{
+    ImageCachePlan, RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, TaskOutputObserver,
+};
 
-use super::runtime_metadata::resolve_runtime_execution_metadata_for_node_runtime;
+use super::runtime_metadata::resolve_runtime_execution_metadata_for_node_runtime_with_workspace;
 use super::step_execution::run_task_steps_with_runtime;
 
 pub async fn execute_remote_worker_steps(
@@ -38,10 +43,11 @@ pub async fn execute_remote_worker_steps_with_output(
     };
 
     let mut runtime_metadata = match spec.runtime.as_ref() {
-        Some(runtime) => resolve_runtime_execution_metadata_for_node_runtime(
+        Some(runtime) => resolve_runtime_execution_metadata_for_node_runtime_with_workspace(
             &task,
             &spec.node_id,
-            Some(runtime),
+            runtime,
+            Some(workspace_root),
         )?,
         None => None,
     };
@@ -50,6 +56,12 @@ pub async fn execute_remote_worker_steps_with_output(
         && let Some(container_plan) = metadata.container_plan.as_mut()
     {
         container_plan.container_user = Some(container_user);
+    }
+    if let Some(options) = spec.image_cache.clone()
+        && let Some(metadata) = runtime_metadata.as_mut()
+        && let Some(container_plan) = metadata.container_plan.as_mut()
+    {
+        container_plan.image_cache = Some(image_cache_plan(options, container_plan));
     }
 
     let result = run_task_steps_with_runtime(
@@ -70,4 +82,33 @@ pub async fn execute_remote_worker_steps_with_output(
             .as_ref()
             .and_then(|metadata| metadata.engine.clone()),
     })
+}
+
+fn image_cache_plan(
+    options: crate::ImageCacheOptions,
+    container_plan: &super::ContainerExecutionPlan,
+) -> ImageCachePlan {
+    match &container_plan.source {
+        ContainerRuntimeSourceSpec::Image { image } => {
+            let source_kind = normalize_container_image_reference(image)
+                .map(|reference| {
+                    if reference.digest_pinned {
+                        "pinned"
+                    } else {
+                        "mutable"
+                    }
+                })
+                .unwrap_or("mutable");
+            ImageCachePlan {
+                options,
+                cache_key: format!("image:{image}"),
+                source_kind: source_kind.to_string(),
+            }
+        }
+        ContainerRuntimeSourceSpec::Dockerfile { .. } => ImageCachePlan {
+            options,
+            cache_key: format!("dockerfile:{}", container_plan.image),
+            source_kind: "dockerfile".to_string(),
+        },
+    }
 }

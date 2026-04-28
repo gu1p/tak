@@ -52,15 +52,17 @@ pub(super) fn handle_remote_submit_route(
                 execution_root,
             ),
         )?;
-        if let Err(err) = spawn_remote_worker_submit_execution(
-            store.clone(),
-            context.shared_status_state(),
-            idempotency_key.clone(),
+        let execution = RemoteWorkerSubmitExecution {
+            store: store.clone(),
+            status_state: context.shared_status_state(),
+            idempotency_key: idempotency_key.clone(),
             execution_root_base,
             selected_node_id,
-            node.transport,
-            worker_payload,
-        ) {
+            transport_kind: node.transport,
+            image_cache: context.image_cache_config(),
+            payload: worker_payload,
+        };
+        if let Err(err) = spawn_remote_worker_submit_execution(execution) {
             let _ = context.finish_active_job(&idempotency_key);
             return Err(err);
         }

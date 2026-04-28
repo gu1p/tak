@@ -45,6 +45,10 @@ enum Commands {
         tags: Vec<String>,
         #[arg(long = "capability")]
         capabilities: Vec<String>,
+        #[arg(long)]
+        image_cache_budget_percent: Option<f64>,
+        #[arg(long)]
+        image_cache_budget_gb: Option<f64>,
     },
     Serve {
         #[arg(long)]
@@ -101,6 +105,8 @@ pub async fn run_cli() -> Result<()> {
             pools,
             tags,
             capabilities,
+            image_cache_budget_percent,
+            image_cache_budget_gb,
         } => {
             let config_root = config_root.unwrap_or(default_config_root()?);
             let state_root = state_root.unwrap_or(default_state_root()?);
@@ -115,6 +121,8 @@ pub async fn run_cli() -> Result<()> {
                     pools: &pools,
                     tags: &tags,
                     capabilities: &capabilities,
+                    image_cache_budget_percent,
+                    image_cache_budget_gb,
                 },
             )?;
         }

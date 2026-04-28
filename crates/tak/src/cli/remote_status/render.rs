@@ -37,9 +37,18 @@ pub(super) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
                     .unwrap_or_else(|| "n/a".to_string()),
                 detail,
             ));
+            output.push_str(&format!(
+                "  image_cache={} image_cache_entries={}\n",
+                format_image_cache(status.image_cache.as_ref()),
+                status
+                    .image_cache
+                    .as_ref()
+                    .map(|value| value.entry_count.to_string())
+                    .unwrap_or_else(|| "n/a".to_string()),
+            ));
         } else {
             output.push_str(&format!(
-                "{} transport={} jobs=n/a cpu=n/a ram=n/a storage=n/a tak_exec=n/a status={}\n",
+                "{} transport={} jobs=n/a cpu=n/a ram=n/a storage=n/a tak_exec=n/a image_cache=n/a status={}\n",
                 result.remote.node_id,
                 transport,
                 result.error.as_deref().unwrap_or("unknown_error"),
@@ -106,6 +115,17 @@ fn format_storage(storage: Option<&StorageUsage>) -> String {
     )
 }
 
+fn format_image_cache(cache: Option<&tak_proto::ImageCacheStatus>) -> String {
+    let Some(cache) = cache else {
+        return "n/a".to_string();
+    };
+    format!(
+        "{}/{}",
+        human_decimal_gb(cache.used_bytes),
+        human_decimal_gb(cache.budget_bytes)
+    )
+}
+
 fn format_needs(needs: &[SubmittedNeed]) -> String {
     if needs.is_empty() {
         return "(none)".to_string();
@@ -149,6 +169,10 @@ fn human_bytes(bytes: u64) -> String {
     } else {
         format!("{value:.1}{}", UNITS[unit_index])
     }
+}
+
+fn human_decimal_gb(bytes: u64) -> String {
+    format!("{:.1}GB", bytes as f64 / 1_000_000_000.0)
 }
 
 fn age_since(started_at_ms: i64) -> String {

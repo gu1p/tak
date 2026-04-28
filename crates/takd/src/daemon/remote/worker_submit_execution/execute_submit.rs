@@ -2,6 +2,7 @@ fn execute_remote_worker_submit(
     idempotency_key: &str,
     execution_root_base: &Path,
     selected_node_id: &str,
+    image_cache: Option<&super::types::RemoteImageCacheRuntimeConfig>,
     payload: &RemoteWorkerSubmitPayload,
     output_observer: Arc<dyn TaskOutputObserver>,
 ) -> Result<(
@@ -33,6 +34,7 @@ fn execute_remote_worker_submit(
                 runtime: payload.runtime.clone(),
                 node_id: selected_node_id.to_string(),
                 container_user: remote_container_user(),
+                image_cache: image_cache.map(image_cache_options),
             },
             Some(output_observer),
         ))?;
@@ -61,6 +63,19 @@ fn execute_remote_worker_submit(
         }
         (Err(err), Ok(())) => Err(err),
         (Err(err), Err(cleanup_err)) => Err(err.context(cleanup_err.to_string())),
+    }
+}
+
+fn image_cache_options(
+    config: &super::types::RemoteImageCacheRuntimeConfig,
+) -> tak_runner::ImageCacheOptions {
+    tak_runner::ImageCacheOptions {
+        db_path: config.db_path.clone(),
+        budget_bytes: config.budget_bytes,
+        mutable_tag_ttl_secs: config.mutable_tag_ttl_secs,
+        sweep_interval_secs: config.sweep_interval_secs,
+        low_disk_min_free_percent: config.low_disk_min_free_percent,
+        low_disk_min_free_bytes: config.low_disk_min_free_bytes,
     }
 }
 

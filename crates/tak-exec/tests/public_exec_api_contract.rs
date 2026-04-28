@@ -80,6 +80,7 @@ fn tak_exec_crate_root_public_api_stays_available() {
         runtime: None::<RemoteRuntimeSpec>,
         node_id: "node".to_string(),
         container_user: None,
+        image_cache: None,
     };
     let _remote_worker_result = tak_exec::RemoteWorkerExecutionResult {
         success: true,

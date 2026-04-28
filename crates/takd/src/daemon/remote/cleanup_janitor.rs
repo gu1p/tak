@@ -11,6 +11,11 @@ use super::*;
 mod cleanup_janitor_permission_tests;
 
 pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
+    spawn_remote_execution_cleanup_janitor(context.clone(), store);
+    spawn_remote_image_cache_janitor(context);
+}
+
+fn spawn_remote_execution_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
     let interval = context.runtime_config().remote_cleanup_interval();
     tokio::spawn(async move {
         if let Err(err) = run_remote_cleanup_once(&context, &store) {
@@ -27,6 +32,21 @@ pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: Su
     });
 }
 
+fn spawn_remote_image_cache_janitor(context: RemoteNodeContext) {
+    let Some(image_cache) = context.image_cache_config() else {
+        return;
+    };
+    let interval = Duration::from_secs(image_cache.sweep_interval_secs.max(1));
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(interval).await;
+            if let Err(err) = run_remote_image_cache_cleanup_once(&context).await {
+                tracing::warn!("image cache janitor sweep failed: {err:#}");
+            }
+        }
+    });
+}
+
 pub(crate) fn run_remote_cleanup_once(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
@@ -37,6 +57,27 @@ pub(crate) fn run_remote_cleanup_once(
         cleanup_stale_remote_entries(&root, &active_jobs, ttl)?;
     }
     Ok(())
+}
+
+async fn run_remote_image_cache_cleanup_once(context: &RemoteNodeContext) -> Result<()> {
+    let Some(image_cache) = context.image_cache_config() else {
+        return Ok(());
+    };
+    if !active_job_keys(&context.shared_status_state())?.is_empty() {
+        return Ok(());
+    }
+    tak_runner::run_image_cache_janitor_once(&image_cache_options(image_cache)).await
+}
+
+fn image_cache_options(config: RemoteImageCacheRuntimeConfig) -> tak_runner::ImageCacheOptions {
+    tak_runner::ImageCacheOptions {
+        db_path: config.db_path,
+        budget_bytes: config.budget_bytes,
+        mutable_tag_ttl_secs: config.mutable_tag_ttl_secs,
+        sweep_interval_secs: config.sweep_interval_secs,
+        low_disk_min_free_percent: config.low_disk_min_free_percent,
+        low_disk_min_free_bytes: config.low_disk_min_free_bytes,
+    }
 }
 
 fn active_job_keys(status_state: &status_state::SharedNodeStatusState) -> Result<BTreeSet<String>> {

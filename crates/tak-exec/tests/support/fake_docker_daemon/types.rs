@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildRecord {
+    pub image_tag: String,
     pub dockerfile: String,
     pub context_entries: Vec<String>,
     pub context_modes: BTreeMap<String, u32>,
@@ -11,4 +12,9 @@ pub struct BuildRecord {
 pub struct CreateRecord {
     pub user: Option<String>,
     pub binds: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PullRecord {
+    pub image: String,
 }

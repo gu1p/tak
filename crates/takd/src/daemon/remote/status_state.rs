@@ -8,6 +8,7 @@ use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, SubmittedNe
 
 use super::query_helpers::unix_epoch_ms;
 use super::status_state_helpers::{active_job_value, aggregate_need_usage, storage_usage};
+use super::types::RemoteImageCacheRuntimeConfig;
 
 #[derive(Clone)]
 pub(crate) struct ActiveJobMetadata {
@@ -84,6 +85,7 @@ impl NodeStatusState {
         &mut self,
         node: &NodeInfo,
         execution_root_base: &std::path::Path,
+        image_cache: Option<&RemoteImageCacheRuntimeConfig>,
     ) -> Result<NodeStatusResponse> {
         self.system.refresh_memory();
         self.system.refresh_cpu_usage();
@@ -128,6 +130,15 @@ impl NodeStatusState {
             )),
             allocated_needs: aggregate_need_usage(&active_jobs),
             active_jobs,
+            image_cache: image_cache.and_then(|config| {
+                tak_runner::image_cache_status(
+                    &config.db_path,
+                    config.budget_bytes,
+                    config.low_disk_min_free_percent,
+                    config.low_disk_min_free_bytes,
+                )
+                .ok()
+            }),
         })
     }
 }

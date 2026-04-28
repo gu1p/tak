@@ -38,6 +38,7 @@ pub(super) fn node_status(node_id: &str, port: u16) -> NodeStatusResponse {
             execution_root_bytes: 256,
             runtime: Some("containerized".into()),
         }],
+        image_cache: None,
     }
 }
 

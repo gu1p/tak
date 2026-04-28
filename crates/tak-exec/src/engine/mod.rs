@@ -46,7 +46,7 @@ mod workspace_stage;
 mod workspace_sync;
 
 pub use public_types::{
-    OutputStream, PlacementMode, RemoteLogChunk, RemoteWorkerExecutionResult,
+    ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk, RemoteWorkerExecutionResult,
     RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput, TaskOutputChunk,
     TaskOutputObserver, TaskRunResult, TaskStatusEvent, TaskStatusPhase,
 };
@@ -62,8 +62,8 @@ pub(crate) use lease_context::LeaseContext;
 pub(crate) use output_observer::emit_task_output;
 pub(crate) use remote_http_exchange_error::{RemoteHttpExchangeError, RemoteHttpExchangeErrorKind};
 pub(crate) use remote_models::{
-    ContainerExecutionPlan, ParsedRemoteEvents, RemoteTargetSelection, RemoteWorkspaceStage,
-    StrictRemoteTarget,
+    ContainerExecutionPlan, ImageCachePlan, ParsedRemoteEvents, RemoteTargetSelection,
+    RemoteWorkspaceStage, StrictRemoteTarget,
 };
 
 /// Executes exactly one resolved task and preserves the task's own success and exit metadata.

@@ -4,11 +4,14 @@ use std::fs;
 use std::path::Path;
 
 use prost::Message;
-use tak_proto::{
-    ActiveJob, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, StorageUsage, SubmittedNeed,
-};
+use tak_proto::ImageCacheStatus;
 
 use super::remote_cli::remote_inventory_path;
+
+#[path = "remote_status/value.rs"]
+mod value;
+
+use value::status_value;
 
 pub fn write_inventory(config_root: &Path, node_id: &str, base_url: &str) {
     write_inventory_entries(config_root, &[(node_id, base_url, "direct", true)]);
@@ -30,6 +33,20 @@ pub fn status_payload(base_url: &str, with_job: bool) -> Vec<u8> {
     status_payload_for("builder-a", base_url, "direct", with_job)
 }
 
+pub fn status_payload_with_image_cache(base_url: &str) -> Vec<u8> {
+    let mut status = status_value("builder-a", base_url, "direct", false, "");
+    status.image_cache = Some(ImageCacheStatus {
+        used_bytes: 12_400_000_000,
+        budget_bytes: 50_000_000_000,
+        evictable_bytes: 11_000_000_000,
+        entry_count: 7,
+        filesystem_available_bytes: 25_000_000_000,
+        filesystem_total_bytes: 100_000_000_000,
+        free_floor_bytes: 10_000_000_000,
+    });
+    status.encode_to_vec()
+}
+
 pub fn status_payload_for(
     node_id: &str,
     base_url: &str,
@@ -46,54 +63,5 @@ pub fn status_payload_with_detail_for(
     with_job: bool,
     transport_detail: &str,
 ) -> Vec<u8> {
-    NodeStatusResponse {
-        node: Some(NodeInfo {
-            node_id: node_id.into(),
-            display_name: node_id.into(),
-            base_url: base_url.to_string(),
-            healthy: true,
-            pools: vec!["default".into()],
-            tags: vec!["builder".into()],
-            capabilities: vec!["linux".into()],
-            transport: transport.into(),
-            transport_state: "ready".into(),
-            transport_detail: transport_detail.into(),
-        }),
-        sampled_at_ms: 1_734_000_000_000,
-        cpu: Some(CpuUsage {
-            utilization_percent: Some(12.5),
-            logical_cores: 8,
-        }),
-        memory: Some(MemoryUsage {
-            used_bytes: 2_048,
-            total_bytes: 8_192,
-        }),
-        storage: Some(StorageUsage {
-            path: "/tmp/takd-remote-exec".into(),
-            total_bytes: 10_000,
-            available_bytes: 7_000,
-            used_bytes: 3_000,
-            tak_execution_bytes: 256,
-        }),
-        allocated_needs: vec![],
-        active_jobs: if with_job {
-            vec![ActiveJob {
-                task_run_id: "task-run-1".into(),
-                attempt: 1,
-                task_label: "//apps/web:build".into(),
-                started_at_ms: 1_734_000_000_000,
-                needs: vec![SubmittedNeed {
-                    name: "cpu".into(),
-                    scope: "machine".into(),
-                    scope_key: None,
-                    slots: 2.0,
-                }],
-                execution_root_bytes: 256,
-                runtime: Some("containerized".into()),
-            }]
-        } else {
-            vec![]
-        },
-    }
-    .encode_to_vec()
+    status_value(node_id, base_url, transport, with_job, transport_detail).encode_to_vec()
 }

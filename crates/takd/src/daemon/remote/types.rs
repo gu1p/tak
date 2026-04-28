@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
@@ -34,6 +35,16 @@ pub(super) enum RemoteWorkerSessionReuse {
     SharePaths { paths: Vec<OutputSelectorSpec> },
 }
 
+#[derive(Debug, Clone)]
+pub struct RemoteImageCacheRuntimeConfig {
+    pub db_path: PathBuf,
+    pub budget_bytes: u64,
+    pub mutable_tag_ttl_secs: u64,
+    pub sweep_interval_secs: u64,
+    pub low_disk_min_free_percent: f64,
+    pub low_disk_min_free_bytes: u64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct RemoteWorkerOutputRecord {
     pub(super) path: String,
@@ -60,6 +71,7 @@ pub struct RemoteNodeContext {
     pub bearer_token: String,
     status_state: SharedNodeStatusState,
     runtime_state: Arc<RemoteRuntimeState>,
+    image_cache: Option<RemoteImageCacheRuntimeConfig>,
 }
 
 impl RemoteNodeContext {
@@ -69,7 +81,13 @@ impl RemoteNodeContext {
             bearer_token,
             status_state: new_shared_node_status_state(),
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
+            image_cache: None,
         }
+    }
+
+    pub fn with_image_cache_config(mut self, config: RemoteImageCacheRuntimeConfig) -> Self {
+        self.image_cache = Some(config);
+        self
     }
 
     pub fn node_info(&self) -> Result<NodeInfo> {
@@ -132,7 +150,11 @@ impl RemoteNodeContext {
             .status_state
             .lock()
             .map_err(|_| anyhow!("node status state lock poisoned"))?;
-        guard.snapshot(&node, &remote_execution_root_base(self))
+        guard.snapshot(
+            &node,
+            &remote_execution_root_base(self),
+            self.image_cache.as_ref(),
+        )
     }
 
     pub(crate) fn shared_status_state(&self) -> SharedNodeStatusState {
@@ -141,6 +163,10 @@ impl RemoteNodeContext {
 
     pub fn runtime_config(&self) -> RemoteRuntimeConfig {
         self.runtime_state.config.clone()
+    }
+
+    pub(crate) fn image_cache_config(&self) -> Option<RemoteImageCacheRuntimeConfig> {
+        self.image_cache.clone()
     }
 
     pub(crate) fn runtime_state(&self) -> &Arc<RemoteRuntimeState> {

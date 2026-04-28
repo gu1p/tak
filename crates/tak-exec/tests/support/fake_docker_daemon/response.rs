@@ -3,7 +3,8 @@ use std::io;
 use tokio::io::AsyncWriteExt;
 use tokio::net::UnixStream;
 
-use super::{FakeDockerDaemonState, LOG_MESSAGE};
+use super::LOG_MESSAGE;
+use super::state::FakeDockerDaemonState;
 
 pub(super) async fn write_logs_response(
     stream: &mut UnixStream,
