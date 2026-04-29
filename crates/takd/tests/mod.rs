@@ -5,6 +5,7 @@ mod agent_logs_contract;
 mod agent_no_diagnose_contract;
 mod agent_service_logging_contract;
 mod agent_service_logging_failure_contract;
+mod agent_service_logging_source_contract;
 mod agent_status_advertised_contract;
 mod agent_status_contract;
 mod agent_status_pending_advertised_contract;

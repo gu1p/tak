@@ -26,7 +26,10 @@ pub fn init_service_logging(state_root: &Path) -> Result<()> {
     tracing_subscriber::fmt()
         .with_ansi(false)
         .with_env_filter(filter)
-        .with_target(false)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
         .with_writer(SharedFileWriter::new(file))
         .try_init()
         .map_err(|err| anyhow!("initialize takd service logger: {err}"))?;

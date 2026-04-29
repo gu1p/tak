@@ -5,6 +5,8 @@ TAK_REPO="${TAK_REPO:-gu1p/tak}"
 TAKD_INSTALL_DIR="${TAKD_INSTALL_DIR:-$HOME/.local/bin}"
 TAKD_VERSION_INPUT="${TAKD_VERSION:-${TAK_VERSION:-}}"
 TAKD_WAIT_TIMEOUT_SECS="${TAKD_WAIT_TIMEOUT_SECS:-360}"
+TAKD_WAIT_POLL_SECS="${TAKD_WAIT_POLL_SECS:-5}"
+log_tail_pid=""
 
 err() {
   printf 'error: %s\n' "$1" >&2
@@ -66,12 +68,22 @@ state_home() {
   printf '%s' "${XDG_STATE_HOME:-$HOME/.local/state}"
 }
 
+default_service_rust_log() {
+  printf '%s' "${TAKD_SERVICE_RUST_LOG:-trace}"
+}
+
+default_service_backtrace() {
+  printf '%s' "${TAKD_SERVICE_RUST_BACKTRACE:-1}"
+}
+
 install_linux_service() {
-  local takd_bin="$1" unit_dir unit_file state_root config_root
+  local takd_bin="$1" unit_dir unit_file state_root config_root service_rust_log service_backtrace
   unit_dir="$(config_home)/systemd/user"
   unit_file="$unit_dir/takd.service"
   config_root="$(config_home)/takd"
   state_root="$(state_home)/takd"
+  service_rust_log="$(default_service_rust_log)"
+  service_backtrace="$(default_service_backtrace)"
   mkdir -p "$unit_dir" "$state_root"
   cat >"$unit_file" <<EOF
 [Unit]
@@ -79,6 +91,8 @@ Description=Tak execution agent
 After=default.target
 
 [Service]
+Environment=RUST_LOG=${service_rust_log}
+Environment=RUST_BACKTRACE=${service_backtrace}
 ExecStart=${takd_bin} serve --config-root ${config_root} --state-root ${state_root}
 Restart=always
 RestartSec=2
@@ -101,12 +115,14 @@ EOF
 }
 
 install_macos_service() {
-  local takd_bin="$1" plist_dir plist_file state_root config_root uid
+  local takd_bin="$1" plist_dir plist_file state_root config_root uid service_rust_log service_backtrace
   plist_dir="$HOME/Library/LaunchAgents"
   plist_file="$plist_dir/dev.tak.takd.plist"
   config_root="$(config_home)/takd"
   state_root="$(state_home)/takd"
   uid="$(id -u)"
+  service_rust_log="$(default_service_rust_log)"
+  service_backtrace="$(default_service_backtrace)"
   mkdir -p "$plist_dir" "$state_root"
   cat >"$plist_file" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -114,6 +130,7 @@ install_macos_service() {
 <plist version="1.0"><dict>
 <key>Label</key><string>dev.tak.takd</string>
 <key>ProgramArguments</key><array><string>${takd_bin}</string><string>serve</string><string>--config-root</string><string>${config_root}</string><string>--state-root</string><string>${state_root}</string></array>
+<key>EnvironmentVariables</key><dict><key>RUST_LOG</key><string>${service_rust_log}</string><key>RUST_BACKTRACE</key><string>${service_backtrace}</string></dict>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
 </dict></plist>
@@ -140,6 +157,94 @@ agent_state_path() {
   printf '%s/takd' "$(state_home)"
 }
 
+service_log_path() {
+  printf '%s/service.log' "$(agent_state_path)"
+}
+
+transport_health_path() {
+  printf '%s/transport-health.toml' "$(agent_state_path)"
+}
+
+start_log_tail() {
+  local log_path="$1"
+  printf 'service_log: %s\n' "$log_path" >&2
+  printf 'streaming takd service log with tail -F\n' >&2
+  tail -n 0 -F "$log_path" >&2 &
+  log_tail_pid=$!
+}
+
+stop_log_tail() {
+  if [[ -n "${log_tail_pid:-}" ]]; then
+    kill "$log_tail_pid" >/dev/null 2>&1 || true
+    wait "$log_tail_pid" >/dev/null 2>&1 || true
+    log_tail_pid=""
+  fi
+}
+
+print_readiness_snapshot() {
+  local takd_bin="$1" status_output health_path log_path
+  health_path="$(transport_health_path)"
+  log_path="$(service_log_path)"
+  printf '\n--- takd readiness snapshot (%s) ---\n' "$(date -Is 2>/dev/null || date)" >&2
+  printf 'config_root: %s\n' "$(config_home)/takd" >&2
+  printf 'state_root: %s\n' "$(agent_state_path)" >&2
+  printf 'service_log: %s\n' "$log_path" >&2
+  printf 'transport_health: %s\n' "$health_path" >&2
+  if status_output="$("$takd_bin" status --config-root "$(config_home)/takd" --state-root "$(agent_state_path)" 2>&1)"; then
+    printf '%s\n' "$status_output" >&2
+  else
+    printf 'takd status failed:\n%s\n' "$status_output" >&2
+  fi
+  if [[ -f "$health_path" ]]; then
+    printf 'transport-health.toml:\n' >&2
+    sed 's/^/  /' "$health_path" >&2
+  else
+    printf 'transport-health.toml: not present yet\n' >&2
+  fi
+  printf 'recent takd logs:\n' >&2
+  "$takd_bin" logs --state-root "$(agent_state_path)" --lines 80 >&2 || true
+  printf -- '--- end takd readiness snapshot ---\n\n' >&2
+}
+
+wait_for_token_with_progress() {
+  local takd_bin="$1" deadline remaining attempt_timeout attempt_status attempt_output attempt poll_secs
+  token_output=""
+  attempt=1
+  poll_secs="$TAKD_WAIT_POLL_SECS"
+  if ! [[ "$poll_secs" =~ ^[0-9]+$ ]] || [[ "$poll_secs" -lt 1 ]]; then
+    poll_secs=5
+  fi
+  deadline=$((SECONDS + TAKD_WAIT_TIMEOUT_SECS))
+  while true; do
+    remaining=$((deadline - SECONDS))
+    if [[ "$remaining" -le 0 ]]; then
+      printf 'takd Tor readiness timed out after %ss\n' "$TAKD_WAIT_TIMEOUT_SECS" >&2
+      return 1
+    fi
+    attempt_timeout="$poll_secs"
+    if [[ "$attempt_timeout" -gt "$remaining" ]]; then
+      attempt_timeout="$remaining"
+    fi
+    printf 'takd readiness token attempt %s (timeout %ss, remaining %ss)\n' "$attempt" "$attempt_timeout" "$remaining" >&2
+    set +e
+    attempt_output="$("$takd_bin" token show --state-root "$(agent_state_path)" --wait --timeout-secs "$attempt_timeout" --qr 2>&1)"
+    attempt_status=$?
+    set -e
+    token_output="$attempt_output"
+    if [[ "$attempt_status" -eq 0 ]]; then
+      return 0
+    fi
+    printf 'takd token is not ready yet:\n%s\n' "$attempt_output" >&2
+    print_readiness_snapshot "$takd_bin"
+    remaining=$((deadline - SECONDS))
+    if [[ "$remaining" -le 0 ]]; then
+      return "$attempt_status"
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+}
+
 main() {
   local target tag archive_name archive_url temp_dir archive_path takd_bin base_url token_output token_status
   local -a init_args
@@ -148,7 +253,7 @@ main() {
   archive_name="tak-${tag}-${target}.tar.gz"
   archive_url="https://github.com/${TAK_REPO}/releases/download/${tag}/${archive_name}"
   temp_dir="$(mktemp -d)"
-  trap "rm -rf -- '$temp_dir'" EXIT
+  trap "stop_log_tail; rm -rf -- '$temp_dir'" EXIT
   archive_path="$temp_dir/$archive_name"
 
   printf 'Downloading %s\n' "$archive_url"
@@ -193,18 +298,22 @@ main() {
   fi
   if ! install_service "$takd_bin"; then
     printf 'takd installed, but automatic service startup is unavailable on this host.\n'
-    printf 'start manually:\n  %s serve --config-root %s --state-root %s\n' "$takd_bin" "$(config_home)/takd" "$(agent_state_path)"
+    printf 'start manually:\n  RUST_LOG=%s RUST_BACKTRACE=%s %s serve --config-root %s --state-root %s\n' "$(default_service_rust_log)" "$(default_service_backtrace)" "$takd_bin" "$(config_home)/takd" "$(agent_state_path)"
     printf 'then fetch a token with:\n  %s token show --state-root %s --wait --timeout-secs %s\n' "$takd_bin" "$(agent_state_path)" "$TAKD_WAIT_TIMEOUT_SECS"
     exit 0
   fi
 
-  set +e
   printf 'Waiting for takd Tor readiness (timeout %ss)\n' "$TAKD_WAIT_TIMEOUT_SECS"
-  token_output="$("$takd_bin" token show --state-root "$(agent_state_path)" --wait --timeout-secs "$TAKD_WAIT_TIMEOUT_SECS" --qr 2>&1)"
-  token_status=$?
-  set -e
-  if [[ "$token_status" -ne 0 ]]; then
+  printf 'transport_health: %s\n' "$(transport_health_path)" >&2
+  start_log_tail "$(service_log_path)"
+  print_readiness_snapshot "$takd_bin"
+  if wait_for_token_with_progress "$takd_bin"; then
+    stop_log_tail
+  else
+    token_status=$?
+    stop_log_tail
     printf '%s\n' "$token_output" >&2
+    print_readiness_snapshot "$takd_bin"
     printf 'recent takd logs:\n' >&2
     "$takd_bin" logs --state-root "$(agent_state_path)" --lines 100 >&2 || true
     exit "$token_status"

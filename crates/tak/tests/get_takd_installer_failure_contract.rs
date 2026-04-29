@@ -4,8 +4,14 @@ use support::installer::{fake_systemctl, run_installer};
 
 #[test]
 fn linux_installer_prints_recent_takd_logs_when_token_wait_fails() {
-    let (_temp, _home, output) =
-        run_installer(fake_systemctl(), &[("TAKD_INSTALLER_FAKE_TOKEN_FAIL", "1")]);
+    let (_temp, _home, output) = run_installer(
+        fake_systemctl(),
+        &[
+            ("TAKD_INSTALLER_FAKE_TOKEN_FAIL", "1"),
+            ("TAKD_WAIT_TIMEOUT_SECS", "1"),
+            ("TAKD_WAIT_POLL_SECS", "1"),
+        ],
+    );
 
     assert!(!output.status.success(), "installer should fail");
     let stdout = String::from_utf8_lossy(&output.stdout);
