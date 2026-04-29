@@ -7,6 +7,7 @@ mod agent_service_logging_contract;
 mod agent_service_logging_failure_contract;
 mod agent_status_advertised_contract;
 mod agent_status_contract;
+mod agent_status_pending_advertised_contract;
 mod agent_status_recovering_contract;
 mod cli_binary_contract;
 mod container_behavior;

@@ -11,12 +11,15 @@ use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 mod health;
 mod live;
+mod live_readiness;
+mod live_readiness_support;
 mod live_startup;
 mod live_state;
 mod monitor;
 mod probe;
 mod rend;
 mod startup_policy;
+mod status_detail;
 mod test_bind;
 
 use health::tor_recovery_config;

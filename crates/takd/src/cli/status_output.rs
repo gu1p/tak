@@ -12,7 +12,7 @@ pub(super) fn print_status(config: &AgentConfig, state_root: &Path) -> Result<()
         .as_ref()
         .map(|value| value.transport_state)
         .unwrap_or_else(|| {
-            if config.base_url.is_some() {
+            if config.transport != "tor" && config.base_url.is_some() {
                 TransportState::Ready
             } else {
                 TransportState::Pending
@@ -36,6 +36,8 @@ pub(super) fn print_status(config: &AgentConfig, state_root: &Path) -> Result<()
     println!("transport_state: {}", transport_state.as_str());
     if transport_state == TransportState::Ready {
         println!("reachability: verified");
+    } else {
+        println!("reachability: unverified");
     }
     if let Some(base_url) = advertised_base_url {
         println!("base_url: {base_url}");

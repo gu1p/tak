@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 use helpers::{hidden_service_nickname, node_info, normalize_values};
 use paths::{config_path, token_path};
-use token_state::{read_token_error_into_anyhow, read_token_state};
+use token_state::read_token_error_into_anyhow;
 
 const CONFIG_FILE: &str = "agent.toml";
 const TOKEN_FILE: &str = "agent.token";
@@ -122,7 +122,8 @@ pub fn read_config(config_root: &Path) -> Result<AgentConfig> {
 }
 
 pub fn read_token(state_root: &Path) -> Result<String> {
-    read_token_state(state_root).map_err(read_token_error_into_anyhow)
+    token_wait::read_token_once_unless_transport_is_reported_unready(state_root)
+        .map_err(read_token_error_into_anyhow)
 }
 
 pub fn persist_ready_base_url(
@@ -130,13 +131,9 @@ pub fn persist_ready_base_url(
     state_root: &Path,
     base_url: &str,
 ) -> Result<String> {
-    let mut config = read_config(config_root)?;
+    persist_advertised_base_url(config_root, base_url)?;
+    let config = read_config(config_root)?;
     let base_url = base_url.trim();
-    if base_url.is_empty() {
-        bail!("base_url is required");
-    }
-    config.base_url = Some(base_url.to_string());
-    write_config(config_root, &config)?;
     let token = if config.transport == "tor" {
         encode_tor_invite(base_url)?
     } else {
@@ -148,6 +145,16 @@ pub fn persist_ready_base_url(
     };
     fs::write(token_path(state_root), format!("{token}\n"))?;
     Ok(token)
+}
+
+pub fn persist_advertised_base_url(config_root: &Path, base_url: &str) -> Result<()> {
+    let mut config = read_config(config_root)?;
+    let base_url = base_url.trim();
+    if base_url.is_empty() {
+        bail!("base_url is required");
+    }
+    config.base_url = Some(base_url.to_string());
+    write_config(config_root, &config)
 }
 
 pub fn ready_context(config: &AgentConfig) -> Result<RemoteNodeContext> {

@@ -10,6 +10,8 @@ use tor_rtcompat::Runtime;
 use health_detail::{log_probe_progress, record_probe_failure};
 use http_client::{RemoteStream, send_node_info_request};
 
+use super::startup_policy::CappedExponentialBackoff;
+
 mod health_detail;
 mod http_client;
 
@@ -31,6 +33,7 @@ where
         bearer_token,
         timeout,
         backoff,
+        backoff,
         None,
     )
     .await
@@ -42,6 +45,7 @@ pub(super) async fn wait_for_tor_hidden_service_startup_with_detail<R>(
     bearer_token: &str,
     timeout: Duration,
     backoff: Duration,
+    max_backoff: Duration,
     detail_state_root: Option<&Path>,
 ) -> Result<()>
 where
@@ -53,6 +57,7 @@ where
     let authority = endpoint_socket_addr(base_url)?;
     let mut last_error = anyhow!("hidden service startup probe failed before a response");
     let mut attempt = 0_u32;
+    let mut backoff = CappedExponentialBackoff::new(backoff, max_backoff);
 
     loop {
         attempt = attempt.saturating_add(1);
@@ -121,7 +126,12 @@ where
         if Instant::now() >= deadline {
             break;
         }
-        sleep(backoff).await;
+        sleep(
+            backoff
+                .next_backoff()
+                .min(deadline.saturating_duration_since(Instant::now())),
+        )
+        .await;
     }
 
     Err(last_error).context(format!(

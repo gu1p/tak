@@ -24,8 +24,22 @@ pub fn read_token_wait(state_root: &Path, timeout_secs: u64) -> Result<String> {
 }
 
 fn read_ready_token_state(state_root: &Path) -> std::result::Result<String, ReadTokenError> {
+    read_ready_token_once(state_root)
+}
+
+pub(super) fn read_ready_token_once(
+    state_root: &Path,
+) -> std::result::Result<String, ReadTokenError> {
     let token = read_token_state(state_root)?;
     require_current_transport_readiness(state_root, &token)?;
+    Ok(token)
+}
+
+pub(super) fn read_token_once_unless_transport_is_reported_unready(
+    state_root: &Path,
+) -> std::result::Result<String, ReadTokenError> {
+    let token = read_token_state(state_root)?;
+    require_reported_transport_is_not_unready(state_root, &token)?;
     Ok(token)
 }
 
@@ -51,6 +65,26 @@ fn require_current_transport_readiness(
             "tor transport has not reported readiness for {base_url}"
         ))),
     }
+}
+
+fn require_reported_transport_is_not_unready(
+    state_root: &Path,
+    token: &str,
+) -> std::result::Result<(), ReadTokenError> {
+    let Ok(base_url) = decode_tor_invite(token) else {
+        return Ok(());
+    };
+    let Some(health) = read_transport_health(state_root).map_err(ReadTokenError::Invalid)? else {
+        return Ok(());
+    };
+    if health.transport_state == TransportState::Ready
+        && health.base_url.as_deref() == Some(base_url.as_str())
+    {
+        return Ok(());
+    }
+    Err(ReadTokenError::TransportNotReady(
+        tor_transport_wait_detail(&base_url, &health),
+    ))
 }
 
 fn tor_transport_wait_detail(base_url: &str, health: &TransportHealth) -> String {

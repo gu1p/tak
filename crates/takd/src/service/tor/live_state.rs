@@ -36,6 +36,24 @@ pub(super) fn mark_transport_ready(
     )
 }
 
+pub(super) fn mark_transport_pending(
+    context: &RemoteNodeContext,
+    state_root: &Path,
+    base_url: &str,
+    detail: impl Into<String>,
+) -> Result<()> {
+    let detail = detail.into();
+    context.set_transport_state(TransportState::Pending.as_str(), Some(&detail))?;
+    write_transport_health(
+        state_root,
+        &TransportHealth::new(
+            TransportState::Pending,
+            Some(base_url.to_string()),
+            Some(detail),
+        ),
+    )
+}
+
 pub(super) fn mark_transport_recovering(
     context: &RemoteNodeContext,
     state_root: &Path,
