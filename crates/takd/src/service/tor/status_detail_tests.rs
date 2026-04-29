@@ -29,6 +29,12 @@ fn hidden_service_status_controls_when_self_probe_should_run() {
     assert!(hidden_service_probe_gate(State::Bootstrapping).allows_probe());
     assert!(!hidden_service_probe_gate(State::Recovering).allows_probe());
     assert!(!hidden_service_probe_gate(State::DegradedUnreachable).allows_probe());
+    assert!(!hidden_service_probe_gate(State::Shutdown).requires_relaunch());
+    assert!(!hidden_service_probe_gate(State::Bootstrapping).requires_relaunch());
+    assert!(!hidden_service_probe_gate(State::Running).requires_relaunch());
+    assert!(!hidden_service_probe_gate(State::DegradedReachable).requires_relaunch());
+    assert!(!hidden_service_probe_gate(State::Recovering).requires_relaunch());
+    assert!(!hidden_service_probe_gate(State::DegradedUnreachable).requires_relaunch());
     assert!(hidden_service_probe_gate(State::Broken).requires_relaunch());
 }
 
@@ -53,13 +59,13 @@ fn descriptor_download_failures_do_not_trigger_startup_relaunch() {
 }
 
 #[test]
-fn startup_probe_timeout_on_descriptor_failures_restarts_tor_client() {
+fn startup_probe_timeout_on_descriptor_failures_keeps_waiting() {
     let action = self_probe_failure_action(
         "Tor onion service at http://builder-a.onion did not become reachable within 60000ms during takd startup: \
          connect takd hidden-service startup probe: Unable to download hidden service descriptor",
     );
 
-    assert_eq!(action, SelfProbeRecoveryAction::RestartTorClient);
+    assert_eq!(action, SelfProbeRecoveryAction::KeepWaiting);
 }
 
 #[test]

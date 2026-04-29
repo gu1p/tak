@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-const DEFAULT_TOR_STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(120);
+const DEFAULT_TOR_STARTUP_PROBE_TIMEOUT: Duration = Duration::from_secs(300);
 const DEFAULT_TOR_STARTUP_PROBE_BACKOFF: Duration = Duration::from_secs(1);
 const DEFAULT_TOR_STARTUP_PROBE_MAX_BACKOFF: Duration = Duration::from_secs(15);
 

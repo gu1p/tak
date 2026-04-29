@@ -63,11 +63,17 @@ pub fn write_transport_health(state_root: &Path, health: &TransportHealth) -> Re
     fs::create_dir_all(state_root)
         .with_context(|| format!("create transport health dir {}", state_root.display()))?;
     let path = transport_health_path(state_root);
-    fs::write(
-        &path,
-        toml::to_string(health).context("encode transport health")?,
-    )
-    .with_context(|| format!("write {}", path.display()))?;
+    let raw = toml::to_string(health).context("encode transport health")?;
+    let tmp_path = path.with_file_name(format!(
+        ".{}.tmp.{}",
+        path.file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("transport-health.toml"),
+        std::process::id()
+    ));
+    fs::write(&tmp_path, raw).with_context(|| format!("write {}", tmp_path.display()))?;
+    fs::rename(&tmp_path, &path)
+        .with_context(|| format!("replace {} with {}", tmp_path.display(), path.display()))?;
     Ok(())
 }
 
@@ -78,10 +84,24 @@ pub fn read_transport_health(state_root: &Path) -> Result<Option<TransportHealth
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err).with_context(|| format!("read {}", path.display())),
     };
-    Ok(Some(
-        toml::from_str(&raw).with_context(|| format!("decode {}", path.display()))?,
-    ))
+    match toml::from_str(&raw) {
+        Ok(health) => Ok(Some(health)),
+        Err(err) => Ok(Some(unreadable_transport_health(&path, err))),
+    }
 }
+
+fn unreadable_transport_health(path: &Path, err: toml::de::Error) -> TransportHealth {
+    TransportHealth::recovering(
+        None,
+        Some(format!(
+            "transport health file is unreadable at {}: {err}",
+            path.display()
+        )),
+    )
+}
+
+#[path = "transport_health_tests.rs"]
+mod transport_health_tests;
 
 #[derive(Debug, Clone)]
 pub struct TorRecoveryTracker {

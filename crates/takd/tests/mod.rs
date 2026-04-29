@@ -71,6 +71,7 @@ mod token_show_qr_non_v3_contract;
 mod token_show_words_contract;
 mod token_show_words_table_contract;
 mod token_wait_contract;
+mod token_wait_malformed_health_contract;
 mod token_wait_pending_detail_contract;
 mod token_wait_transport_contract;
 mod tor_hidden_service_cleanup_contract;

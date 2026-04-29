@@ -3,12 +3,12 @@ use std::path::Path;
 use std::time::Duration;
 
 const DEFAULT_PROBE_INTERVAL_MS: u64 = 15_000;
-const DEFAULT_PROBE_TIMEOUT_MS: u64 = 10_000;
+const DEFAULT_PROBE_TIMEOUT_MS: u64 = 300_000;
 const DEFAULT_PROBE_BACKOFF_MS: u64 = 500;
 const DEFAULT_FAILURE_THRESHOLD: u32 = 3;
 const DEFAULT_INITIAL_BACKOFF_MS: u64 = 5_000;
 const DEFAULT_MAX_BACKOFF_MS: u64 = 60_000;
-const DEFAULT_STARTUP_SESSION_TIMEOUT_MS: u64 = 60_000;
+const DEFAULT_STARTUP_SESSION_TIMEOUT_MS: u64 = 300_000;
 const TEST_FORCE_RECOVERY_MARKER: &str = ".takd-test-force-recovery-consumed";
 const TEST_STARTUP_FAILURE_MARKER: &str = ".takd-test-startup-failure-consumed";
 
@@ -102,3 +102,6 @@ fn env_duration_ms(name: &str, default_ms: u64) -> Duration {
             .unwrap_or(default_ms),
     )
 }
+
+#[path = "health_tests.rs"]
+mod health_tests;

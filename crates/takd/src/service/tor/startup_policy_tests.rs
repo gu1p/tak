@@ -7,7 +7,7 @@ use crate::test_env::{EnvGuard, env_lock};
 use super::{CappedExponentialBackoff, startup_probe_retry_policy};
 
 #[test]
-fn default_startup_probe_policy_uses_capped_exponential_backoff() {
+fn default_startup_probe_policy_uses_live_tor_timeout_budget() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     env.remove("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS");
@@ -17,7 +17,7 @@ fn default_startup_probe_policy_uses_capped_exponential_backoff() {
     let policy = startup_probe_retry_policy();
     let mut backoff = CappedExponentialBackoff::new(policy.initial_backoff, policy.max_backoff);
 
-    assert_eq!(policy.timeout, Duration::from_secs(120));
+    assert_eq!(policy.timeout, Duration::from_secs(300));
     assert_eq!(backoff.next_backoff(), Duration::from_secs(1));
     assert_eq!(backoff.next_backoff(), Duration::from_secs(2));
     assert_eq!(backoff.next_backoff(), Duration::from_secs(4));

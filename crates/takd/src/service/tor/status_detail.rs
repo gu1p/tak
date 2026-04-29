@@ -62,10 +62,7 @@ pub(super) fn self_probe_failure_action(detail: &str) -> SelfProbeRecoveryAction
     if detail.contains("request stream ended") {
         return SelfProbeRecoveryAction::RelaunchService;
     }
-    if tor_guard_exhaustion_signal(&detail)
-        || tor_fallback_exhaustion_signal(&detail)
-        || startup_probe_timeout_exhausted(&detail) && tor_startup_failure_signal(&detail)
-    {
+    if tor_guard_exhaustion_signal(&detail) || tor_fallback_exhaustion_signal(&detail) {
         return SelfProbeRecoveryAction::RestartTorClient;
     }
     SelfProbeRecoveryAction::KeepWaiting
@@ -90,10 +87,6 @@ pub(super) fn tor_guard_exhaustion_signal(detail: &str) -> bool {
 
 fn tor_fallback_exhaustion_signal(detail: &str) -> bool {
     detail.contains("no usable fallbacks")
-}
-
-fn startup_probe_timeout_exhausted(detail: &str) -> bool {
-    detail.contains("did not become reachable within") && detail.contains("during takd startup")
 }
 
 #[path = "status_detail_tests.rs"]
