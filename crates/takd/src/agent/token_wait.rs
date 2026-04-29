@@ -59,11 +59,21 @@ fn tor_transport_wait_detail(base_url: &str, health: &TransportHealth) -> String
         .detail
         .as_deref()
         .filter(|detail| !detail.trim().is_empty())
-        .unwrap_or("no detail reported");
+        .map(str::to_string)
+        .unwrap_or_else(|| fallback_transport_detail(health).to_string());
     match health.base_url.as_deref() {
         Some(current) if current != base_url => {
             format!("tor transport is {state} at {current}; token points to {base_url}: {detail}")
         }
         _ => format!("tor transport is {state} for {base_url}: {detail}"),
+    }
+}
+
+fn fallback_transport_detail(health: &TransportHealth) -> &'static str {
+    match health.transport_state {
+        TransportState::Pending => {
+            "waiting for takd Tor startup probe to report a readiness detail"
+        }
+        TransportState::Ready | TransportState::Recovering => "transport detail not reported",
     }
 }

@@ -11,6 +11,7 @@ use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 mod health;
 mod live;
+mod live_startup;
 mod live_state;
 mod monitor;
 mod probe;

@@ -1,9 +1,12 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use takd::agent::{TransportState, read_transport_health};
 use tokio::time::sleep;
 
-use super::{endpoint_host_port, endpoint_socket_addr, run_with_attempt_timeout};
+use super::{
+    endpoint_host_port, endpoint_socket_addr, record_probe_failure, run_with_attempt_timeout,
+};
 
 #[tokio::test]
 async fn attempt_timeout_caps_long_running_probe_steps() {
@@ -104,4 +107,28 @@ fn endpoint_helpers_support_ipv6_and_strip_userinfo() {
         endpoint_socket_addr("https://user:pass@[::1]:9443/status").expect("userinfo stripped"),
         "[::1]:9443"
     );
+}
+
+#[test]
+fn probe_failure_persists_pending_transport_detail() {
+    let temp = tempfile::tempdir().expect("tempdir");
+
+    record_probe_failure(
+        Some(temp.path()),
+        "http://builder-a.onion",
+        "self-probe connect",
+        7,
+        Instant::now(),
+        Duration::from_secs(60),
+        "connect takd hidden-service startup probe: rendezvous circuit timed out",
+    );
+
+    let health = read_transport_health(temp.path())
+        .expect("read health")
+        .expect("health should exist");
+    assert_eq!(health.transport_state, TransportState::Pending);
+    assert_eq!(health.base_url.as_deref(), Some("http://builder-a.onion"));
+    let detail = health.detail.expect("detail");
+    assert!(detail.contains("self-probe connect attempt 7"));
+    assert!(detail.contains("rendezvous circuit timed out"));
 }

@@ -2,7 +2,9 @@ pub mod support;
 
 mod agent_cli_contract;
 mod agent_logs_contract;
+mod agent_no_diagnose_contract;
 mod agent_service_logging_contract;
+mod agent_service_logging_failure_contract;
 mod agent_status_advertised_contract;
 mod agent_status_contract;
 mod agent_status_recovering_contract;
@@ -68,6 +70,7 @@ mod token_show_qr_non_v3_contract;
 mod token_show_words_contract;
 mod token_show_words_table_contract;
 mod token_wait_contract;
+mod token_wait_pending_detail_contract;
 mod token_wait_transport_contract;
 mod tor_hidden_service_cleanup_contract;
 mod tor_hidden_service_contract;

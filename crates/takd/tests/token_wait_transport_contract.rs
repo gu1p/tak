@@ -62,14 +62,14 @@ fn token_show_wait_keeps_waiting_while_tor_transport_is_recovering() {
     assert!(stderr.contains("self-probe failed: rendezvous circuit timed out"));
 }
 
-fn state_root() -> (tempfile::TempDir, std::path::PathBuf) {
+pub(crate) fn state_root() -> (tempfile::TempDir, std::path::PathBuf) {
     let temp = tempfile::tempdir().expect("tempdir");
     let state_root = temp.path().join("state");
     fs::create_dir_all(&state_root).expect("create state root");
     (temp, state_root)
 }
 
-fn token_show_wait(state_root: &Path, timeout: &str) -> Output {
+pub(crate) fn token_show_wait(state_root: &Path, timeout: &str) -> Output {
     let state_root = state_root.display().to_string();
     StdCommand::new(support::takd_bin())
         .args([

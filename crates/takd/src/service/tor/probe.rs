@@ -1,39 +1,19 @@
 use std::future::Future;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
-use bytes::Bytes;
-use http_body_util::{BodyExt, Empty};
-use hyper::Request;
 use prost::Message;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{sleep, timeout};
 use tor_rtcompat::Runtime;
 
-trait RemoteIo: AsyncRead + AsyncWrite {}
-impl<T> RemoteIo for T where T: AsyncRead + AsyncWrite + ?Sized {}
-type RemoteStream = Box<dyn RemoteIo + Unpin + Send>;
+use health_detail::{log_probe_progress, record_probe_failure};
+use http_client::{RemoteStream, send_node_info_request};
+
+mod health_detail;
+mod http_client;
+
 const MAX_PROBE_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(15);
-
-struct AbortOnDrop<T> {
-    handle: Option<tokio::task::JoinHandle<T>>,
-}
-
-impl<T> AbortOnDrop<T> {
-    fn new(handle: tokio::task::JoinHandle<T>) -> Self {
-        Self {
-            handle: Some(handle),
-        }
-    }
-}
-
-impl<T> Drop for AbortOnDrop<T> {
-    fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-        }
-    }
-}
 
 pub(super) async fn wait_for_tor_hidden_service_startup<R>(
     tor_client: &arti_client::TorClient<R>,
@@ -45,12 +25,45 @@ pub(super) async fn wait_for_tor_hidden_service_startup<R>(
 where
     R: Runtime,
 {
+    wait_for_tor_hidden_service_startup_with_detail(
+        tor_client,
+        base_url,
+        bearer_token,
+        timeout,
+        backoff,
+        None,
+    )
+    .await
+}
+
+pub(super) async fn wait_for_tor_hidden_service_startup_with_detail<R>(
+    tor_client: &arti_client::TorClient<R>,
+    base_url: &str,
+    bearer_token: &str,
+    timeout: Duration,
+    backoff: Duration,
+    detail_state_root: Option<&Path>,
+) -> Result<()>
+where
+    R: Runtime,
+{
+    let started_at = Instant::now();
     let deadline = Instant::now() + timeout;
     let (host, port) = endpoint_host_port(base_url)?;
     let authority = endpoint_socket_addr(base_url)?;
     let mut last_error = anyhow!("hidden service startup probe failed before a response");
+    let mut attempt = 0_u32;
 
     loop {
+        attempt = attempt.saturating_add(1);
+        log_probe_progress(
+            base_url,
+            "self-probe connect",
+            attempt,
+            started_at,
+            timeout,
+            "connecting to takd onion service through embedded Arti",
+        );
         match run_with_attempt_timeout(
             deadline,
             MAX_PROBE_ATTEMPT_TIMEOUT,
@@ -61,6 +74,14 @@ where
         .context("connect takd hidden-service startup probe")
         {
             Ok(stream) => {
+                log_probe_progress(
+                    base_url,
+                    "self-probe http",
+                    attempt,
+                    started_at,
+                    timeout,
+                    "probing /v1/node/info through takd onion service",
+                );
                 match run_with_attempt_timeout(
                     deadline,
                     MAX_PROBE_ATTEMPT_TIMEOUT,
@@ -70,10 +91,32 @@ where
                 .await
                 {
                     Ok(()) => return Ok(()),
-                    Err(err) => last_error = err,
+                    Err(err) => {
+                        record_probe_failure(
+                            detail_state_root,
+                            base_url,
+                            "self-probe http",
+                            attempt,
+                            started_at,
+                            timeout,
+                            format!("{err:#}"),
+                        );
+                        last_error = err;
+                    }
                 }
             }
-            Err(err) => last_error = err,
+            Err(err) => {
+                record_probe_failure(
+                    detail_state_root,
+                    base_url,
+                    "self-probe connect",
+                    attempt,
+                    started_at,
+                    timeout,
+                    format!("{err:#}"),
+                );
+                last_error = err;
+            }
         }
         if Instant::now() >= deadline {
             break;
@@ -129,48 +172,6 @@ fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
 
 fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
     tak_core::endpoint::endpoint_host_port(endpoint).map_err(Into::into)
-}
-
-async fn send_node_info_request<S>(
-    stream: S,
-    authority: &str,
-    bearer_token: &str,
-    base_url: &str,
-) -> Result<(u16, Vec<u8>)>
-where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
-    let (mut sender, connection) =
-        hyper::client::conn::http1::handshake(hyper_util::rt::TokioIo::new(stream))
-            .await
-            .with_context(|| format!("malformed HTTP response from {base_url}"))?;
-    let _connection_task = AbortOnDrop::new(tokio::spawn(async move {
-        let _ = connection.await;
-    }));
-    let request = Request::builder()
-        .method("GET")
-        .uri("/v1/node/info")
-        .header(hyper::header::HOST, authority)
-        .header(
-            hyper::header::AUTHORIZATION,
-            format!("Bearer {}", bearer_token.trim()),
-        )
-        .header(hyper::header::CONNECTION, "close")
-        .body(Empty::<Bytes>::new())
-        .context("write startup node probe")?;
-    let response = sender
-        .send_request(request)
-        .await
-        .with_context(|| format!("malformed HTTP response from {base_url}"))?;
-    let status = response.status().as_u16();
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .with_context(|| format!("truncated HTTP response body from {base_url}"))?
-        .to_bytes()
-        .to_vec();
-    Ok((status, body))
 }
 
 mod http_connection_cleanup_tests;

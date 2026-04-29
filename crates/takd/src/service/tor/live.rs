@@ -1,4 +1,6 @@
-use anyhow::{Context, Result, anyhow, bail};
+use std::time::Duration;
+
+use anyhow::{Result, anyhow, bail};
 use futures::StreamExt;
 use safelog::DisplayRedacted;
 use tokio::sync::mpsc;
@@ -10,13 +12,14 @@ use crate::agent::{
 use crate::daemon::remote::SubmitAttemptStore;
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
+use super::TorSessionExit;
 use super::health::{TorRecoveryConfig, startup_session_timeout};
+use super::live_startup::{bootstrap_tor_client, launch_live_onion_service, record_startup_detail};
 use super::live_state::{mark_transport_ready, mark_transport_recovering, pending_context};
 use super::monitor::{TorHealthEvent, handle_health_event, run_periodic_self_probe};
 use super::probe;
 use super::rend::spawn_rend_request;
 use super::startup_policy::startup_probe_retry_policy;
-use super::{TorSessionExit, onion_service_config, tor_client_config};
 
 pub(super) async fn serve_live_tor_session(
     config_root: &std::path::Path,
@@ -30,19 +33,23 @@ pub(super) async fn serve_live_tor_session(
         "bootstrapping embedded Arti for takd hidden service nickname {}",
         runtime.nickname
     );
-    let tor_client = arti_client::TorClient::create_bootstrapped(tor_client_config(runtime)?)
-        .await
-        .context("failed to bootstrap embedded Arti for takd hidden service")?;
+    let tor_client = bootstrap_tor_client(config, runtime).await?;
     let startup_probe_retry_policy = startup_probe_retry_policy();
     let startup_timeout = startup_session_timeout(startup_probe_retry_policy.timeout);
     let mut startup_backoff =
         TorRecoveryBackoff::new(recovery.initial_backoff, recovery.max_backoff);
 
     'launch: loop {
-        let Some((running_service, rend_requests)) = tor_client
-            .launch_onion_service(onion_service_config(&runtime.nickname)?)
-            .context("failed to launch takd onion service via embedded Arti")?
-        else {
+        let launched = launch_live_onion_service(config, runtime, &tor_client, startup_timeout)?;
+        let Some((running_service, rend_requests)) = launched else {
+            record_startup_detail(
+                "onion launch",
+                1,
+                Duration::ZERO,
+                startup_timeout,
+                config.base_url.clone(),
+                "takd onion service launch was skipped because the service is disabled",
+            );
             bail!("takd onion service launch was skipped because the service is disabled");
         };
         let base_url = running_service
@@ -60,12 +67,13 @@ pub(super) async fn serve_live_tor_session(
         let readiness_client = tor_client.isolated_client();
         let readiness_base_url = base_url.clone();
         let readiness_token = config.bearer_token.clone();
-        let readiness = probe::wait_for_tor_hidden_service_startup(
+        let readiness = probe::wait_for_tor_hidden_service_startup_with_detail(
             &readiness_client,
             &readiness_base_url,
             &readiness_token,
             startup_timeout,
             startup_probe_retry_policy.backoff,
+            Some(state_root),
         );
         tokio::pin!(readiness);
         futures::pin_mut!(rend_requests);

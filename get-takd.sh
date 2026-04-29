@@ -141,7 +141,7 @@ agent_state_path() {
 }
 
 main() {
-  local target tag archive_name archive_url temp_dir archive_path takd_bin base_url
+  local target tag archive_name archive_url temp_dir archive_path takd_bin base_url token_output token_status
   local -a init_args
   target="$(detect_target)"
   tag="$(resolve_tag)"
@@ -198,9 +198,19 @@ main() {
     exit 0
   fi
 
-  base_url="$("$takd_bin" status | sed -n 's/^base_url: //p' | head -n1)"
+  set +e
+  token_output="$("$takd_bin" token show --state-root "$(agent_state_path)" --wait --timeout-secs "$TAKD_WAIT_TIMEOUT_SECS" --qr 2>&1)"
+  token_status=$?
+  set -e
+  if [[ "$token_status" -ne 0 ]]; then
+    printf '%s\n' "$token_output" >&2
+    printf 'recent takd logs:\n' >&2
+    "$takd_bin" logs --state-root "$(agent_state_path)" --lines 100 >&2 || true
+    exit "$token_status"
+  fi
+  base_url="$("$takd_bin" status --config-root "$(config_home)/takd" --state-root "$(agent_state_path)" | sed -n 's/^base_url: //p' | head -n1)"
   printf 'takd ready at %s\n' "${base_url:-unknown}"
-  "$takd_bin" token show --wait --timeout-secs "$TAKD_WAIT_TIMEOUT_SECS" --qr
+  printf '%s\n' "$token_output"
 }
 
 main "$@"

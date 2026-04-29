@@ -40,7 +40,7 @@ pub(super) fn print_status(config: &AgentConfig, state_root: &Path) -> Result<()
     if let Some(base_url) = advertised_base_url {
         println!("base_url: {base_url}");
     }
-    if let Some(detail) = health.and_then(|value| value.detail) {
+    if let Some(detail) = transport_detail(health.as_ref()) {
         println!("transport_detail: {detail}");
     }
     println!("log_path: {}", log_path.display());
@@ -53,4 +53,17 @@ pub(super) fn print_status(config: &AgentConfig, state_root: &Path) -> Result<()
         }
     );
     Ok(())
+}
+
+fn transport_detail(health: Option<&takd::agent::TransportHealth>) -> Option<String> {
+    if let Some(detail) = health
+        .and_then(|value| value.detail.as_deref())
+        .filter(|detail| !detail.trim().is_empty())
+    {
+        return Some(detail.to_string());
+    }
+    if health.is_some_and(|value| value.transport_state == TransportState::Pending) {
+        return Some("waiting for takd Tor startup probe to report a readiness detail".to_string());
+    }
+    None
 }
