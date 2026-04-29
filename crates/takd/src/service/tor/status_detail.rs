@@ -62,10 +62,24 @@ pub(super) fn self_probe_failure_action(detail: &str) -> SelfProbeRecoveryAction
     if detail.contains("request stream ended") {
         return SelfProbeRecoveryAction::RelaunchService;
     }
-    if tor_guard_exhaustion_signal(&detail) || tor_fallback_exhaustion_signal(&detail) {
+    if tor_guard_exhaustion_signal(&detail)
+        || tor_fallback_exhaustion_signal(&detail)
+        || startup_probe_timeout_exhausted(&detail) && tor_startup_failure_signal(&detail)
+    {
         return SelfProbeRecoveryAction::RestartTorClient;
     }
     SelfProbeRecoveryAction::KeepWaiting
+}
+
+pub(super) fn startup_watchdog_action(state: OnionServiceState) -> SelfProbeRecoveryAction {
+    let gate = hidden_service_probe_gate(state);
+    if gate.requires_relaunch() {
+        return SelfProbeRecoveryAction::RelaunchService;
+    }
+    if gate.allows_probe() {
+        return SelfProbeRecoveryAction::KeepWaiting;
+    }
+    SelfProbeRecoveryAction::RestartTorClient
 }
 
 pub(super) fn tor_startup_failure_signal(detail: &str) -> bool {
@@ -89,5 +103,11 @@ fn tor_fallback_exhaustion_signal(detail: &str) -> bool {
     detail.contains("no usable fallbacks")
 }
 
+fn startup_probe_timeout_exhausted(detail: &str) -> bool {
+    detail.contains("did not become reachable within") && detail.contains("during takd startup")
+}
+
 #[path = "status_detail_tests.rs"]
 mod status_detail_tests;
+#[path = "status_watchdog_tests.rs"]
+mod status_watchdog_tests;

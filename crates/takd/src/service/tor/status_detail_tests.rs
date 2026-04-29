@@ -59,13 +59,13 @@ fn descriptor_download_failures_do_not_trigger_startup_relaunch() {
 }
 
 #[test]
-fn startup_probe_timeout_on_descriptor_failures_keeps_waiting() {
+fn startup_probe_timeout_on_descriptor_failures_restarts_tor_client() {
     let action = self_probe_failure_action(
         "Tor onion service at http://builder-a.onion did not become reachable within 60000ms during takd startup: \
          connect takd hidden-service startup probe: Unable to download hidden service descriptor",
     );
 
-    assert_eq!(action, SelfProbeRecoveryAction::KeepWaiting);
+    assert_eq!(action, SelfProbeRecoveryAction::RestartTorClient);
 }
 
 #[test]

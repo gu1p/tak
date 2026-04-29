@@ -1,6 +1,4 @@
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{pin::Pin, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use futures::{Stream, StreamExt};
@@ -18,11 +16,14 @@ use super::live_readiness_support::{
     readiness_probe, record_pending_arti_status, record_self_probe_failure, relaunch_after_delay,
     self_probe_recovery_action,
 };
+use super::live_readiness_watchdog::{startup_watchdog_detail, startup_watchdog_restart_reason};
 use super::live_state::mark_transport_ready;
 use super::monitor::TorHealthEvent;
 use super::rend::spawn_rend_request;
 use super::startup_policy::TorStartupProbeRetryPolicy;
-use super::status_detail::{SelfProbeRecoveryAction, hidden_service_probe_gate};
+use super::status_detail::{
+    SelfProbeRecoveryAction, hidden_service_probe_gate, startup_watchdog_action,
+};
 
 pub(super) struct LiveReadinessContext<'a, R>
 where
@@ -80,6 +81,8 @@ where
     );
     let mut rend_requests = Box::pin(rend_requests);
     let mut service_status_events = Box::pin(running_service.status_events());
+    let startup_watchdog = tokio::time::sleep(params.startup_timeout);
+    tokio::pin!(startup_watchdog);
 
     loop {
         tokio::select! {
@@ -140,6 +143,21 @@ where
                     let detail = format!("Arti onion-service state={service_state:?}");
                     relaunch_after_delay(params.startup_backoff, &detail).await;
                     return Ok(StartupReadiness::Relaunch);
+                }
+            }
+            _ = &mut startup_watchdog, if !hidden_service_probe_gate(service_state).allows_probe() => {
+                let detail = startup_watchdog_detail(service_state, params.startup_timeout);
+                record_self_probe_failure(&params, service_state, &service_status, &detail)?;
+                match startup_watchdog_action(service_state) {
+                    SelfProbeRecoveryAction::RelaunchService => {
+                        relaunch_after_delay(params.startup_backoff, &detail).await;
+                        return Ok(StartupReadiness::Relaunch);
+                    }
+                    SelfProbeRecoveryAction::RestartTorClient | SelfProbeRecoveryAction::KeepWaiting => {
+                        let reason = startup_watchdog_restart_reason(&detail);
+                        tracing::warn!("{reason}");
+                        return Ok(StartupReadiness::RestartTorClient { reason });
+                    }
                 }
             }
             maybe_rend_request = rend_requests.next() => {

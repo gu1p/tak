@@ -13,6 +13,7 @@ mod health;
 mod live;
 mod live_readiness;
 mod live_readiness_support;
+mod live_readiness_watchdog;
 mod live_startup;
 mod live_state;
 mod monitor;

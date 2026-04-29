@@ -13,7 +13,7 @@ err() {
 
 download_asset() {
   local url="$1" out_file="$2"
-  curl -fsSL -o "$out_file" "$url"
+  curl -fL --progress-bar -o "$out_file" "$url"
 }
 
 resolve_latest_release_url() {
@@ -199,6 +199,7 @@ main() {
   fi
 
   set +e
+  printf 'Waiting for takd Tor readiness (timeout %ss)\n' "$TAKD_WAIT_TIMEOUT_SECS"
   token_output="$("$takd_bin" token show --state-root "$(agent_state_path)" --wait --timeout-secs "$TAKD_WAIT_TIMEOUT_SECS" --qr 2>&1)"
   token_status=$?
   set -e
