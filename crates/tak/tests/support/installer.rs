@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Output};
 
 pub fn run_installer(
@@ -45,6 +45,27 @@ pub fn fake_systemctl() -> &'static str {
 
 pub fn failing_systemctl() -> &'static str {
     "#!/usr/bin/env bash\nprintf 'systemd unavailable\\n' >&2\nexit 1\n"
+}
+
+pub fn rerun_installer(
+    temp: &tempfile::TempDir,
+    home: &Path,
+    extra_env: &[(&str, &str)],
+) -> Output {
+    let mut command = StdCommand::new("/bin/bash");
+    command
+        .arg(temp.path().join("get-takd.sh"))
+        .env("HOME", home)
+        .env(
+            "PATH",
+            format!("{}:/usr/bin:/bin", temp.path().join("bin").display()),
+        )
+        .env("XDG_CONFIG_HOME", home.join(".config"))
+        .env("XDG_STATE_HOME", home.join(".local/state"));
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
+    command.output().expect("rerun installer")
 }
 
 fn repo_root() -> PathBuf {

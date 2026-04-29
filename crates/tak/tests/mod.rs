@@ -15,6 +15,7 @@ mod examples_tor_fixture_behavior;
 mod exec_local_contract;
 mod exec_remote_override_contract;
 mod exec_remote_runtime_requirement_contract;
+mod get_takd_installer_arti_reset_contract;
 mod get_takd_installer_contract;
 mod get_takd_installer_failure_contract;
 mod get_takd_installer_rerun_contract;

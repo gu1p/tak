@@ -76,6 +76,51 @@ default_service_backtrace() {
   printf '%s' "${TAKD_SERVICE_RUST_BACKTRACE:-1}"
 }
 
+linux_service_name() {
+  printf 'takd.service'
+}
+
+macos_service_label() {
+  printf 'dev.tak.takd'
+}
+
+stop_linux_service() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  systemctl --user stop "$(linux_service_name)" >/dev/null 2>&1 || true
+}
+
+start_linux_service() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl --user daemon-reload >/dev/null 2>&1 \
+    && systemctl --user enable "$(linux_service_name)" >/dev/null 2>&1 \
+    && systemctl --user restart "$(linux_service_name)" >/dev/null 2>&1
+}
+
+stop_macos_service() {
+  local uid
+  command -v launchctl >/dev/null 2>&1 || return 0
+  uid="$(id -u)"
+  launchctl bootout "gui/${uid}/$(macos_service_label)" >/dev/null 2>&1 || true
+}
+
+start_macos_service() {
+  local plist_file="$1" uid
+  uid="$(id -u)"
+  launchctl bootstrap "gui/${uid}" "$plist_file"
+  launchctl kickstart -k "gui/${uid}/$(macos_service_label)"
+}
+
+reset_rebuildable_arti_state() {
+  local arti_root
+  arti_root="$(agent_state_path)/arti"
+  rm -rf -- \
+    "$arti_root/cache" \
+    "$arti_root/state/state" \
+    "$arti_root/state/hss" \
+    "$arti_root/state/hss_iptreplay" \
+    "$arti_root/state/pt_state"
+}
+
 install_linux_service() {
   local takd_bin="$1" unit_dir unit_file state_root config_root service_rust_log service_backtrace
   unit_dir="$(config_home)/systemd/user"
@@ -101,26 +146,23 @@ WorkingDirectory=%h
 [Install]
 WantedBy=default.target
 EOF
-  if command -v systemctl >/dev/null 2>&1; then
-    if systemctl --user daemon-reload >/dev/null 2>&1 \
-      && systemctl --user enable takd.service >/dev/null 2>&1 \
-      && systemctl --user restart takd.service >/dev/null 2>&1; then
-      if command -v loginctl >/dev/null 2>&1; then
-        loginctl enable-linger "${USER:-$(id -un)}" >/dev/null 2>&1 || true
-      fi
-      return 0
+  stop_linux_service
+  reset_rebuildable_arti_state
+  if start_linux_service; then
+    if command -v loginctl >/dev/null 2>&1; then
+      loginctl enable-linger "${USER:-$(id -un)}" >/dev/null 2>&1 || true
     fi
+    return 0
   fi
   return 1
 }
 
 install_macos_service() {
-  local takd_bin="$1" plist_dir plist_file state_root config_root uid service_rust_log service_backtrace
+  local takd_bin="$1" plist_dir plist_file state_root config_root service_rust_log service_backtrace
   plist_dir="$HOME/Library/LaunchAgents"
   plist_file="$plist_dir/dev.tak.takd.plist"
   config_root="$(config_home)/takd"
   state_root="$(state_home)/takd"
-  uid="$(id -u)"
   service_rust_log="$(default_service_rust_log)"
   service_backtrace="$(default_service_backtrace)"
   mkdir -p "$plist_dir" "$state_root"
@@ -135,9 +177,9 @@ install_macos_service() {
 <key>KeepAlive</key><true/>
 </dict></plist>
 EOF
-  launchctl bootout "gui/${uid}" "$plist_file" >/dev/null 2>&1 || true
-  launchctl bootstrap "gui/${uid}" "$plist_file"
-  launchctl kickstart -k "gui/${uid}/dev.tak.takd"
+  stop_macos_service
+  reset_rebuildable_arti_state
+  start_macos_service "$plist_file"
 }
 
 install_service() {
