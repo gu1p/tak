@@ -5,6 +5,13 @@ pub(super) struct HiddenServiceProbeGate {
     requires_relaunch: bool,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(super) enum SelfProbeRecoveryAction {
+    KeepWaiting,
+    RelaunchService,
+    RestartTorClient,
+}
+
 impl HiddenServiceProbeGate {
     pub(super) fn allows_probe(&self) -> bool {
         self.allows_probe
@@ -50,15 +57,43 @@ pub(super) fn format_arti_transport_detail(
     )
 }
 
-pub(super) fn should_relaunch_for_self_probe_error(detail: &str) -> bool {
+pub(super) fn self_probe_failure_action(detail: &str) -> SelfProbeRecoveryAction {
     let detail = detail.to_ascii_lowercase();
-    if detail.contains("unable to download hidden service descriptor")
-        || detail.contains("hidden-service circuit")
-        || detail.contains("rendezvous circuit")
-    {
-        return false;
+    if detail.contains("request stream ended") {
+        return SelfProbeRecoveryAction::RelaunchService;
     }
-    detail.contains("request stream ended")
+    if tor_guard_exhaustion_signal(&detail)
+        || tor_fallback_exhaustion_signal(&detail)
+        || startup_probe_timeout_exhausted(&detail) && tor_startup_failure_signal(&detail)
+    {
+        return SelfProbeRecoveryAction::RestartTorClient;
+    }
+    SelfProbeRecoveryAction::KeepWaiting
+}
+
+pub(super) fn tor_startup_failure_signal(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    tor_guard_exhaustion_signal(&detail)
+        || tor_fallback_exhaustion_signal(&detail)
+        || detail.contains("unable to download hidden service descriptor")
+        || detail.contains("failed to obtain hidden service descriptor")
+        || detail.contains("hidden-service circuit")
+        || detail.contains("failed to obtain hidden service circuit")
+        || detail.contains("rendezvous circuit")
+        || detail.contains("tried to find or build a tunnel")
+}
+
+pub(super) fn tor_guard_exhaustion_signal(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    detail.contains("no usable guards") || detail.contains("unable to select a guard relay")
+}
+
+fn tor_fallback_exhaustion_signal(detail: &str) -> bool {
+    detail.contains("no usable fallbacks")
+}
+
+fn startup_probe_timeout_exhausted(detail: &str) -> bool {
+    detail.contains("did not become reachable within") && detail.contains("during takd startup")
 }
 
 #[path = "status_detail_tests.rs"]

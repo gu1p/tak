@@ -3,17 +3,21 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
+use endpoint::{endpoint_host_port, endpoint_socket_addr};
 use prost::Message;
 use tokio::time::{sleep, timeout};
 use tor_rtcompat::Runtime;
 
 use health_detail::{log_probe_progress, record_probe_failure};
 use http_client::{RemoteStream, send_node_info_request};
+use startup_failure::{remember_tor_startup_failure_signal, startup_probe_error};
 
 use super::startup_policy::CappedExponentialBackoff;
 
+mod endpoint;
 mod health_detail;
 mod http_client;
+mod startup_failure;
 
 const MAX_PROBE_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -56,6 +60,7 @@ where
     let (host, port) = endpoint_host_port(base_url)?;
     let authority = endpoint_socket_addr(base_url)?;
     let mut last_error = anyhow!("hidden service startup probe failed before a response");
+    let mut observed_tor_failure = None;
     let mut attempt = 0_u32;
     let mut backoff = CappedExponentialBackoff::new(backoff, max_backoff);
 
@@ -97,6 +102,8 @@ where
                 {
                     Ok(()) => return Ok(()),
                     Err(err) => {
+                        let detail = format!("{err:#}");
+                        remember_tor_startup_failure_signal(&mut observed_tor_failure, &detail);
                         record_probe_failure(
                             detail_state_root,
                             base_url,
@@ -104,13 +111,15 @@ where
                             attempt,
                             started_at,
                             timeout,
-                            format!("{err:#}"),
+                            detail,
                         );
                         last_error = err;
                     }
                 }
             }
             Err(err) => {
+                let detail = format!("{err:#}");
+                remember_tor_startup_failure_signal(&mut observed_tor_failure, &detail);
                 record_probe_failure(
                     detail_state_root,
                     base_url,
@@ -118,7 +127,7 @@ where
                     attempt,
                     started_at,
                     timeout,
-                    format!("{err:#}"),
+                    detail,
                 );
                 last_error = err;
             }
@@ -134,9 +143,11 @@ where
         .await;
     }
 
-    Err(last_error).context(format!(
-        "Tor onion service at {base_url} did not become reachable within {}ms during takd startup",
-        timeout.as_millis()
+    Err(startup_probe_error(
+        last_error,
+        observed_tor_failure.as_deref(),
+        base_url,
+        timeout,
     ))
 }
 
@@ -174,14 +185,6 @@ where
         .await
         .map_err(|_| anyhow!("{stage} timed out after {}ms", attempt_timeout.as_millis()))?
         .map_err(Into::into)
-}
-
-fn endpoint_socket_addr(endpoint: &str) -> Result<String> {
-    tak_core::endpoint::endpoint_socket_addr(endpoint).map_err(Into::into)
-}
-
-fn endpoint_host_port(endpoint: &str) -> Result<(String, u16)> {
-    tak_core::endpoint::endpoint_host_port(endpoint).map_err(Into::into)
 }
 
 mod http_connection_cleanup_tests;

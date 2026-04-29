@@ -16,13 +16,13 @@ use crate::daemon::remote::{RemoteNodeContext, SubmitAttemptStore};
 
 use super::live_readiness_support::{
     readiness_probe, record_pending_arti_status, record_self_probe_failure, relaunch_after_delay,
-    should_relaunch,
+    self_probe_recovery_action,
 };
 use super::live_state::mark_transport_ready;
 use super::monitor::TorHealthEvent;
 use super::rend::spawn_rend_request;
 use super::startup_policy::TorStartupProbeRetryPolicy;
-use super::status_detail::hidden_service_probe_gate;
+use super::status_detail::{SelfProbeRecoveryAction, hidden_service_probe_gate};
 
 pub(super) struct LiveReadinessContext<'a, R>
 where
@@ -43,6 +43,7 @@ where
 pub(super) enum StartupReadiness<S> {
     Ready(ReadyLiveTorService<S>),
     Relaunch,
+    RestartTorClient { reason: String },
 }
 
 pub(super) struct ReadyLiveTorService<S> {
@@ -103,17 +104,28 @@ where
                     Err(err) => {
                         let detail = format!("{err:#}");
                         record_self_probe_failure(&params, service_state, &service_status, &detail)?;
-                        if should_relaunch(&detail, service_state) {
-                            relaunch_after_delay(params.startup_backoff, &detail).await;
-                            return Ok(StartupReadiness::Relaunch);
+                        match self_probe_recovery_action(&detail, service_state) {
+                            SelfProbeRecoveryAction::KeepWaiting => {
+                                tracing::warn!("takd onion service still pending after self-probe: {detail}");
+                                readiness = readiness_probe(
+                                    &readiness_client,
+                                    &readiness_base_url,
+                                    &readiness_token,
+                                    &params,
+                                );
+                            }
+                            SelfProbeRecoveryAction::RelaunchService => {
+                                relaunch_after_delay(params.startup_backoff, &detail).await;
+                                return Ok(StartupReadiness::Relaunch);
+                            }
+                            SelfProbeRecoveryAction::RestartTorClient => {
+                                let reason = format!(
+                                    "embedded Arti client startup self-probe failed: {detail}"
+                                );
+                                tracing::warn!("{reason}");
+                                return Ok(StartupReadiness::RestartTorClient { reason });
+                            }
                         }
-                        tracing::warn!("takd onion service still pending after self-probe: {detail}");
-                        readiness = readiness_probe(
-                            &readiness_client,
-                            &readiness_base_url,
-                            &readiness_token,
-                            &params,
-                        );
                     }
                 }
             }

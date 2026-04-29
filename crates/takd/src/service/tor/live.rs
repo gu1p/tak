@@ -73,8 +73,12 @@ pub(super) async fn serve_live_tor_session(
             rend_requests,
         )
         .await?;
-        let StartupReadiness::Ready(ready) = ready else {
-            continue 'launch;
+        let ready = match ready {
+            StartupReadiness::Ready(ready) => ready,
+            StartupReadiness::Relaunch => continue 'launch,
+            StartupReadiness::RestartTorClient { reason } => {
+                return Ok(TorSessionExit { base_url, reason });
+            }
         };
         let _running_service = ready._running_service;
         let mut rend_requests = ready.rend_requests;

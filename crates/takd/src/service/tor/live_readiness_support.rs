@@ -11,7 +11,8 @@ use super::live_readiness::LiveReadinessContext;
 use super::live_state::mark_transport_pending;
 use super::probe;
 use super::status_detail::{
-    format_arti_transport_detail, hidden_service_probe_gate, should_relaunch_for_self_probe_error,
+    SelfProbeRecoveryAction, format_arti_transport_detail, hidden_service_probe_gate,
+    self_probe_failure_action,
 };
 
 pub(super) type ReadinessProbe<'a> = Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
@@ -91,9 +92,14 @@ where
     )
 }
 
-pub(super) fn should_relaunch(detail: &str, service_state: State) -> bool {
-    hidden_service_probe_gate(service_state).requires_relaunch()
-        || should_relaunch_for_self_probe_error(detail)
+pub(super) fn self_probe_recovery_action(
+    detail: &str,
+    service_state: State,
+) -> SelfProbeRecoveryAction {
+    if hidden_service_probe_gate(service_state).requires_relaunch() {
+        return SelfProbeRecoveryAction::RelaunchService;
+    }
+    self_probe_failure_action(detail)
 }
 
 pub(super) async fn relaunch_after_delay(startup_backoff: &mut TorRecoveryBackoff, detail: &str) {
