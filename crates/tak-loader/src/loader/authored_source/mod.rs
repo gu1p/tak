@@ -8,6 +8,7 @@ use ruff_python_parser::parse_module;
 mod boundary;
 mod expr_helpers;
 mod helpers;
+mod namespace_lowering;
 mod reason_namespace;
 mod removed_surface;
 mod replacements;

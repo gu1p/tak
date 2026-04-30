@@ -23,6 +23,18 @@ SPEC
         "{runtime:#}"
     );
 
+    let host_runtime = load_error(
+        r#"RUNTIME = Runtime.Host()
+SPEC = module_spec(tasks=[task("check", execution=Execution.Local(runtime=RUNTIME))])
+SPEC
+"#,
+    );
+    assert!(
+        host_runtime.contains("omit the container") && host_runtime.contains("Execution.Local()"),
+        "{host_runtime:#}"
+    );
+    assert!(!host_runtime.contains("Container.Host"), "{host_runtime:#}");
+
     let session_wrapper = load_error(
         r#"SESSION = session("cargo", execution=Execution.Local(), reuse=SessionReuse.Workspace())
 SPEC = module_spec(tasks=[task("check", execution=Execution.Session(SESSION))])
@@ -30,7 +42,11 @@ SPEC
 "#,
     );
     assert!(
-        session_wrapper.contains("use_session"),
+        session_wrapper.contains("use `task(..., use_session=SESSION)`"),
+        "{session_wrapper:#}"
+    );
+    assert!(
+        !session_wrapper.contains("cascade_session=True"),
         "{session_wrapper:#}"
     );
 }
