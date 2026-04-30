@@ -41,11 +41,11 @@ pub(crate) fn validate_runtime(
     };
 
     if runtime.kind.trim() == "host" {
-        bail!("Runtime.Host() is only valid for Execution.Local");
+        bail!("host runtime is only valid by omitting container on Execution.Local");
     }
 
     let validated = validate_container_runtime_execution_spec(&runtime)
-        .map_err(|err| anyhow!("execution {owner}.runtime {err}"))?;
+        .map_err(|err| anyhow!("execution {owner}.container {err}"))?;
     let source = resolve_container_runtime_source(validated.source, package, owner)?;
 
     Ok(Some(RemoteRuntimeSpec::Containerized { source }))
@@ -87,7 +87,7 @@ fn resolve_container_runtime_source(
             };
 
             if !is_path_within(&dockerfile, &build_context) {
-                bail!("execution {owner}.runtime.dockerfile must be within build_context");
+                bail!("execution {owner}.container.dockerfile must be within build_context");
             }
 
             Ok(ContainerRuntimeSourceSpec::Dockerfile {
@@ -105,7 +105,7 @@ fn resolve_runtime_path(
     field: &str,
 ) -> Result<PathRef> {
     resolve_context_path(path, package)
-        .map_err(|err| anyhow!("execution {owner}.runtime.{field} {err}"))
+        .map_err(|err| anyhow!("execution {owner}.container.{field} {err}"))
 }
 
 fn package_root_path(package: &str) -> Result<PathRef> {

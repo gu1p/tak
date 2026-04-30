@@ -1,6 +1,4 @@
 use std::fs;
-use std::path::Path;
-
 use takd::SubmitAttemptStore;
 
 use crate::support;
@@ -12,13 +10,13 @@ use support::remote_output::test_context_with_runtime;
 use support::wait_for_terminal_events::wait_for_terminal_events;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_validate_candidates()
- {
+async fn containerized_remote_tasks_fall_back_to_configured_default_when_probe_fails() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let tmpdir = temp.path().join("tmp-root");
     fs::create_dir_all(&tmpdir).expect("create tmpdir");
+    let default_root = tmpdir.join("takd-remote-exec");
 
     let daemon = FakeDockerDaemon::spawn(
         temp.path(),
@@ -61,8 +59,8 @@ async fn containerized_remote_tasks_fall_back_to_unix_default_when_probe_cannot_
         execution
             .bind_source()
             .expect("execution bind source")
-            .starts_with(Path::new("/var/tmp/takd-remote-exec")),
-        "execution bind should fall back to unix default root: {:?}",
+            .starts_with(&default_root),
+        "execution bind should fall back to configured default root: {:?}",
         execution
     );
     assert_eq!(

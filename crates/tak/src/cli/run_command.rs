@@ -33,7 +33,7 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
     if warn_redundant_remote_container_flag(args.remote, args.container) {
         eprintln!(
-            "warning: --container is redundant with --remote; remote execution already implies a containerized runtime"
+            "warning: --container is redundant with --remote; remote execution already implies a container"
         );
     }
     let spec = apply_run_execution_overrides(

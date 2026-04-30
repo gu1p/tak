@@ -17,13 +17,13 @@ fn share_workspace_preserves_session_files_without_syncing_them_back() -> Result
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Runtime.Image("alpine:3.20")
-SESSION = session("rust", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
+        r#"RUNTIME = Container.Image("alpine:3.20")
+SESSION = session("rust", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
   tasks=[
-    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo cached > .session/build.txt")], execution=Execution.Session(SESSION)),
-    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/result.txt")], execution=Execution.Session(SESSION)),
+    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo cached > .session/build.txt")], use_session=SESSION),
+    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/result.txt")], use_session=SESSION),
   ],
 )
 SPEC
@@ -54,13 +54,13 @@ fn remote_share_workspace_preserves_files_between_session_tasks() -> Result<()> 
     let roots = LiveDirectRoots::new(temp.path());
     write_tasks(
         &workspace,
-        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), runtime=Runtime.Image("alpine:3.20"))
+        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20"))
 SESSION = session("remote-rust", execution=REMOTE, reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
   tasks=[
-    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo remote-cached > .session/build.txt")], execution=Execution.Session(SESSION)),
-    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/remote-result.txt")], execution=Execution.Session(SESSION)),
+    task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo remote-cached > .session/build.txt")], use_session=SESSION),
+    task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/remote-result.txt")], use_session=SESSION),
   ],
 )
 SPEC

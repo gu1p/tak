@@ -31,7 +31,7 @@ REMOTE = Execution.Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=Transport.DirectHttps(),
-  runtime=Runtime.Image("alpine:3.20"),
+  container=Container.Image("alpine:3.20"),
 )
 
 remote_stream = task(
@@ -60,7 +60,7 @@ REMOTE = Execution.Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=Transport.DirectHttps(),
-  runtime=Runtime.Image("alpine:3.20"),
+  container=Container.Image("alpine:3.20"),
 )
 
 remote_wait = task(

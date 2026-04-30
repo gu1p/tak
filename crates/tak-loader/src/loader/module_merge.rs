@@ -112,7 +112,7 @@ pub(crate) fn merge_module(
         let container_runtime = validate_runtime(
             module.defaults.container_runtime.clone(),
             package,
-            "defaults.container_runtime",
+            "defaults",
         )?;
 
         let mut tags = module.defaults.tags.clone();

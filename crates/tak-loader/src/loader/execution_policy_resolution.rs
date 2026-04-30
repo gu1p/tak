@@ -88,10 +88,12 @@ fn resolve_policy_placement(
             bail!("execution_policy `{policy_name}` placements cannot use Execution.Decide")
         }
         TaskExecutionSpec::UseSession { .. } => {
-            bail!("execution_policy `{policy_name}` placements cannot use Execution.Session")
+            bail!("execution_policy `{policy_name}` placements cannot use task(use_session=...)")
         }
         TaskExecutionSpec::ByExecutionPolicy { .. } => {
-            bail!("execution_policy `{policy_name}` placements cannot use execution_policy")
+            bail!(
+                "execution_policy `{policy_name}` placements cannot nest Execution.FirstAvailable"
+            )
         }
     }
 }

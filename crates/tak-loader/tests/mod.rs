@@ -8,6 +8,8 @@ mod includes_contract;
 mod module_layout_contract;
 mod namespaced_execution_contract;
 mod namespaced_runtime_rejection_contract;
+mod new_dsl_contract;
+mod new_dsl_rejection_contract;
 mod output_selectors_contract;
 mod policy_decision_builder_contract;
 mod policy_decision_contract;

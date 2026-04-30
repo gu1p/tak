@@ -51,13 +51,13 @@ def _normalize_deps(value):
 def _is_defaults_value(value):
     return isinstance(value, dict) and value.get("__tak_kind") == "defaults"
 
-def Defaults(container_runtime=None, execution=None, retry=None, queue=None, tags=None):
+def Defaults(container=None, execution=None, retry=None, queue=None, tags=None):
     """Build typed module-level defaults for tasks in this TASKS.py file."""
     return {
         "__tak_kind": "defaults",
         "queue": queue,
         "retry": retry,
-        "container_runtime": container_runtime,
+        "container": container,
         "execution": execution,
         "tags": _or_empty_list(tags),
     }
@@ -65,9 +65,9 @@ def Defaults(container_runtime=None, execution=None, retry=None, queue=None, tag
 def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, defaults=None, project_id=None, sessions=None, execution_policies=None):
     """Declare the module boundary that Tak loads from one TASKS.py file."""
     if sessions is not None:
-        raise TypeError("module_spec(sessions=...) was removed; pass session objects through Execution.Session(session_obj)")
+        raise TypeError("module_spec(sessions=...) was removed; pass session objects through task(use_session=...)")
     if execution_policies is not None:
-        raise TypeError("module_spec(execution_policies=...) was removed; pass execution_policy objects through execution=policy_obj")
+        raise TypeError("module_spec(execution_policies=...) was removed; pass Execution.FirstAvailable(...) through execution=...")
     if defaults is not None and not _is_defaults_value(defaults):
         raise TypeError("module_spec(defaults=...) expects Defaults(...)")
     return {
@@ -93,7 +93,7 @@ def _local_spec(runtime=None):
     return {
         "id": "local",
         "max_parallel_tasks": 1,
-        "runtime": _normalize_local_runtime(runtime),
+        "container": _normalize_local_runtime(runtime),
     }
 
 def _remote_selection(selection=None):
@@ -101,13 +101,13 @@ def _remote_selection(selection=None):
 
 def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None):
     if _is_host_runtime(runtime):
-        raise TypeError("Runtime.Host() is only valid for Execution.Local")
+        raise TypeError("remote execution does not accept a host runtime; omit container for local host execution")
     return {
         "pool": pool,
         "required_tags": _or_empty_list(required_tags),
         "required_capabilities": _or_empty_list(required_capabilities),
         "transport": transport,
-        "runtime": runtime,
+        "container": runtime,
         "selection": _remote_selection(selection),
     }
 
@@ -141,13 +141,7 @@ def Transport_TorOnionService():
         "kind": "tor",
     }
 
-def Runtime_Host():
-    """Run local work directly on the host without a container."""
-    return {
-        "kind": "host",
-    }
-
-def Runtime_Image(image, command=None, mounts=None, env=None, resources=None):
+def Container_Image(image, command=None, mounts=None, env=None, resources=None):
     """Run work inside a prebuilt container image."""
     return {
         "kind": "containerized",
@@ -160,8 +154,8 @@ def Runtime_Image(image, command=None, mounts=None, env=None, resources=None):
         "resource_limits": resources,
     }
 
-def Runtime_Dockerfile(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
-    """Build a container runtime from a Dockerfile in the workspace."""
+def Container_Dockerfile(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
+    """Build a container from a Dockerfile in the workspace."""
     return {
         "kind": "containerized",
         "image": None,
@@ -193,18 +187,18 @@ def _is_local_constructor_value(value):
 def _is_remote_constructor_value(value):
     return isinstance(value, dict) and "max_parallel_tasks" not in value
 
-def Decision_local(reason="DEFAULT_LOCAL_POLICY", runtime=None):
+def Decision_local(reason="DEFAULT_LOCAL_POLICY", container=None):
     """Return an explicit local placement decision from a custom policy."""
     decision = {
         "mode": "local",
         "reason": str(reason),
     }
-    normalized_runtime = _normalize_local_runtime(runtime)
-    if normalized_runtime is not None:
-        decision["local"] = _local_spec(runtime=normalized_runtime)
+    normalized_container = _normalize_local_runtime(container)
+    if normalized_container is not None:
+        decision["local"] = _local_spec(runtime=normalized_container)
     return decision
 
-def Decision_remote(reason="DEFAULT_REMOTE_POLICY", pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None):
+def Decision_remote(reason="DEFAULT_REMOTE_POLICY", pool=None, required_tags=None, required_capabilities=None, transport=None, container=None):
     """Return an explicit remote placement decision from a custom policy."""
     return {
         "mode": "remote",
@@ -213,7 +207,7 @@ def Decision_remote(reason="DEFAULT_REMOTE_POLICY", pool=None, required_tags=Non
             required_tags=required_tags,
             required_capabilities=required_capabilities,
             transport=transport,
-            runtime=runtime,
+            runtime=container,
         ),
         "reason": str(reason),
     }
@@ -239,15 +233,15 @@ def Decision_resolve(*args, **kwargs):
 
 POLICY_CONTEXT = PolicyContext()
 
-def Execution_Local(runtime=None):
-    """Force a task to run locally, on the host by default or inside the supplied runtime."""
+def Execution_Local(container=None):
+    """Force a task to run locally, on the host by default or inside the supplied container."""
     return {
         "kind": "local_only",
-        "local": _local_spec(runtime=runtime),
+        "local": _local_spec(runtime=container),
     }
 
-def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None):
-    """Force a task to run remotely with the supplied target filters and runtime."""
+def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, container=None, selection=None):
+    """Force a task to run remotely with the supplied target filters and container."""
     return {
         "kind": "remote_only",
         "remote": _remote_spec(
@@ -255,9 +249,19 @@ def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, 
             required_tags=required_tags,
             required_capabilities=required_capabilities,
             transport=transport,
-            runtime=runtime,
+            runtime=container,
             selection=selection,
         ),
+    }
+
+def Execution_FirstAvailable(placements, doc=None, name=None):
+    """Try execution placements in order and use the first available placement."""
+    return {
+        "kind": "by_execution_policy",
+        "id": _next_policy_id(),
+        "name": str(name) if name is not None else None,
+        "placements": _or_empty_list(placements),
+        "doc": doc if doc is not None else "",
     }
 
 def _compile_policy_decision(policy, context):
@@ -281,7 +285,7 @@ def _compile_policy_decision(policy, context):
     if mode == "local":
         local = decision.get("local")
         if local is not None and not _is_local_constructor_value(local):
-            raise TypeError("Decision.local requires Runtime.Host/Image/Dockerfile")
+            raise TypeError("Decision.local requires Container.Image/Container.Dockerfile or no container")
         compiled = {
             "mode": "local",
             "reason": reason,
@@ -329,21 +333,11 @@ def SessionReuse_Paths(paths):
         "paths": _or_empty_list(paths),
     }
 
-def execution_policy(placements, doc=None, name=None):
-    """Declare an ordered execution policy for local and remote placements."""
-    return {
-        "kind": "by_execution_policy",
-        "id": _next_policy_id(),
-        "name": str(name) if name is not None else None,
-        "placements": _or_empty_list(placements),
-        "doc": doc if doc is not None else "",
-    }
-
 def session(name=None, execution=None, reuse=None, lifetime=_SessionLifetime_PerRun, context=None, execution_policy=None):
     """Declare a per-run execution session for containerized task chains."""
     if execution_policy is not None:
         label = str(name) if name is not None else "<unnamed>"
-        raise TypeError("session `" + label + "` uses removed execution_policy; pass execution=policy_object")
+        raise TypeError("session `" + label + "` uses removed execution_policy; pass execution=Execution.FirstAvailable(...)")
     if execution is None:
         label = str(name) if name is not None else "<unnamed>"
         raise TypeError("session `" + label + "` requires execution")
@@ -361,12 +355,11 @@ _SESSION_OBJECT_KEYS = ("id", "name", "execution", "reuse", "lifetime", "context
 def _is_session_object(value):
     return isinstance(value, dict) and all(key in value for key in _SESSION_OBJECT_KEYS)
 
-def Execution_Session(session, cascade=False):
-    """Run a task in a session object, optionally cascading it to dependencies."""
+def _execution_session(session, cascade=False):
     if isinstance(session, str):
-        raise TypeError("Execution.Session(...) expects a session(...) object, not a string")
+        raise TypeError("use_session expects a session(...) object, not a string")
     if not _is_session_object(session):
-        raise TypeError("Execution.Session(...) expects a session(...) object")
+        raise TypeError("use_session expects a session(...) object")
     return {
         "kind": "use_session",
         "name": str(session.get("id")),
@@ -402,10 +395,15 @@ def CurrentState(roots=None, ignored=None, include=None):
         "include": _or_empty_list(include),
     }
 
-def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, execution_policy=None, tags=None, doc=None):
+def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, use_session=None, cascade_session=False, execution_policy=None, tags=None, doc=None):
     """Declare one task, including its steps, dependencies, execution policy, and outputs."""
     if execution_policy is not None:
-        raise TypeError("task `" + str(name) + "` uses removed execution_policy; pass execution=policy_object")
+        raise TypeError("task `" + str(name) + "` uses removed execution_policy; pass execution=Execution.FirstAvailable(...)")
+    if cascade_session and use_session is None:
+        raise TypeError("task `" + str(name) + "` cascade_session=True requires use_session")
+    if execution is not None and use_session is not None:
+        raise TypeError("task `" + str(name) + "` cannot use both execution and use_session")
+    resolved_execution = _execution_session(use_session, cascade_session) if use_session is not None else execution
     return {
         "name": name,
         "deps": _normalize_deps(deps),
@@ -416,7 +414,7 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         "timeout_s": timeout_s,
         "context": context,
         "outputs": _or_empty_list(outputs),
-        "execution": execution,
+        "execution": resolved_execution,
         "tags": _or_empty_list(tags),
         "doc": doc if doc is not None else "",
     }

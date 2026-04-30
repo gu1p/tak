@@ -1,7 +1,5 @@
-use std::path::Path;
-use std::time::Duration;
-
 use anyhow::{Context, Result};
+use std::path::Path;
 use tak_core::model::{RemoteSelectionSpec, ResolvedTask};
 use uuid::Uuid;
 
@@ -18,7 +16,7 @@ use super::attempt_submit::{
 use super::output_observer::emit_task_status_message;
 use super::remote_models::TaskPlacement;
 use super::session_cascade::task_with_session_context;
-use super::session_workspaces::PreparedTaskSession;
+use super::session_workspaces::ExecutionSessionManager;
 use super::task_result::build_task_run_result;
 use super::workspace_stage::stage_remote_workspace;
 
@@ -27,7 +25,7 @@ pub(crate) async fn run_single_task(
     workspace_root: &Path,
     options: &RunOptions,
     lease_context: &LeaseContext,
-    session: Option<&PreparedTaskSession>,
+    sessions: &mut ExecutionSessionManager,
 ) -> Result<TaskRunResult> {
     if task.steps.is_empty() {
         return Ok(empty_task_result());
@@ -56,6 +54,12 @@ pub(crate) async fn run_single_task(
     } else {
         None
     };
+    let prepared_session = sessions.prepare_task(
+        task,
+        workspace_root,
+        placement.placement_mode == PlacementMode::Local,
+    )?;
+    let session = prepared_session.as_ref();
     let run_root = if let Some(root) = session.and_then(|session| session.root.as_ref()) {
         root.clone()
     } else if runtime_metadata
@@ -110,7 +114,7 @@ pub(crate) async fn run_single_task(
 
         let outcome = attempt_result?;
         if outcome.attempt_success {
-            return Ok(build_task_run_result(
+            let result = build_task_run_result(
                 attempt,
                 true,
                 &placement,
@@ -118,13 +122,15 @@ pub(crate) async fn run_single_task(
                 runtime_metadata.as_ref(),
                 session,
                 outcome,
-            ));
+            );
+            sessions.finish_task(session, result.success)?;
+            return Ok(result);
         }
 
         let can_retry =
             attempt < total_attempts && should_retry(outcome.last_exit_code, &task.retry.on_exit);
         if !can_retry {
-            return Ok(build_task_run_result(
+            let result = build_task_run_result(
                 attempt,
                 false,
                 &placement,
@@ -132,7 +138,9 @@ pub(crate) async fn run_single_task(
                 runtime_metadata.as_ref(),
                 session,
                 outcome,
-            ));
+            );
+            sessions.finish_task(session, result.success)?;
+            return Ok(result);
         }
 
         let wait = retry_backoff_delay(&task.retry.backoff, attempt);
@@ -140,7 +148,7 @@ pub(crate) async fn run_single_task(
             let message = if wait.is_zero() {
                 "retrying after failure immediately".to_string()
             } else {
-                format!("retrying after failure in {}", format_status_duration(wait))
+                format!("retrying after failure in {wait:?}")
             };
             emit_task_status_message(
                 options.output_observer.as_ref(),
@@ -184,13 +192,4 @@ fn empty_task_result() -> TaskRunResult {
             remote_logs: Vec::new(),
         },
     )
-}
-
-fn format_status_duration(duration: Duration) -> String {
-    let whole_seconds = duration.as_secs();
-    if duration.subsec_nanos() == 0 {
-        format!("{whole_seconds}s")
-    } else {
-        format!("{:.1}s", duration.as_secs_f64())
-    }
 }

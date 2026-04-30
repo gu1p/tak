@@ -46,7 +46,7 @@ fn linux_installer_bootstraps_takd_user_service_and_prints_token() {
         "missing QR onboarding label:\n{stdout}"
     );
     assert!(
-        stdout.contains("Waiting for takd Tor readiness"),
+        stdout.contains("[tor] Waiting for readiness"),
         "installer should show the long Tor-readiness wait phase:\n{stdout}"
     );
     assert!(

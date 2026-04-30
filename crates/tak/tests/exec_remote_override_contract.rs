@@ -86,7 +86,7 @@ fn exec_warns_that_remote_container_flag_is_redundant() -> Result<()> {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "warning: --container is redundant with --remote; remote execution already implies a containerized runtime"
+            "warning: --container is redundant with --remote; remote execution already implies a container"
         ),
         "stderr:\n{stderr}"
     );

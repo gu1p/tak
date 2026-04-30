@@ -35,7 +35,7 @@ fn rejects_local_builder_reference_with_direct_call_guidance() {
     let message = policy_error(
         r#"def choose_local(ctx):
   builder = Decision.local
-  return builder(runtime=Runtime.Host(), reason=Reason.DEFAULT_LOCAL_POLICY)
+  return builder(reason=Reason.DEFAULT_LOCAL_POLICY)
 "#,
         "choose_local",
     );

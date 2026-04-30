@@ -12,7 +12,7 @@ fn evaluates_named_policy_to_local_runtime_selector() {
         r#"def choose_local(ctx):
   return Decision.local(
     reason=Reason.DEFAULT_LOCAL_POLICY,
-    runtime=Runtime.Dockerfile(path("docker/Dockerfile")),
+    container=Container.Dockerfile(path("docker/Dockerfile")),
   )
 "#,
     )

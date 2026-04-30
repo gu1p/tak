@@ -53,13 +53,13 @@ pub(super) enum Commands {
         /// Force remote containerized execution.
         #[arg(long = "remote", default_value_t = false)]
         remote: bool,
-        /// Force a local container runtime. With `--remote`, accepted as a compatibility alias.
+        /// Force a local container. With `--remote`, accepted as a compatibility alias.
         #[arg(long = "container", default_value_t = false)]
         container: bool,
         /// Use this container image for execution.
         #[arg(long = "container-image")]
         container_image: Option<String>,
-        /// Build a container runtime from this Dockerfile.
+        /// Build a container from this Dockerfile.
         #[arg(long = "container-dockerfile")]
         container_dockerfile: Option<String>,
         /// Override the Dockerfile build context directory.
@@ -85,13 +85,13 @@ pub(super) enum Commands {
         /// Force remote containerized execution.
         #[arg(long = "remote", default_value_t = false)]
         remote: bool,
-        /// Force a local container runtime. With `--remote`, accepted as a compatibility alias.
+        /// Force a local container. With `--remote`, accepted as a compatibility alias.
         #[arg(long = "container", default_value_t = false)]
         container: bool,
         /// Use this container image for execution.
         #[arg(long = "container-image")]
         container_image: Option<String>,
-        /// Build a container runtime from this Dockerfile.
+        /// Build a container from this Dockerfile.
         #[arg(long = "container-dockerfile")]
         container_dockerfile: Option<String>,
         /// Override the Dockerfile build context directory.

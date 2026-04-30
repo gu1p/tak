@@ -10,6 +10,7 @@ fn linux_installer_streams_verbose_readiness_diagnostics_before_token_ready() {
     let (_temp, home, output) = run_installer(
         fake_systemctl(),
         &[
+            ("TAKD_INSTALLER_VERBOSE", "1"),
             ("TAKD_INSTALLER_FAKE_PENDING_ATTEMPTS", "1"),
             ("TAKD_WAIT_POLL_SECS", "1"),
         ],

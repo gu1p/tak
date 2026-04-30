@@ -280,6 +280,7 @@ explain_target = "//apps/web:remote_suite"
 expect_success = false
 requires_daemon = false
 remote_fixture = "direct_http"
+simulate_container_runtime = true
 expect_stderr_contains = ["task apps/web:remote_suite failed"]
 check_files = [
   "out/local-bootstrap.log",

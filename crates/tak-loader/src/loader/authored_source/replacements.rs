@@ -3,16 +3,15 @@ pub(super) fn execution_method_replacement(name: &str) -> Option<&'static str> {
         "Local" => Some("Execution_Local"),
         "Remote" => Some("Execution_Remote"),
         "Decide" => Some("Execution_Decide"),
-        "Session" => Some("Execution_Session"),
+        "FirstAvailable" => Some("Execution_FirstAvailable"),
         _ => None,
     }
 }
 
-pub(super) fn runtime_method_replacement(name: &str) -> Option<&'static str> {
+pub(super) fn container_method_replacement(name: &str) -> Option<&'static str> {
     match name {
-        "Host" => Some("Runtime_Host"),
-        "Image" => Some("Runtime_Image"),
-        "Dockerfile" => Some("Runtime_Dockerfile"),
+        "Image" => Some("Container_Image"),
+        "Dockerfile" => Some("Container_Dockerfile"),
         _ => None,
     }
 }

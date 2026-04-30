@@ -13,10 +13,10 @@ fn loader_preserves_use_session_cascade_flag() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = Runtime.Image("alpine:3.20")
-SESSION = session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
+        r#"RUNTIME = Container.Image("alpine:3.20")
+SESSION = session("cargo", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
 SPEC = module_spec(
-  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session(SESSION, cascade=True))],
+  tasks=[task("check", steps=[cmd("true")], use_session=SESSION, cascade_session=True)],
 )
 SPEC
 "#,
@@ -39,10 +39,10 @@ fn loader_defaults_use_session_cascade_to_false() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = Runtime.Image("alpine:3.20")
-SESSION = session("cargo", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
+        r#"RUNTIME = Container.Image("alpine:3.20")
+SESSION = session("cargo", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
 SPEC = module_spec(
-  tasks=[task("check", steps=[cmd("true")], execution=Execution.Session(SESSION))],
+  tasks=[task("check", steps=[cmd("true")], use_session=SESSION)],
 )
 SPEC
 "#,

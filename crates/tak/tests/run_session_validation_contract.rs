@@ -10,7 +10,7 @@ fn use_session_rejects_removed_string_session_name() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"SPEC = module_spec(tasks=[task("check", steps=[cmd("true")], execution=Execution.Session("missing"))])
+        r#"SPEC = module_spec(tasks=[task("check", steps=[cmd("true")], use_session="missing")])
 SPEC
 "#,
     )?;
@@ -19,7 +19,8 @@ SPEC
     let (_stdout, stderr) = run_tak_expect_failure(&workspace, &["run", "check"], &env)?;
 
     assert!(
-        stderr.contains("Execution.Session(...) expects a session(...) object, not a string"),
+        stderr.contains("use_session expects a session(...) object, not a string")
+            || stderr.contains("Expected `SessionSpec | None`, found `Literal[\"missing\"]`"),
         "stderr:\n{stderr}"
     );
     Ok(())
@@ -34,8 +35,8 @@ fn docs_dump_includes_session_dsl_surface() -> Result<()> {
     for token in [
         "SessionReuse.Workspace",
         "SessionReuse.Paths",
-        "Execution.Session",
-        "cascade",
+        "use_session",
+        "cascade_session",
         "SessionLifetime.PerRun",
     ] {
         assert!(output.contains(token), "missing {token} in docs:\n{output}");

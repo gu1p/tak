@@ -16,7 +16,7 @@ SPEC = module_spec(tasks=[
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
   )),
 ])
 SPEC

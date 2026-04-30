@@ -104,7 +104,7 @@ pub(crate) fn bind_task_sessions(
             continue;
         };
         let session = sessions.get(name.as_str()).ok_or_else(|| {
-            anyhow::anyhow!("Execution.Session references unknown session `{name}`")
+            anyhow::anyhow!("task(use_session=...) references unknown session `{name}`")
         })?;
         if session.context.is_none() {
             validate_implicit_session_context(&mut contexts, name.as_str(), label, &task.context)?;

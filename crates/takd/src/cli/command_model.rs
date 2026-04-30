@@ -51,6 +51,8 @@ pub(super) enum Commands {
     Logs {
         #[arg(long)]
         state_root: Option<PathBuf>,
+        #[arg(long, default_value_t = false)]
+        all: bool,
         #[arg(long, default_value_t = 200)]
         lines: usize,
     },

@@ -11,14 +11,14 @@ fn parent_use_session_cascades_share_workspace_to_dependency_tasks() -> Result<(
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Runtime.Image("alpine:3.20")
-SESSION = session("rust", execution=Execution.Local(runtime=RUNTIME), reuse=SessionReuse.Workspace())
+        r#"RUNTIME = Container.Image("alpine:3.20")
+SESSION = session("rust", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
   tasks=[
     task("build", steps=[cmd("sh", "-c", "mkdir -p .session && echo cached > .session/build.txt")]),
     task("test", deps=[":build"], outputs=[path("out")], steps=[cmd("sh", "-c", "test -f .session/build.txt && mkdir -p out && cat .session/build.txt > out/result.txt")]),
-    task("check", deps=[":test"], execution=Execution.Session(SESSION, cascade=True)),
+    task("check", deps=[":test"], use_session=SESSION, cascade_session=True),
   ],
 )
 SPEC

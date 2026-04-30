@@ -60,20 +60,8 @@ pub async fn run_tasks(
         let effective_task = task_with_session_override(task, cascaded_sessions.get(&label));
         let task = effective_task.as_ref().unwrap_or(task);
 
-        let prepared_session = if task.steps.is_empty() {
-            None
-        } else {
-            sessions.prepare_task(task, &spec.root)?
-        };
-        let task_result = run_single_task(
-            task,
-            &spec.root,
-            options,
-            &lease_context,
-            prepared_session.as_ref(),
-        )
-        .await?;
-        sessions.finish_task(prepared_session.as_ref(), task_result.success)?;
+        let task_result =
+            run_single_task(task, &spec.root, options, &lease_context, &mut sessions).await?;
         let failed = !task_result.success;
         summary.results.insert(label.clone(), task_result);
 

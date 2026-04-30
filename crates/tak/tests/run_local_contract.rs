@@ -57,7 +57,7 @@ fn run_command_executes_local_dockerfile_runtime_with_containerized_summary() {
     fs::write(
         temp.path().join("TASKS.py"),
         r#"
-LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")),
+LOCAL = Execution.Local(container=Container.Dockerfile(path("docker/Dockerfile")),
 )
 
 SPEC = module_spec(tasks=[

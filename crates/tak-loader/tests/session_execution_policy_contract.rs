@@ -8,14 +8,14 @@ fn sessions_can_use_execution_policy_objects_with_workspace_and_paths_reuse() {
     let temp = tempfile::tempdir().expect("tempdir");
     fs::write(
         temp.path().join("TASKS.py"),
-        r#"RUNTIME = Runtime.Image("alpine:3.20")
-POLICY = execution_policy(placements=[Execution.Local(runtime=RUNTIME)])
+        r#"RUNTIME = Container.Image("alpine:3.20")
+POLICY = Execution.FirstAvailable(placements=[Execution.Local(container=RUNTIME)])
 WORKSPACE_SESSION = session("workspace", execution=POLICY, reuse=SessionReuse.Workspace())
 PATHS_SESSION = session("paths", execution=POLICY, reuse=SessionReuse.Paths([path("out")]))
 SPEC = module_spec(
   tasks=[
-    task("a", steps=[cmd("true")], execution=Execution.Session(WORKSPACE_SESSION)),
-    task("b", steps=[cmd("true")], execution=Execution.Session(PATHS_SESSION)),
+    task("a", steps=[cmd("true")], use_session=WORKSPACE_SESSION),
+    task("b", steps=[cmd("true")], use_session=PATHS_SESSION),
   ],
 )
 SPEC

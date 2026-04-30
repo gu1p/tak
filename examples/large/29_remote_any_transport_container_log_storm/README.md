@@ -1,13 +1,13 @@
 # large/29_remote_any_transport_container_log_storm
 
 ## Scenario Goal
-Run a very noisy app inside a containerized remote runtime without pinning the transport. The same target can land on a matching direct node or a matching Tor node.
+Run a very noisy app inside a remote container without pinning the transport. The same target can land on a matching direct node or a matching Tor node.
 
-Large tier: transport-agnostic remote execution, containerized runtime metadata, and sustained stdout/stderr streaming.
+Large tier: transport-agnostic remote execution, container metadata, and sustained stdout/stderr streaming.
 
 ## What This Example Exercises
 - omitted `transport` in `Execution.Remote(...)`, which means any matching enabled remote transport
-- `Runtime.Image("alpine:3.20")`
+- `Container.Image("alpine:3.20")`
 - heavy remote stdout and stderr streaming while the task is still running
 - local verification of remote-produced artifacts after sync
 
@@ -18,7 +18,7 @@ REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(tasks=[

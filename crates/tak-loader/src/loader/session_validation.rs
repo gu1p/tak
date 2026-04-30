@@ -56,7 +56,7 @@ fn validate_session_policy_execution(
         };
         if runtime.is_none() {
             bail!(
-                "session `{name}` execution_policy `{policy_name}` requires every placement to use a containerized runtime"
+                "session `{name}` Execution.FirstAvailable `{policy_name}` requires every placement to use a container"
             );
         }
     }
@@ -67,5 +67,5 @@ fn validate_session_runtime(name: &str, runtime: Option<&RemoteRuntimeSpec>) -> 
     if runtime.is_some() {
         return Ok(());
     }
-    bail!("session `{name}` execution requires a containerized runtime")
+    bail!("session `{name}` execution requires a container")
 }

@@ -23,7 +23,7 @@ fn run_command_warns_that_remote_container_flag_is_redundant() -> Result<()> {
     let roots = LiveDirectRoots::new(temp.path());
     write_tasks(
         &workspace_root,
-        r#"SPEC = module_spec(defaults=Defaults(container_runtime=Runtime.Dockerfile(path("docker/Dockerfile"))), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
+        r#"SPEC = module_spec(defaults=Defaults(container=Container.Dockerfile(path("docker/Dockerfile"))), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")])])
 SPEC
 "#,
     )?;
@@ -62,7 +62,7 @@ SPEC
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "warning: --container is redundant with --remote; remote execution already implies a containerized runtime"
+            "warning: --container is redundant with --remote; remote execution already implies a container"
         ),
         "stderr:\n{stderr}"
     );

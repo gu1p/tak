@@ -9,6 +9,9 @@ use super::{
 
 impl<'a> AuthoredDslBoundary<'a> {
     pub(super) fn handle_call(&mut self, callee: &Expr) {
+        if self.reject_removed_function_call(callee) {
+            return;
+        }
         if let Some(member_name) = namespace_method_name(callee, "Decision") {
             match member_name {
                 "local" => {
@@ -31,7 +34,16 @@ impl<'a> AuthoredDslBoundary<'a> {
         if self.lower_namespace_call(callee, "Execution", execution_method_replacement) {
             return;
         }
-        if self.lower_namespace_call(callee, "Runtime", runtime_method_replacement) {
+        if self.lower_namespace_call(callee, "Container", container_method_replacement) {
+            return;
+        }
+        if let Some(member_name) = namespace_method_name(callee, "Runtime") {
+            self.reject(
+                callee.range(),
+                format!(
+                    "`Runtime.{member_name}(...)` was replaced; use `Container.{member_name}(...)`."
+                ),
+            );
             return;
         }
         if self.lower_namespace_call(callee, "Transport", transport_method_replacement) {
@@ -78,6 +90,14 @@ impl<'a> AuthoredDslBoundary<'a> {
             }
         }
 
+        if let Some(member_name) = namespace_attribute_name(expr, "Runtime") {
+            self.reject(
+                range,
+                format!("`Runtime.{member_name}` was replaced; use `Container.{member_name}`."),
+            );
+            return;
+        }
+
         if self.lower_namespace_constant(expr, "Scope", scope_constant_replacement) {
             return;
         }
@@ -101,7 +121,7 @@ impl<'a> AuthoredDslBoundary<'a> {
 
         for namespace in [
             "Execution",
-            "Runtime",
+            "Container",
             "Transport",
             "RemoteSelection",
             "SessionReuse",
@@ -135,6 +155,13 @@ impl<'a> AuthoredDslBoundary<'a> {
                 self.reject(
                     callee.range(),
                     "`Execution.Policy(...)` is unsupported; use `Execution.Decide(...)`.",
+                );
+                return true;
+            }
+            if namespace == "Execution" && member_name == "Session" {
+                self.reject(
+                    callee.range(),
+                    "`Execution.Session(...)` was replaced; use `task(..., use_session=SESSION, cascade_session=True)`.",
                 );
                 return true;
             }

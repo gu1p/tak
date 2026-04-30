@@ -17,7 +17,7 @@ fn authored_remote_only_inherits_module_default_container_runtime() -> Result<()
     write_tasks(
         &workspace_root,
         r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps())
-SPEC = module_spec(defaults=Defaults(container_runtime=Runtime.Image("alpine:3.20")), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=REMOTE)])
+SPEC = module_spec(defaults=Defaults(container=Container.Image("alpine:3.20")), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=REMOTE)])
 SPEC
 "#,
     )?;
@@ -54,7 +54,7 @@ SPEC
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "task //:check requires a containerized runtime for remote execution; provide Execution.Remote(..., runtime=Runtime.Image(...)), Decision.remote(..., runtime=Runtime.Image(...)), or TASKS.py defaults.container_runtime"
+            "task //:check requires a container for remote execution; provide Execution.Remote(..., container=Container.Image(...)), Decision.remote(..., container=Container.Image(...)), or TASKS.py defaults.container"
         ),
         "stderr:\n{stderr}"
     );

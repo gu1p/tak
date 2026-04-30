@@ -66,7 +66,6 @@ pub fn init_direct_agent_with_base_url(
 pub fn spawn_direct_agent(takd: &Path, roots: &LiveDirectRoots) -> ChildGuard {
     spawn_direct_agent_with_env(takd, roots, &[])
 }
-
 pub fn spawn_direct_agent_with_env(
     takd: &Path,
     roots: &LiveDirectRoots,
@@ -87,6 +86,7 @@ pub fn spawn_direct_agent_with_env(
         .server_state_root
         .parent()
         .expect("live direct roots should share one temp root");
+    command.env("TAKD_REMOTE_EXEC_ROOT", temp_root.join("remote-exec"));
     for (key, value) in simulated_container_runtime_env(temp_root) {
         command.env(key, value);
     }

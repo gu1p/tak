@@ -21,19 +21,22 @@ fn rejects_removed_string_fields_and_registries() {
             r#"SPEC=module_spec(tasks=[task("bad", steps=[cmd("true")], execution_policy="local")]); SPEC"#,
             &[
                 "Argument `execution_policy` does not match any known parameter",
-                "task `bad` uses removed execution_policy; pass execution=policy_object",
+                "task `bad` uses removed execution_policy; pass execution=Execution.FirstAvailable(...)",
             ],
         ),
         (
-            r#"SESSION=session("bad", execution_policy="local", reuse=SessionReuse.Workspace()); SPEC=module_spec(tasks=[task("bad", execution=Execution.Session(SESSION))]); SPEC"#,
+            r#"SESSION=session("bad", execution_policy="local", reuse=SessionReuse.Workspace()); SPEC=module_spec(tasks=[task("bad", use_session=SESSION)]); SPEC"#,
             &[
                 "Argument `execution_policy` does not match any known parameter",
-                "session `bad` uses removed execution_policy; pass execution=policy_object",
+                "session `bad` uses removed execution_policy; pass execution=Execution.FirstAvailable(...)",
             ],
         ),
         (
-            r#"SPEC=module_spec(tasks=[task("bad", steps=[cmd("true")], execution=Execution.Session("cargo"))]); SPEC"#,
-            &["Execution.Session(...) expects a session(...) object, not a string"],
+            r#"SPEC=module_spec(tasks=[task("bad", steps=[cmd("true")], use_session="cargo")]); SPEC"#,
+            &[
+                "use_session expects a session(...) object, not a string",
+                "Expected `SessionSpec | None`, found `Literal[\"cargo\"]`",
+            ],
         ),
         (
             r#"SPEC=module_spec(sessions=[session(execution=Execution.Local(), reuse=SessionReuse.Workspace())], tasks=[]); SPEC"#,
@@ -43,7 +46,7 @@ fn rejects_removed_string_fields_and_registries() {
             ],
         ),
         (
-            r#"POLICY=execution_policy(placements=[Execution.Local()]); SPEC=module_spec(execution_policies=[POLICY], tasks=[]); SPEC"#,
+            r#"POLICY=Execution.FirstAvailable(placements=[Execution.Local()]); SPEC=module_spec(execution_policies=[POLICY], tasks=[]); SPEC"#,
             &[
                 "module_spec(execution_policies=...) was removed",
                 "does not match any known parameter of function `module_spec`",

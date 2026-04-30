@@ -5,7 +5,7 @@
 REMOTE = Execution.Remote(
   required_tags=[],
   required_capabilities=["linux"],
-  runtime=Runtime.Image("alpine:3.20"),
+  container=Container.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(

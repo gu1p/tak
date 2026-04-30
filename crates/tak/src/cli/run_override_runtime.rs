@@ -60,7 +60,7 @@ pub(super) fn resolve_container_runtime_for_task(
     }
 
     bail!(
-        "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container_runtime when using --container",
+        "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container when using --container",
         canonical_label(&task.label)
     )
 }

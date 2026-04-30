@@ -29,7 +29,7 @@ SPEC = module_spec(tasks=[
     required_tags=["builder"],
     required_capabilities=["linux"],
     transport=Transport.TorOnionService(),
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
   )),
 ])
 SPEC

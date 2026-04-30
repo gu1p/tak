@@ -189,7 +189,7 @@ fn materialize_effective_remote_spec(
     }
 
     bail!(
-        "task {} requires a containerized runtime for remote execution; provide Execution.Remote(..., runtime=Runtime.Image(...)), Decision.remote(..., runtime=Runtime.Image(...)), or TASKS.py defaults.container_runtime",
+        "task {} requires a container for remote execution; provide Execution.Remote(..., container=Container.Image(...)), Decision.remote(..., container=Container.Image(...)), or TASKS.py defaults.container",
         canonical_task_label(&task.label)
     )
 }

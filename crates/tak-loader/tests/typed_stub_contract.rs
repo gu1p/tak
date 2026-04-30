@@ -24,7 +24,7 @@ default_retry: RetrySpec = retry(
   on_exit=[44],
   backoff=exp_jitter(min_s=1, max_s=2, jitter="full"),
 )
-default_runtime: DockerfileRuntimeSpec = Runtime.Dockerfile(
+default_container: DockerfileContainerSpec = Container.Dockerfile(
   path("docker/Dockerfile"),
 )
 remote: RemoteExecutionSpec = Execution.Remote(
@@ -32,7 +32,7 @@ remote: RemoteExecutionSpec = Execution.Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=Transport.DirectHttps(),
-  runtime=Runtime.Image("alpine:3.20"),
+  container=Container.Image("alpine:3.20"),
 )
 context: CurrentStateSpec = CurrentState(
   roots=[path("src")],
@@ -69,7 +69,7 @@ spec: ModuleSpec = module_spec(
   defaults=Defaults(
     retry=default_retry,
     tags=["default-tag"],
-    container_runtime=default_runtime,
+    container=default_container,
   ),
 )
 SPEC = spec

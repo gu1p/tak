@@ -49,6 +49,9 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
         let listener = TcpListener::bind(&bind_addr)
             .await
             .expect("bind delayed listener");
+        let runtime_config = RemoteRuntimeConfig::for_tests()
+            .with_explicit_remote_exec_root(temp.path().join("remote-exec"))
+            .with_skip_exec_root_probe(true);
         let context = RemoteNodeContext::new(
             NodeInfo {
                 node_id: "builder-tor-delayed".into(),
@@ -63,7 +66,7 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
                 transport_detail: String::new(),
             },
             "secret".into(),
-            RemoteRuntimeConfig::for_tests(),
+            runtime_config,
         );
         let store = SubmitAttemptStore::with_db_path(temp.path().join("delayed.sqlite"))
             .expect("submit store");

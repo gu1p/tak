@@ -19,26 +19,21 @@ class GitignoreSource(TypedDict):
     kind: Literal["gitignore"]
 
 
-# One bind mount entry for a container runtime.
+# One bind mount entry for a container.
 class ContainerMountSpec(TypedDict):
     source: str
     target: str
     read_only: bool
 
 
-# Optional CPU and memory limits for a container runtime.
+# Optional CPU and memory limits for a container.
 class ContainerResourceLimitsSpec(TypedDict, total=False):
     cpu_cores: float
     memory_mb: int
 
 
-# Explicit local host runtime returned by `Runtime.Host(...)`.
-class HostRuntimeSpec(TypedDict):
-    kind: Literal["host"]
-
-
-# Container runtime built from a prebuilt image.
-class ImageRuntimeSpec(TypedDict):
+# Container built from a prebuilt image.
+class ImageContainerSpec(TypedDict):
     kind: Literal["containerized"]
     image: str
     dockerfile: None
@@ -49,8 +44,8 @@ class ImageRuntimeSpec(TypedDict):
     resource_limits: ContainerResourceLimitsSpec | None
 
 
-# Container runtime built from a workspace Dockerfile path.
-class DockerfileRuntimeSpec(TypedDict):
+# Container built from a workspace Dockerfile path.
+class DockerfileContainerSpec(TypedDict):
     kind: Literal["containerized"]
     image: None
     dockerfile: PathSelector
@@ -90,7 +85,7 @@ class ShuffleRemoteSelectionSpec(TypedDict):
 class LocalSpec(TypedDict):
     id: str
     max_parallel_tasks: int
-    runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None
+    container: ImageContainerSpec | DockerfileContainerSpec | None
 
 
 # Remote execution target emitted by `Execution.Remote(...)`.
@@ -99,7 +94,7 @@ class RemoteSpec(TypedDict):
     required_tags: list[str]
     required_capabilities: list[str]
     transport: DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
-    runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None
+    container: ImageContainerSpec | DockerfileContainerSpec | None
     selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec
 
 
@@ -236,7 +231,7 @@ class DecideExecutionSpec(TypedDict, total=False):
     decision: LocalDecisionSpec | RemoteDecisionSpec
 
 
-# Execution selector returned by `Execution.Session(...)`.
+# Internal execution selector emitted by `task(use_session=...)`.
 class SessionExecutionSpec(TypedDict):
     kind: Literal["use_session"]
     name: str
@@ -265,7 +260,7 @@ class SessionSpec(TypedDict):
     context: CurrentStateSpec | None
 
 
-# Ordered execution policy returned by `execution_policy(...)`.
+# Ordered execution policy returned by `Execution.FirstAvailable(...)`.
 class ExecutionPolicySpec(TypedDict):
     kind: Literal["by_execution_policy"]
     id: str
@@ -303,12 +298,11 @@ class CurrentStateSpec(TypedDict):
 class ModuleDefaults(TypedDict, total=False):
     queue: QueueUseSpec
     retry: RetrySpec
-    container_runtime: ImageRuntimeSpec | DockerfileRuntimeSpec
+    container: ImageContainerSpec | DockerfileContainerSpec
     execution: (
         LocalExecutionSpec
         | RemoteExecutionSpec
         | DecideExecutionSpec
-        | SessionExecutionSpec
         | ExecutionPolicySpec
     )
     tags: list[str]
@@ -329,7 +323,6 @@ class TaskSpec(TypedDict):
         LocalExecutionSpec
         | RemoteExecutionSpec
         | DecideExecutionSpec
-        | SessionExecutionSpec
         | ExecutionPolicySpec
         | None
     )
@@ -400,7 +393,7 @@ class Decision:
     @staticmethod
     def local(
         reason: str = ...,
-        runtime: HostRuntimeSpec | ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+        container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
     ) -> LocalDecisionSpec: ...
 
     # Return an explicit remote placement decision from a custom policy.
@@ -413,7 +406,7 @@ class Decision:
         transport: (
             DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
         ) = ...,
-        runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+        container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
     ) -> RemoteDecisionSpec: ...
 
 
@@ -422,10 +415,10 @@ class Execution:
     # Force a task to run locally. Defaults to host execution.
     @staticmethod
     def Local(
-        runtime: HostRuntimeSpec | ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+        container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
     ) -> LocalExecutionSpec: ...
 
-    # Force a task to run remotely. Remote execution requires a container runtime.
+    # Force a task to run remotely. Remote execution requires a container.
     @staticmethod
     def Remote(
         pool: str | None = ...,
@@ -434,25 +427,24 @@ class Execution:
         transport: (
             DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
         ) = ...,
-        runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+        container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
         selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec | None = ...,
     ) -> RemoteExecutionSpec: ...
+
+    # Try execution placements in order and use the first available placement.
+    @staticmethod
+    def FirstAvailable(
+        placements: list[LocalExecutionSpec | RemoteExecutionSpec],
+        doc: str | None = ...,
+        name: str | None = ...,
+    ) -> ExecutionPolicySpec: ...
 
     # Resolve task placement from an inline custom policy decision callable.
     @staticmethod
     def Decide(policy: object) -> DecideExecutionSpec: ...
 
-    # Run a task in a session object, optionally cascading it to dependencies.
-    @staticmethod
-    def Session(session: SessionSpec, cascade: bool = ...) -> SessionExecutionSpec: ...
-
-
-# Runtime namespace.
-class Runtime:
-    # Run local work directly on the host without a container.
-    @staticmethod
-    def Host() -> HostRuntimeSpec: ...
-
+# Container namespace.
+class Container:
     # Run work inside a prebuilt container image.
     @staticmethod
     def Image(
@@ -461,9 +453,9 @@ class Runtime:
         mounts: list[ContainerMountSpec] | None = ...,
         env: dict[str, str] | None = ...,
         resources: ContainerResourceLimitsSpec | None = ...,
-    ) -> ImageRuntimeSpec: ...
+    ) -> ImageContainerSpec: ...
 
-    # Build a container runtime from a Dockerfile in the workspace.
+    # Build a container from a Dockerfile in the workspace.
     @staticmethod
     def Dockerfile(
         dockerfile: PathSelector | str,
@@ -472,7 +464,7 @@ class Runtime:
         mounts: list[ContainerMountSpec] | None = ...,
         env: dict[str, str] | None = ...,
         resources: ContainerResourceLimitsSpec | None = ...,
-    ) -> DockerfileRuntimeSpec: ...
+    ) -> DockerfileContainerSpec: ...
 
 
 # Remote transport namespace.
@@ -529,7 +521,7 @@ def module_spec(
     project_id: str | None = ...,
 ) -> ModuleSpec: ...
 def Defaults(
-    container_runtime: ImageRuntimeSpec | DockerfileRuntimeSpec | None = ...,
+    container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
     execution: (
         LocalExecutionSpec
         | RemoteExecutionSpec
@@ -560,6 +552,8 @@ def task(
         | ExecutionPolicySpec
         | None
     ) = ...,
+    use_session: SessionSpec | None = ...,
+    cascade_session: bool = ...,
     tags: list[str] | None = ...,
     doc: str | None = ...,
 ) -> TaskSpec: ...
@@ -638,11 +632,6 @@ def session(
     lifetime: Literal["per_run"] = ...,
     context: CurrentStateSpec | None = ...,
 ) -> SessionSpec: ...
-def execution_policy(
-    placements: list[LocalExecutionSpec | RemoteExecutionSpec],
-    doc: str | None = ...,
-    name: str | None = ...,
-) -> ExecutionPolicySpec: ...
 def path(value: str) -> PathSelector: ...
 def glob(value: str) -> GlobOutput: ...
 def gitignore() -> GitignoreSource: ...

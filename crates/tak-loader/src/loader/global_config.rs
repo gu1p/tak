@@ -65,7 +65,7 @@ pub(crate) fn validate_global_execution_policy(policy: &ExecutionPolicySpec) -> 
             )
         }) {
             bail!(
-                "global execution_policy `{}` cannot use Runtime.Dockerfile; define Dockerfile runtimes in TASKS.py",
+                "global execution_policy `{}` cannot use Container.Dockerfile; define Dockerfile containers in TASKS.py",
                 policy.name
             );
         }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 
-use crate::logging::{init_service_logging, read_service_log_tail};
+use crate::logging::{init_service_logging, read_service_log, read_service_log_tail};
 use crate::qr_render::render_onboarding_view;
 use crate::serve_lock::ServiceStateLock;
 use crate::word_table::render_words_table_view;
@@ -71,9 +71,17 @@ pub async fn run_cli() -> Result<()> {
             let state_root = state_root.unwrap_or(default_state_root()?);
             status_output::print_status(&config, &state_root)?;
         }
-        Commands::Logs { state_root, lines } => {
+        Commands::Logs {
+            state_root,
+            all,
+            lines,
+        } => {
             let state_root = state_root.unwrap_or(default_state_root()?);
-            print!("{}", read_service_log_tail(&state_root, lines)?);
+            if all {
+                print!("{}", read_service_log(&state_root)?);
+            } else {
+                print!("{}", read_service_log_tail(&state_root, lines)?);
+            }
         }
         Commands::Token { command } => match command {
             TokenCommands::Show {

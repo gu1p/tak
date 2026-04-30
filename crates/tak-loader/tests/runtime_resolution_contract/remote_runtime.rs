@@ -12,7 +12,7 @@ fn resolves_remote_dockerfile_runtime_with_explicit_build_context() {
 REMOTE = Execution.Remote(
   pool="build",
   required_capabilities=["linux"],
-  runtime=Runtime.Dockerfile(path("../infra/test.Dockerfile"), build_context=path("..")),
+  container=Container.Dockerfile(path("../infra/test.Dockerfile"), build_context=path("..")),
 )
 SPEC = module_spec(tasks=[task("remote_only", steps=[cmd("echo", "ok")], execution=REMOTE)])
 SPEC

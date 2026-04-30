@@ -10,6 +10,7 @@ fn coverage_script_builds_checkout_binaries_under_llvm_cov_environment() {
         "cargo llvm-cov clean --workspace",
         "cargo llvm-cov show-env --sh",
         "coverage_target_dir=\"${CARGO_TARGET_DIR:-${CARGO_LLVM_COV_TARGET_DIR:-target}}\"",
+        "*) coverage_target_dir=\"$ROOT_DIR/$coverage_target_dir\" ;;",
         "cargo build --all-features -p tak --bin tak",
         "cargo build --all-features -p takd --bin takd",
         "export TAK_TEST_TAK_BIN=\"${coverage_target_dir}/debug/tak\"",

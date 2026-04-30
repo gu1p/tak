@@ -2,9 +2,9 @@ use std::fs;
 
 use tak_loader::{LoadOptions, load_workspace};
 
-const POLICY_AS_SESSION: &str = r#"POLICY: ExecutionPolicySpec = execution_policy(placements=[Execution.Local()])
+const POLICY_AS_SESSION: &str = r#"POLICY: ExecutionPolicySpec = Execution.FirstAvailable(placements=[Execution.Local()])
 SPEC = module_spec(tasks=[
-  task("bad", steps=[cmd("true")], execution=Execution.Session(POLICY)),
+  task("bad", steps=[cmd("true")], use_session=POLICY),
 ])
 SPEC
 "#;
@@ -30,7 +30,7 @@ fn runtime_rejects_execution_policy_as_session_object() {
     let message = err.to_string();
 
     assert!(
-        message.contains("Execution.Session(...) expects a session(...) object"),
+        message.contains("use_session expects a session(...) object"),
         "{err:#}"
     );
 }

@@ -12,7 +12,7 @@ SPEC
             "LocalOnly",
         ),
         (
-            r#"SPEC = module_spec(defaults=Defaults(container_runtime=ContainerRuntime("alpine:3.20")), tasks=[])
+            r#"SPEC = module_spec(defaults=Defaults(container=ContainerRuntime("alpine:3.20")), tasks=[])
 SPEC
 "#,
             "ContainerRuntime",
@@ -33,7 +33,7 @@ SPEC
         ),
         (
             r#"SESSION = session("x", execution=Execution.Local(), reuse=ShareWorkspace())
-SPEC = module_spec(tasks=[task("x", execution=Execution.Session(SESSION))])
+SPEC = module_spec(tasks=[task("x", use_session=SESSION)])
 SPEC
 "#,
             "ShareWorkspace",

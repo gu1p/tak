@@ -10,7 +10,7 @@ pub struct RemoteDef {
     pub required_capabilities: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<RemoteTransportDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "container")]
     pub runtime: Option<RemoteRuntimeDef>,
     #[serde(default)]
     pub selection: RemoteSelectionDef,

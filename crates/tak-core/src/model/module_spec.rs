@@ -38,7 +38,7 @@ pub struct Defaults {
     pub queue: Option<QueueUseDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryDef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "container")]
     pub container_runtime: Option<RemoteRuntimeDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<TaskExecutionDef>,
@@ -140,7 +140,7 @@ pub struct LocalDef {
     pub id: String,
     #[serde(default = "default_local_parallelism")]
     pub max_parallel_tasks: u32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", alias = "container")]
     pub runtime: Option<RemoteRuntimeDef>,
 }
 

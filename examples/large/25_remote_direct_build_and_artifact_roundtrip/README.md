@@ -12,7 +12,7 @@ REMOTE = Execution.Remote(
     required_tags=["builder"],
     required_capabilities=["linux"],
     transport=Transport.DirectHttps(),
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
 )
 
 SPEC = module_spec(
@@ -53,7 +53,7 @@ SPEC
 |---|---|---|---|
 | execution mode | `REMOTE` | `Execution.Local(...)`, `Execution.Decide(...)` | Force remote, force local, or pick dynamically with policy logic. |
 | remote transport | direct client-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
-| remote runtime | `Runtime.Image("alpine:3.20")` | `Runtime.Dockerfile(...)` | Remote execution is always containerized; choose the image or Dockerfile that defines the runtime. |
+| remote container | `Container.Image("alpine:3.20")` | `Container.Dockerfile(...)` | Remote execution is always containerized; choose the image or Dockerfile that defines the container. |
 
 ## Runbook
 

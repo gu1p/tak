@@ -7,7 +7,7 @@ REMOTE = Execution.Remote(
     required_tags=["builder"],
     required_capabilities=["linux"],
     transport=Transport.DirectHttps(),
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
 )
 
 CARGO_SESSION = session(
@@ -31,7 +31,7 @@ SPEC = module_spec(
                     "printf 'build-complete\\n' > out/build-marker.txt",
                 )
             ],
-            execution=Execution.Session(CARGO_SESSION),
+            use_session=CARGO_SESSION,
         ),
         task(
             "cargo_test",
@@ -46,7 +46,7 @@ SPEC = module_spec(
                     "printf 'reused-target-cache\\n' > out/test-marker.txt",
                 )
             ],
-            execution=Execution.Session(CARGO_SESSION),
+            use_session=CARGO_SESSION,
         ),
     ],
 )

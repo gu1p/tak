@@ -54,6 +54,11 @@ pub fn spawn_tor_agent_with_env(
         .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")
         .env("TAKD_TOR_RECOVERY_PROBE_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_RECOVERY_PROBE_BACKOFF_MS", "1000");
+    let temp_root = roots
+        .server_state_root
+        .parent()
+        .expect("live Tor roots should share one temp root");
+    command.env("TAKD_REMOTE_EXEC_ROOT", temp_root.join("remote-exec"));
     for (key, value) in extra_env {
         command.env(key, value);
     }

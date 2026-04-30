@@ -30,7 +30,7 @@ REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  runtime=Runtime.Dockerfile(path("docker/Dockerfile")),
+  container=Container.Dockerfile(path("docker/Dockerfile")),
 )
 
 SPEC = module_spec(tasks=[

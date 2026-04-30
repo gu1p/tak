@@ -32,6 +32,9 @@ impl RunningTakdServer {
         } else {
             format!("http://{bind_addr}")
         };
+        let runtime_config = RemoteRuntimeConfig::for_tests()
+            .with_explicit_remote_exec_root(state_root.join("remote-exec"))
+            .with_skip_exec_root_probe(true);
         let context = RemoteNodeContext::new(
             NodeInfo {
                 node_id: node_id.into(),
@@ -46,7 +49,7 @@ impl RunningTakdServer {
                 transport_detail: String::new(),
             },
             "secret".into(),
-            RemoteRuntimeConfig::for_tests().with_skip_exec_root_probe(true),
+            runtime_config,
         );
         let store = SubmitAttemptStore::with_db_path(state_root.join(format!("{node_id}.sqlite")))
             .expect("submit attempt store");

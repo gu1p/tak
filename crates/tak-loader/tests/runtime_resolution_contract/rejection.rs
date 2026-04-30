@@ -8,7 +8,7 @@ fn rejects_dockerfile_outside_resolved_build_context() {
     write_root_and_app_tasks(
         temp.path(),
         r#"
-REMOTE = Execution.Remote(runtime=Runtime.Dockerfile(path("../Dockerfile")))
+REMOTE = Execution.Remote(container=Container.Dockerfile(path("../Dockerfile")))
 SPEC = module_spec(tasks=[task("remote_only", steps=[cmd("echo", "ok")], execution=REMOTE)])
 SPEC
 "#,
@@ -17,7 +17,7 @@ SPEC
     let err = load_workspace(temp.path(), &LoadOptions::default()).expect_err("load should fail");
     assert!(
         err.to_string()
-            .contains("execution Remote.runtime.dockerfile must be within build_context"),
+            .contains("execution Remote.container.dockerfile must be within build_context"),
         "unexpected error: {err:#}"
     );
 }

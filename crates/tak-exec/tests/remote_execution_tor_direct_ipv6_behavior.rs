@@ -1,10 +1,13 @@
 #![allow(clippy::await_holding_lock)]
-
 use crate::support;
 
 use std::fs;
 use std::io::ErrorKind;
 
+use support::{
+    EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec_with_outputs,
+    shell_step, workspace_output_path, write_remote_inventory,
+};
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 use tak_proto::NodeInfo;
@@ -12,11 +15,6 @@ use takd::daemon::remote::{
     RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
 };
 use tokio::net::TcpListener;
-
-use support::{
-    EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec_with_outputs,
-    shell_step, workspace_output_path, write_remote_inventory,
-};
 
 #[tokio::test]
 async fn tor_transport_reaches_non_onion_ipv6_remotes() {
@@ -35,6 +33,9 @@ async fn tor_transport_reaches_non_onion_ipv6_remotes() {
     };
     let bind_addr = listener.local_addr().expect("listener addr");
     let base_url = format!("http://{bind_addr}");
+    let runtime_config = RemoteRuntimeConfig::for_tests()
+        .with_explicit_remote_exec_root(temp.path().join("remote-exec"))
+        .with_skip_exec_root_probe(true);
     let context = RemoteNodeContext::new(
         NodeInfo {
             node_id: "builder-ipv6".into(),
@@ -49,7 +50,7 @@ async fn tor_transport_reaches_non_onion_ipv6_remotes() {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        runtime_config,
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("builder-ipv6.sqlite"))
         .expect("submit attempt store");

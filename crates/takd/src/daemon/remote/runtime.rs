@@ -13,6 +13,7 @@ pub struct RemoteRuntimeConfig {
     podman_socket: Option<String>,
     runtime_dir: Option<String>,
     uid: Option<String>,
+    use_temp_dir_default_exec_root: bool,
     skip_exec_root_probe: bool,
     remote_cleanup_ttl: Duration,
     remote_cleanup_interval: Duration,
@@ -28,6 +29,7 @@ impl RemoteRuntimeConfig {
             podman_socket: optional_trimmed_env("TAK_PODMAN_SOCKET"),
             runtime_dir: optional_trimmed_env("XDG_RUNTIME_DIR"),
             uid: optional_trimmed_env("UID"),
+            use_temp_dir_default_exec_root: false,
             skip_exec_root_probe: std::env::var("TAK_TEST_HOST_PLATFORM").is_ok()
                 || std::env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok(),
             remote_cleanup_ttl: Duration::from_millis(duration_from_env(
@@ -49,6 +51,7 @@ impl RemoteRuntimeConfig {
             podman_socket: None,
             runtime_dir: None,
             uid: None,
+            use_temp_dir_default_exec_root: true,
             skip_exec_root_probe: false,
             remote_cleanup_ttl: Duration::from_millis(DEFAULT_REMOTE_CLEANUP_TTL_MS),
             remote_cleanup_interval: Duration::from_millis(DEFAULT_REMOTE_CLEANUP_INTERVAL_MS),
@@ -137,7 +140,7 @@ impl RemoteRuntimeConfig {
     }
 
     pub(crate) fn default_remote_execution_root_base(&self) -> PathBuf {
-        if cfg!(unix) {
+        if cfg!(unix) && !self.use_temp_dir_default_exec_root {
             return PathBuf::from("/var/tmp").join(REMOTE_EXEC_ROOT_DIR);
         }
         self.temp_dir.join(REMOTE_EXEC_ROOT_DIR)

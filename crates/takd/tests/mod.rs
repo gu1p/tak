@@ -1,6 +1,7 @@
 pub mod support;
 
 mod agent_cli_contract;
+mod agent_logs_all_contract;
 mod agent_logs_contract;
 mod agent_no_diagnose_contract;
 mod agent_service_logging_contract;

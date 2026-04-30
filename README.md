@@ -144,13 +144,13 @@ Direct transport examples need matching agent settings, for example `takd init -
 Containerized tasks can point at either a prebuilt image or a checked-in Dockerfile:
 
 ```python
-LOCAL = Execution.Local(runtime=Runtime.Dockerfile(path("docker/Dockerfile")))
+LOCAL = Execution.Local(container=Container.Dockerfile(path("docker/Dockerfile")))
 
 REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
 )
 ```
 
@@ -235,11 +235,13 @@ Install behavior:
 - Downloads latest public release asset for macOS/Linux (`x86_64` + `aarch64`).
 - Installs `tak` and `takd` to `~/.local/bin` by default.
 - `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.
-- `get-takd.sh` prints a terminal QR code for the onboarding token after the agent is ready.
+- `get-takd.sh` prints install milestones, selected Tor readiness highlights, and a terminal QR code after the agent is ready.
+- Full `takd` service logs stay on disk; use `takd logs --all` or `takd logs --lines 200` to inspect them.
 - Supports overrides:
   - `TAK_VERSION` to pin a release tag.
   - `TAK_INSTALL_DIR` to change install destination.
   - `TAK_REPO` to install from a different repository.
+  - `TAKD_INSTALLER_VERBOSE=1` to stream deep readiness diagnostics during installation.
   - `TAKD_TRANSPORT`, `TAKD_BASE_URL`, `TAKD_POOLS`, `TAKD_TAGS`, and `TAKD_CAPABILITIES` to customize the initial agent config.
 
 ## Working on Tak Itself

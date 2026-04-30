@@ -1,6 +1,8 @@
 CARGO_SHARED_ENV_SCRIPT = (
-    'mkdir -p /var/tmp/tak-tests .tmp/cargo-home && '
-    'TMPDIR="/var/tmp/tak-tests" CARGO_HOME="$PWD/.tmp/cargo-home" exec "$@"'
+    'mkdir -p /var/tmp/tak-tests .tmp/cargo-home .tmp/cargo-target && '
+    'TMPDIR="/var/tmp/tak-tests" '
+    'CARGO_HOME="$PWD/.tmp/cargo-home" '
+    'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target" exec "$@"'
 )
 
 
@@ -10,14 +12,17 @@ def cargo_cmd(*argv):
 
 CHECK_CONTEXT = CurrentState(ignored=[gitignore()])
 
-CHECK_RUNTIME = Runtime.Dockerfile(
+CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
 )
 
-CHECK_WORKSPACE_POLICY = execution_policy(
-    placements=[Execution.Local(runtime=CHECK_RUNTIME)],
-    doc="Run check tasks inside the shared repo test workspace container.",
+CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
+    placements=[
+        Execution.Remote(container=CHECK_CONTAINER),
+        Execution.Local(container=CHECK_CONTAINER),
+    ],
+    doc="Run check tasks in a shared remote-first test workspace container.",
 )
 
 CHECK_SESSION = session(
@@ -109,7 +114,7 @@ PACKAGE_RELEASE_AARCH64_APPLE_DARWIN = release_package_task(
 
 SPEC = module_spec(
     project_id="tak",
-    defaults=Defaults(container_runtime=CHECK_RUNTIME),
+    defaults=Defaults(container=CHECK_CONTAINER),
     tasks=[
         task("fmt-check", steps=[cargo_cmd("fmt", "--all", "--", "--check")]),
         task("line-limits-check", steps=[cmd("bash", "scripts/check_rust_file_limits.sh")]),
@@ -191,7 +196,8 @@ SPEC = module_spec(
                 ":generated-artifact-ignore-check",
                 ":check-rust",
             ],
-            execution=Execution.Session(CHECK_SESSION, cascade=True),
+            use_session=CHECK_SESSION,
+            cascade_session=True,
         ),
     ],
 )

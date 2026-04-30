@@ -26,7 +26,7 @@ pub(super) fn resolved_runtime_for_execution_override(
                 execution,
                 explicit_runtime,
                 format!(
-                    "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container_runtime when using --container",
+                    "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container when using --container",
                     canonical_label(&task.label)
                 ),
             )
@@ -39,7 +39,7 @@ pub(super) fn resolved_runtime_for_execution_override(
                 execution,
                 explicit_runtime,
                 format!(
-                    "task {} requires a containerized runtime for --remote; provide --container-image, --container-dockerfile, Execution.Remote(..., runtime=Runtime.Image(...)), or TASKS.py defaults.container_runtime",
+                    "task {} requires a container for --remote; provide --container-image, --container-dockerfile, Execution.Remote(..., container=Container.Image(...)), or TASKS.py defaults.container",
                     canonical_label(&task.label)
                 ),
             )

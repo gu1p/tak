@@ -9,6 +9,7 @@ mod boundary;
 mod expr_helpers;
 mod helpers;
 mod reason_namespace;
+mod removed_surface;
 mod replacements;
 
 pub(crate) struct PreparedAuthoredSource {

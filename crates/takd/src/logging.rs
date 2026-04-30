@@ -36,10 +36,14 @@ pub fn init_service_logging(state_root: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn read_service_log_tail(state_root: &Path, lines: usize) -> Result<String> {
+pub fn read_service_log(state_root: &Path) -> Result<String> {
     let log_path = service_log_path(state_root);
-    let contents = fs::read_to_string(&log_path)
-        .with_context(|| format!("service log not found at {}", log_path.display()))?;
+    fs::read_to_string(&log_path)
+        .with_context(|| format!("service log not found at {}", log_path.display()))
+}
+
+pub fn read_service_log_tail(state_root: &Path, lines: usize) -> Result<String> {
+    let contents = read_service_log(state_root)?;
     Ok(tail_lines(&contents, lines))
 }
 

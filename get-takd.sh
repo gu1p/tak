@@ -7,10 +7,41 @@ TAKD_VERSION_INPUT="${TAKD_VERSION:-${TAK_VERSION:-}}"
 TAKD_WAIT_TIMEOUT_SECS="${TAKD_WAIT_TIMEOUT_SECS:-360}"
 TAKD_WAIT_POLL_SECS="${TAKD_WAIT_POLL_SECS:-5}"
 log_tail_pid=""
+last_readiness_highlight=""
 
 err() {
   printf 'error: %s\n' "$1" >&2
   exit 1
+}
+
+installer_verbose() {
+  case "${TAKD_INSTALLER_VERBOSE:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+supports_color() {
+  [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]
+}
+
+tag_color_code() {
+  case "$1" in
+    download) printf '36' ;;
+    install|ready) printf '32' ;;
+    service) printf '34' ;;
+    tor) printf '33' ;;
+    *) printf '0' ;;
+  esac
+}
+
+highlight() {
+  local tag="$1" message="$2"
+  if supports_color; then
+    printf '\033[%sm[%s]\033[0m %s\n' "$(tag_color_code "$tag")" "$tag" "$message"
+  else
+    printf '[%s] %s\n' "$tag" "$message"
+  fi
 }
 
 download_asset() {
@@ -248,6 +279,32 @@ print_readiness_snapshot() {
   printf -- '--- end takd readiness snapshot ---\n\n' >&2
 }
 
+latest_transport_detail() {
+  local takd_bin="$1" health_path status_output detail
+  health_path="$(transport_health_path)"
+  if [[ -f "$health_path" ]]; then
+    detail="$(sed -n 's/^detail = "\(.*\)"$/\1/p' "$health_path" | tail -n1)"
+    if [[ -n "$detail" ]]; then
+      printf '%s' "$detail"
+      return
+    fi
+  fi
+  if status_output="$("$takd_bin" status --config-root "$(config_home)/takd" --state-root "$(agent_state_path)" 2>/dev/null)"; then
+    detail="$(printf '%s\n' "$status_output" | sed -n 's/^transport_detail: //p' | head -n1)"
+    [[ -n "$detail" ]] && printf '%s' "$detail"
+  fi
+}
+
+print_readiness_highlight() {
+  local takd_bin="$1" detail
+  detail="$(latest_transport_detail "$takd_bin" || true)"
+  [[ -n "$detail" ]] || detail="takd is still preparing its Tor service"
+  if [[ "$detail" != "$last_readiness_highlight" ]]; then
+    highlight tor "pending: $detail"
+    last_readiness_highlight="$detail"
+  fi
+}
+
 wait_for_token_with_progress() {
   local takd_bin="$1" deadline remaining attempt_timeout attempt_status attempt_output attempt poll_secs
   token_output=""
@@ -267,7 +324,9 @@ wait_for_token_with_progress() {
     if [[ "$attempt_timeout" -gt "$remaining" ]]; then
       attempt_timeout="$remaining"
     fi
-    printf 'takd readiness token attempt %s (timeout %ss, remaining %ss)\n' "$attempt" "$attempt_timeout" "$remaining" >&2
+    if installer_verbose; then
+      printf 'takd readiness token attempt %s (timeout %ss, remaining %ss)\n' "$attempt" "$attempt_timeout" "$remaining" >&2
+    fi
     set +e
     attempt_output="$("$takd_bin" token show --state-root "$(agent_state_path)" --wait --timeout-secs "$attempt_timeout" --qr 2>&1)"
     attempt_status=$?
@@ -276,8 +335,12 @@ wait_for_token_with_progress() {
     if [[ "$attempt_status" -eq 0 ]]; then
       return 0
     fi
-    printf 'takd token is not ready yet:\n%s\n' "$attempt_output" >&2
-    print_readiness_snapshot "$takd_bin"
+    if installer_verbose; then
+      printf 'takd token is not ready yet:\n%s\n' "$attempt_output" >&2
+      print_readiness_snapshot "$takd_bin"
+    else
+      print_readiness_highlight "$takd_bin"
+    fi
     remaining=$((deadline - SECONDS))
     if [[ "$remaining" -le 0 ]]; then
       return "$attempt_status"
@@ -298,7 +361,7 @@ main() {
   trap "stop_log_tail; rm -rf -- '$temp_dir'" EXIT
   archive_path="$temp_dir/$archive_name"
 
-  printf 'Downloading %s\n' "$archive_url"
+  highlight download "Fetching takd release ${archive_name}"
   download_asset "$archive_url" "$archive_path" || err "failed to download release artifact ${archive_name}"
   tar -xzf "$archive_path" -C "$temp_dir"
   [[ -f "$temp_dir/takd" ]] || err "archive missing takd binary"
@@ -306,6 +369,7 @@ main() {
   mkdir -p "$TAKD_INSTALL_DIR"
   takd_bin="$TAKD_INSTALL_DIR/takd"
   install -m 0755 "$temp_dir/takd" "$takd_bin"
+  highlight install "Installed takd to ${takd_bin}"
   if [[ ! -f "$(agent_config_path)" ]]; then
     init_args=(init)
     [[ -n "${TAKD_NODE_ID:-}" ]] && init_args+=(--node-id "$TAKD_NODE_ID")
@@ -345,10 +409,15 @@ main() {
     exit 0
   fi
 
-  printf 'Waiting for takd Tor readiness (timeout %ss)\n' "$TAKD_WAIT_TIMEOUT_SECS"
-  printf 'transport_health: %s\n' "$(transport_health_path)" >&2
-  start_log_tail "$(service_log_path)"
-  print_readiness_snapshot "$takd_bin"
+  highlight service "Started takd user service"
+  highlight tor "Waiting for readiness (timeout ${TAKD_WAIT_TIMEOUT_SECS}s)"
+  printf 'Full logs: %s\n' "$(service_log_path)"
+  printf 'View all logs: takd logs --all\n'
+  if installer_verbose; then
+    printf 'transport_health: %s\n' "$(transport_health_path)" >&2
+    start_log_tail "$(service_log_path)"
+    print_readiness_snapshot "$takd_bin"
+  fi
   if wait_for_token_with_progress "$takd_bin"; then
     stop_log_tail
   else
@@ -361,7 +430,7 @@ main() {
     exit "$token_status"
   fi
   base_url="$("$takd_bin" status --config-root "$(config_home)/takd" --state-root "$(agent_state_path)" | sed -n 's/^base_url: //p' | head -n1)"
-  printf 'takd ready at %s\n' "${base_url:-unknown}"
+  highlight ready "takd ready at ${base_url:-unknown}"
   printf '%s\n' "$token_output"
 }
 

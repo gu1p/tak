@@ -44,18 +44,27 @@ impl CoverageScriptFixture {
     }
 
     pub fn run(&self) -> Output {
+        self.run_with_env(&[])
+    }
+
+    pub fn run_with_env(&self, envs: &[(&str, &str)]) -> Output {
         let mut path_parts = vec![self.fake_bin.display().to_string()];
         let baseline_path = env::var("PATH").unwrap_or_default();
         if !baseline_path.is_empty() {
             path_parts.push(baseline_path);
         }
 
-        StdCommand::new("bash")
+        let mut command = StdCommand::new("bash");
+        command
             .arg("scripts/run_coverage.sh")
             .current_dir(&self.workspace)
-            .env("PATH", path_parts.join(":"))
-            .output()
-            .expect("run coverage script")
+            .env("PATH", path_parts.join(":"));
+        command.env_remove("CARGO_LLVM_COV_TARGET_DIR");
+        command.env_remove("CARGO_TARGET_DIR");
+        for (key, value) in envs {
+            command.env(key, value);
+        }
+        command.output().expect("run coverage script")
     }
 
     pub fn coverage_report_path(&self) -> PathBuf {

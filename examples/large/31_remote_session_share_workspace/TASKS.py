@@ -7,7 +7,7 @@ REMOTE = Execution.Remote(
     required_tags=["builder"],
     required_capabilities=["linux"],
     transport=Transport.DirectHttps(),
-    runtime=Runtime.Image("alpine:3.20"),
+    container=Container.Image("alpine:3.20"),
 )
 
 WORKSPACE_SESSION = session(
@@ -28,7 +28,7 @@ SPEC = module_spec(
                     "mkdir -p .session && printf 'prepared\\n' > .session/state.txt",
                 )
             ],
-            execution=Execution.Session(WORKSPACE_SESSION),
+            use_session=WORKSPACE_SESSION,
         ),
         task(
             "verify_workspace",
@@ -43,7 +43,7 @@ SPEC = module_spec(
                     "printf 'workspace-state-reused\\n' > out/workspace-session.txt",
                 )
             ],
-            execution=Execution.Session(WORKSPACE_SESSION),
+            use_session=WORKSPACE_SESSION,
         ),
     ],
 )

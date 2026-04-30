@@ -38,7 +38,7 @@ SPEC
 
     assert!(
         stderr.contains(
-            "task //:check requires a containerized runtime for --remote; provide --container-image, --container-dockerfile, Execution.Remote(..., runtime=Runtime.Image(...)), or TASKS.py defaults.container_runtime"
+            "task //:check requires a container for --remote; provide --container-image, --container-dockerfile, Execution.Remote(..., container=Container.Image(...)), or TASKS.py defaults.container"
         ),
         "stderr:\n{stderr}"
     );

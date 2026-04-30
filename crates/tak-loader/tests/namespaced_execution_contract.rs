@@ -12,25 +12,25 @@ fn loads_namespaced_local_remote_runtime_and_session_surface() {
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n").expect("dockerfile");
     fs::write(
         temp.path().join("TASKS.py"),
-        r#"IMAGE_RUNTIME = Runtime.Image("alpine:3.20")
-DOCKER_RUNTIME = Runtime.Dockerfile(path("docker/Dockerfile"))
+        r#"IMAGE_RUNTIME = Container.Image("alpine:3.20")
+DOCKER_RUNTIME = Container.Dockerfile(path("docker/Dockerfile"))
 SESSION = session(
   "container-check",
-  execution=Execution.Local(runtime=DOCKER_RUNTIME),
+  execution=Execution.Local(container=DOCKER_RUNTIME),
   reuse=SessionReuse.Workspace(),
 )
 
 SPEC = module_spec(
   tasks=[
     task("host", steps=[cmd("true")], execution=Execution.Local()),
-    task("explicit_host", steps=[cmd("true")], execution=Execution.Local(runtime=Runtime.Host())),
-    task("local_image", steps=[cmd("true")], execution=Execution.Local(runtime=IMAGE_RUNTIME)),
+    task("explicit_host", steps=[cmd("true")], execution=Execution.Local()),
+    task("local_image", steps=[cmd("true")], execution=Execution.Local(container=IMAGE_RUNTIME)),
     task("remote_image", steps=[cmd("true")], execution=Execution.Remote(
       pool="build",
       transport=Transport.DirectHttps(),
-      runtime=IMAGE_RUNTIME,
+      container=IMAGE_RUNTIME,
     )),
-    task("session_user", steps=[cmd("true")], execution=Execution.Session(SESSION)),
+    task("session_user", steps=[cmd("true")], use_session=SESSION),
   ],
 )
 SPEC

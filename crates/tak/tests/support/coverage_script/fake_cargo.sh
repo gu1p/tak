@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-target_root="${PWD}/target"
+target_root="${CARGO_TARGET_DIR:-${PWD}/target}"
+case "${target_root}" in
+  /*) ;;
+  *) target_root="${PWD}/${target_root}" ;;
+esac
 
 fail() {
   printf '%s\n' "$1" >&2

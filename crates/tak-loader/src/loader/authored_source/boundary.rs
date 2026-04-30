@@ -101,6 +101,9 @@ impl<'a> AuthoredDslBoundary<'a> {
     }
 
     fn name_rejection_message(&self, name: &str) -> String {
+        if name == "Runtime" {
+            return "`Runtime` was replaced; use the `Container` namespace.".to_string();
+        }
         format!("`{name}` may only be used through the shipped TASKS.py namespace methods.")
     }
 }
@@ -159,6 +162,7 @@ fn is_namespace_name(name: &str) -> bool {
         name,
         "Decision"
             | "Execution"
+            | "Container"
             | "Runtime"
             | "Transport"
             | "SessionReuse"
