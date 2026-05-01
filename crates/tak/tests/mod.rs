@@ -62,6 +62,8 @@ mod root_test_task_contract;
 mod root_workspace_test_manifest_contract;
 mod root_workspace_test_wiring_contract;
 mod run_authored_remote_runtime_contract;
+mod run_execution_attached_session_contract;
+mod run_execution_cascade_conflict_contract;
 mod run_local_container_override_contract;
 mod run_local_container_runtime_precedence_contract;
 mod run_local_contract;

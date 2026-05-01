@@ -101,6 +101,7 @@ fn synthetic_exec_task(
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
         session: None,
+        cascade_execution: false,
         tags: vec!["exec".to_string()],
     }
 }

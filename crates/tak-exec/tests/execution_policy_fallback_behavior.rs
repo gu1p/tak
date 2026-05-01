@@ -63,6 +63,7 @@ fn policy_workspace(root: &std::path::Path) -> (WorkspaceSpec, TaskLabel) {
             ],
         },
         session: None,
+        cascade_execution: false,
         tags: Vec::new(),
     };
     let mut tasks = BTreeMap::new();
@@ -87,6 +88,7 @@ fn remote_builder() -> RemoteSpec {
         transport_kind: RemoteTransportKind::Direct,
         runtime: None,
         selection: RemoteSelectionSpec::Sequential,
+        session: None,
     }
 }
 fn image_runtime() -> RemoteRuntimeSpec {

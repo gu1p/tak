@@ -1,8 +1,8 @@
 CARGO_SHARED_ENV_SCRIPT = (
-    'mkdir -p /var/tmp/tak-tests .tmp/cargo-home .tmp/cargo-target && '
+    'mkdir -p /var/tmp/tak-tests .tmp/cargo-home .tmp/cargo-target-local && '
     'TMPDIR="/var/tmp/tak-tests" '
     'CARGO_HOME="$PWD/.tmp/cargo-home" '
-    'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target" exec "$@"'
+    'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" exec "$@"'
 )
 
 
@@ -17,19 +17,18 @@ CHECK_CONTAINER = Container.Dockerfile(
     build_context=path("docker/tak-tests"),
 )
 
-CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
-    placements=[
-        Execution.Remote(container=CHECK_CONTAINER),
-        Execution.Local(container=CHECK_CONTAINER),
-    ],
-    doc="Run check tasks in a shared remote-first test workspace container.",
-)
-
 CHECK_SESSION = session(
     "check-workspace",
-    execution=CHECK_WORKSPACE_POLICY,
     reuse=SessionReuse.Workspace(),
     context=CHECK_CONTEXT,
+)
+
+CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
+    placements=[
+        Execution.Remote(container=CHECK_CONTAINER, session=CHECK_SESSION),
+        Execution.Local(),
+    ],
+    doc="Run check tasks in a shared remote-first test workspace container.",
 )
 
 
@@ -196,8 +195,8 @@ SPEC = module_spec(
                 ":generated-artifact-ignore-check",
                 ":check-rust",
             ],
-            use_session=CHECK_SESSION,
-            cascade_session=True,
+            execution=CHECK_WORKSPACE_POLICY,
+            cascade_execution=True,
         ),
     ],
 )

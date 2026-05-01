@@ -33,8 +33,13 @@ SPEC
         other => panic!("expected workspace and paths sessions, got {other:?}"),
     };
 
-    assert_session_policy(&workspace.execution);
-    assert_session_policy(&paths.execution);
+    assert_session_policy(
+        workspace
+            .execution
+            .as_deref()
+            .expect("workspace legacy execution"),
+    );
+    assert_session_policy(paths.execution.as_deref().expect("paths legacy execution"));
     assert!(matches!(workspace.reuse, SessionReuseSpec::ShareWorkspace));
     assert!(matches!(paths.reuse, SessionReuseSpec::SharePaths { .. }));
 }

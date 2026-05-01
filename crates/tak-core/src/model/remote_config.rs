@@ -14,6 +14,8 @@ pub struct RemoteDef {
     pub runtime: Option<RemoteRuntimeDef>,
     #[serde(default)]
     pub selection: RemoteSelectionDef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<Box<SessionDef>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

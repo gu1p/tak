@@ -1,52 +1,65 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use anyhow::{Result, anyhow, bail};
 use tak_core::model::{ResolvedTask, SessionUseSpec, TaskExecutionSpec, TaskLabel, WorkspaceSpec};
 
-pub(crate) fn resolve_cascaded_sessions(
+use super::TaskOutputObserver;
+use super::remote_models::TaskPlacement;
+use super::session_cascade_selection::select_cascade_execution;
+
+#[derive(Clone)]
+pub(crate) struct ExecutionCascadeOverride {
+    pub(crate) execution: TaskExecutionSpec,
+    pub(crate) placement: Option<TaskPlacement>,
+    pub(crate) fingerprint: String,
+    pub(crate) root: TaskLabel,
+}
+
+pub(crate) async fn resolve_cascaded_executions(
     spec: &WorkspaceSpec,
     required: &BTreeSet<TaskLabel>,
-) -> Result<BTreeMap<TaskLabel, SessionUseSpec>> {
+    workspace_root: &Path,
+    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+) -> Result<BTreeMap<TaskLabel, ExecutionCascadeOverride>> {
     let mut resolved = BTreeMap::new();
     for label in required {
         let task = task_for_label(spec, label)?;
-        let TaskExecutionSpec::UseSession { cascade: true, .. } = &task.execution else {
+        if !task_requests_execution_cascade(task) {
             continue;
-        };
-        let session = task.session.as_ref().ok_or_else(|| {
-            anyhow!(
-                "task {} declares cascading session but no resolved session is attached",
-                task.label
-            )
-        })?;
-        let session = session_for_cascade_root(task, session);
+        }
+        let cascade = select_cascade_execution(task, workspace_root, output_observer).await?;
         let mut closure = BTreeSet::new();
         collect_dependency_closure(spec, label, &mut closure)?;
         for member_label in closure {
             if required.contains(&member_label) {
-                bind_cascaded_session(spec, &member_label, &session, &mut resolved)?;
+                bind_cascaded_execution(&member_label, &cascade, &mut resolved)?;
             }
         }
     }
     Ok(resolved)
 }
 
-pub(crate) fn task_with_session_override(
+pub(crate) fn task_with_execution_override(
     task: &ResolvedTask,
-    session: Option<&SessionUseSpec>,
+    cascade: Option<&ExecutionCascadeOverride>,
 ) -> Option<ResolvedTask> {
-    let session = session?;
+    let cascade = cascade?;
     let mut effective = task.clone();
-    effective.execution = TaskExecutionSpec::UseSession {
-        name: session.name.clone(),
-        cascade: false,
-    };
-    effective.session = Some(session.clone());
+    effective.execution = cascade.execution.clone();
+    effective.session = None;
+    effective.cascade_execution = false;
     Some(effective)
 }
 
-pub(crate) fn task_with_session_context(task: &ResolvedTask) -> Option<ResolvedTask> {
-    let context = task.session.as_ref()?.context.as_ref()?;
+pub(crate) fn task_with_session_context(
+    task: &ResolvedTask,
+    selected_session: Option<&SessionUseSpec>,
+) -> Option<ResolvedTask> {
+    let context = selected_session
+        .or(task.session.as_ref())?
+        .context
+        .as_ref()?;
     if &task.context == context {
         return None;
     }
@@ -55,43 +68,31 @@ pub(crate) fn task_with_session_context(task: &ResolvedTask) -> Option<ResolvedT
     Some(effective)
 }
 
-fn session_for_cascade_root(task: &ResolvedTask, session: &SessionUseSpec) -> SessionUseSpec {
-    let mut session = session.clone();
-    if session.context.is_none() {
-        session.context = Some(task.context.clone());
-    }
-    session
+fn task_requests_execution_cascade(task: &ResolvedTask) -> bool {
+    task.cascade_execution
+        || matches!(
+            task.execution,
+            TaskExecutionSpec::UseSession { cascade: true, .. }
+        )
 }
 
-fn bind_cascaded_session(
-    spec: &WorkspaceSpec,
+fn bind_cascaded_execution(
     label: &TaskLabel,
-    session: &SessionUseSpec,
-    resolved: &mut BTreeMap<TaskLabel, SessionUseSpec>,
+    cascade: &ExecutionCascadeOverride,
+    resolved: &mut BTreeMap<TaskLabel, ExecutionCascadeOverride>,
 ) -> Result<()> {
-    let task = task_for_label(spec, label)?;
-    if let Some(explicit) = task.session.as_ref()
-        && explicit.name != session.name
-    {
-        bail!(
-            "session cascade conflict: task {} is reached by cascading session `{}` but declares session `{}`",
-            canonical_label(label),
-            session.display_name,
-            explicit.display_name
-        );
-    }
     if let Some(previous) = resolved.get(label) {
-        if previous.name == session.name && previous.context == session.context {
+        if previous.fingerprint == cascade.fingerprint {
             return Ok(());
         }
         bail!(
-            "session cascade conflict: task {} inherits session `{}` and session `{}`",
+            "execution cascade conflict: task {} is reached by {} and {} with different executions",
             canonical_label(label),
-            previous.display_name,
-            session.display_name
+            canonical_label(&previous.root),
+            canonical_label(&cascade.root)
         );
     }
-    resolved.insert(label.clone(), session.clone());
+    resolved.insert(label.clone(), cascade.clone());
     Ok(())
 }
 

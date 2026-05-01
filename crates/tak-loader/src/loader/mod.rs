@@ -19,6 +19,7 @@ mod output_resolution;
 mod project_resolution;
 mod remote_validation;
 mod scope_keys;
+mod session_attached_validation;
 mod session_resolution;
 mod session_validation;
 mod workspace_discovery;

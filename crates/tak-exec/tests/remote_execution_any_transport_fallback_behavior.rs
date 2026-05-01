@@ -20,6 +20,7 @@ fn any_transport_remote_spec() -> RemoteSpec {
         transport_kind: RemoteTransportKind::Any,
         runtime: None,
         selection: RemoteSelectionSpec::Sequential,
+        session: None,
     }
 }
 

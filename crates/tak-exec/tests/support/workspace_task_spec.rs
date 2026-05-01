@@ -37,6 +37,7 @@ pub fn build_remote_task_spec(
         }),
         execution: TaskExecutionSpec::RemoteOnly(remote),
         session: None,
+        cascade_execution: false,
         tags: Vec::new(),
     };
     let mut tasks = BTreeMap::new();

@@ -8,6 +8,7 @@ use super::execution_policy_resolution::resolve_inline_execution_policy;
 use super::remote_validation::{
     validate_local_runtime, validate_remote_transport, validate_runtime,
 };
+use super::session_resolution::resolve_attached_session;
 
 pub(crate) fn resolve_execution(
     execution: TaskExecutionDef,
@@ -27,6 +28,7 @@ pub(crate) fn resolve_execution(
                 id,
                 max_parallel_tasks: local.max_parallel_tasks,
                 runtime,
+                session: resolve_attached_session(local.session, package)?,
             }))
         }
         TaskExecutionDef::RemoteOnly { remote } => Ok(TaskExecutionSpec::RemoteOnly(
@@ -138,11 +140,13 @@ fn resolve_local(local: LocalDef, package: &str, field: &str) -> Result<LocalSpe
         bail!("{field}.max_parallel_tasks must be >= 1");
     }
     let runtime = validate_local_runtime(local.runtime, package, field)?;
+    let session = resolve_attached_session(local.session, package)?;
 
     Ok(LocalSpec {
         id,
         max_parallel_tasks: local.max_parallel_tasks,
         runtime,
+        session,
     })
 }
 
@@ -154,6 +158,7 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         transport,
         runtime,
         selection,
+        session,
     } = remote;
 
     let pool = pool
@@ -171,6 +176,7 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         .collect();
     let transport_kind = validate_remote_transport(transport)?;
     let runtime = validate_runtime(runtime, package, "Remote")?;
+    let session = resolve_attached_session(session, package)?;
 
     Ok(RemoteSpec {
         pool,
@@ -179,6 +185,7 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         transport_kind,
         runtime,
         selection: resolve_remote_selection(selection),
+        session,
     })
 }
 

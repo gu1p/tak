@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec,
-    RemoteTransportKind,
+    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
+    RemoteTransportKind, SessionUseSpec,
 };
 
 use crate::ImageCacheOptions;
@@ -70,6 +70,8 @@ pub(crate) struct TaskPlacement {
     pub(crate) remote_selection: RemoteSelectionSpec,
     pub(crate) decision_reason: Option<String>,
     pub(crate) local: Option<LocalSpec>,
+    pub(crate) remote: Option<RemoteSpec>,
+    pub(crate) session: Option<SessionUseSpec>,
 }
 
 #[derive(Debug, Clone)]

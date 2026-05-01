@@ -7,6 +7,7 @@ mod client_tor_config_contract;
 mod client_tor_config_precedence_contract;
 mod container_runtime_bollard_contract;
 mod doctest_policy_contract;
+mod execution_cascade_session_override_behavior;
 mod execution_policy_fallback_behavior;
 mod module_layout_contract;
 mod no_matching_remote_error_disabled_inventory_contract;

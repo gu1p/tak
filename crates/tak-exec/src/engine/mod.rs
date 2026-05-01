@@ -9,6 +9,8 @@ mod attempt_submit;
 mod lease_context;
 mod output_observer;
 mod placement;
+mod placement_remote;
+mod placement_session;
 pub(crate) mod preflight_failure;
 pub(crate) mod preflight_fallback;
 mod preflight_status_output;
@@ -32,6 +34,8 @@ mod run_single_task;
 mod run_tasks;
 mod runtime_metadata;
 mod session_cascade;
+mod session_cascade_context;
+mod session_cascade_selection;
 mod session_tempdir;
 mod session_workspace_files;
 pub(crate) mod session_workspaces;
@@ -84,6 +88,13 @@ pub async fn run_resolved_task(
     let lease_context = lease_context::LeaseContext::from_options(options);
     let mut sessions =
         session_workspaces::ExecutionSessionManager::new(uuid::Uuid::new_v4().to_string());
-    run_single_task::run_single_task(task, workspace_root, options, &lease_context, &mut sessions)
-        .await
+    run_single_task::run_single_task(
+        task,
+        workspace_root,
+        options,
+        &lease_context,
+        &mut sessions,
+        None,
+    )
+    .await
 }

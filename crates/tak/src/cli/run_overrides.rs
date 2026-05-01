@@ -50,16 +50,23 @@ pub(super) fn apply_run_execution_overrides(
             .sessions
             .get_mut(&session_name)
             .ok_or_else(|| anyhow!("session not found: {session_name}"))?;
+        let session_execution = session
+            .execution
+            .as_deref()
+            .ok_or_else(|| anyhow!("session has no legacy execution: {session_name}"))?;
         let selected_placement = placement.expect("placement validated");
         let runtime = resolved_runtime_for_execution_override(
             &task,
-            &session.execution,
+            session_execution,
             selected_placement,
             args.container,
             explicit_runtime.as_ref(),
         )?;
-        session.execution =
-            rewrite_execution_for_placement(&session.execution, selected_placement, runtime);
+        session.execution = Some(Box::new(rewrite_execution_for_placement(
+            session_execution,
+            selected_placement,
+            runtime,
+        )));
     }
 
     for label in closure {

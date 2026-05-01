@@ -19,6 +19,7 @@ fn local_override_preserves_existing_runtime_without_container_flag() {
             transport_kind: RemoteTransportKind::Direct,
             runtime: Some(image_runtime("alpine:3.20")),
             selection: RemoteSelectionSpec::Sequential,
+            session: None,
         }),
     ));
 

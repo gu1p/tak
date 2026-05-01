@@ -5,6 +5,7 @@ pub struct LocalSpec {
     pub id: String,
     pub max_parallel_tasks: u32,
     pub runtime: Option<RemoteRuntimeSpec>,
+    pub session: Option<SessionUseSpec>,
 }
 
 impl Default for LocalSpec {
@@ -21,6 +22,7 @@ impl Default for LocalSpec {
             id: "local".to_string(),
             max_parallel_tasks: default_local_parallelism(),
             runtime: None,
+            session: None,
         }
     }
 }
@@ -33,6 +35,7 @@ pub struct RemoteSpec {
     pub transport_kind: RemoteTransportKind,
     pub runtime: Option<RemoteRuntimeSpec>,
     pub selection: RemoteSelectionSpec,
+    pub session: Option<SessionUseSpec>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

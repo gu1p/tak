@@ -75,6 +75,7 @@ pub(super) fn task_with_steps_and_needs() -> ResolvedTask {
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
         session: None,
+        cascade_execution: false,
         tags: Vec::new(),
     }
 }

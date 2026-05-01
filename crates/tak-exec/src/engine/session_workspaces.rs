@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use tak_core::model::{CurrentStateSpec, OutputSelectorSpec, ResolvedTask, SessionReuseSpec};
+use tak_core::model::{
+    CurrentStateSpec, OutputSelectorSpec, ResolvedTask, SessionReuseSpec, SessionUseSpec,
+};
 
 use super::session_tempdir::session_tempdir;
 use super::session_workspace_files::{
@@ -40,10 +42,11 @@ impl ExecutionSessionManager {
     pub(crate) fn prepare_task(
         &mut self,
         task: &ResolvedTask,
+        selected_session: Option<&SessionUseSpec>,
         workspace_root: &Path,
         use_local_workspace: bool,
     ) -> Result<Option<PreparedTaskSession>> {
-        let Some(session) = task.session.as_ref() else {
+        let Some(session) = selected_session.or(task.session.as_ref()) else {
             return Ok(None);
         };
         if !use_local_workspace {

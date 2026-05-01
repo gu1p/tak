@@ -69,6 +69,8 @@ pub struct TaskDef {
     pub outputs: Vec<OutputSelectorDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<TaskExecutionDef>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub cascade_execution: bool,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -78,7 +80,8 @@ pub struct SessionDef {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    pub execution: TaskExecutionDef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<TaskExecutionDef>,
     pub reuse: SessionReuseDef,
     #[serde(default = "default_session_lifetime")]
     pub lifetime: String,
@@ -103,6 +106,10 @@ pub enum SessionReuseDef {
 /// ```
 fn default_session_lifetime() -> String {
     "per_run".to_string()
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,6 +149,8 @@ pub struct LocalDef {
     pub max_parallel_tasks: u32,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "container")]
     pub runtime: Option<RemoteRuntimeDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<Box<SessionDef>>,
 }
 
 /// Returns the default parallelism for local execution declarations.

@@ -8,9 +8,9 @@ use tak_core::model::{ResolvedTask, StepDef, TaskLabel, WorkspaceSpec};
 use tak_loader::{LoadOptions, load_workspace};
 
 const CARGO_SHARED_ENV_SCRIPT: &str = "mkdir -p /var/tmp/tak-tests \
-.tmp/cargo-home .tmp/cargo-target && TMPDIR=\"/var/tmp/tak-tests\" \
+.tmp/cargo-home .tmp/cargo-target-local && TMPDIR=\"/var/tmp/tak-tests\" \
 CARGO_HOME=\"$PWD/.tmp/cargo-home\" \
-CARGO_TARGET_DIR=\"$PWD/.tmp/cargo-target\" exec \"$@\"";
+CARGO_TARGET_DIR=\"$PWD/.tmp/cargo-target-local\" exec \"$@\"";
 
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -49,6 +49,7 @@ pub(super) fn resolved_task(label: TaskLabel, execution: TaskExecutionSpec) -> R
         container_runtime: None,
         execution,
         session: None,
+        cascade_execution: false,
         tags: Vec::new(),
     }
 }

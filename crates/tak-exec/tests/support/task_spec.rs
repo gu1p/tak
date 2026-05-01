@@ -26,6 +26,7 @@ pub fn remote_builder_spec(transport_kind: RemoteTransportKind) -> RemoteSpec {
         transport_kind,
         runtime: None,
         selection: RemoteSelectionSpec::Sequential,
+        session: None,
     }
 }
 

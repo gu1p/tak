@@ -1,6 +1,8 @@
 mod authored_dsl_boundary_contract;
 mod current_directory_workspace_contract;
 mod current_state_origin_contract;
+mod execution_attached_session_context_contract;
+mod execution_attached_session_contract;
 mod execution_policy_contract;
 mod execution_policy_rejection_contract;
 mod global_execution_policy_contract;
@@ -24,5 +26,6 @@ mod session_execution_policy_contract;
 mod session_object_boundary_contract;
 mod sessions_cascade_contract;
 mod sessions_contract;
+mod task_spec_stub_contract;
 mod typed_stub_contract;
 mod workspace_resolution_contract;

@@ -1,4 +1,6 @@
-use super::{RemoteWorkspaceStage, TaskRunResult};
+use tak_core::model::RemoteSelectionSpec;
+
+use super::{PlacementMode, RemoteWorkspaceStage, TaskRunResult};
 
 use super::attempt_execution::AttemptExecutionOutcome;
 use super::remote_models::{RuntimeExecutionMetadata, TaskPlacement};
@@ -37,4 +39,35 @@ pub(crate) fn build_task_run_result(
         remote_logs: outcome.remote_logs,
         synced_outputs: outcome.synced_outputs,
     }
+}
+
+pub(crate) fn empty_task_result() -> TaskRunResult {
+    let placement = TaskPlacement {
+        placement_mode: PlacementMode::Local,
+        remote_node_id: None,
+        strict_remote_target: None,
+        ordered_remote_targets: Vec::new(),
+        remote_selection: RemoteSelectionSpec::Sequential,
+        decision_reason: None,
+        local: None,
+        remote: None,
+        session: None,
+    };
+    build_task_run_result(
+        1,
+        true,
+        &placement,
+        None,
+        None,
+        None,
+        AttemptExecutionOutcome {
+            attempt_success: true,
+            last_exit_code: Some(0),
+            failure_detail: None,
+            synced_outputs: Vec::new(),
+            remote_runtime_kind: None,
+            remote_runtime_engine: None,
+            remote_logs: Vec::new(),
+        },
+    )
 }

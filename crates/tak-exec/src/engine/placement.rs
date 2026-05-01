@@ -1,14 +1,15 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use tak_core::model::{
-    ExecutionPlacementSpec, PolicyDecisionSpec, RemoteSelectionSpec, RemoteSpec, ResolvedTask,
+    ExecutionPlacementSpec, PolicyDecisionSpec, RemoteSelectionSpec, ResolvedTask,
     TaskExecutionSpec, TaskLabel,
 };
 use tak_loader::evaluate_named_policy_decision;
 
-use super::{NoMatchingRemoteError, PlacementMode, remote_models::TaskPlacement};
-use crate::client_remotes::configured_remote_targets;
+use super::placement_remote::remote_task_candidate;
+use super::placement_session::resolve_session_candidates;
+use super::{PlacementMode, remote_models::TaskPlacement};
 
 pub(crate) enum PlacementCandidate {
     Ready(Box<TaskPlacement>),
@@ -41,7 +42,13 @@ pub(crate) fn resolve_task_placement_candidates(
                     task.label
                 )
             })?;
-            resolve_session_candidates(task, &session.name, &session.execution)
+            let execution = session.execution.as_deref().ok_or_else(|| {
+                anyhow!(
+                    "task {} references session `{name}` but the session has no legacy execution",
+                    task.label
+                )
+            })?;
+            resolve_session_candidates(task, session, execution)
         }
     }
 }
@@ -79,31 +86,6 @@ fn resolve_custom_policy_candidate(
     }
 }
 
-fn resolve_session_candidates(
-    task: &ResolvedTask,
-    session_name: &str,
-    execution: &TaskExecutionSpec,
-) -> Result<Vec<PlacementCandidate>> {
-    match execution {
-        TaskExecutionSpec::LocalOnly(local) => Ok(vec![PlacementCandidate::Ready(Box::new(
-            local_task_placement(local.clone(), None),
-        ))]),
-        TaskExecutionSpec::RemoteOnly(remote) => {
-            Ok(vec![remote_task_candidate(task, remote, None)?])
-        }
-        TaskExecutionSpec::ByExecutionPolicy { name, placements } => placements
-            .iter()
-            .map(|placement| execution_policy_candidate(task, name, placement))
-            .collect(),
-        TaskExecutionSpec::ByCustomPolicy { .. } => {
-            bail!("session `{session_name}` uses unsupported ByCustomPolicy execution")
-        }
-        TaskExecutionSpec::UseSession { .. } => {
-            bail!("session `{session_name}` cannot use another session")
-        }
-    }
-}
-
 fn execution_policy_candidate(
     task: &ResolvedTask,
     policy_name: &str,
@@ -119,7 +101,7 @@ fn execution_policy_candidate(
     }
 }
 
-fn local_task_placement(
+pub(super) fn local_task_placement(
     local: tak_core::model::LocalSpec,
     reason: Option<String>,
 ) -> TaskPlacement {
@@ -132,7 +114,9 @@ fn local_task_placement(
         ordered_remote_targets: Vec::new(),
         remote_selection: RemoteSelectionSpec::Sequential,
         decision_reason: reason,
+        session: local.session.clone(),
         local: Some(local),
+        remote: None,
     }
 }
 
@@ -143,57 +127,4 @@ fn tasks_file_for_label(workspace_root: &Path, label: &TaskLabel) -> PathBuf {
 
     let package = label.package.trim_start_matches("//");
     workspace_root.join(package).join("TASKS.py")
-}
-
-fn remote_task_candidate(
-    task: &ResolvedTask,
-    remote: &RemoteSpec,
-    reason: Option<String>,
-) -> Result<PlacementCandidate> {
-    let remote = materialize_effective_remote_spec(task, remote)?;
-    let selection = configured_remote_targets(&remote)?;
-    if selection.matched_targets.is_empty() {
-        return Ok(PlacementCandidate::Unavailable(
-            NoMatchingRemoteError::new(
-                canonical_task_label(&task.label),
-                &remote,
-                selection.configured_remote_count,
-                selection.enabled_remote_count,
-                selection.enabled_remotes,
-            )
-            .into(),
-        ));
-    }
-    Ok(PlacementCandidate::Ready(Box::new(TaskPlacement {
-        placement_mode: PlacementMode::Remote,
-        remote_node_id: None,
-        strict_remote_target: None,
-        ordered_remote_targets: selection.matched_targets,
-        remote_selection: remote.selection,
-        decision_reason: reason,
-        local: None,
-    })))
-}
-
-fn materialize_effective_remote_spec(
-    task: &ResolvedTask,
-    remote: &RemoteSpec,
-) -> Result<RemoteSpec> {
-    if remote.runtime.is_some() {
-        return Ok(remote.clone());
-    }
-    if let Some(runtime) = task.container_runtime.clone() {
-        let mut remote = remote.clone();
-        remote.runtime = Some(runtime);
-        return Ok(remote);
-    }
-
-    bail!(
-        "task {} requires a container for remote execution; provide Execution.Remote(..., container=Container.Image(...)), Decision.remote(..., container=Container.Image(...)), or TASKS.py defaults.container",
-        canonical_task_label(&task.label)
-    )
-}
-
-fn canonical_task_label(label: &TaskLabel) -> String {
-    format!("{}:{}", label.package, label.name)
 }

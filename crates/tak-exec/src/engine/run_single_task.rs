@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use std::path::Path;
-use tak_core::model::{RemoteSelectionSpec, ResolvedTask};
+use tak_core::model::ResolvedTask;
 use uuid::Uuid;
 
 use super::{LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStatusPhase};
@@ -17,7 +17,7 @@ use super::output_observer::emit_task_status_message;
 use super::remote_models::TaskPlacement;
 use super::session_cascade::task_with_session_context;
 use super::session_workspaces::ExecutionSessionManager;
-use super::task_result::build_task_run_result;
+use super::task_result::{build_task_run_result, empty_task_result};
 use super::workspace_stage::stage_remote_workspace;
 
 pub(crate) async fn run_single_task(
@@ -26,6 +26,7 @@ pub(crate) async fn run_single_task(
     options: &RunOptions,
     lease_context: &LeaseContext,
     sessions: &mut ExecutionSessionManager,
+    placement_override: Option<TaskPlacement>,
 ) -> Result<TaskRunResult> {
     if task.steps.is_empty() {
         return Ok(empty_task_result());
@@ -34,16 +35,20 @@ pub(crate) async fn run_single_task(
     let mut attempt = 0;
     let task_run_id = Uuid::new_v4().to_string();
     let task_label = task.label.to_string();
-    let mut placement = preflight_task_placement(
-        task,
-        workspace_root,
-        &task_run_id,
-        1,
-        options.output_observer.as_ref(),
-    )
-    .await?;
+    let mut placement = if let Some(placement) = placement_override {
+        placement
+    } else {
+        preflight_task_placement(
+            task,
+            workspace_root,
+            &task_run_id,
+            1,
+            options.output_observer.as_ref(),
+        )
+        .await?
+    };
     let runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
-    let remote_stage_task = task_with_session_context(task);
+    let remote_stage_task = task_with_session_context(task, placement.session.as_ref());
     let stage_task = remote_stage_task.as_ref().unwrap_or(task);
     let remote_workspace = if placement.placement_mode == PlacementMode::Remote {
         Some(stage_remote_workspace(
@@ -56,6 +61,7 @@ pub(crate) async fn run_single_task(
     };
     let prepared_session = sessions.prepare_task(
         task,
+        placement.session.as_ref(),
         workspace_root,
         placement.placement_mode == PlacementMode::Local,
     )?;
@@ -163,33 +169,4 @@ pub(crate) async fn run_single_task(
             tokio::time::sleep(wait).await;
         }
     }
-}
-
-fn empty_task_result() -> TaskRunResult {
-    let placement = TaskPlacement {
-        placement_mode: PlacementMode::Local,
-        remote_node_id: None,
-        strict_remote_target: None,
-        ordered_remote_targets: Vec::new(),
-        remote_selection: RemoteSelectionSpec::Sequential,
-        decision_reason: None,
-        local: None,
-    };
-    build_task_run_result(
-        1,
-        true,
-        &placement,
-        None,
-        None,
-        None,
-        super::attempt_execution::AttemptExecutionOutcome {
-            attempt_success: true,
-            last_exit_code: Some(0),
-            failure_detail: None,
-            synced_outputs: Vec::new(),
-            remote_runtime_kind: None,
-            remote_runtime_engine: None,
-            remote_logs: Vec::new(),
-        },
-    )
 }

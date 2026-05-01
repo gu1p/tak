@@ -19,6 +19,7 @@ fn remote_override_preserves_existing_remote_requirements_and_runtime() {
             transport_kind: RemoteTransportKind::Tor,
             runtime: Some(image_runtime("alpine:3.20")),
             selection: RemoteSelectionSpec::Sequential,
+            session: None,
         }),
     ));
 

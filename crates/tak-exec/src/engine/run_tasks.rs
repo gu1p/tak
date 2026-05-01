@@ -8,7 +8,7 @@ use super::{LeaseContext, RunOptions, RunSummary};
 use crate::execution_graph::collect_required_labels;
 
 use super::run_single_task::run_single_task;
-use super::session_cascade::{resolve_cascaded_sessions, task_with_session_override};
+use super::session_cascade::{resolve_cascaded_executions, task_with_execution_override};
 use super::session_workspaces::ExecutionSessionManager;
 use uuid::Uuid;
 
@@ -47,7 +47,13 @@ pub async fn run_tasks(
         .collect::<Result<_>>()?;
 
     let order = tak_core::planner::topo_sort(&dep_map).context("failed to order task execution")?;
-    let cascaded_sessions = resolve_cascaded_sessions(spec, &required)?;
+    let cascaded_executions = resolve_cascaded_executions(
+        spec,
+        &required,
+        &spec.root,
+        options.output_observer.as_ref(),
+    )
+    .await?;
     let mut summary = RunSummary::default();
     let lease_context = LeaseContext::from_options(options);
     let mut sessions = ExecutionSessionManager::new(Uuid::new_v4().to_string());
@@ -57,11 +63,20 @@ pub async fn run_tasks(
             .tasks
             .get(&label)
             .ok_or_else(|| anyhow!("missing task definition for label {label}"))?;
-        let effective_task = task_with_session_override(task, cascaded_sessions.get(&label));
+        let cascade = cascaded_executions.get(&label);
+        let effective_task = task_with_execution_override(task, cascade);
         let task = effective_task.as_ref().unwrap_or(task);
+        let placement_override = cascade.and_then(|cascade| cascade.placement.clone());
 
-        let task_result =
-            run_single_task(task, &spec.root, options, &lease_context, &mut sessions).await?;
+        let task_result = run_single_task(
+            task,
+            &spec.root,
+            options,
+            &lease_context,
+            &mut sessions,
+            placement_override,
+        )
+        .await?;
         let failed = !task_result.success;
         summary.results.insert(label.clone(), task_result);
 

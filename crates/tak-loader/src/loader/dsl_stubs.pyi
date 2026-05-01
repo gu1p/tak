@@ -1,5 +1,5 @@
 from typing import Literal
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 
 # One explicit workspace path selected with `path(...)`.
@@ -86,6 +86,7 @@ class LocalSpec(TypedDict):
     id: str
     max_parallel_tasks: int
     container: ImageContainerSpec | DockerfileContainerSpec | None
+    session: NotRequired["SessionSpec"]
 
 
 # Remote execution target emitted by `Execution.Remote(...)`.
@@ -96,6 +97,7 @@ class RemoteSpec(TypedDict):
     transport: DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
     container: ImageContainerSpec | DockerfileContainerSpec | None
     selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec
+    session: NotRequired["SessionSpec"]
 
 
 # Name plus scope reference reused by needs and queue usage.
@@ -254,7 +256,7 @@ class PathsReuseSpec(TypedDict):
 class SessionSpec(TypedDict):
     id: str
     name: str | None
-    execution: LocalExecutionSpec | RemoteExecutionSpec | "ExecutionPolicySpec"
+    execution: LocalExecutionSpec | RemoteExecutionSpec | "ExecutionPolicySpec" | None
     reuse: WorkspaceReuseSpec | PathsReuseSpec
     lifetime: Literal["per_run"]
     context: CurrentStateSpec | None
@@ -326,6 +328,7 @@ class TaskSpec(TypedDict):
         | ExecutionPolicySpec
         | None
     )
+    cascade_execution: bool
     tags: list[str]
     doc: str
 
@@ -416,6 +419,7 @@ class Execution:
     @staticmethod
     def Local(
         container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
+        session: SessionSpec | None = ...,
     ) -> LocalExecutionSpec: ...
 
     # Force a task to run remotely. Remote execution requires a container.
@@ -429,6 +433,7 @@ class Execution:
         ) = ...,
         container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
         selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec | None = ...,
+        session: SessionSpec | None = ...,
     ) -> RemoteExecutionSpec: ...
 
     # Try execution placements in order and use the first available placement.
@@ -554,6 +559,7 @@ def task(
     ) = ...,
     use_session: SessionSpec | None = ...,
     cascade_session: bool = ...,
+    cascade_execution: bool = ...,
     tags: list[str] | None = ...,
     doc: str | None = ...,
 ) -> TaskSpec: ...

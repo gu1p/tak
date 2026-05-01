@@ -2,22 +2,23 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 
-use crate::support::{run_tak_expect_failure, write_tasks};
+use crate::support::{run_tak_expect_success, write_tasks};
 
 #[test]
-fn cascaded_session_rejects_child_with_different_explicit_session() -> Result<()> {
+fn cascaded_execution_overrides_child_with_different_explicit_session() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
-SESSION_A = session("a", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
-SESSION_B = session("b", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
+        r#"SESSION_A = session("a", reuse=SessionReuse.Workspace())
+SESSION_B = session("b", reuse=SessionReuse.Workspace())
+EXEC_A = Execution.Local(session=SESSION_A)
+EXEC_B = Execution.Local(session=SESSION_B)
 
 SPEC = module_spec(
   tasks=[
-    task("child", steps=[cmd("true")], use_session=SESSION_B),
-    task("check", deps=[":child"], use_session=SESSION_A, cascade_session=True),
+    task("child", steps=[cmd("true")], execution=EXEC_B),
+    task("check", deps=[":child"], execution=EXEC_A, cascade_execution=True),
   ],
 )
 SPEC
@@ -25,14 +26,11 @@ SPEC
     )?;
 
     let env = BTreeMap::new();
-    let (_stdout, stderr) = run_tak_expect_failure(&workspace, &["run", "check"], &env)?;
+    let stdout = run_tak_expect_success(&workspace, &["run", "check"], &env)?;
 
     assert!(
-        stderr.contains("session cascade conflict")
-            && stderr.contains("//:child")
-            && stderr.contains("`a`")
-            && stderr.contains("`b`"),
-        "stderr:\n{stderr}"
+        stdout.contains("//:child: ok") && stdout.contains("session=a"),
+        "stdout:\n{stdout}"
     );
     Ok(())
 }

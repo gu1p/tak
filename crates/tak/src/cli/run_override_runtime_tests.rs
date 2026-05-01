@@ -48,6 +48,7 @@ fn resolved_task(
         container_runtime,
         execution,
         session: None,
+        cascade_execution: false,
         tags: Vec::new(),
     }
 }
@@ -59,6 +60,7 @@ fn resolve_container_runtime_prefers_declared_task_runtime_over_workspace_defaul
             id: "dev".to_string(),
             max_parallel_tasks: 1,
             runtime: Some(dockerfile_runtime("docker/task.Dockerfile")),
+            session: None,
         }),
         Some(image_runtime("alpine:3.20")),
     );
@@ -87,8 +89,7 @@ fn resolve_container_runtime_uses_workspace_default_when_task_has_no_declared_ru
         Some(image_runtime("alpine:3.20")),
     );
 
-    let runtime =
-        resolve_container_runtime_for_task(&task, None).expect("workspace default runtime");
+    let runtime = resolve_container_runtime_for_task(&task, None).expect("default runtime");
 
     match runtime {
         RemoteRuntimeSpec::Containerized {

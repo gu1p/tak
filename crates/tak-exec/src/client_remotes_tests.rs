@@ -50,6 +50,7 @@ fn any_transport_request_builds_only_concrete_strict_targets() {
         transport_kind: RemoteTransportKind::Any,
         runtime: None,
         selection: tak_core::model::RemoteSelectionSpec::Sequential,
+        session: None,
     })
     .expect("selection should succeed");
 
@@ -58,13 +59,11 @@ fn any_transport_request_builds_only_concrete_strict_targets() {
         .iter()
         .map(|target| target.transport_kind)
         .collect::<Vec<_>>();
-    assert_eq!(
-        transports,
-        vec![
-            StrictRemoteTransportKind::Direct,
-            StrictRemoteTransportKind::Tor,
-        ]
-    );
+    let expected = vec![
+        StrictRemoteTransportKind::Direct,
+        StrictRemoteTransportKind::Tor,
+    ];
+    assert_eq!(transports, expected);
 }
 
 #[rustfmt::skip]

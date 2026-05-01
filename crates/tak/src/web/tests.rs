@@ -38,6 +38,7 @@ fn task(label: TaskLabel, deps: Vec<TaskLabel>) -> ResolvedTask {
         container_runtime: None,
         execution: TaskExecutionSpec::default(),
         session: None,
+        cascade_execution: false,
         tags: Vec::new(),
     }
 }

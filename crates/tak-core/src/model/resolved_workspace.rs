@@ -22,6 +22,7 @@ pub struct ResolvedTask {
     pub container_runtime: Option<RemoteRuntimeSpec>,
     pub execution: TaskExecutionSpec,
     pub session: Option<SessionUseSpec>,
+    pub cascade_execution: bool,
     pub tags: Vec<String>,
 }
 

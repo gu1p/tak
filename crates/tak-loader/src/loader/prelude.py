@@ -84,25 +84,35 @@ def module_spec(tasks, limiters=None, queues=None, exclude=None, includes=None, 
 def _is_host_runtime(value):
     return isinstance(value, dict) and value.get("kind") == "host"
 
+_SESSION_OBJECT_KEYS = ("id", "name", "execution", "reuse", "lifetime", "context")
+
+def _is_session_object(value):
+    return isinstance(value, dict) and all(key in value for key in _SESSION_OBJECT_KEYS)
+
 def _normalize_local_runtime(runtime):
     if runtime is None or _is_host_runtime(runtime):
         return None
     return runtime
 
-def _local_spec(runtime=None):
-    return {
+def _local_spec(runtime=None, session=None):
+    spec = {
         "id": "local",
         "max_parallel_tasks": 1,
         "container": _normalize_local_runtime(runtime),
     }
+    if session is not None:
+        if not _is_session_object(session):
+            raise TypeError("Execution.Local(session=...) expects a session(...) object")
+        spec["session"] = session
+    return spec
 
 def _remote_selection(selection=None):
     return selection if selection is not None else {"kind": "sequential"}
 
-def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None):
+def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None, session=None):
     if _is_host_runtime(runtime):
         raise TypeError("remote execution does not accept a host runtime; omit container for local host execution")
-    return {
+    spec = {
         "pool": pool,
         "required_tags": _or_empty_list(required_tags),
         "required_capabilities": _or_empty_list(required_capabilities),
@@ -110,6 +120,11 @@ def _remote_spec(pool=None, required_tags=None, required_capabilities=None, tran
         "container": runtime,
         "selection": _remote_selection(selection),
     }
+    if session is not None:
+        if not _is_session_object(session):
+            raise TypeError("Execution.Remote(session=...) expects a session(...) object")
+        spec["session"] = session
+    return spec
 
 def RemoteSelection_Sequential():
     """Try matching remotes in inventory order."""
@@ -233,14 +248,14 @@ def Decision_resolve(*args, **kwargs):
 
 POLICY_CONTEXT = PolicyContext()
 
-def Execution_Local(container=None):
+def Execution_Local(container=None, session=None):
     """Force a task to run locally, on the host by default or inside the supplied container."""
     return {
         "kind": "local_only",
-        "local": _local_spec(runtime=container),
+        "local": _local_spec(runtime=container, session=session),
     }
 
-def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, container=None, selection=None):
+def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, transport=None, container=None, selection=None, session=None):
     """Force a task to run remotely with the supplied target filters and container."""
     return {
         "kind": "remote_only",
@@ -251,6 +266,7 @@ def Execution_Remote(pool=None, required_tags=None, required_capabilities=None, 
             transport=transport,
             runtime=container,
             selection=selection,
+            session=session,
         ),
     }
 
@@ -338,9 +354,6 @@ def session(name=None, execution=None, reuse=None, lifetime=_SessionLifetime_Per
     if execution_policy is not None:
         label = str(name) if name is not None else "<unnamed>"
         raise TypeError("session `" + label + "` uses removed execution_policy; pass execution=Execution.FirstAvailable(...)")
-    if execution is None:
-        label = str(name) if name is not None else "<unnamed>"
-        raise TypeError("session `" + label + "` requires execution")
     return {
         "id": _next_session_id(),
         "name": str(name) if name is not None else None,
@@ -350,16 +363,13 @@ def session(name=None, execution=None, reuse=None, lifetime=_SessionLifetime_Per
         "context": context,
     }
 
-_SESSION_OBJECT_KEYS = ("id", "name", "execution", "reuse", "lifetime", "context")
-
-def _is_session_object(value):
-    return isinstance(value, dict) and all(key in value for key in _SESSION_OBJECT_KEYS)
-
 def _execution_session(session, cascade=False):
     if isinstance(session, str):
         raise TypeError("use_session expects a session(...) object, not a string")
     if not _is_session_object(session):
         raise TypeError("use_session expects a session(...) object")
+    if session.get("execution") is None:
+        raise TypeError("task(use_session=...) requires a session with legacy execution=...")
     return {
         "kind": "use_session",
         "name": str(session.get("id")),
@@ -395,7 +405,7 @@ def CurrentState(roots=None, ignored=None, include=None):
         "include": _or_empty_list(include),
     }
 
-def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, use_session=None, cascade_session=False, execution_policy=None, tags=None, doc=None):
+def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeout_s=None, context=None, outputs=None, execution=None, use_session=None, cascade_session=False, cascade_execution=False, execution_policy=None, tags=None, doc=None):
     """Declare one task, including its steps, dependencies, execution policy, and outputs."""
     if execution_policy is not None:
         raise TypeError("task `" + str(name) + "` uses removed execution_policy; pass execution=Execution.FirstAvailable(...)")
@@ -403,6 +413,8 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         raise TypeError("task `" + str(name) + "` cascade_session=True requires use_session")
     if execution is not None and use_session is not None:
         raise TypeError("task `" + str(name) + "` cannot use both execution and use_session")
+    if cascade_execution and cascade_session:
+        raise TypeError("task `" + str(name) + "` cannot use both cascade_execution and cascade_session")
     resolved_execution = _execution_session(use_session, cascade_session) if use_session is not None else execution
     return {
         "name": name,
@@ -415,6 +427,7 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         "context": context,
         "outputs": _or_empty_list(outputs),
         "execution": resolved_execution,
+        "cascade_execution": bool(cascade_execution),
         "tags": _or_empty_list(tags),
         "doc": doc if doc is not None else "",
     }
