@@ -14,7 +14,7 @@ use super::live_readiness::{LiveReadinessContext, StartupReadiness, wait_until_l
 use super::live_readiness_support::{current_problem, log_tor_client_bootstrap_status};
 use super::live_startup::{bootstrap_tor_client, launch_live_onion_service, record_startup_detail};
 use super::live_state::{mark_transport_ready, mark_transport_recovering, pending_context};
-use super::monitor::{TorHealthEvent, handle_health_event, run_periodic_self_probe};
+use super::monitor::{TorHealthTransition, handle_health_event, run_periodic_self_probe};
 use super::rend::spawn_rend_request;
 use super::startup_policy::startup_probe_retry_policy;
 use super::status_detail::{format_arti_transport_detail, hidden_service_probe_gate};
@@ -128,16 +128,22 @@ pub(super) async fn serve_live_tor_session(
                             reason: "takd onion service health monitor stopped".to_string(),
                         });
                     };
-                    if let TorHealthEvent::Failure(reason) = &event {
-                        mark_transport_recovering(&context, state_root, &base_url, reason.clone())?;
-                    }
-                    if matches!(&event, TorHealthEvent::ProbeSucceeded) {
-                        persist_ready_base_url(config_root, state_root, &base_url)?;
-                        mark_transport_ready(&context, state_root, &base_url)?;
-                    }
-                    if let Some(reason) = handle_health_event(&mut tracker, event) {
-                        health_task.abort();
-                        return Ok(TorSessionExit { base_url, reason });
+                    match handle_health_event(&mut tracker, event) {
+                        TorHealthTransition::Ready => {
+                            persist_ready_base_url(config_root, state_root, &base_url)?;
+                            mark_transport_ready(&context, state_root, &base_url)?;
+                        }
+                        TorHealthTransition::KeepReady => {}
+                        TorHealthTransition::Recovering(reason) => {
+                            mark_transport_recovering(
+                                &context,
+                                state_root,
+                                &base_url,
+                                reason.clone(),
+                            )?;
+                            health_task.abort();
+                            return Ok(TorSessionExit { base_url, reason });
+                        }
                     }
                 }
                 maybe_status = service_status_events.next() => {

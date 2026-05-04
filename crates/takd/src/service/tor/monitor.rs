@@ -11,23 +11,30 @@ pub(super) enum TorHealthEvent {
     Failure(String),
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(super) enum TorHealthTransition {
+    Ready,
+    KeepReady,
+    Recovering(String),
+}
+
 pub(super) fn handle_health_event(
     tracker: &mut TorRecoveryTracker,
     event: TorHealthEvent,
-) -> Option<String> {
+) -> TorHealthTransition {
     match event {
         TorHealthEvent::ProbeSucceeded => {
             tracker.record_success();
-            None
+            TorHealthTransition::Ready
         }
         TorHealthEvent::Failure(reason) => {
             if tracker.record_failure() {
-                Some(format!(
+                TorHealthTransition::Recovering(format!(
                     "{reason}; relaunching after {} consecutive transport failures",
                     tracker.consecutive_failures()
                 ))
             } else {
-                None
+                TorHealthTransition::KeepReady
             }
         }
     }
@@ -63,3 +70,6 @@ pub(super) async fn run_periodic_self_probe<R>(
         }
     }
 }
+
+#[path = "monitor_tests.rs"]
+mod monitor_tests;

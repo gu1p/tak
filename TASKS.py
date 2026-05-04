@@ -133,7 +133,7 @@ SPEC = module_spec(
             "lint",
             steps=[cargo_cmd("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")],
         ),
-        task("test", steps=[cargo_cmd("test", "--workspace")]),
+        task("test", steps=[cargo_cmd("test", "--workspace", "--lib", "--tests")]),
         task(
             "docs-check",
             steps=[
