@@ -1,6 +1,8 @@
 use super::*;
 
+use bollard::errors::Error as BollardError;
 use bollard::image::BuildImageOptions;
+use bollard::models::BuildInfo;
 use std::fs;
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef};
 
@@ -15,9 +17,16 @@ pub(super) async fn ensure_container_runtime_source(
     docker: &Docker,
     workspace_root: &Path,
     plan: &ContainerExecutionPlan,
+    run_context: &ContainerStepRunContext<'_>,
 ) -> Result<()> {
     if plan.image_cache.is_some() {
-        return cache::ensure_cached_container_runtime_source(docker, workspace_root, plan).await;
+        return cache::ensure_cached_container_runtime_source(
+            docker,
+            workspace_root,
+            plan,
+            run_context,
+        )
+        .await;
     }
     match &plan.source {
         ContainerRuntimeSourceSpec::Image { image } => ensure_container_image(docker, image).await,
@@ -34,6 +43,7 @@ pub(super) async fn ensure_container_runtime_source(
                 &plan.image,
                 dockerfile,
                 build_context,
+                run_context,
             )
             .await
         }
@@ -46,6 +56,7 @@ async fn build_container_image_from_dockerfile(
     image: &str,
     dockerfile: &PathRef,
     build_context: &PathRef,
+    run_context: &ContainerStepRunContext<'_>,
 ) -> Result<()> {
     let build_context_root = resolve_workspace_path_ref(workspace_root, build_context)
         .context("infra error: container lifecycle build failed: invalid build context")?;
@@ -81,9 +92,109 @@ async fn build_container_image_from_dockerfile(
         Some(archive.into()),
     );
     while let Some(item) = stream.next().await {
-        item.context("infra error: container lifecycle build failed")?;
+        let build_info = match item {
+            Ok(build_info) => build_info,
+            Err(BollardError::DockerStreamError { error }) if !error.trim().is_empty() => {
+                let error = error.trim().to_string();
+                emit_build_line(&error, OutputStream::Stderr, run_context)?;
+                bail!("infra error: container lifecycle build failed: {error}");
+            }
+            Err(error) => {
+                return Err(error).context("infra error: container lifecycle build failed");
+            }
+        };
+        emit_docker_build_info(&build_info, run_context)?;
+        if let Some(error) = docker_build_error_message(&build_info) {
+            bail!("infra error: container lifecycle build failed: {error}");
+        }
     }
     Ok(())
+}
+
+fn emit_docker_build_info(
+    build_info: &BuildInfo,
+    run_context: &ContainerStepRunContext<'_>,
+) -> Result<()> {
+    if let Some(stream) = build_info
+        .stream
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        crate::emit_task_output(
+            run_context.output_observer,
+            run_context.task_label,
+            run_context.attempt,
+            OutputStream::Stdout,
+            stream.as_bytes(),
+        )?;
+    }
+    if let Some(status) = docker_build_status_message(build_info) {
+        emit_build_line(&status, OutputStream::Stdout, run_context)?;
+    }
+    if let Some(error) = docker_build_error_message(build_info) {
+        emit_build_line(&error, OutputStream::Stderr, run_context)?;
+    }
+    Ok(())
+}
+
+fn emit_build_line(
+    message: &str,
+    stream: OutputStream,
+    run_context: &ContainerStepRunContext<'_>,
+) -> Result<()> {
+    if message.is_empty() {
+        return Ok(());
+    }
+    let mut line = message.as_bytes().to_vec();
+    if !line.ends_with(b"\n") {
+        line.push(b'\n');
+    }
+    crate::emit_task_output(
+        run_context.output_observer,
+        run_context.task_label,
+        run_context.attempt,
+        stream,
+        &line,
+    )
+}
+
+fn docker_build_status_message(build_info: &BuildInfo) -> Option<String> {
+    let status = build_info.status.as_deref()?.trim();
+    if status.is_empty() {
+        return None;
+    }
+    let mut message = String::new();
+    if let Some(id) = build_info
+        .id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        message.push_str(id);
+        message.push_str(": ");
+    }
+    message.push_str(status);
+    if let Some(progress) = build_info
+        .progress
+        .as_deref()
+        .map(str::trim)
+        .filter(|progress| !progress.is_empty())
+    {
+        message.push(' ');
+        message.push_str(progress);
+    }
+    Some(message)
+}
+
+fn docker_build_error_message(build_info: &BuildInfo) -> Option<String> {
+    build_info
+        .error_detail
+        .as_ref()
+        .and_then(|detail| detail.message.as_deref())
+        .or(build_info.error.as_deref())
+        .map(str::trim)
+        .filter(|message| !message.is_empty())
+        .map(str::to_string)
 }
 
 fn resolve_workspace_path_ref(workspace_root: &Path, path: &PathRef) -> Result<PathBuf> {

@@ -61,6 +61,10 @@ impl FakeDockerDaemon {
         self.state.fail_image_removal(status_code);
     }
 
+    pub fn fail_build(&self, message: &str) {
+        self.state.fail_build(message);
+    }
+
     pub fn image_removal_attempts(&self) -> Vec<String> {
         self.state.image_removal_attempts()
     }

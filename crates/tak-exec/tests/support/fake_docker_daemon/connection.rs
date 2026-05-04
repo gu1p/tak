@@ -36,6 +36,20 @@ pub(super) async fn handle_connection(
         }
         "POST" if path.ends_with("/build") => {
             state.record_build(parse_build_request(&request)?);
+            if let Some(message) = state.build_failure_message() {
+                let body = format!(
+                    "{}\n{}\n",
+                    serde_json::json!({ "stream": "Step 1/1 : RUN failing build step\n" }),
+                    serde_json::json!({
+                        "error": message,
+                        "errorDetail": {
+                            "message": message,
+                        },
+                    })
+                );
+                write_response(&mut stream, "200 OK", "application/json", body.as_bytes()).await?;
+                return Ok(());
+            }
             write_response(
                 &mut stream,
                 "200 OK",

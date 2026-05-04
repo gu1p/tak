@@ -12,6 +12,7 @@ pub(super) async fn ensure_cached_container_runtime_source(
     docker: &Docker,
     workspace_root: &Path,
     plan: &ContainerExecutionPlan,
+    run_context: &ContainerStepRunContext<'_>,
 ) -> Result<()> {
     match &plan.source {
         ContainerRuntimeSourceSpec::Image { image } => {
@@ -32,6 +33,7 @@ pub(super) async fn ensure_cached_container_runtime_source(
                     &plan.image,
                     dockerfile,
                     build_context,
+                    run_context,
                 )
                 .await?;
                 refreshed = true;

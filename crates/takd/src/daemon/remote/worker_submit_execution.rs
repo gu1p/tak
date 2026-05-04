@@ -140,7 +140,7 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
                     "timestamp_ms": finished_at,
                     "success": false,
                     "exit_code": 1,
-                    "message": error.to_string(),
+                    "message": format!("{error:#}"),
                 })
                 .to_string(),
             ) {
@@ -159,7 +159,7 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
 }
 
 fn failure_stderr_tail(error: &anyhow::Error, stderr_tail: &str) -> String {
-    let error_message = error.to_string();
+    let error_message = format!("{error:#}");
     if stderr_tail.is_empty() || stderr_tail.contains(&error_message) {
         return if stderr_tail.is_empty() {
             error_message
@@ -168,6 +168,36 @@ fn failure_stderr_tail(error: &anyhow::Error, stderr_tail: &str) -> String {
         };
     }
     format!("{error_message}\n{stderr_tail}")
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::anyhow;
+
+    use super::failure_stderr_tail;
+
+    #[test]
+    fn failure_stderr_tail_preserves_error_chain() {
+        let error = anyhow!("docker build error: package index fetch failed")
+            .context("infra error: container lifecycle build failed");
+
+        let tail = failure_stderr_tail(&error, "");
+
+        assert!(tail.contains("infra error: container lifecycle build failed"));
+        assert!(tail.contains("docker build error: package index fetch failed"));
+    }
+
+    #[test]
+    fn failure_stderr_tail_prepends_error_chain_to_existing_stderr() {
+        let error = anyhow!("docker build error: package index fetch failed")
+            .context("infra error: container lifecycle build failed");
+
+        let tail = failure_stderr_tail(&error, "existing stderr\n");
+
+        assert!(tail.starts_with("infra error: container lifecycle build failed"));
+        assert!(tail.contains("docker build error: package index fetch failed"));
+        assert!(tail.ends_with("existing stderr\n"));
+    }
 }
 
 include!("worker_submit_execution/output_observer.rs");

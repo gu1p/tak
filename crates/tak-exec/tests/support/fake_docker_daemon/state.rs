@@ -22,6 +22,7 @@ pub(super) struct FakeDockerDaemonState {
     pub(super) creates: Mutex<Vec<CreateRecord>>,
     pub(super) pulls: Mutex<Vec<PullRecord>>,
     pub(super) image_removal_attempts: Mutex<Vec<String>>,
+    build_failure_message: Mutex<Option<String>>,
     image_removal_failure_status: Mutex<Option<u16>>,
 }
 
@@ -40,6 +41,7 @@ impl FakeDockerDaemonState {
             creates: Mutex::new(Vec::new()),
             pulls: Mutex::new(Vec::new()),
             image_removal_attempts: Mutex::new(Vec::new()),
+            build_failure_message: Mutex::new(None),
             image_removal_failure_status: Mutex::new(None),
         }
     }
@@ -72,5 +74,19 @@ impl FakeDockerDaemonState {
             self.set_image(&pull.image, super::IMAGE_ID, 1024);
         }
         self.pulls.lock().expect("pull records lock").push(pull);
+    }
+
+    pub(super) fn fail_build(&self, message: &str) {
+        *self
+            .build_failure_message
+            .lock()
+            .expect("build failure lock") = Some(message.to_string());
+    }
+
+    pub(super) fn build_failure_message(&self) -> Option<String> {
+        self.build_failure_message
+            .lock()
+            .expect("build failure lock")
+            .clone()
     }
 }

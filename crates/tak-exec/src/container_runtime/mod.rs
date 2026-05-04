@@ -59,7 +59,6 @@ pub(crate) async fn run_task_steps_in_container(
     output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
     let client = connect_container_engine(plan.engine).await?;
-    ensure_container_runtime_source(&client.docker, workspace_root, plan).await?;
     let run_context = ContainerStepRunContext {
         workspace_root,
         task_label: &task.label,
@@ -67,6 +66,7 @@ pub(crate) async fn run_task_steps_in_container(
         output_observer,
         container_user: plan.container_user.as_deref(),
     };
+    ensure_container_runtime_source(&client.docker, workspace_root, plan, &run_context).await?;
 
     for step in &task.steps {
         let mut step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
