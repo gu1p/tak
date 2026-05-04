@@ -96,6 +96,17 @@ pub(crate) struct RemoteWorkspaceStage {
     pub(crate) temp_dir: tempfile::TempDir,
     pub(crate) manifest_hash: String,
     pub(crate) archive_zip_base64: String,
+    pub(crate) archive_byte_len: usize,
+}
+
+impl RemoteWorkspaceStage {
+    pub(crate) fn upload_size_mb(&self) -> String {
+        format_upload_size_mb(self.archive_byte_len)
+    }
+}
+
+pub(crate) fn format_upload_size_mb(byte_len: usize) -> String {
+    format!("{:.2} MB", byte_len as f64 / 1_000_000.0)
 }
 
 #[derive(Debug, Clone)]

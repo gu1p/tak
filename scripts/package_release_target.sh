@@ -6,25 +6,28 @@ cd "$ROOT_DIR"
 
 target="${1:?target triple is required}"
 tag="${TAK_RELEASE_TAG:-manual}"
-target_dir=".tmp/release-target/${target}"
+target_dir="${TAK_RELEASE_TARGET_ROOT:-.tmp/release-target}/${target}"
 release_dir="${target_dir}/${target}/release"
 tak_bin="${release_dir}/tak"
 takd_bin="${release_dir}/takd"
-dist_root="dist-manual"
+dist_root="${TAK_DIST_ROOT:-dist-manual}"
 pkg_dir="${dist_root}/pkg/${target}"
 
 test -x "$tak_bin"
 test -x "$takd_bin"
 
 if [[ -n "${TAK_BUILD_VERSION:-}" ]]; then
-  expected_version="tak ${TAK_BUILD_VERSION}"
-  actual_version="$("$tak_bin" --version | tr -d '\r')"
-  if [[ "$actual_version" != "$expected_version" ]]; then
-    echo "package_release_target: version mismatch for ${target}" >&2
-    echo "expected: ${expected_version}" >&2
-    echo "actual:   ${actual_version}" >&2
-    exit 1
-  fi
+  for binary_name in tak takd; do
+    binary_path="${release_dir}/${binary_name}"
+    expected_version="${binary_name} ${TAK_BUILD_VERSION}"
+    actual_version="$("$binary_path" --version | tr -d '\r')"
+    if [[ "$actual_version" != "$expected_version" ]]; then
+      echo "package_release_target: version mismatch for ${binary_name} on ${target}" >&2
+      echo "expected: ${expected_version}" >&2
+      echo "actual:   ${actual_version}" >&2
+      exit 1
+    fi
+  done
 fi
 
 rm -rf "$pkg_dir"

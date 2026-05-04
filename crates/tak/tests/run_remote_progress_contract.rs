@@ -38,10 +38,7 @@ fn run_reports_remote_progress_on_stderr_while_waiting_for_logs() -> Result<()> 
         stderr.contains("staging remote workspace"),
         "stderr:\n{stderr}"
     );
-    assert!(
-        stderr.contains("submitting to remote node"),
-        "stderr:\n{stderr}"
-    );
+    assert!(stderr.contains(" MB to remote node"), "stderr:\n{stderr}");
     assert!(
         stderr.contains("waiting for remote output from"),
         "stderr:\n{stderr}"

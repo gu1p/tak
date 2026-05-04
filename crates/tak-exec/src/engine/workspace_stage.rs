@@ -18,6 +18,7 @@ use zip::write::SimpleFileOptions;
 use super::{RemoteWorkspaceStage, TaskOutputObserver, TaskStatusPhase};
 
 use super::output_observer::emit_task_status_message;
+use super::remote_models::format_upload_size_mb;
 use super::workspace_collect::{collect_workspace_files, materialize_manifest_files};
 use super::workspace_sync::normalize_filesystem_relative_path;
 
@@ -38,24 +39,29 @@ pub(crate) fn stage_remote_workspace(
     let manifest = build_current_state_manifest(available_files, &task.context);
     let staged_dir = tempfile::tempdir().context("failed to create staged remote workspace")?;
     materialize_manifest_files(workspace_root, staged_dir.path(), &manifest.entries)?;
-    let archive_zip_base64 = build_zip_snapshot_base64(staged_dir.path())?;
+    let (archive_zip_base64, archive_byte_len) = build_zip_snapshot_base64(staged_dir.path())?;
     emit_task_status_message(
         output_observer,
         &task.label,
         1,
         TaskStatusPhase::RemoteStageWorkspace,
         None,
-        format!("staged remote workspace ({} files)", manifest.entries.len()),
+        format!(
+            "staged remote workspace ({} files, {} upload)",
+            manifest.entries.len(),
+            format_upload_size_mb(archive_byte_len)
+        ),
     )?;
 
     Ok(RemoteWorkspaceStage {
         temp_dir: staged_dir,
         manifest_hash: manifest.hash,
         archive_zip_base64,
+        archive_byte_len,
     })
 }
 
-fn build_zip_snapshot_base64(staged_root: &Path) -> Result<String> {
+fn build_zip_snapshot_base64(staged_root: &Path) -> Result<(String, usize)> {
     let mut archive_bytes = Vec::<u8>::new();
     {
         let cursor = std::io::Cursor::new(&mut archive_bytes);
@@ -64,7 +70,11 @@ fn build_zip_snapshot_base64(staged_root: &Path) -> Result<String> {
         zip.finish()
             .context("failed finishing staged workspace zip snapshot")?;
     }
-    Ok(base64::engine::general_purpose::STANDARD.encode(archive_bytes))
+    let archive_byte_len = archive_bytes.len();
+    Ok((
+        base64::engine::general_purpose::STANDARD.encode(&archive_bytes),
+        archive_byte_len,
+    ))
 }
 
 fn write_zip_entries_recursive<W: Write + std::io::Seek>(

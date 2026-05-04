@@ -24,6 +24,9 @@ pub(super) fn workspace(base64_zip: &str) -> RemoteWorkspaceStage {
         temp_dir: tempfile::tempdir().expect("tempdir"),
         manifest_hash: "manifest".into(),
         archive_zip_base64: base64_zip.into(),
+        archive_byte_len: base64::engine::general_purpose::STANDARD
+            .decode(base64_zip)
+            .map_or(0, |archive| archive.len()),
     }
 }
 

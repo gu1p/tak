@@ -5,6 +5,25 @@ use crate::support;
 use std::fs;
 use std::process::Command as StdCommand;
 
+#[test]
+fn takd_version_reports_build_time_version() {
+    let output = StdCommand::new(support::takd_bin())
+        .arg("--version")
+        .output()
+        .expect("run takd --version");
+
+    assert!(
+        output.status.success(),
+        "takd --version should succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("takd {}\n", env!("CARGO_PKG_VERSION"))
+    );
+}
+
 #[path = "agent_cli_contract/image_cache.rs"]
 mod image_cache;
 

@@ -77,7 +77,7 @@ async fn remote_status_reports_auth_fallback_to_the_next_candidate() {
         event.phase == TaskStatusPhase::RemoteSubmit
             && event
                 .message
-                .contains("submitting to remote node builder-auth-fail")
+                .contains(" MB to remote node builder-auth-fail")
     }));
     assert!(statuses.iter().any(|event| {
         event.phase == TaskStatusPhase::RemoteProbe

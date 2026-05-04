@@ -69,7 +69,11 @@ pub(crate) async fn resolve_attempt_submit_state(
         submit.attempt,
         TaskStatusPhase::RemoteSubmit,
         Some(target.node_id.as_str()),
-        format!("submitting to remote node {}", target.node_id),
+        format!(
+            "submitting {} to remote node {}",
+            remote_workspace.upload_size_mb(),
+            target.node_id
+        ),
     )?;
 
     match remote_protocol_submit(

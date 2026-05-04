@@ -31,6 +31,7 @@ mod remote_execution_tor_retry_behavior;
 mod remote_preflight_transport_state_behavior;
 mod remote_progress_auth_fallback_behavior;
 mod remote_progress_retry_behavior;
+mod remote_progress_upload_size_behavior;
 mod remote_wait_activity_reset_behavior;
 mod remote_wait_heartbeat_behavior;
 mod remote_wait_unavailable_telemetry_behavior;

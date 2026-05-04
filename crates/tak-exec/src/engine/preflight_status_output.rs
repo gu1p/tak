@@ -58,6 +58,7 @@ pub(crate) fn emit_remote_submit(
     task_label: &TaskLabel,
     attempt: u32,
     node_id: &str,
+    upload_size_mb: &str,
 ) -> Result<()> {
     emit_task_status_message(
         output_observer,
@@ -65,7 +66,7 @@ pub(crate) fn emit_remote_submit(
         attempt,
         TaskStatusPhase::RemoteSubmit,
         Some(node_id),
-        format!("submitting to remote node {node_id}"),
+        format!("submitting {upload_size_mb} to remote node {node_id}"),
     )
 }
 

@@ -18,7 +18,6 @@ use super::{
     transport,
 };
 use crate::client_observations::record_remote_observation;
-
 pub(crate) async fn preflight_ordered_remote_target(
     task: &ResolvedTask,
     candidates: &[StrictRemoteTarget],
@@ -147,6 +146,7 @@ pub(crate) async fn fallback_after_auth_submit_failure(
             &task.label,
             submit.attempt,
             &candidate.node_id,
+            &submit.remote_workspace.upload_size_mb(),
         )?;
         match remote_protocol_submit(
             candidate,

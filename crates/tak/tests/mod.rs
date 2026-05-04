@@ -23,6 +23,8 @@ mod get_takd_installer_verbose_contract;
 mod invalid_input_guidance_contract;
 mod list_docs_contract;
 mod local_installer_contract;
+mod release_package_contract;
+mod release_version_script_contract;
 mod remote_cli_add_interactive_location_contract;
 mod remote_cli_add_interactive_location_validation_contract;
 mod remote_cli_add_interactive_onion_contract;

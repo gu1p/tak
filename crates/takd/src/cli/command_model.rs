@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 #[derive(Debug, Parser)]
 #[command(name = "takd")]
 #[command(about = "Tak execution agent")]
+#[command(version = env!("TAKD_VERSION"))]
 pub(super) struct Cli {
     #[command(subcommand)]
     pub(super) command: Commands,
