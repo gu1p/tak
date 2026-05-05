@@ -57,9 +57,32 @@ pub(super) enum Commands {
         #[arg(long, default_value_t = 200)]
         lines: usize,
     },
+    Tasks {
+        #[arg(long)]
+        config_root: Option<PathBuf>,
+        #[arg(long)]
+        state_root: Option<PathBuf>,
+    },
+    Task {
+        #[command(subcommand)]
+        command: TaskCommands,
+    },
     Token {
         #[command(subcommand)]
         command: TokenCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub(super) enum TaskCommands {
+    Logs {
+        task_run_id: String,
+        #[arg(long)]
+        state_root: Option<PathBuf>,
+        #[arg(long, default_value_t = false)]
+        follow: bool,
+        #[arg(long, default_value_t = 100)]
+        interval_ms: u64,
     },
 }
 

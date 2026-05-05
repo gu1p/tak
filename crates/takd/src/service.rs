@@ -8,7 +8,10 @@ use crate::agent::{
 };
 use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
 
+mod control;
 mod tor;
+
+use control::{AgentControlState, spawn_agent_control_socket};
 
 pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     let config = read_config(config_root)?;
@@ -19,11 +22,24 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     }
     let store =
         SubmitAttemptStore::with_db_path(db_path).context("open takd agent sqlite store")?;
+    abandon_unfinished_submits(&store)?;
+    let control_state = AgentControlState::default();
+    spawn_agent_control_socket(state_root, store.clone(), control_state.clone())?;
     match config.transport.as_str() {
-        "tor" => tor::serve_tor_agent(config_root, state_root, store).await,
-        "direct" => serve_direct_agent(config_root, state_root, &config, store).await,
+        "tor" => tor::serve_tor_agent(config_root, state_root, store, control_state).await,
+        "direct" => {
+            serve_direct_agent(config_root, state_root, &config, store, control_state).await
+        }
         other => bail!("unsupported takd transport `{other}`"),
     }
+}
+
+fn abandon_unfinished_submits(store: &SubmitAttemptStore) -> Result<()> {
+    let abandoned = store.mark_unfinished_attempts_abandoned()?;
+    if abandoned > 0 {
+        tracing::warn!("marked {abandoned} unfinished takd task attempt(s) as abandoned");
+    }
+    Ok(())
 }
 
 #[doc(hidden)]
@@ -36,6 +52,7 @@ async fn serve_direct_agent(
     state_root: &Path,
     config: &crate::agent::AgentConfig,
     store: SubmitAttemptStore,
+    control_state: AgentControlState,
 ) -> Result<()> {
     let parsed = parse_direct_base_url(config.base_url.as_deref()).map_err(|err| match err {
         DirectBaseUrlError::Missing | DirectBaseUrlError::InvalidScheme => {
@@ -60,6 +77,7 @@ async fn serve_direct_agent(
     tracing::info!("takd remote v1 direct service ready at {advertised_base_url}");
     let context =
         crate::agent::ready_context_with_state_root(&read_config(config_root)?, state_root)?;
+    control_state.set_context(context.clone())?;
     run_remote_v1_http_server(listener, store, context).await
 }
 

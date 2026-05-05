@@ -52,7 +52,9 @@ mod worker_workspace_outputs;
 pub use http_server::run_remote_v1_http_server;
 pub use router::handle_remote_v1_request;
 pub use runtime::RemoteRuntimeConfig;
-pub use submit_store::{SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key};
+pub use submit_store::{
+    ActiveSubmitAttempt, SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key,
+};
 pub use tor_server::run_remote_v1_tor_hidden_service;
 pub use types::{RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteV1Response};
 

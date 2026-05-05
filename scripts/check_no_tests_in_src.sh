@@ -4,14 +4,31 @@ set -euo pipefail
 mode="${TAK_LINE_MODE:-working-tree}"
 base_ref="${TAK_BASE_REF:-origin/main}"
 
-repo_root="$(git rev-parse --show-toplevel)"
+script_root="$(cd "$(dirname "$0")/.." && pwd)"
+repo_root="$(git -C "$script_root" rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$script_root")"
 cd "$repo_root"
 
+has_git_worktree() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+list_src_files_without_git() {
+  [[ -d crates ]] || return 0
+  find crates -type f -name '*.rs' | rg '/src/' || true
+}
+
 list_all_src_files() {
+  if ! has_git_worktree; then
+    list_src_files_without_git
+    return
+  fi
   git ls-files 'crates/**/*.rs' | rg '/src/'
 }
 
 list_base_ref_src_files() {
+  if ! has_git_worktree; then
+    return
+  fi
   if git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
     local merge_base
     merge_base="$(git merge-base HEAD "$base_ref")"
@@ -22,6 +39,9 @@ list_base_ref_src_files() {
 }
 
 list_working_tree_src_files() {
+  if ! has_git_worktree; then
+    return
+  fi
   git diff --name-only --diff-filter=ACMR HEAD -- 'crates/**/*.rs' | rg '/src/' || true
   git ls-files --others --exclude-standard -- 'crates/**/*.rs' | rg '/src/' || true
 }

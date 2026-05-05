@@ -6,6 +6,9 @@
 
 It exposes a unix-socket NDJSON protocol and persists lease state/history in SQLite for restart recovery.
 
+The remote execution agent mode also keeps live task state in process and persists submitted task
+attempts, task events, and terminal results in `agent.sqlite` under the takd state root.
+
 ## Protocol Surface
 
 Requests:
@@ -46,6 +49,18 @@ SQLite tables:
   - restart-time snapshot of currently active leases
 - `lease_history`
   - append-only event log (`acquire`, `renew`, `release`, `expire`)
+- `submit_attempts`
+  - remote task attempts keyed by `(task_run_id, attempt)`
+- `submit_events`
+  - ordered task output and lifecycle events
+- `submit_results`
+  - terminal task results; used with `submit_attempts` for restart abandonment and task logs
+
+Live task listing:
+
+- `takd serve` binds `<state_root>/agent-control.sock`
+- `takd tasks` queries that socket for `/v1/node/status` and renders in-memory active jobs
+- persisted unfinished submit rows are not treated as currently executing tasks after restart
 
 Startup recovery:
 
@@ -53,6 +68,7 @@ Startup recovery:
 2. load active leases
 3. discard expired rows
 4. rebuild in-memory usage from non-expired leases
+5. mark unfinished remote task attempts abandoned before accepting new work
 
 ## Capacity and Queue Behavior
 
@@ -74,6 +90,8 @@ Startup recovery:
 - `run_server(socket_path, manager)`
 - `run_daemon(socket_path)` default daemon bootstrap
 - `default_socket_path()` and `default_state_db_path()`
+- `takd tasks`: list live remote task attempts from the running local takd process.
+- `takd task logs <task-run-id> [--follow]`: print persisted stdout/stderr chunks for a task run.
 
 ## Main Files
 

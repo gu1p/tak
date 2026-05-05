@@ -36,6 +36,7 @@ impl SubmitAttemptStore {
                 idempotency_key TEXT PRIMARY KEY,
                 task_run_id TEXT NOT NULL,
                 attempt INTEGER NOT NULL,
+                task_label TEXT NOT NULL DEFAULT '',
                 selected_node_id TEXT NOT NULL,
                 execution_root_base TEXT NOT NULL DEFAULT '',
                 created_at_ms INTEGER NOT NULL
@@ -64,6 +65,14 @@ impl SubmitAttemptStore {
                 "
                 ALTER TABLE submit_attempts
                 ADD COLUMN execution_root_base TEXT NOT NULL DEFAULT '';
+                ",
+            )?;
+        }
+        if !self.table_has_column(&conn, "submit_attempts", "task_label")? {
+            conn.execute_batch(
+                "
+                ALTER TABLE submit_attempts
+                ADD COLUMN task_label TEXT NOT NULL DEFAULT '';
                 ",
             )?;
         }

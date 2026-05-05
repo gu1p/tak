@@ -18,9 +18,35 @@ impl SubmitAttemptStore {
         selected_node_id: &str,
         execution_root_base: &Path,
     ) -> Result<SubmitRegistration> {
+        self.register_submit_with_task_label(
+            task_run_id,
+            attempt,
+            "",
+            selected_node_id,
+            execution_root_base,
+        )
+    }
+
+    /// Registers a submit attempt with task metadata used by takd operator commands.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn register_submit_with_task_label(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+        task_label: &str,
+        selected_node_id: &str,
+        execution_root_base: &Path,
+    ) -> Result<SubmitRegistration> {
         self.register_submit_with_execution_root_base(
             task_run_id,
             attempt,
+            task_label,
             selected_node_id,
             execution_root_base,
         )
@@ -30,6 +56,7 @@ impl SubmitAttemptStore {
         &self,
         task_run_id: &str,
         attempt: Option<u32>,
+        task_label: &str,
         selected_node_id: &str,
         execution_root_base: &Path,
     ) -> Result<SubmitRegistration> {
@@ -44,13 +71,15 @@ impl SubmitAttemptStore {
         let inserted = conn.execute(
             "
             INSERT INTO submit_attempts (
-                idempotency_key, task_run_id, attempt, selected_node_id, execution_root_base, created_at_ms
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                idempotency_key, task_run_id, attempt, task_label, selected_node_id,
+                execution_root_base, created_at_ms
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             ",
             params![
                 idempotency_key,
                 task_run_id.trim(),
                 attempt,
+                task_label.trim(),
                 selected_node_id,
                 execution_root_base.display().to_string(),
                 unix_epoch_ms(),

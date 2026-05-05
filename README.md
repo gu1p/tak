@@ -94,6 +94,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Show the agent transport/readiness plus the resolved `service.log` path and whether it exists yet.
 - `takd logs`
   - Print the most recent server-side `takd` log lines from the agent state directory.
+- `takd tasks`
+  - List tasks currently executing in the running local `takd` process.
 - `takd token show`
   - Reprint the persisted onboarding token, or wait until it is advertised with `--wait`.
 - `takd token show --words`

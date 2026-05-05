@@ -70,7 +70,15 @@ impl SubmitAttemptStore {
         }
     }
 
-    pub(in crate::daemon::remote) fn latest_submit_idempotency_key_for_task_run(
+    /// Returns the newest submit idempotency key for a task run id.
+    ///
+    /// ```no_run
+    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn latest_submit_idempotency_key_for_task_run(
         &self,
         task_run_id: &str,
     ) -> Result<Option<String>> {

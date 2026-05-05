@@ -1,13 +1,12 @@
 use anyhow::{Context, Result};
 use std::path::Path;
-use tokio::time::sleep;
 
 use crate::agent::{
-    TorRecoveryBackoff, TransportHealth, arti_cache_dir, arti_state_dir, read_config,
-    write_transport_health,
+    TransportHealth, arti_cache_dir, arti_state_dir, read_config, write_transport_health,
 };
 use crate::daemon::remote::SubmitAttemptStore;
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
+use crate::service::control::AgentControlState;
 
 mod health;
 mod live;
@@ -19,19 +18,20 @@ mod live_state;
 mod monitor;
 mod probe;
 mod rend;
+mod restart_loop;
 mod startup_policy;
 mod status_detail;
 mod test_bind;
 
 use health::tor_recovery_config;
-use live::serve_live_tor_session;
 pub(crate) use rend::handle_accepted_stream_side_effects;
-use test_bind::{RetryableTestBindStartupFailure, serve_test_bind_session};
+use restart_loop::{TorLoopContext, run_live_loop, run_test_bind_loop};
 
 pub(super) async fn serve_tor_agent(
     config_root: &Path,
     state_root: &Path,
     store: SubmitAttemptStore,
+    control_state: AgentControlState,
 ) -> Result<()> {
     let config = read_config(config_root)?;
     let runtime = TorHiddenServiceRuntimeConfig {
@@ -40,9 +40,9 @@ pub(super) async fn serve_tor_agent(
         cache_dir: arti_cache_dir(state_root),
     };
     let recovery = tor_recovery_config();
-    let mut relaunch_backoff =
-        TorRecoveryBackoff::new(recovery.initial_backoff, recovery.max_backoff);
-    let mut last_base_url = config.base_url.clone();
+    let relaunch_backoff =
+        crate::agent::TorRecoveryBackoff::new(recovery.initial_backoff, recovery.max_backoff);
+    let last_base_url = config.base_url.clone();
 
     if last_base_url.is_some() {
         write_transport_health(
@@ -56,102 +56,20 @@ pub(super) async fn serve_tor_agent(
         write_transport_health(state_root, &TransportHealth::pending(None))?;
     }
 
+    let loop_context = TorLoopContext {
+        config_root,
+        state_root,
+        config: &config,
+        runtime: &runtime,
+        store,
+        control_state,
+    };
+
     if let Some(bind_addr) = test_tor_hidden_service_bind_addr() {
-        loop {
-            match serve_test_bind_session(
-                config_root,
-                state_root,
-                &config,
-                &runtime.nickname,
-                store.clone(),
-                &bind_addr,
-            )
-            .await
-            {
-                Ok(exit) => {
-                    write_transport_health(
-                        state_root,
-                        &TransportHealth::recovering(
-                            Some(exit.base_url.clone()),
-                            Some(exit.reason.clone()),
-                        ),
-                    )?;
-                    let delay = relaunch_backoff.next_delay();
-                    tracing::warn!(
-                        "restarting takd tor test-bind session after {}ms: {}",
-                        delay.as_millis(),
-                        exit.reason
-                    );
-                    sleep(delay).await;
-                }
-                Err(err) => {
-                    if err
-                        .downcast_ref::<RetryableTestBindStartupFailure>()
-                        .is_none()
-                    {
-                        return Err(err);
-                    }
-                    let detail = format!("{err:#}");
-                    write_transport_health(
-                        state_root,
-                        &TransportHealth::recovering(last_base_url.clone(), Some(detail.clone())),
-                    )?;
-                    let delay = relaunch_backoff.next_delay();
-                    tracing::warn!(
-                        "retrying takd tor test-bind startup after {}ms: {}",
-                        delay.as_millis(),
-                        detail
-                    );
-                    sleep(delay).await;
-                }
-            }
-        }
+        return run_test_bind_loop(loop_context, bind_addr, relaunch_backoff, last_base_url).await;
     }
 
-    loop {
-        match serve_live_tor_session(
-            config_root,
-            state_root,
-            &config,
-            &runtime,
-            store.clone(),
-            &recovery,
-        )
-        .await
-        {
-            Ok(exit) => {
-                last_base_url = Some(exit.base_url.clone());
-                write_transport_health(
-                    state_root,
-                    &TransportHealth::recovering(
-                        Some(exit.base_url.clone()),
-                        Some(exit.reason.clone()),
-                    ),
-                )?;
-                let delay = relaunch_backoff.next_delay();
-                tracing::warn!(
-                    "restarting takd onion service after {}ms: {}",
-                    delay.as_millis(),
-                    exit.reason
-                );
-                sleep(delay).await;
-            }
-            Err(err) => {
-                let detail = format!("{err:#}");
-                write_transport_health(
-                    state_root,
-                    &TransportHealth::recovering(last_base_url.clone(), Some(detail.clone())),
-                )?;
-                let delay = relaunch_backoff.next_delay();
-                tracing::warn!(
-                    "retrying takd onion service bootstrap after {}ms: {}",
-                    delay.as_millis(),
-                    detail
-                );
-                sleep(delay).await;
-            }
-        }
-    }
+    run_live_loop(loop_context, &recovery, relaunch_backoff, last_base_url).await
 }
 
 pub(super) fn onion_service_config(

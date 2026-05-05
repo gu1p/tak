@@ -7,6 +7,7 @@ use safelog::DisplayRedacted;
 use crate::agent::{TorRecoveryBackoff, TorRecoveryTracker, persist_ready_base_url};
 use crate::daemon::remote::SubmitAttemptStore;
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
+use crate::service::control::AgentControlState;
 
 use super::TorSessionExit;
 use super::health::{TorRecoveryConfig, startup_session_timeout};
@@ -26,6 +27,7 @@ pub(super) async fn serve_live_tor_session(
     runtime: &TorHiddenServiceRuntimeConfig,
     store: SubmitAttemptStore,
     recovery: &TorRecoveryConfig,
+    control_state: AgentControlState,
 ) -> Result<TorSessionExit> {
     tracing::info!(
         "bootstrapping embedded Arti for takd hidden service nickname {}",
@@ -56,6 +58,7 @@ pub(super) async fn serve_live_tor_session(
             .map(|value| format!("http://{}", value.display_unredacted()))
             .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
         let context = pending_context(config, &base_url, state_root)?;
+        control_state.set_context(context.clone())?;
         let ready = wait_until_live_tor_ready(
             LiveReadinessContext {
                 config_root,

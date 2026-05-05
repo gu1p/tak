@@ -156,6 +156,7 @@ Lease runtime persistence:
 Remote agent persistence:
 
 - `agent.sqlite` for remote submit attempts, streamed events, and terminal results
+- `<state_root>/agent-control.sock` for local live `takd tasks` inspection
 - config/state roots created by `takd init`
 - ready base URL or onion advertisement persisted for later `takd status` and token reads
 

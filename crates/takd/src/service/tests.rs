@@ -6,6 +6,7 @@ use std::time::Duration;
 use super::tor::{onion_service_config, test_tor_hidden_service_bind_addr};
 use super::{serve_agent, serve_direct_agent};
 use crate::daemon::remote::SubmitAttemptStore;
+use crate::service::control::AgentControlState;
 
 #[tokio::test]
 async fn direct_transport_requires_http_base_url() {
@@ -15,6 +16,7 @@ async fn direct_transport_requires_http_base_url() {
         temp.path(),
         &agent_config(None),
         submit_store(&temp),
+        AgentControlState::default(),
     )
     .await
     .expect_err("missing base_url");
@@ -29,6 +31,7 @@ async fn direct_transport_rejects_non_http_base_url() {
         temp.path(),
         &agent_config(Some("ssh://builder")),
         submit_store(&temp),
+        AgentControlState::default(),
     )
     .await
     .expect_err("invalid scheme");
@@ -60,6 +63,7 @@ async fn direct_transport_rejects_base_url_with_unsupported_components() {
                 &state_root,
                 &agent_config(Some(base_url)),
                 submit_store(&temp),
+                AgentControlState::default(),
             ),
         )
         .await

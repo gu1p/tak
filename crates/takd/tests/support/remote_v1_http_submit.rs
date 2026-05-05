@@ -36,7 +36,7 @@ pub fn truncated_submit_request(task_run_id: &str) -> Vec<u8> {
     request
 }
 
-fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> SubmitTaskRequest {
+pub fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> SubmitTaskRequest {
     SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt: 1,

@@ -89,6 +89,7 @@ mod run_remote_progress_contract;
 mod run_remote_timeout_last_observation_contract;
 mod run_session;
 mod run_streaming_contract;
+mod staged_workspace_script_contract;
 mod status_contract;
 pub mod support;
 mod tak_bin_explicit_contract;

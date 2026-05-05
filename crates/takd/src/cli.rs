@@ -5,7 +5,7 @@ use crate::logging::{init_service_logging, read_service_log, read_service_log_ta
 use crate::qr_render::render_onboarding_view;
 use crate::serve_lock::ServiceStateLock;
 use crate::word_table::render_words_table_view;
-use command_model::{Cli, Commands, TokenCommands};
+use command_model::{Cli, Commands, TaskCommands, TokenCommands};
 use tak_proto::encode_tor_invite_words;
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
@@ -15,6 +15,8 @@ use takd::serve_agent;
 
 mod command_model;
 mod status_output;
+mod task_logs;
+mod tasks_output;
 
 pub async fn run_cli() -> Result<()> {
     tak_core::crypto_provider::ensure_rustls_crypto_provider();
@@ -83,6 +85,25 @@ pub async fn run_cli() -> Result<()> {
                 print!("{}", read_service_log_tail(&state_root, lines)?);
             }
         }
+        Commands::Tasks {
+            config_root,
+            state_root,
+        } => {
+            let config_root = config_root.unwrap_or(default_config_root()?);
+            let state_root = state_root.unwrap_or(default_state_root()?);
+            tasks_output::print_active_tasks(&config_root, &state_root)?;
+        }
+        Commands::Task { command } => match command {
+            TaskCommands::Logs {
+                task_run_id,
+                state_root,
+                follow,
+                interval_ms,
+            } => {
+                let state_root = state_root.unwrap_or(default_state_root()?);
+                task_logs::print_task_logs(&state_root, &task_run_id, follow, interval_ms)?;
+            }
+        },
         Commands::Token { command } => match command {
             TokenCommands::Show {
                 state_root,

@@ -30,6 +30,7 @@ pub(super) fn handle_remote_submit_route(
     let registration = store.register_submit_with_execution_root_base(
         task_run_id,
         Some(payload.attempt),
+        &payload.task_label,
         &selected_node_id,
         &execution_root_base,
     )?;
