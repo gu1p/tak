@@ -1,4 +1,5 @@
 use crate::support;
+use crate::support::tor_secret_warning::assert_tor_secret_warning;
 
 use std::fs;
 use std::process::Command as StdCommand;
@@ -33,6 +34,7 @@ fn token_show_words_table_renders_numbered_cells_for_manual_copying() {
     );
     let stdout = String::from_utf8_lossy(&show.stdout);
     assert!(stdout.contains("Words"), "missing words title:\n{stdout}");
+    assert_tor_secret_warning(&stdout);
     assert!(
         stdout.contains("01") && stdout.contains("19"),
         "missing cell numbers:\n{stdout}"

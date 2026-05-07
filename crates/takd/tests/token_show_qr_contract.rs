@@ -1,4 +1,5 @@
 use crate::support;
+use crate::support::tor_secret_warning::assert_tor_secret_warning;
 
 use std::fs;
 use std::process::Command as StdCommand;
@@ -40,6 +41,7 @@ fn token_show_qr_renders_onboarding_command_qr_block_and_words_for_real_v3_invit
         stdout.contains("Scan this QR code"),
         "missing QR label:\n{stdout}"
     );
+    assert_tor_secret_warning(&stdout);
     assert!(stdout.contains(&invite), "missing invite:\n{stdout}");
     assert!(
         stdout.contains(&format!("tak remote add '{invite}'")),
@@ -87,10 +89,7 @@ fn token_show_qr_renders_onboarding_command_qr_block_and_words_for_real_v3_invit
 
     let words_block = extract_block(&stdout, " Words ");
     let words_text = visible_text(&words_block);
-    assert!(
-        words_text.contains("01") && words_text.contains("19"),
-        "words block should number each copied cell:\n{stdout}"
-    );
+    assert!(words_text.contains("01") && words_text.contains("19"));
     for word in words.split_whitespace() {
         assert!(
             words_text.contains(word),

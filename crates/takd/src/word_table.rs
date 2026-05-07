@@ -2,10 +2,12 @@ use anyhow::Result;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Margin, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 use tak_proto::encode_tor_invite_words;
+
+use crate::tor_secret_warning;
 
 const VIEW_WIDTH: u16 = 84;
 const BLOCK_VERTICAL_CHROME: u16 = 4;
@@ -14,18 +16,40 @@ const BLOCK_HORIZONTAL_CHROME: u16 = 6;
 pub(crate) fn render_words_table_view(token: &str) -> Result<String> {
     let phrase = encode_tor_invite_words(token)?;
     let table = numbered_words_text(&phrase);
+    let warning = tor_secret_warning::text();
     let text_width = VIEW_WIDTH.saturating_sub(BLOCK_HORIZONTAL_CHROME).max(1);
-    let view_height = wrapped_text_height(&table, text_width) + BLOCK_VERTICAL_CHROME;
+    let warning_height = wrapped_text_height(&warning, text_width) + BLOCK_VERTICAL_CHROME;
+    let words_height = wrapped_text_height(&table, text_width) + BLOCK_VERTICAL_CHROME;
+    let view_height = warning_height + words_height;
     let backend = TestBackend::new(VIEW_WIDTH, view_height);
     let mut terminal = Terminal::new(backend)?;
 
     terminal.draw(|frame| {
-        let block = Block::default().borders(Borders::ALL).title(" Words ");
-        let words_area = block.inner(frame.area()).inner(Margin {
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(warning_height),
+                Constraint::Length(words_height),
+            ])
+            .split(frame.area());
+
+        let warning_block = Block::default().borders(Borders::ALL).title(" Secret ");
+        let warning_area = warning_block.inner(rows[0]).inner(Margin {
             vertical: 1,
             horizontal: 2,
         });
-        frame.render_widget(block, frame.area());
+        frame.render_widget(warning_block, rows[0]);
+        frame.render_widget(
+            Paragraph::new(Text::from(warning.clone())).wrap(Wrap { trim: false }),
+            warning_area,
+        );
+
+        let block = Block::default().borders(Borders::ALL).title(" Words ");
+        let words_area = block.inner(rows[1]).inner(Margin {
+            vertical: 1,
+            horizontal: 2,
+        });
+        frame.render_widget(block, rows[1]);
         frame.render_widget(
             Paragraph::new(Text::from(table.clone())).wrap(Wrap { trim: false }),
             words_area,

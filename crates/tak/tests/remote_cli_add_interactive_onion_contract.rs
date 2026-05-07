@@ -25,6 +25,10 @@ fn remote_add_token_or_location_accepts_tor_onion_url() {
     assert!(output.status.success(), "tak remote add should succeed");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
+        stdout.contains("The Tor invite/address is a secret, not just a location."),
+        "missing Tor secret warning:\n{stdout}"
+    );
+    assert!(
         stdout.contains("added remote builder-onion-url"),
         "missing success:\n{stdout}"
     );

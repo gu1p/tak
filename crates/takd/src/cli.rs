@@ -4,9 +4,10 @@ use clap::Parser;
 use crate::logging::{init_service_logging, read_service_log, read_service_log_tail};
 use crate::qr_render::render_onboarding_view;
 use crate::serve_lock::ServiceStateLock;
+use crate::tor_secret_warning;
 use crate::word_table::render_words_table_view;
 use command_model::{Cli, Commands, TaskCommands, TokenCommands};
-use tak_proto::encode_tor_invite_words;
+use tak_proto::{decode_tor_invite, encode_tor_invite_words};
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
     read_token_wait,
@@ -124,8 +125,11 @@ pub async fn run_cli() -> Result<()> {
                 } else if words_table {
                     print!("{}", render_words_table_view(&token)?);
                 } else if words {
-                    println!("{}", encode_tor_invite_words(&token)?);
+                    let phrase = encode_tor_invite_words(&token)?;
+                    warn_if_tor_invite(&token);
+                    println!("{phrase}");
                 } else {
+                    warn_if_tor_invite(&token);
                     println!("{token}");
                 }
             }
@@ -133,4 +137,10 @@ pub async fn run_cli() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn warn_if_tor_invite(token: &str) {
+    if decode_tor_invite(token).is_ok() {
+        eprint!("{}", tor_secret_warning::stderr_text());
+    }
 }

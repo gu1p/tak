@@ -34,8 +34,8 @@ High-level flow:
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)` | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
 | `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
 | `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
-| `tak remote add <token>` | "Add a remote execution agent" | token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
-| `tak remote add` | "Add a remote execution agent interactively" | method picker + word/token/location input + probe + confirmation before config write | Interactive TUI; final success line is `added remote <node_id>`. |
+| `tak remote add <token>` | "Add a remote execution agent" | secret invite/token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
+| `tak remote add` | "Add a remote execution agent interactively" | method picker + word/token/secret Tor invite input + probe + confirmation before config write | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote add --words [word...]` | "Add a Tor remote execution agent by manual typing" | provided words stay non-interactive; empty `--words` opens the word-entry TUI; both use the same probe/confirmation/write path as appropriate | `added remote <node_id>`. |
 | `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
@@ -123,7 +123,7 @@ High-level flow:
 
 ### `remote add`
 
-- No-argument mode opens a terminal method picker for word entry or token/location paste.
+- No-argument mode opens a terminal method picker for word entry or secret token/invite paste.
 - `--words` with no following values skips the picker and opens the word-entry screen.
 - The word-entry screen uses numbered cells, validates dictionary words immediately, supports undo, and checks the phrase checksum before probing.
 - Interactive add confirms probed node details before writing client inventory.

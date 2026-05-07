@@ -194,5 +194,5 @@ pub(super) fn token_from_location_input(value: &str) -> Result<String> {
     if trimmed.contains(".onion") {
         return encode_tor_invite(trimmed);
     }
-    bail!("paste a takd token, takd tor invite, or Tor .onion location");
+    bail!("paste a takd token or secret Tor invite/address");
 }

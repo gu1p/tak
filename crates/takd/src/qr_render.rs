@@ -2,15 +2,19 @@ use anyhow::Result;
 use qrcode::QrCode;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use tak_proto::{decode_tor_invite, encode_tor_invite_words};
 use tui_qrcode::{Colors, QrCodeWidget};
 
+use crate::tor_secret_warning;
 use crate::word_table::numbered_words_text;
+
+mod layout;
+
+use layout::{buffer_to_plain_text, wrapped_text_height};
 
 const MIN_VIEW_WIDTH: u16 = 84;
 const TITLE_HEIGHT: u16 = 3;
@@ -28,6 +32,7 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
     let words_command = word_phrase
         .as_ref()
         .map(|phrase| format!("tak remote add --words {phrase}"));
+    let warning = is_tor_invite.then(tor_secret_warning::text);
     let qr_title = if is_tor_invite {
         " Takd Invite "
     } else {
@@ -47,7 +52,12 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
         .as_ref()
         .map(|table| wrapped_text_height(table, text_width) + BLOCK_VERTICAL_CHROME)
         .unwrap_or(0);
+    let warning_block_height = warning
+        .as_ref()
+        .map(|text| wrapped_text_height(text, text_width) + BLOCK_VERTICAL_CHROME)
+        .unwrap_or(0);
     let view_height = TITLE_HEIGHT
+        + warning_block_height
         + qr_block_height
         + command_block_height
         + token_block_height
@@ -63,6 +73,9 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             Constraint::Length(command_block_height),
             Constraint::Length(token_block_height),
         ];
+        if warning_block_height > 0 {
+            constraints.insert(1, Constraint::Length(warning_block_height));
+        }
         if words_block_height > 0 {
             constraints.push(Constraint::Length(words_block_height));
         }
@@ -74,43 +87,61 @@ pub(crate) fn render_onboarding_view(token: &str) -> Result<String> {
             .style(Style::default().add_modifier(Modifier::BOLD));
         frame.render_widget(title, rows[0]);
 
+        let mut row = 1;
+        if let Some(warning) = &warning {
+            let warning_block = Block::default().borders(Borders::ALL).title(" Secret ");
+            let warning_area = warning_block.inner(rows[row]).inner(Margin {
+                vertical: 1,
+                horizontal: 2,
+            });
+            frame.render_widget(warning_block, rows[row]);
+            frame.render_widget(
+                Paragraph::new(Text::from(warning.clone())).wrap(Wrap { trim: false }),
+                warning_area,
+            );
+            row += 1;
+        }
+
         let qr_block = Block::default().borders(Borders::ALL).title(qr_title);
-        let qr_area = qr_block.inner(rows[1]).inner(Margin {
+        let qr_area = qr_block.inner(rows[row]).inner(Margin {
             vertical: 1,
             horizontal: 2,
         });
-        frame.render_widget(qr_block, rows[1]);
+        frame.render_widget(qr_block, rows[row]);
         frame.render_widget(qr_widget, qr_area);
+        row += 1;
 
         let command_block = Block::default().borders(Borders::ALL).title(" Client ");
-        let command_area = command_block.inner(rows[2]).inner(Margin {
+        let command_area = command_block.inner(rows[row]).inner(Margin {
             vertical: 1,
             horizontal: 2,
         });
-        frame.render_widget(command_block, rows[2]);
+        frame.render_widget(command_block, rows[row]);
         frame.render_widget(
             Paragraph::new(command.as_str()).wrap(Wrap { trim: false }),
             command_area,
         );
+        row += 1;
 
         let token_block = Block::default().borders(Borders::ALL).title(value_title);
-        let token_area = token_block.inner(rows[3]).inner(Margin {
+        let token_area = token_block.inner(rows[row]).inner(Margin {
             vertical: 1,
             horizontal: 2,
         });
-        frame.render_widget(token_block, rows[3]);
+        frame.render_widget(token_block, rows[row]);
         frame.render_widget(
             Paragraph::new(Text::from(token.to_string())).wrap(Wrap { trim: false }),
             token_area,
         );
+        row += 1;
 
         if let Some(table) = &word_table {
             let words_block = Block::default().borders(Borders::ALL).title(" Words ");
-            let words_area = words_block.inner(rows[4]).inner(Margin {
+            let words_area = words_block.inner(rows[row]).inner(Margin {
                 vertical: 1,
                 horizontal: 2,
             });
-            frame.render_widget(words_block, rows[4]);
+            frame.render_widget(words_block, rows[row]);
             frame.render_widget(
                 Paragraph::new(Text::from(table.clone())).wrap(Wrap { trim: false }),
                 words_area,
@@ -138,55 +169,4 @@ fn render_plain_text_view(
         output.push('\n');
     }
     output
-}
-
-fn buffer_to_plain_text(buffer: &Buffer) -> String {
-    let area = buffer.area;
-    let mut lines = Vec::with_capacity(area.height as usize);
-    for y in area.y..(area.y + area.height) {
-        let mut line = String::with_capacity(area.width as usize);
-        for x in area.x..(area.x + area.width) {
-            let symbol = buffer[(x, y)].symbol();
-            if symbol.is_empty() {
-                line.push(' ');
-            } else {
-                line.push_str(symbol);
-            }
-        }
-        lines.push(line.trim_end().to_string());
-    }
-    while lines.last().is_some_and(|line| line.is_empty()) {
-        lines.pop();
-    }
-    lines.join("\n")
-}
-
-fn wrapped_text_height(text: &str, width: u16) -> u16 {
-    let area = Rect::new(0, 0, width.max(1), measure_height(text));
-    let mut buffer = Buffer::empty(area);
-    Paragraph::new(Text::from(text.to_string()))
-        .wrap(Wrap { trim: false })
-        .render(area, &mut buffer);
-    rendered_text_height(&buffer).max(1)
-}
-
-fn rendered_text_height(buffer: &Buffer) -> u16 {
-    let area = buffer.area;
-    let mut last_non_empty_row = 0;
-    for y in area.y..(area.y + area.height) {
-        let row_has_content = (area.x..(area.x + area.width)).any(|x| {
-            let symbol = buffer[(x, y)].symbol();
-            !symbol.is_empty() && symbol != " "
-        });
-        if row_has_content {
-            last_non_empty_row = y - area.y + 1;
-        }
-    }
-    last_non_empty_row
-}
-
-fn measure_height(text: &str) -> u16 {
-    let line_count = text.lines().count().max(1);
-    let char_count = text.chars().count().max(1);
-    line_count.saturating_add(char_count).min(u16::MAX as usize) as u16
 }

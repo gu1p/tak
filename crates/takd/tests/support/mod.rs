@@ -14,6 +14,7 @@ pub mod remote_session;
 pub mod remote_v1_http;
 pub mod remote_v1_http_submit;
 pub mod takd_tasks;
+pub mod tor_secret_warning;
 pub mod transport_health;
 pub mod wait_for_terminal_events;
 

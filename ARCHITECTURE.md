@@ -31,9 +31,15 @@ The `takd` crate contains two related server-side capabilities:
 `tak` itself does not currently manage local daemon lifecycle. `tak status` remains an unsupported
 placeholder in the current client-only build.
 
-For remote onboarding, `tak` now accepts either the raw `takd` invite/token string or the Tor-v3
+For remote onboarding, `tak` accepts either the raw secret `takd` invite/token string or the Tor-v3
 word phrase emitted by `takd token show --words`. The phrase encodes the onion host directly and
 includes a checksum word so typo rejection happens locally before probing the remote node.
+
+The Tor invite/address is a secret, not just a location.
+Anyone with it can submit jobs and read outputs/logs.
+Do not paste it into shared chats, issue trackers, screenshots, or logs.
+Rotate the onion address if exposed.
+Tak remote does not provide multi-user isolation.
 
 ## Runtime Topology
 
@@ -113,7 +119,7 @@ The standalone remote worker flow is centered on the `takd` binary:
    - serves remote v1 HTTP endpoints
    - advertises a direct base URL or Tor onion endpoint when ready
 3. `tak remote add <token>`
-   - imports an onboarding token into the local client inventory after probing the node
+   - imports a secret onboarding invite/token into the local client inventory after probing the node
 4. `tak remote status`
    - fetches `/v1/node/status` from configured agents and renders active jobs plus resource usage
 

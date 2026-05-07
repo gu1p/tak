@@ -65,6 +65,6 @@ fn location_screen_keeps_invalid_input_inside_tui() {
     assert_eq!(app.location_input, "http://127.0.0.1:3000");
     assert_eq!(
         app.message.as_deref(),
-        Some("paste a takd token, takd tor invite, or Tor .onion location")
+        Some("paste a takd token or secret Tor invite/address")
     );
 }

@@ -1,4 +1,5 @@
 use crate::support;
+use crate::support::tor_secret_warning::assert_tor_secret_warning;
 
 use std::fs;
 use std::process::Command as StdCommand;
@@ -27,6 +28,7 @@ fn token_show_qr_keeps_raw_invite_view_for_non_v3_onion_hosts() {
     assert!(show.status.success(), "takd token show --qr should succeed");
     let stdout = String::from_utf8_lossy(&show.stdout);
     assert!(stdout.contains("Scan this QR code"));
+    assert_tor_secret_warning(&stdout);
     assert!(!stdout.contains("tak remote add --words"));
     assert!(!stdout.contains("┌ Words "));
 }

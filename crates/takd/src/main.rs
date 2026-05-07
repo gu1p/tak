@@ -6,6 +6,7 @@ mod cli;
 mod logging;
 mod qr_render;
 mod serve_lock;
+mod tor_secret_warning;
 mod word_table;
 
 #[tokio::main]

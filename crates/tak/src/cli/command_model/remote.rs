@@ -2,12 +2,12 @@ use super::*;
 
 #[derive(Debug, Subcommand)]
 pub(in crate::cli) enum RemoteCommands {
-    /// Add one remote agent from an onboarding token or Tor word phrase.
+    /// Add one remote agent from a secret onboarding invite/token or Tor word phrase.
     Add {
-        /// The onboarding token emitted by `takd token show`.
+        /// The secret onboarding invite/token emitted by `takd token show`.
         #[arg(conflicts_with = "words")]
         token: Option<String>,
-        /// One or more onboarding words emitted by `takd token show --words`.
+        /// One or more secret onboarding words emitted by `takd token show --words`.
         #[arg(long = "words", value_name = "WORD", num_args = 0..)]
         words: Option<Vec<String>>,
     },

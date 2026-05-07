@@ -25,7 +25,7 @@ fn remote_add_token_or_location_accepts_token_and_confirms_before_save() {
     assert_success(&output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Token or location"),
+        stdout.contains("Token or secret"),
         "missing method:\n{stdout}"
     );
     assert!(

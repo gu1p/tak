@@ -9,6 +9,14 @@ It exposes a unix-socket NDJSON protocol and persists lease state/history in SQL
 The remote execution agent mode also keeps live task state in process and persists submitted task
 attempts, task events, and terminal results in `agent.sqlite` under the takd state root.
 
+## Tor Remote Security Model
+
+The Tor invite/address is a secret, not just a location.
+Anyone with it can submit jobs and read outputs/logs.
+Do not paste it into shared chats, issue trackers, screenshots, or logs.
+Rotate the onion address if exposed.
+Tak remote does not provide multi-user isolation.
+
 ## Protocol Surface
 
 Requests:

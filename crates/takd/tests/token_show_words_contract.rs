@@ -1,4 +1,5 @@
 use crate::support;
+use crate::support::tor_secret_warning::assert_tor_secret_warning;
 
 use std::fs;
 use std::process::Command as StdCommand;
@@ -6,6 +7,29 @@ use std::process::Command as StdCommand;
 use tak_proto::{TOR_INVITE_WORD_COUNT, decode_tor_invite_words, encode_tor_invite};
 
 const V3_BASE_URL: &str = "http://pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion";
+
+#[test]
+fn token_show_raw_tor_invite_keeps_stdout_copyable_and_warns_on_stderr() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let state_root = temp.path().join("state");
+    fs::create_dir_all(&state_root).expect("create state root");
+    let invite = encode_tor_invite(V3_BASE_URL).expect("encode invite");
+    fs::write(state_root.join("agent.token"), format!("{invite}\n")).expect("write invite");
+
+    let show = StdCommand::new(support::takd_bin())
+        .args([
+            "token",
+            "show",
+            "--state-root",
+            &state_root.display().to_string(),
+        ])
+        .output()
+        .expect("run takd token show");
+
+    assert!(show.status.success(), "takd token show should succeed");
+    assert_eq!(String::from_utf8_lossy(&show.stdout).trim(), invite);
+    assert_tor_secret_warning(String::from_utf8_lossy(&show.stderr).as_ref());
+}
 
 #[test]
 fn token_show_words_prints_nineteen_word_phrase_for_real_v3_invite() {
@@ -36,6 +60,7 @@ fn token_show_words_prints_nineteen_word_phrase_for_real_v3_invite() {
         decode_tor_invite_words(stdout.trim()).expect("decode tor invite words"),
         invite
     );
+    assert_tor_secret_warning(String::from_utf8_lossy(&show.stderr).as_ref());
 }
 
 #[test]

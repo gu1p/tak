@@ -15,6 +15,13 @@ const STYLE_ACTIVE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier
 const STYLE_OK: Style = Style::new().fg(Color::Green).add_modifier(Modifier::BOLD);
 const STYLE_ERROR: Style = Style::new().fg(Color::Red).add_modifier(Modifier::BOLD);
 const STYLE_DIM: Style = Style::new().fg(Color::Gray).add_modifier(Modifier::DIM);
+const TOR_SECRET_WARNING: [&str; 5] = [
+    "The Tor invite/address is a secret, not just a location.",
+    "Anyone with it can submit jobs and read outputs/logs.",
+    "Do not paste it into shared chats, issue trackers, screenshots, or logs.",
+    "Rotate the onion address if exposed.",
+    "Tak remote does not provide multi-user isolation.",
+];
 
 pub(super) fn render(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
     match app.screen {
@@ -42,10 +49,10 @@ fn render_method(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
         Line::from(vec![
             marker(app.selected_method == Method::Location),
             Span::styled(
-                "Token or location",
+                "Token or secret",
                 method_style(app.selected_method == Method::Location),
             ),
-            Span::raw("  paste token, invite, or .onion host"),
+            Span::raw("  paste token or secret Tor invite/address"),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -84,9 +91,9 @@ fn render_words(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
 
 fn render_location(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
     let mut lines = vec![
-        Line::from(vec![Span::styled("Token or location", STYLE_TITLE)]),
+        Line::from(vec![Span::styled("Token or secret", STYLE_TITLE)]),
         Line::from(""),
-        Line::from("Paste a takd token, takd:tor invite, or Tor .onion host."),
+        Line::from("Paste a takd token or secret Tor invite/address."),
         Line::from(""),
         Line::from(vec![
             Span::styled("Input ", STYLE_DIM),
@@ -98,7 +105,7 @@ fn render_location(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
         ]),
     ];
     push_message(&mut lines, app);
-    frame::render_lines(frame, " Token or location ", lines, STYLE_TITLE);
+    frame::render_lines(frame, " Token or secret ", lines, STYLE_TITLE);
 }
 
 fn render_confirm(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
@@ -114,13 +121,19 @@ fn render_confirm(frame: &mut ratatui::Frame<'_>, app: &RemoteAddApp) {
         field("Tags", &remote.tags.join(",")),
         field("Capabilities", &remote.capabilities.join(",")),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Enter", STYLE_OK),
-            Span::raw(" save  "),
-            Span::styled("Esc", STYLE_ERROR),
-            Span::raw(" cancel"),
-        ]),
     ];
+    if remote.transport == "tor" {
+        for warning in TOR_SECRET_WARNING {
+            lines.push(Line::from(vec![Span::styled(warning, STYLE_ACTIVE)]));
+        }
+        lines.push(Line::from(""));
+    }
+    lines.push(Line::from(vec![
+        Span::styled("Enter", STYLE_OK),
+        Span::raw(" save  "),
+        Span::styled("Esc", STYLE_ERROR),
+        Span::raw(" cancel"),
+    ]));
     push_message(&mut lines, app);
     frame::render_lines(frame, " Confirm Remote ", lines, STYLE_TITLE);
 }

@@ -35,7 +35,7 @@ fn remote_add_token_or_location_invalid_input_stays_open_and_can_be_corrected() 
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("paste a takd token, takd tor invite, or Tor .onion location"),
+        stdout.contains("paste a takd token or secret Tor invite/address"),
         "missing inline validation:\n{stdout}"
     );
     assert!(

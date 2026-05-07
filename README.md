@@ -71,11 +71,11 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `tak status`
   - Report coordination status when supported; the current client-only build returns an unsupported error.
 - `tak remote add <token>`
-  - Import a `takd` agent token into local client config.
+  - Import a secret `takd` agent invite/token into local client config.
 - `tak remote add`
-  - Open an interactive terminal flow for adding a remote from words, a token, or a Tor `.onion` location.
+  - Open an interactive terminal flow for adding a remote from words, a token, or a secret Tor invite/address.
 - `tak remote add --words <word>...`
-  - Import a Tor v3 `takd` invite from the 19-word manual-entry phrase emitted by `takd token show --words`.
+  - Import a secret Tor v3 `takd` invite from the 19-word manual-entry phrase emitted by `takd token show --words`.
 - `tak remote add --words`
   - Open the interactive word-entry flow directly.
 - `tak remote scan`
@@ -97,13 +97,21 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `takd tasks`
   - List tasks currently executing in the running local `takd` process.
 - `takd token show`
-  - Reprint the persisted onboarding token, or wait until it is advertised with `--wait`.
+  - Reprint the persisted secret onboarding invite/token, or wait until it is advertised with `--wait`.
 - `takd token show --words`
-  - Print the 19-word Tor v3 onboarding phrase for manual typing.
+  - Print the secret 19-word Tor v3 onboarding phrase for manual typing.
 - `takd token show --words-table`
   - Print the same Tor v3 onboarding phrase as numbered cells for human copying.
 - `takd token show --qr`
   - Render the onboarding token as a terminal QR code plus the exact `tak remote add '...'` command, and show numbered word cells when the invite targets a real Tor v3 onion host.
+
+## Tor Remote Security Model
+
+- The Tor invite/address is a secret, not just a location.
+- Anyone with it can submit jobs and read outputs/logs.
+- Do not paste it into shared chats, issue trackers, screenshots, or logs.
+- Rotate the onion address if exposed.
+- Tak remote does not provide multi-user isolation.
 
 ## Run Output Signals
 
@@ -129,15 +137,25 @@ Key fields:
 
 For the current ergonomics story and distributed execution roadmap, see [Ergonomics and Distributed Execution Phases](docs/ergonomics-and-distribution-phases.md).
 
-1. Optional but recommended for remote execution:
+1. Optional but recommended for remote execution.
+
+On the agent machine:
 
 ```bash
 takd init
 takd serve
 takd status
-tak remote add "$(takd token show --wait)"
-tak remote add --words "$(takd token show --words --wait)"
+takd token show --qr --wait
+takd token show --words --wait
+```
+
+On the client machine:
+
+```bash
 tak remote scan
+tak remote add 'SECRET_TAKD_INVITE'
+# or:
+tak remote add --words SECRET_WORD_01 ... SECRET_WORD_19
 tak remote status
 ```
 
@@ -162,7 +180,7 @@ Runtime model:
 - local containerized execution
 - remote containerized execution
 
-For Tor onboarding, `takd token show --wait` now waits until the local `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
+For Tor onboarding, `takd token show --wait` now waits until the agent-side `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe from the client machine, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
 
 If you need to type the invite instead of scanning it, use `takd token show --words --wait`. The emitted 19-word phrase encodes the Tor v3 onion host directly and ends with a checksum word, so `tak remote add --words ...` can reject typos before any network probe.
 

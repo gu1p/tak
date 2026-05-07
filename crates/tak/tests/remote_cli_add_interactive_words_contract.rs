@@ -35,8 +35,8 @@ fn remote_add_no_args_selects_words_confirms_and_persists_remote() {
     );
     assert!(stdout.contains("Words"), "missing words method:\n{stdout}");
     assert!(
-        stdout.contains("Token or location"),
-        "missing location method:\n{stdout}"
+        stdout.contains("Token or secret"),
+        "missing token/secret method:\n{stdout}"
     );
     assert!(
         stdout.contains("Tor invite words"),
@@ -49,6 +49,10 @@ fn remote_add_no_args_selects_words_confirms_and_persists_remote() {
     assert!(
         stdout.contains("Confirm Remote"),
         "missing confirmation:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("The Tor invite/address is a secret, not just a location."),
+        "missing Tor secret warning:\n{stdout}"
     );
     assert!(
         stdout.contains("builder-words-tui"),
