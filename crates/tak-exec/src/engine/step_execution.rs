@@ -7,7 +7,7 @@ use tak_core::model::ResolvedTask;
 use super::TaskOutputObserver;
 
 use crate::container_runtime::run_task_steps_in_container;
-use crate::step_runner::{StepRunResult, run_step};
+use crate::step_runner::{StepRunContext, StepRunResult, run_step};
 
 use super::remote_models::RuntimeExecutionMetadata;
 
@@ -24,17 +24,21 @@ pub(crate) async fn run_task_steps(
     workspace_root: &Path,
     runtime_env: Option<&BTreeMap<String, String>>,
     attempt: u32,
+    task_run_id: &str,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
     for step in &task.steps {
         let status = run_step(
             step,
             task.timeout_s,
-            workspace_root,
-            runtime_env,
-            &task.label,
-            attempt,
-            output_observer,
+            StepRunContext {
+                workspace_root,
+                runtime_env,
+                task_label: &task.label,
+                attempt,
+                task_run_id,
+                output_observer,
+            },
         )
         .await?;
         if !status.success {
@@ -53,6 +57,7 @@ pub(crate) async fn run_task_steps_with_runtime(
     workspace_root: &Path,
     runtime_metadata: Option<&RuntimeExecutionMetadata>,
     attempt: u32,
+    task_run_id: &str,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
     if let Some(metadata) = runtime_metadata
@@ -64,6 +69,7 @@ pub(crate) async fn run_task_steps_with_runtime(
             plan,
             Some(&metadata.env_overrides),
             attempt,
+            task_run_id,
             output_observer,
         )
         .await;
@@ -74,6 +80,7 @@ pub(crate) async fn run_task_steps_with_runtime(
         workspace_root,
         runtime_metadata.map(|metadata| &metadata.env_overrides),
         attempt,
+        task_run_id,
         output_observer,
     )
     .await

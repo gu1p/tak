@@ -1,8 +1,14 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use anyhow::Result;
 use tak_core::model::{RemoteRuntimeSpec, StepDef, TaskLabel};
+
+mod observer;
+
+pub use observer::{
+    OutputStream, TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskStartedEvent,
+    TaskStatusEvent, TaskStatusPhase,
+};
 
 #[derive(Clone)]
 pub struct RunOptions {
@@ -57,49 +63,9 @@ impl Default for RunOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputStream {
-    Stdout,
-    Stderr,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TaskOutputChunk {
-    pub task_label: TaskLabel,
-    pub attempt: u32,
-    pub stream: OutputStream,
-    pub bytes: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TaskStatusPhase {
-    RemoteProbe,
-    RemoteStageWorkspace,
-    RemoteSubmit,
-    RemoteWait,
-    RemoteSyncOutputs,
-    RetryWait,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TaskStatusEvent {
-    pub task_label: TaskLabel,
-    pub attempt: u32,
-    pub phase: TaskStatusPhase,
-    pub remote_node_id: Option<String>,
-    pub message: String,
-}
-
-pub trait TaskOutputObserver: Send + Sync {
-    fn observe_output(&self, chunk: TaskOutputChunk) -> Result<()>;
-
-    fn observe_status(&self, _event: TaskStatusEvent) -> Result<()> {
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TaskRunResult {
+    pub task_run_id: String,
     pub attempts: u32,
     pub success: bool,
     pub exit_code: Option<i32>,

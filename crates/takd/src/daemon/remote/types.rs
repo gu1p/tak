@@ -65,6 +65,17 @@ pub struct RemoteV1Response {
     pub body: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubmitAttemptSummaryRecord {
+    pub task_run_id: String,
+    pub attempt: u32,
+    pub task_label: String,
+    pub selected_node_id: String,
+    pub state: String,
+    pub created_at_ms: i64,
+    pub finished_at_ms: Option<i64>,
+}
+
 #[derive(Clone)]
 pub struct RemoteNodeContext {
     node: Arc<Mutex<NodeInfo>>,
@@ -72,6 +83,7 @@ pub struct RemoteNodeContext {
     status_state: SharedNodeStatusState,
     runtime_state: Arc<RemoteRuntimeState>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
+    state_root: Option<PathBuf>,
 }
 
 impl RemoteNodeContext {
@@ -82,12 +94,22 @@ impl RemoteNodeContext {
             status_state: new_shared_node_status_state(),
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
             image_cache: None,
+            state_root: None,
         }
     }
 
     pub fn with_image_cache_config(mut self, config: RemoteImageCacheRuntimeConfig) -> Self {
         self.image_cache = Some(config);
         self
+    }
+
+    pub fn with_state_root(mut self, state_root: &std::path::Path) -> Self {
+        self.state_root = Some(state_root.to_path_buf());
+        self
+    }
+
+    pub(crate) fn state_root(&self) -> Option<PathBuf> {
+        self.state_root.clone()
     }
 
     pub fn node_info(&self) -> Result<NodeInfo> {

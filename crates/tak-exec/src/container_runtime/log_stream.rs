@@ -6,6 +6,7 @@ pub(super) fn spawn_container_log_task(
     docker: Docker,
     container_id: String,
     task_label: TaskLabel,
+    task_run_id: String,
     attempt: u32,
     output_observer: Option<Arc<dyn TaskOutputObserver>>,
 ) -> ContainerLogTask {
@@ -29,6 +30,7 @@ pub(super) fn spawn_container_log_task(
             if let Some((stream, bytes)) = container_log_output_chunk(item) {
                 crate::emit_task_output(
                     Some(&output_observer),
+                    &task_run_id,
                     &task_label,
                     attempt,
                     stream,

@@ -52,8 +52,9 @@ mod workspace_sync;
 
 pub use public_types::{
     ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk, RemoteWorkerExecutionResult,
-    RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput, TaskOutputChunk,
-    TaskOutputObserver, TaskRunResult, TaskStatusEvent, TaskStatusPhase,
+    RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput, TaskFinishedEvent,
+    TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent, TaskStatusEvent,
+    TaskStatusPhase,
 };
 pub use remote_diagnostics::{
     NoMatchingRemoteError, RemoteCandidateDiagnostic, RemoteCandidateRejection,
@@ -64,7 +65,7 @@ pub use remote_worker::{execute_remote_worker_steps, execute_remote_worker_steps
 pub use run_tasks::run_tasks;
 
 pub(crate) use lease_context::LeaseContext;
-pub(crate) use output_observer::emit_task_output;
+pub(crate) use output_observer::{emit_task_finished, emit_task_output, emit_task_started};
 pub(crate) use remote_http_exchange_error::{RemoteHttpExchangeError, RemoteHttpExchangeErrorKind};
 pub(crate) use remote_models::{
     ContainerExecutionPlan, ImageCachePlan, ParsedRemoteEvents, RemoteTargetSelection,

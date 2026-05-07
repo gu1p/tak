@@ -51,6 +51,7 @@ async fn remote_worker_container_runtime_streams_logs_to_output_observer_while_r
     assert_eq!(
         observer.snapshot().clone(),
         vec![TaskOutputChunk {
+            task_run_id: String::new(),
             task_label: spec.task_label.clone(),
             attempt: 1,
             stream: OutputStream::Stdout,

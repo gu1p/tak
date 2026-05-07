@@ -86,6 +86,7 @@ async fn completes_without_duplicate_logs_when_events_go_idle() {
     assert_eq!(
         observer.snapshot(),
         vec![TaskOutputChunk {
+            task_run_id: result.task_run_id.clone(),
             task_label: label.clone(),
             attempt: 1,
             stream: OutputStream::Stdout,

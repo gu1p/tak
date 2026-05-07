@@ -183,6 +183,20 @@ message ActiveJob {
   optional string runtime = 7;
 }
 
+message TaskAttemptSummary {
+  string task_run_id = 1;
+  uint32 attempt = 2;
+  string task_label = 3;
+  string node_id = 4;
+  string state = 5;
+  int64 created_at_ms = 6;
+  optional int64 finished_at_ms = 7;
+}
+
+message ListTaskAttemptsResponse {
+  repeated TaskAttemptSummary attempts = 1;
+}
+
 message NodeStatusResponse {
   NodeInfo node = 1;
   int64 sampled_at_ms = 2;

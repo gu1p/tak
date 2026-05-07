@@ -181,7 +181,8 @@ pub fn ready_context_with_state_root(
         node_info(config, &base_url),
         config.bearer_token.clone(),
         RemoteRuntimeConfig::from_env(),
-    );
+    )
+    .with_state_root(state_root);
     if let Some(image_cache) = &config.image_cache {
         context = context.with_image_cache_config(image_cache.runtime_config(state_root)?);
     }

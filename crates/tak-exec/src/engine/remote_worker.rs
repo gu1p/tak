@@ -70,6 +70,7 @@ pub async fn execute_remote_worker_steps_with_output(
         workspace_root,
         runtime_metadata.as_ref(),
         spec.attempt,
+        "",
         output_observer.as_ref(),
     )
     .await?;

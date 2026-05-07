@@ -67,6 +67,14 @@ pub(super) fn binary_response(
     }
 }
 
+pub(super) fn text_response(status_code: u16, body: impl Into<String>) -> RemoteV1Response {
+    binary_response(
+        status_code,
+        "text/plain; charset=utf-8",
+        body.into().into_bytes(),
+    )
+}
+
 pub(super) fn protobuf_response<M: Message>(status_code: u16, message: &M) -> RemoteV1Response {
     binary_response(
         status_code,

@@ -45,6 +45,7 @@ pub(crate) struct ContainerStepSpec {
 struct ContainerStepRunContext<'a> {
     workspace_root: &'a Path,
     task_label: &'a TaskLabel,
+    task_run_id: &'a str,
     attempt: u32,
     output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
     container_user: Option<&'a str>,
@@ -56,12 +57,14 @@ pub(crate) async fn run_task_steps_in_container(
     plan: &ContainerExecutionPlan,
     runtime_env: Option<&BTreeMap<String, String>>,
     attempt: u32,
+    task_run_id: &str,
     output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<StepRunResult> {
     let client = connect_container_engine(plan.engine).await?;
     let run_context = ContainerStepRunContext {
         workspace_root,
         task_label: &task.label,
+        task_run_id,
         attempt,
         output_observer,
         container_user: plan.container_user.as_deref(),

@@ -1,6 +1,9 @@
 use super::*;
 use std::process::ExitCode;
 
+mod remote;
+use remote::run_remote_command;
+
 /// Parses CLI input and dispatches Tak commands.
 ///
 /// ```no_run
@@ -129,47 +132,17 @@ pub async fn run_cli() -> Result<ExitCode> {
             })
             .await?;
         }
-        Commands::Remote { command } => match command {
-            super::command_model::RemoteCommands::Add { token, words } => {
-                if token.is_none() && words.is_none() {
-                    run_remote_add(StartMode::Menu).await?;
-                } else if words.as_ref().is_some_and(|values| values.is_empty()) {
-                    run_remote_add(StartMode::Words).await?;
-                } else {
-                    let token = resolve_remote_add_token(token, words.as_deref())?;
-                    let remote = add_remote(&token).await?;
-                    println!("added remote {}", remote.node_id);
-                }
+        Commands::Remote { command } => run_remote_command(command).await?,
+        Commands::Task { command } => match command {
+            super::command_model::TaskCommands::List { limit } => {
+                print_task_history(limit)?;
             }
-            super::command_model::RemoteCommands::Scan => {
-                run_remote_scan().await?;
-            }
-            super::command_model::RemoteCommands::List => {
-                for remote in list_remotes()? {
-                    println!(
-                        "{} {} pools={} tags={} capabilities={} enabled={}",
-                        remote.node_id,
-                        remote.base_url,
-                        remote.pools.join(","),
-                        remote.tags.join(","),
-                        remote.capabilities.join(","),
-                        remote.enabled
-                    );
-                }
-            }
-            super::command_model::RemoteCommands::Remove { node_id } => {
-                if remove_remote(&node_id)? {
-                    println!("removed remote {node_id}");
-                } else {
-                    println!("remote not found: {node_id}");
-                }
-            }
-            super::command_model::RemoteCommands::Status {
-                node_ids,
-                watch,
+            super::command_model::TaskCommands::Logs {
+                task_run_id,
+                follow,
                 interval_ms,
             } => {
-                run_remote_status(&node_ids, watch, interval_ms).await?;
+                print_task_logs(&task_run_id, follow, interval_ms).await?;
             }
         },
         Commands::Status => {
@@ -178,21 +151,4 @@ pub async fn run_cli() -> Result<ExitCode> {
     }
 
     Ok(ExitCode::SUCCESS)
-}
-
-fn resolve_remote_add_token(token: Option<String>, words: Option<&[String]>) -> Result<String> {
-    if let Some(token) = token {
-        return Ok(token);
-    }
-
-    let phrase = words
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|value| value.split_whitespace())
-        .collect::<Vec<_>>();
-    if phrase.is_empty() {
-        bail!("remote add requires a token or `--words`");
-    }
-
-    tak_proto::decode_tor_invite_words(&phrase.join(" "))
 }

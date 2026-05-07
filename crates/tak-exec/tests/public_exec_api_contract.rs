@@ -1,12 +1,11 @@
-use tak_core::model::{RemoteRuntimeSpec, StepDef, TaskLabel};
+mod runtime_api;
+
+use tak_core::model::TaskLabel;
 
 #[test]
 fn tak_exec_crate_root_public_api_stays_available() {
     let _run_tasks = tak_exec::run_tasks;
     let _run_resolved_task = tak_exec::run_resolved_task;
-    let _execute_remote_worker_steps = tak_exec::execute_remote_worker_steps;
-    let _execute_remote_worker_steps_with_output =
-        tak_exec::execute_remote_worker_steps_with_output;
     let _default_client_tor_config = tak_exec::default_client_tor_config;
     let _load_remote_observation = tak_exec::load_remote_observation;
     let _load_remote_observation_at = tak_exec::load_remote_observation_at;
@@ -29,6 +28,7 @@ fn tak_exec_crate_root_public_api_stays_available() {
     };
 
     let _output_chunk = tak_exec::TaskOutputChunk {
+        task_run_id: "task-run".to_string(),
         task_label: task_label.clone(),
         attempt: 1,
         stream: tak_exec::OutputStream::Stdout,
@@ -41,6 +41,19 @@ fn tak_exec_crate_root_public_api_stays_available() {
         remote_node_id: None,
         message: String::new(),
     };
+    let _task_started = tak_exec::TaskStartedEvent {
+        task_run_id: "task-run".to_string(),
+        task_label: task_label.clone(),
+    };
+    let _task_finished = tak_exec::TaskFinishedEvent {
+        task_run_id: "task-run".to_string(),
+        task_label: task_label.clone(),
+        attempts: 1,
+        success: true,
+        exit_code: Some(0),
+        placement_mode: tak_exec::PlacementMode::Local,
+        remote_node_id: None,
+    };
     let _remote_log = tak_exec::RemoteLogChunk {
         seq: 1,
         stream: tak_exec::OutputStream::Stderr,
@@ -52,6 +65,7 @@ fn tak_exec_crate_root_public_api_stays_available() {
         size_bytes: 0,
     };
     let _task_result = tak_exec::TaskRunResult {
+        task_run_id: "task-run".to_string(),
         attempts: 1,
         success: true,
         exit_code: Some(0),
@@ -67,25 +81,5 @@ fn tak_exec_crate_root_public_api_stays_available() {
         session_reuse: None,
         remote_logs: Vec::new(),
         synced_outputs: Vec::new(),
-    };
-    let _remote_worker_spec = tak_exec::RemoteWorkerExecutionSpec {
-        task_label,
-        attempt: 1,
-        steps: vec![StepDef::Cmd {
-            argv: vec!["echo".to_string()],
-            cwd: None,
-            env: Default::default(),
-        }],
-        timeout_s: None,
-        runtime: None::<RemoteRuntimeSpec>,
-        node_id: "node".to_string(),
-        container_user: None,
-        image_cache: None,
-    };
-    let _remote_worker_result = tak_exec::RemoteWorkerExecutionResult {
-        success: true,
-        exit_code: Some(0),
-        runtime_kind: None,
-        runtime_engine: None,
     };
 }

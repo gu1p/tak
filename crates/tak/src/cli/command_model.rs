@@ -1,6 +1,12 @@
 use super::*;
 use clap::CommandFactory;
 
+mod remote;
+mod task;
+
+pub(super) use remote::{RemoteCommands, RemoteTaskCommands};
+pub(super) use task::TaskCommands;
+
 /// Tak task orchestrator.
 #[derive(Debug, Parser)]
 #[command(name = "tak")]
@@ -103,6 +109,11 @@ pub(super) enum Commands {
         #[command(subcommand)]
         command: RemoteCommands,
     },
+    /// Inspect task runs initiated by this local Tak client.
+    Task {
+        #[command(subcommand)]
+        command: TaskCommands,
+    },
     /// Report coordination status when the current client build supports it.
     Status,
 }
@@ -111,44 +122,6 @@ pub(super) enum Commands {
 pub(super) enum DocsCommands {
     /// Print the source-owned Tak authoring bundle for agents and contributors.
     Dump,
-}
-
-#[derive(Debug, Subcommand)]
-pub(super) enum RemoteCommands {
-    /// Add one remote agent from an onboarding token or Tor word phrase.
-    Add {
-        /// The onboarding token emitted by `takd token show`.
-        #[arg(conflicts_with = "words")]
-        token: Option<String>,
-        /// One or more onboarding words emitted by `takd token show --words`.
-        #[arg(
-            long = "words",
-            value_name = "WORD",
-            num_args = 0..
-        )]
-        words: Option<Vec<String>>,
-    },
-    /// Scan a QR code and add the discovered remote agent.
-    Scan,
-    /// List configured remote agents in client priority order.
-    List,
-    /// Remove one configured remote agent by node id.
-    Remove {
-        /// The remote node id to remove.
-        node_id: String,
-    },
-    /// Show the current status for configured remote agents.
-    Status {
-        /// Limit status output to these remote node ids.
-        #[arg(long = "node")]
-        node_ids: Vec<String>,
-        /// Keep refreshing the status view until interrupted.
-        #[arg(long, default_value_t = false)]
-        watch: bool,
-        /// Refresh the node snapshot every N milliseconds while watching.
-        #[arg(long, default_value_t = 1000)]
-        interval_ms: u64,
-    },
 }
 
 pub(crate) fn command_tree() -> clap::Command {

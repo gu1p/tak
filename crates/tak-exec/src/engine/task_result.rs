@@ -6,36 +6,49 @@ use super::attempt_execution::AttemptExecutionOutcome;
 use super::remote_models::{RuntimeExecutionMetadata, TaskPlacement};
 use super::session_workspaces::PreparedTaskSession;
 
+pub(crate) struct TaskRunResultContext<'a> {
+    pub(crate) task_run_id: &'a str,
+    pub(crate) attempt: u32,
+    pub(crate) success: bool,
+    pub(crate) placement: &'a TaskPlacement,
+    pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    pub(crate) runtime_metadata: Option<&'a RuntimeExecutionMetadata>,
+    pub(crate) session: Option<&'a PreparedTaskSession>,
+}
+
 pub(crate) fn build_task_run_result(
-    attempt: u32,
-    success: bool,
-    placement: &TaskPlacement,
-    remote_workspace: Option<&RemoteWorkspaceStage>,
-    runtime_metadata: Option<&RuntimeExecutionMetadata>,
-    session: Option<&PreparedTaskSession>,
+    context: TaskRunResultContext<'_>,
     outcome: AttemptExecutionOutcome,
 ) -> TaskRunResult {
     TaskRunResult {
-        attempts: attempt,
-        success,
+        task_run_id: context.task_run_id.to_string(),
+        attempts: context.attempt,
+        success: context.success,
         exit_code: outcome.last_exit_code,
         failure_detail: outcome.failure_detail,
-        placement_mode: placement.placement_mode,
-        remote_node_id: placement.remote_node_id.clone(),
-        remote_transport_kind: placement
+        placement_mode: context.placement.placement_mode,
+        remote_node_id: context.placement.remote_node_id.clone(),
+        remote_transport_kind: context
+            .placement
             .strict_remote_target
             .as_ref()
             .map(|target| target.transport_kind.as_result_value().to_string()),
-        decision_reason: placement.decision_reason.clone(),
-        context_manifest_hash: remote_workspace.map(|staged| staged.manifest_hash.clone()),
+        decision_reason: context.placement.decision_reason.clone(),
+        context_manifest_hash: context
+            .remote_workspace
+            .map(|staged| staged.manifest_hash.clone()),
         remote_runtime_kind: outcome
             .remote_runtime_kind
-            .or_else(|| runtime_metadata.map(|meta| meta.kind.clone())),
-        remote_runtime_engine: outcome
-            .remote_runtime_engine
-            .or_else(|| runtime_metadata.and_then(|meta| meta.engine.clone())),
-        session_name: session.map(|session| session.display_name.clone()),
-        session_reuse: session.map(|session| session.reuse.as_str().to_string()),
+            .or_else(|| context.runtime_metadata.map(|meta| meta.kind.clone())),
+        remote_runtime_engine: outcome.remote_runtime_engine.or_else(|| {
+            context
+                .runtime_metadata
+                .and_then(|meta| meta.engine.clone())
+        }),
+        session_name: context.session.map(|session| session.display_name.clone()),
+        session_reuse: context
+            .session
+            .map(|session| session.reuse.as_str().to_string()),
         remote_logs: outcome.remote_logs,
         synced_outputs: outcome.synced_outputs,
     }
@@ -54,12 +67,15 @@ pub(crate) fn empty_task_result() -> TaskRunResult {
         session: None,
     };
     build_task_run_result(
-        1,
-        true,
-        &placement,
-        None,
-        None,
-        None,
+        TaskRunResultContext {
+            task_run_id: "",
+            attempt: 1,
+            success: true,
+            placement: &placement,
+            remote_workspace: None,
+            runtime_metadata: None,
+            session: None,
+        },
         AttemptExecutionOutcome {
             attempt_success: true,
             last_exit_code: Some(0),

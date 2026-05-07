@@ -118,6 +118,7 @@ pub(crate) async fn remote_protocol_events(
         for chunk in &parsed.remote_logs {
             emit_task_output(
                 output_observer,
+                task_run_id,
                 task_label,
                 attempt,
                 chunk.stream,

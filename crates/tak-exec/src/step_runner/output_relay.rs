@@ -3,6 +3,7 @@ use super::*;
 pub(super) fn spawn_output_relay<R>(
     reader: Option<R>,
     task_label: TaskLabel,
+    task_run_id: String,
     attempt: u32,
     stream: OutputStream,
     output_observer: Option<Arc<dyn TaskOutputObserver>>,
@@ -14,13 +15,22 @@ where
     let output_observer = output_observer?;
 
     Some(tokio::spawn(async move {
-        relay_child_output(reader, task_label, attempt, stream, output_observer).await
+        relay_child_output(
+            reader,
+            task_label,
+            task_run_id,
+            attempt,
+            stream,
+            output_observer,
+        )
+        .await
     }))
 }
 
 async fn relay_child_output<R>(
     mut reader: R,
     task_label: TaskLabel,
+    task_run_id: String,
     attempt: u32,
     stream: OutputStream,
     output_observer: Arc<dyn TaskOutputObserver>,
@@ -39,6 +49,7 @@ where
         }
         crate::emit_task_output(
             Some(&output_observer),
+            &task_run_id,
             &task_label,
             attempt,
             stream,

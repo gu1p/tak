@@ -21,6 +21,12 @@ pub fn handle_remote_v1_request(
     if let Some(response) = handle_node_metadata_route(context, &method, path_only) {
         return Ok(response);
     }
+    if let Some(response) = handle_node_logs_route(context, &method, path_only, query) {
+        return Ok(response);
+    }
+    if let Some(response) = handle_remote_tasks_route(store, &method, path_only, query)? {
+        return Ok(response);
+    }
 
     if method == "POST" && path_only == "/v1/tasks/submit" {
         return handle_remote_submit_route(context, store, body);

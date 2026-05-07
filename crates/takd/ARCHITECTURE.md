@@ -61,6 +61,8 @@ Live task listing:
 - `takd serve` binds `<state_root>/agent-control.sock`
 - `takd tasks` queries that socket for `/v1/node/status` and renders in-memory active jobs
 - persisted unfinished submit rows are not treated as currently executing tasks after restart
+- remote clients may query `/v1/node/logs` for the daemon `service.log`
+- remote clients may query `/v1/tasks` for persisted submit attempt summaries
 
 Startup recovery:
 
@@ -92,6 +94,8 @@ Startup recovery:
 - `default_socket_path()` and `default_state_db_path()`
 - `takd tasks`: list live remote task attempts from the running local takd process.
 - `takd task logs <task-run-id> [--follow]`: print persisted stdout/stderr chunks for a task run.
+- remote v1 `/v1/node/logs`: read the node service log with `all=true` or `lines=N`.
+- remote v1 `/v1/tasks`: list active or persisted task attempt summaries.
 
 ## Main Files
 

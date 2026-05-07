@@ -47,6 +47,7 @@ pub(crate) async fn execute_task_attempt(
             context.run_root,
             context.runtime_metadata,
             context.attempt,
+            context.task_run_id,
             context.output_observer,
         )
         .await

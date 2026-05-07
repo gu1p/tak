@@ -39,7 +39,18 @@ SPEC
 
     let env = BTreeMap::new();
     let run_retry = run_tak_expect_success(temp.path(), &["run", "//:retry_task"], &env)?;
-    assert!(run_retry.contains("//:retry_task: ok (attempts=2"));
+    assert!(
+        run_retry.contains("//:retry_task: ok ("),
+        "retry summary should include task status:\n{run_retry}"
+    );
+    assert!(
+        run_retry.contains("attempts=2"),
+        "retry summary should include attempt count:\n{run_retry}"
+    );
+    assert!(
+        run_retry.contains("task_run_id="),
+        "retry summary should include task run id:\n{run_retry}"
+    );
     assert_eq!(fs::read_to_string(&retry_out)?.trim(), "recovered");
 
     let (_stdout, stderr) = run_tak_expect_failure(temp.path(), &["run", "//:timeout_task"], &env)?;

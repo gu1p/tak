@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use tak_exec::{RunOptions, run_tasks};
 
-use super::run_output::StdStreamOutputObserver;
 use super::run_overrides::{
     RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
 };
@@ -60,16 +59,19 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
             lease_poll_interval_ms: 200,
             session_id: std::env::var("TAK_SESSION_ID").ok(),
             user: std::env::var("TAK_USER").ok(),
-            output_observer: Some(Arc::new(StdStreamOutputObserver::default())),
+            output_observer: Some(Arc::new(HistoryOutputObserver::new(
+                TaskHistoryStore::open_default()?,
+            ))),
         },
     )
     .await?;
 
     for (label, result) in summary.results {
         println!(
-            "{}: {} (attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={}, session={}, reuse={})",
+            "{}: {} (task_run_id={}, attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={}, session={}, reuse={})",
             canonical_label(&label),
             if result.success { "ok" } else { "failed" },
+            result.task_run_id,
             result.attempts,
             result
                 .exit_code

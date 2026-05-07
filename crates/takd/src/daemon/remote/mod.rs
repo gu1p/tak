@@ -32,10 +32,12 @@ mod http_server_test_support;
 mod http_server_unit_tests;
 mod query_helpers;
 mod route_events;
+mod route_logs;
 mod route_node;
 mod route_outputs;
 mod route_result;
 mod route_submit;
+mod route_tasks;
 mod router;
 mod runtime;
 mod runtime_state;
@@ -56,7 +58,9 @@ pub use submit_store::{
     ActiveSubmitAttempt, SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key,
 };
 pub use tor_server::run_remote_v1_tor_hidden_service;
-pub use types::{RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteV1Response};
+pub use types::{
+    RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteV1Response, SubmitAttemptSummaryRecord,
+};
 
 pub(crate) use cleanup_janitor::spawn_remote_cleanup_janitor;
 use execution_root::{
@@ -68,13 +72,15 @@ pub(crate) use http_server::handle_remote_v1_http_stream;
 use query_helpers::{
     binary_response, error_response, protobuf_response, query_param_string, query_param_u64,
     remote_task_path_arg, resolve_submit_idempotency_key_for_task_run,
-    sanitize_submit_idempotency_key, split_path_and_query, unix_epoch_ms,
+    sanitize_submit_idempotency_key, split_path_and_query, text_response, unix_epoch_ms,
 };
 use route_events::handle_remote_events_route;
+use route_logs::handle_node_logs_route;
 use route_node::{handle_node_metadata_route, handle_remote_cancel_route};
 use route_outputs::handle_remote_outputs_route;
 use route_result::handle_remote_result_route;
 use route_submit::handle_remote_submit_route;
+use route_tasks::handle_remote_tasks_route;
 use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tor_server::{
     remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+pub use crate::daemon::remote::types::SubmitAttemptSummaryRecord;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveSubmitAttempt {
     pub idempotency_key: String,

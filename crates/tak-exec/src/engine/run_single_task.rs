@@ -3,7 +3,9 @@ use std::path::Path;
 use tak_core::model::ResolvedTask;
 use uuid::Uuid;
 
-use super::{LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStatusPhase};
+use super::{
+    LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStartedEvent, TaskStatusPhase,
+};
 
 use crate::lease_client::{acquire_task_lease, release_task_lease};
 use crate::retry::{retry_backoff_delay, should_retry};
@@ -13,12 +15,16 @@ use super::attempt_placement::preflight_task_placement;
 use super::attempt_submit::{
     AttemptSubmitState, resolve_attempt_submit_state, resolve_initial_runtime_metadata,
 };
+use super::emit_task_started;
 use super::output_observer::emit_task_status_message;
 use super::remote_models::TaskPlacement;
 use super::session_cascade::task_with_session_context;
 use super::session_workspaces::ExecutionSessionManager;
-use super::task_result::{build_task_run_result, empty_task_result};
+use super::task_result::{TaskRunResultContext, build_task_run_result, empty_task_result};
 use super::workspace_stage::stage_remote_workspace;
+
+mod events;
+use events::emit_finished;
 
 pub(crate) async fn run_single_task(
     task: &ResolvedTask,
@@ -35,6 +41,13 @@ pub(crate) async fn run_single_task(
     let mut attempt = 0;
     let task_run_id = Uuid::new_v4().to_string();
     let task_label = task.label.to_string();
+    emit_task_started(
+        options.output_observer.as_ref(),
+        TaskStartedEvent {
+            task_run_id: task_run_id.clone(),
+            task_label: task.label.clone(),
+        },
+    )?;
     let mut placement = if let Some(placement) = placement_override {
         placement
     } else {
@@ -121,15 +134,19 @@ pub(crate) async fn run_single_task(
         let outcome = attempt_result?;
         if outcome.attempt_success {
             let result = build_task_run_result(
-                attempt,
-                true,
-                &placement,
-                remote_workspace.as_ref(),
-                runtime_metadata.as_ref(),
-                session,
+                TaskRunResultContext {
+                    task_run_id: &task_run_id,
+                    attempt,
+                    success: true,
+                    placement: &placement,
+                    remote_workspace: remote_workspace.as_ref(),
+                    runtime_metadata: runtime_metadata.as_ref(),
+                    session,
+                },
                 outcome,
             );
             sessions.finish_task(session, result.success)?;
+            emit_finished(options, task, &result)?;
             return Ok(result);
         }
 
@@ -137,15 +154,19 @@ pub(crate) async fn run_single_task(
             attempt < total_attempts && should_retry(outcome.last_exit_code, &task.retry.on_exit);
         if !can_retry {
             let result = build_task_run_result(
-                attempt,
-                false,
-                &placement,
-                remote_workspace.as_ref(),
-                runtime_metadata.as_ref(),
-                session,
+                TaskRunResultContext {
+                    task_run_id: &task_run_id,
+                    attempt,
+                    success: false,
+                    placement: &placement,
+                    remote_workspace: remote_workspace.as_ref(),
+                    runtime_metadata: runtime_metadata.as_ref(),
+                    session,
+                },
                 outcome,
             );
             sessions.finish_task(session, result.success)?;
+            emit_finished(options, task, &result)?;
             return Ok(result);
         }
 

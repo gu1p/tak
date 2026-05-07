@@ -17,7 +17,9 @@ mod types;
 
 pub use key::build_submit_idempotency_key;
 use key::validate_submit_attempt;
-pub use types::{ActiveSubmitAttempt, SubmitAttemptStore, SubmitRegistration};
+pub use types::{
+    ActiveSubmitAttempt, SubmitAttemptStore, SubmitAttemptSummaryRecord, SubmitRegistration,
+};
 
 fn is_submit_unique_violation(error: &rusqlite::Error) -> bool {
     matches!(

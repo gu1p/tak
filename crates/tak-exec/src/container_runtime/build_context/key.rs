@@ -2,6 +2,9 @@ use super::*;
 
 use crate::container_engine::{ContainerEngine, engine_name};
 use sha2::Digest;
+use std::fs;
+
+use super::archive::{collect_build_context_files, normalize_archive_path};
 
 pub(crate) fn deterministic_dockerfile_image_tag(
     engine: ContainerEngine,

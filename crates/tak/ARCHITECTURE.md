@@ -40,6 +40,11 @@ High-level flow:
 | `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
 | `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each configured remote node doing right now?" | config read + `/v1/node/status` fetch per matching remote | Node summary section plus active-job section; watch mode refreshes the snapshot in place. |
+| `tak remote logs --node <id> [--all|--lines N]` | "What is this remote node's daemon log?" | config read + `/v1/node/logs` fetch | Raw remote service log bytes on stdout. |
+| `tak remote tasks --node <id> [--active] [--limit N]` | "Which task attempts does this remote node know about?" | config read + `/v1/tasks` fetch | `Remote Tasks` section with node, task label, task run id, attempt, and state. |
+| `tak remote task logs --node <id> <task-run-id>` | "What did this task emit on that remote node?" | config read + `/v1/tasks/<id>/events` polling | Remote stdout chunks to stdout and stderr chunks to stderr. |
+| `tak task list [--limit N]` | "Which task runs did this local Tak client start?" | XDG task history SQLite read | `Local Tasks` section with task label, task run id, attempts, state, placement, and remote node. |
+| `tak task logs <task-run-id>` | "What did this locally initiated task emit?" | XDG task history SQLite read | Captured stdout chunks to stdout and stderr chunks to stderr. |
 
 ## Output Details Per Command
 
@@ -97,6 +102,18 @@ High-level flow:
 - Uses remote v1 authenticated HTTP to fetch running jobs and node resource usage.
 - One-shot mode prints a `Nodes` section and an `Active Jobs` section.
 - Watch mode refreshes stdout in place at the requested interval.
+
+### `remote logs`, `remote tasks`, and `remote task logs`
+
+- Require an explicit `--node` and use the configured remote inventory to resolve transport, endpoint, and bearer token.
+- Direct and Tor transports share the same request path as remote status probing.
+- `remote logs` reads takd service logs; task stdout/stderr stays under the task-centered commands.
+
+### `task list` and `task logs`
+
+- `tak run` records locally initiated task metadata and output chunks under `$XDG_STATE_HOME/tak/tasks.sqlite`.
+- Run summary lines include `task_run_id=<id>` so the follow-up `tak task logs <id>` command is copyable.
+- Local task logs work for local and remote placements because they replay output captured by the initiating client.
 
 ### `remote scan`
 

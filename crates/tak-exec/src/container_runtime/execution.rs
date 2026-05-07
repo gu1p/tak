@@ -56,6 +56,7 @@ pub(super) async fn run_step_in_container(
         docker.clone(),
         container_id.clone(),
         run_context.task_label.clone(),
+        run_context.task_run_id.to_string(),
         run_context.attempt,
         run_context.output_observer.cloned(),
     );

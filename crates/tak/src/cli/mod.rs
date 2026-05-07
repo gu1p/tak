@@ -8,11 +8,14 @@ mod command_model;
 mod exec_cli;
 mod graph_output;
 mod remote_add;
+mod remote_http;
 mod remote_inventory;
+mod remote_logs;
 mod remote_probe;
 mod remote_probe_support;
 mod remote_scan;
 mod remote_status;
+mod remote_tasks;
 mod run_cli;
 mod run_command;
 mod run_output;
@@ -28,16 +31,14 @@ mod run_overrides_remote_tests;
 mod run_overrides_support;
 #[cfg(test)]
 mod run_overrides_test_support;
+mod task_history;
 mod workspace_helpers;
 
 use command_model::{Cli, Commands};
 use exec_cli::{ExecCliArgs, run_exec_command};
 use graph_output::print_dot_graph;
-use remote_add::{StartMode, run_remote_add};
-use remote_inventory::{add_remote, list_remotes, remove_remote};
-use remote_scan::run_remote_scan;
-use remote_status::run_remote_status;
 use run_command::{RunCliArgs, run_task_command};
+use task_history::{HistoryOutputObserver, TaskHistoryStore, print_task_history, print_task_logs};
 use workspace_helpers::{canonical_label, load_workspace_from_cwd, parse_input_label};
 
 pub(crate) use command_model::command_tree;

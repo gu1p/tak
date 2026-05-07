@@ -22,6 +22,15 @@ pub(crate) struct StepRunResult {
     pub(crate) exit_code: Option<i32>,
 }
 
+pub(crate) struct StepRunContext<'a> {
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) runtime_env: Option<&'a BTreeMap<String, String>>,
+    pub(crate) task_label: &'a TaskLabel,
+    pub(crate) attempt: u32,
+    pub(crate) task_run_id: &'a str,
+    pub(crate) output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
+}
+
 /// Executes one step definition with optional timeout enforcement.
 ///
 /// ```no_run
@@ -33,33 +42,31 @@ pub(crate) struct StepRunResult {
 pub(crate) async fn run_step(
     step: &StepDef,
     timeout_s: Option<u64>,
-    workspace_root: &Path,
-    runtime_env: Option<&BTreeMap<String, String>>,
-    task_label: &TaskLabel,
-    attempt: u32,
-    output_observer: Option<&Arc<dyn TaskOutputObserver>>,
+    context: StepRunContext<'_>,
 ) -> Result<StepRunResult> {
-    let (mut command, cwd) = build_command(step, workspace_root, runtime_env)?;
+    let (mut command, cwd) = build_command(step, context.workspace_root, context.runtime_env)?;
     command.current_dir(cwd);
     command.kill_on_drop(true);
-    if output_observer.is_some() {
+    if context.output_observer.is_some() {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
     }
 
     let mut child = command.spawn().context("failed to spawn process")?;
-    let relay_observer = output_observer.cloned();
+    let relay_observer = context.output_observer.cloned();
     let stdout_task = spawn_output_relay(
         child.stdout.take(),
-        task_label.clone(),
-        attempt,
+        context.task_label.clone(),
+        context.task_run_id.to_string(),
+        context.attempt,
         OutputStream::Stdout,
         relay_observer.clone(),
     );
     let stderr_task = spawn_output_relay(
         child.stderr.take(),
-        task_label.clone(),
-        attempt,
+        context.task_label.clone(),
+        context.task_run_id.to_string(),
+        context.attempt,
         OutputStream::Stderr,
         relay_observer,
     );
