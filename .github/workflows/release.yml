@@ -115,7 +115,7 @@ jobs:
 
       - name: Setup Zig
         if: matrix.use_zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v2
 
       - name: Install cargo-zigbuild
         if: matrix.use_zig
