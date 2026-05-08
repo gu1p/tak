@@ -61,5 +61,8 @@ fn active_jobs(with_job: bool) -> Vec<ActiveJob> {
         }],
         execution_root_bytes: 256,
         runtime: Some("containerized".into()),
+        origin: Some("task".into()),
+        runtime_source: Some("image:alpine:3.20".into()),
+        command: Some("make build".into()),
     }]
 }

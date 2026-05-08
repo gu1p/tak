@@ -54,6 +54,9 @@ fn node_status_messages_round_trip_as_binary() {
             }],
             execution_root_bytes: 256,
             runtime: Some("containerized".to_string()),
+            origin: Some("task".to_string()),
+            runtime_source: Some("image:alpine:3.20".to_string()),
+            command: Some("make build".to_string()),
         }],
         image_cache: None,
     };

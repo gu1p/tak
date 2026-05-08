@@ -18,26 +18,37 @@ pub(crate) struct ActiveJobMetadata {
     pub(crate) started_at_ms: i64,
     pub(crate) needs: Vec<SubmittedNeed>,
     pub(crate) runtime: Option<String>,
+    pub(crate) origin: Option<String>,
+    pub(crate) runtime_source: Option<String>,
+    pub(crate) command: Option<String>,
+    pub(crate) execution_root: PathBuf,
+}
+
+pub(crate) struct ActiveJobMetadataInput<'a> {
+    pub(crate) task_run_id: &'a str,
+    pub(crate) attempt: u32,
+    pub(crate) task_label: &'a str,
+    pub(crate) needs: &'a [SubmittedNeed],
+    pub(crate) runtime: Option<String>,
+    pub(crate) origin: Option<String>,
+    pub(crate) runtime_source: Option<String>,
+    pub(crate) command: Option<String>,
     pub(crate) execution_root: PathBuf,
 }
 
 impl ActiveJobMetadata {
-    pub(crate) fn new(
-        task_run_id: &str,
-        attempt: u32,
-        task_label: &str,
-        needs: &[SubmittedNeed],
-        runtime: Option<String>,
-        execution_root: PathBuf,
-    ) -> Self {
+    pub(crate) fn new(input: ActiveJobMetadataInput<'_>) -> Self {
         Self {
-            task_run_id: task_run_id.to_string(),
-            attempt,
-            task_label: task_label.to_string(),
+            task_run_id: input.task_run_id.to_string(),
+            attempt: input.attempt,
+            task_label: input.task_label.to_string(),
             started_at_ms: unix_epoch_ms(),
-            needs: needs.to_vec(),
-            runtime,
-            execution_root,
+            needs: input.needs.to_vec(),
+            runtime: input.runtime,
+            origin: input.origin,
+            runtime_source: input.runtime_source,
+            command: input.command,
+            execution_root: input.execution_root,
         }
     }
 }

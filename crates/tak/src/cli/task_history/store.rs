@@ -1,6 +1,7 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
 use rusqlite::{Connection, params};
@@ -19,6 +20,17 @@ pub(super) struct TaskHistoryRow {
     pub(super) state: String,
     pub(super) placement: String,
     pub(super) remote_node_id: String,
+}
+
+pub(in crate::cli) struct ActiveContainerRow {
+    pub(in crate::cli) task_run_id: String,
+    pub(in crate::cli) task_label: String,
+    pub(in crate::cli) attempts: u32,
+    pub(in crate::cli) origin: String,
+    pub(in crate::cli) runtime: String,
+    pub(in crate::cli) runtime_source: String,
+    pub(in crate::cli) command: String,
+    pub(in crate::cli) started_at_ms: i64,
 }
 
 pub(super) struct TaskOutputRow {
@@ -81,17 +93,52 @@ impl TaskHistoryStore {
         collect_rows(rows)
     }
 
+    pub(in crate::cli) fn active_container_runs(&self) -> Result<Vec<ActiveContainerRow>> {
+        let conn = self.open_connection()?;
+        let mut stmt = conn.prepare(
+            "
+            SELECT task_run_id, task_label, attempts, origin, runtime, runtime_source, command, started_at_ms
+            FROM task_runs
+            WHERE state = 'active'
+              AND placement = 'local'
+              AND runtime = 'containerized'
+            ORDER BY started_at_ms DESC, task_run_id ASC
+            ",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let attempts = row.get::<_, i64>(2)?;
+            Ok(ActiveContainerRow {
+                task_run_id: row.get(0)?,
+                task_label: row.get(1)?,
+                attempts: u32::try_from(attempts).unwrap_or(u32::MAX),
+                origin: row.get(3)?,
+                runtime: row.get(4)?,
+                runtime_source: row.get(5)?,
+                command: row.get(6)?,
+                started_at_ms: row.get(7)?,
+            })
+        })?;
+        collect_rows(rows)
+    }
+
     fn open_connection(&self) -> Result<Connection> {
         if let Some(parent) = self.db_path.parent() {
             fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
         }
-        Connection::open(&self.db_path)
-            .with_context(|| format!("open task history db {}", self.db_path.display()))
+        let conn = Connection::open(&self.db_path)
+            .with_context(|| format!("open task history db {}", self.db_path.display()))?;
+        conn.busy_timeout(Duration::from_secs(5))
+            .context("configure task history sqlite busy timeout")?;
+        Ok(conn)
     }
 
     fn ensure_schema(&self) -> Result<()> {
         let conn = self.open_connection()?;
         conn.execute_batch(include_str!("schema.sql"))?;
+        ensure_task_runs_column(&conn, "origin", "TEXT NOT NULL DEFAULT 'task'")?;
+        ensure_task_runs_column(&conn, "runtime", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_task_runs_column(&conn, "runtime_source", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_task_runs_column(&conn, "command", "TEXT NOT NULL DEFAULT ''")?;
         Ok(())
     }
 
@@ -101,6 +148,27 @@ impl TaskHistoryStore {
         let mut rows = stmt.query(params![task_run_id.trim()])?;
         Ok(rows.next()?.is_some())
     }
+}
+
+fn ensure_task_runs_column(conn: &Connection, name: &str, definition: &str) -> Result<()> {
+    let columns = task_runs_columns(conn)?;
+    if columns.contains(name) {
+        return Ok(());
+    }
+    conn.execute_batch(&format!(
+        "ALTER TABLE task_runs ADD COLUMN {name} {definition}"
+    ))?;
+    Ok(())
+}
+
+fn task_runs_columns(conn: &Connection) -> Result<BTreeSet<String>> {
+    let mut stmt = conn.prepare("PRAGMA table_info(task_runs)")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    let mut columns = BTreeSet::new();
+    for row in rows {
+        columns.insert(row?);
+    }
+    Ok(columns)
 }
 
 fn collect_rows<T>(rows: impl Iterator<Item = rusqlite::Result<T>>) -> Result<Vec<T>> {

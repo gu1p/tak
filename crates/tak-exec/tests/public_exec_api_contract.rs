@@ -44,6 +44,12 @@ fn tak_exec_crate_root_public_api_stays_available() {
     let _task_started = tak_exec::TaskStartedEvent {
         task_run_id: "task-run".to_string(),
         task_label: task_label.clone(),
+        placement_mode: tak_exec::PlacementMode::Local,
+        remote_node_id: None,
+        origin: None,
+        runtime: None,
+        runtime_source: None,
+        command: None,
     };
     let _task_finished = tak_exec::TaskFinishedEvent {
         task_run_id: "task-run".to_string(),

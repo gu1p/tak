@@ -27,8 +27,9 @@ pub(super) async fn run_remote_command(command: RemoteCommands) -> Result<()> {
         RemoteCommands::List => {
             for remote in list_remotes()? {
                 println!(
-                    "{} {} pools={} tags={} capabilities={} enabled={}",
+                    "{} alias={} {} pools={} tags={} capabilities={} enabled={}",
                     remote.node_id,
+                    crate::remote_alias_for_node_id(&remote.node_id),
                     remote.base_url,
                     remote.pools.join(","),
                     remote.tags.join(","),

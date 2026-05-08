@@ -17,7 +17,9 @@ mod diagnostics_preflight_tests;
 mod diagnostics_tests;
 mod docs;
 mod list_tui;
+mod remote_alias;
 pub mod web;
 
 pub use cli::run_cli;
 pub use diagnostics::render_error_report;
+pub use remote_alias::remote_alias_for_node_id;

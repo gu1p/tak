@@ -5,6 +5,7 @@ use tak_core::model::{TaskLabel, WorkspaceSpec};
 use tak_loader::{LoadOptions, load_workspace};
 
 mod command_model;
+mod docker_cli;
 mod exec_cli;
 mod graph_output;
 mod remote_add;
@@ -35,6 +36,7 @@ mod task_history;
 mod workspace_helpers;
 
 use command_model::{Cli, Commands};
+use docker_cli::{DockerCliSelectors, run_docker_command};
 use exec_cli::{ExecCliArgs, run_exec_command};
 use graph_output::print_dot_graph;
 use run_command::{RunCliArgs, run_task_command};

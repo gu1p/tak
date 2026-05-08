@@ -79,6 +79,9 @@ message SubmitTaskRequest {
   repeated SubmittedNeed needs = 8;
   repeated OutputSelector outputs = 9;
   optional ExecutionSession session = 10;
+  optional string origin = 11;
+  optional string runtime_source = 12;
+  optional string command = 13;
 }
 
 message ExecutionSession {
@@ -181,6 +184,9 @@ message ActiveJob {
   repeated SubmittedNeed needs = 5;
   uint64 execution_root_bytes = 6;
   optional string runtime = 7;
+  optional string origin = 8;
+  optional string runtime_source = 9;
+  optional string command = 10;
 }
 
 message TaskAttemptSummary {

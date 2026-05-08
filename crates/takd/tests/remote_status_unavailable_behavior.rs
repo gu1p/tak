@@ -58,6 +58,9 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
         needs: Vec::new(),
         outputs: Vec::new(),
         session: None,
+        origin: Some("task".into()),
+        runtime_source: Some("image:alpine:3.20".into()),
+        command: Some("sh -c 'sleep 1'".into()),
     };
     let _ = handle_remote_v1_request(
         &context,

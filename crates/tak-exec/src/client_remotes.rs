@@ -81,10 +81,11 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
             .required_capabilities
             .iter()
             .filter(|capability| {
-                !candidate
-                    .capabilities
-                    .iter()
-                    .any(|value| value == *capability)
+                !candidate_matches_capability(
+                    &candidate.node_id,
+                    &candidate.capabilities,
+                    capability,
+                )
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -131,6 +132,19 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
         enabled_remotes,
         matched_targets,
     })
+}
+
+fn candidate_matches_capability(
+    node_id: &str,
+    available_capabilities: &[String],
+    required_capability: &str,
+) -> bool {
+    if let Some(required_node_id) = required_capability.strip_prefix("node:") {
+        return required_node_id == node_id;
+    }
+    available_capabilities
+        .iter()
+        .any(|value| value == required_capability)
 }
 
 fn inventory_path() -> Result<PathBuf> {

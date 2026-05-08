@@ -17,6 +17,9 @@ pub(super) fn active_job_value(job: &ActiveJobMetadata) -> Result<ActiveJob> {
         needs: job.needs.clone(),
         execution_root_bytes: dir_size_bytes(&job.execution_root)?,
         runtime: job.runtime.clone(),
+        origin: job.origin.clone(),
+        runtime_source: job.runtime_source.clone(),
+        command: job.command.clone(),
     })
 }
 

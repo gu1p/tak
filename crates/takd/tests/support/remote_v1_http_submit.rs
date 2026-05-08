@@ -5,7 +5,6 @@ use tak_proto::{
 };
 
 pub fn truncated_submit_request(task_run_id: &str) -> Vec<u8> {
-    let prefix = submit_request(task_run_id, Vec::new()).encode_to_vec();
     let full = submit_request(
         task_run_id,
         vec![OutputSelector {
@@ -15,10 +14,7 @@ pub fn truncated_submit_request(task_run_id: &str) -> Vec<u8> {
         }],
     )
     .encode_to_vec();
-    assert!(
-        full.starts_with(&prefix),
-        "full protobuf must extend valid prefix"
-    );
+    let prefix = &full[..full.len().saturating_sub(1)];
     let mut request = format!(
         concat!(
             "POST /v1/tasks/submit HTTP/1.1\r\n",
@@ -32,7 +28,7 @@ pub fn truncated_submit_request(task_run_id: &str) -> Vec<u8> {
         full.len()
     )
     .into_bytes();
-    request.extend_from_slice(&prefix);
+    request.extend_from_slice(prefix);
     request
 }
 
@@ -57,6 +53,9 @@ pub fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> Submit
         needs: Vec::new(),
         outputs,
         session: None,
+        origin: Some("task".into()),
+        runtime_source: Some("image:alpine:3.20".into()),
+        command: Some("sh -c 'sleep 2'".into()),
     }
 }
 

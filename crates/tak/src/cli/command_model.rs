@@ -12,6 +12,30 @@ pub(super) use task::TaskCommands;
 #[command(name = "tak")]
 #[command(version = env!("TAK_VERSION"))]
 pub(super) struct Cli {
+    /// Force local execution for commands that support remote-by-default behavior.
+    #[arg(long = "local", default_value_t = false)]
+    pub(super) local: bool,
+    /// Select a configured remote by alias, display name, node id, or node-id prefix.
+    #[arg(long = "node")]
+    pub(super) node: Option<String>,
+    /// Require a remote architecture, for example `arm64` or `x86_64`.
+    #[arg(long = "arch")]
+    pub(super) arch: Option<String>,
+    /// Require a remote operating system, for example `linux` or `macos`.
+    #[arg(long = "os")]
+    pub(super) os: Option<String>,
+    /// Require a remote pool.
+    #[arg(long = "pool")]
+    pub(super) pool: Option<String>,
+    /// Require one remote tag.
+    #[arg(long = "tag")]
+    pub(super) tags: Vec<String>,
+    /// Require one remote capability.
+    #[arg(long = "capability")]
+    pub(super) capabilities: Vec<String>,
+    /// Require a transport class: direct, tor, or any.
+    #[arg(long = "transport")]
+    pub(super) transport: Option<String>,
     #[command(subcommand)]
     pub(super) command: Commands,
 }
@@ -103,6 +127,12 @@ pub(super) enum Commands {
         /// Override the Dockerfile build context directory.
         #[arg(long = "container-build-context")]
         container_build_context: Option<String>,
+    },
+    /// Run Docker-shaped commands through Tak remote execution.
+    Docker {
+        /// Docker command tokens. `run` is supported; `build` is rejected with Tak guidance.
+        #[arg(num_args = 1.., allow_hyphen_values = true, trailing_var_arg = true)]
+        argv: Vec<String>,
     },
     /// Manage remote execution agents configured on this machine.
     Remote {

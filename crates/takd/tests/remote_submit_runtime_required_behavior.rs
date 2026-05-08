@@ -28,6 +28,9 @@ fn remote_submit_without_runtime_is_rejected_as_invalid_input() {
         needs: Vec::new(),
         outputs: Vec::new(),
         session: None,
+        origin: Some("task".into()),
+        runtime_source: None,
+        command: Some("sh -c true".into()),
     };
 
     let response = handle_remote_v1_request(

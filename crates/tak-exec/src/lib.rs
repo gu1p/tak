@@ -19,6 +19,7 @@ mod remote_protocol_codec;
 mod retry;
 mod step_runner;
 mod summary;
+mod task_run_metadata;
 
 pub use client_observations::{
     RemoteObservation, load_remote_observation, load_remote_observation_at,

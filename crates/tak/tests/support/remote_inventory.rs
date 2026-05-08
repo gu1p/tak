@@ -24,6 +24,10 @@ pub struct RemoteRecord {
     pub enabled: bool,
 }
 
+pub fn stable_remote_alias_for_test(node_id: &str) -> String {
+    tak::remote_alias_for_node_id(node_id)
+}
+
 pub fn write_remote_inventory(config_root: &Path, remotes: &[RemoteRecord]) -> Result<()> {
     let inventory_root = config_root.join("tak");
     fs::create_dir_all(&inventory_root)?;

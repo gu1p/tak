@@ -23,8 +23,13 @@ pub(super) struct RemoteRecord {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct RemoteInventoryFile {
+    #[serde(default = "default_inventory_version")]
     version: u32,
     remotes: Vec<RemoteRecord>,
+}
+
+fn default_inventory_version() -> u32 {
+    1
 }
 
 pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
