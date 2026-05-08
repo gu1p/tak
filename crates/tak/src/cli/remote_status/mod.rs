@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use std::collections::BTreeSet;
-use std::io::{Write, stdout};
+use std::io::{IsTerminal, Write, stdout};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
@@ -8,9 +8,12 @@ use super::remote_inventory::{RemoteRecord, list_remotes};
 
 mod fetch;
 mod http;
+mod live;
 mod render;
+mod view;
 
 use fetch::fetch_snapshot;
+use live::run_remote_status_dashboard;
 use render::render_snapshot;
 
 pub(super) use fetch::fetch_snapshot as fetch_remote_status_snapshot;
@@ -23,13 +26,24 @@ pub(super) async fn run_remote_status(
     let remotes = selected_remotes(node_filters)?;
     let poll_interval = Duration::from_millis(interval_ms.max(1));
     let max_polls = test_max_polls();
+
+    if stdout().is_terminal() {
+        return run_remote_status_dashboard(&remotes, watch, poll_interval, max_polls).await;
+    }
+
+    run_remote_status_plain(&remotes, watch, poll_interval, max_polls).await
+}
+
+async fn run_remote_status_plain(
+    remotes: &[RemoteRecord],
+    watch: bool,
+    poll_interval: Duration,
+    max_polls: Option<usize>,
+) -> Result<()> {
     let mut polls = 0_usize;
 
     loop {
-        let snapshot = fetch_snapshot(&remotes).await;
-        if watch {
-            print!("\x1b[2J\x1b[H");
-        }
+        let snapshot = fetch_snapshot(remotes).await;
         print!("{}", render_snapshot(&snapshot));
         stdout().flush().context("flush remote status output")?;
 
@@ -47,7 +61,7 @@ pub(super) async fn run_remote_status(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct RemoteStatusResult {
     pub(super) remote: RemoteRecord,
     pub(super) status: Option<tak_proto::NodeStatusResponse>,
@@ -95,3 +109,7 @@ fn unix_epoch_ms() -> i64 {
         .unwrap_or(0);
     i64::try_from(millis).unwrap_or(i64::MAX)
 }
+
+#[cfg(test)]
+#[path = "view_tests.rs"]
+mod view_tests;

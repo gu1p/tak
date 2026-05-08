@@ -13,13 +13,12 @@ use super::http::fetch_status_once;
 use super::{RemoteRecord, RemoteStatusResult};
 
 pub(in crate::cli) async fn fetch_snapshot(remotes: &[RemoteRecord]) -> Vec<RemoteStatusResult> {
-    let mut results = join_all(remotes.iter().map(fetch_remote_status_result)).await;
+    let mut results = join_all(remotes.iter().cloned().map(fetch_remote_status_result)).await;
     results.sort_unstable_by(|left, right| left.remote.node_id.cmp(&right.remote.node_id));
     results
 }
 
-async fn fetch_remote_status_result(remote: &RemoteRecord) -> RemoteStatusResult {
-    let remote = remote.clone();
+pub(super) async fn fetch_remote_status_result(remote: RemoteRecord) -> RemoteStatusResult {
     match fetch_node_status(&remote.base_url, &remote.transport, &remote.bearer_token).await {
         Ok(status) => {
             if let Some(node) = status.node.as_ref() {

@@ -64,5 +64,9 @@ fn remote_status_lists_running_jobs_and_resources() {
         stdout.contains("//apps/web:build"),
         "missing active task label:\n{stdout}"
     );
+    assert!(
+        !stdout.contains("\x1b["),
+        "captured remote status output should stay plain for scripts:\n{stdout}"
+    );
     server.join().expect("status server should exit");
 }

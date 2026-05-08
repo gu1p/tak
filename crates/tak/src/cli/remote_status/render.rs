@@ -2,6 +2,14 @@ use tak_proto::{CpuUsage, MemoryUsage, StorageUsage, SubmittedNeed};
 
 use super::{RemoteStatusResult, unix_epoch_ms};
 
+#[path = "render_dashboard.rs"]
+mod dashboard;
+#[cfg(test)]
+#[path = "render_test_support.rs"]
+mod render_test_support;
+
+pub(super) use dashboard::render_dashboard;
+
 pub(super) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
     let mut output = String::from("Nodes\n");
     for result in results {
@@ -120,9 +128,9 @@ fn format_image_cache(cache: Option<&tak_proto::ImageCacheStatus>) -> String {
         return "n/a".to_string();
     };
     format!(
-        "{}/{}",
-        human_decimal_gb(cache.used_bytes),
-        human_decimal_gb(cache.budget_bytes)
+        "{:.1}GB/{:.1}GB",
+        cache.used_bytes as f64 / 1_000_000_000.0,
+        cache.budget_bytes as f64 / 1_000_000_000.0,
     )
 }
 
@@ -171,10 +179,6 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-fn human_decimal_gb(bytes: u64) -> String {
-    format!("{:.1}GB", bytes as f64 / 1_000_000_000.0)
-}
-
 fn age_since(started_at_ms: i64) -> String {
     let delta_s = unix_epoch_ms().saturating_sub(started_at_ms).max(0) / 1000;
     if delta_s >= 3600 {
@@ -185,3 +189,7 @@ fn age_since(started_at_ms: i64) -> String {
     }
     format!("{delta_s}s")
 }
+
+#[cfg(test)]
+#[path = "render_tests.rs"]
+mod render_tests;
