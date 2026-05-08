@@ -34,7 +34,7 @@ pub(super) struct Cli {
     #[arg(long = "capability")]
     pub(super) capabilities: Vec<String>,
     /// Require a transport class: direct, tor, or any.
-    #[arg(long = "transport")]
+    #[arg(long = "transport", value_parser = ["direct", "tor", "any"])]
     pub(super) transport: Option<String>,
     #[command(subcommand)]
     pub(super) command: Commands,

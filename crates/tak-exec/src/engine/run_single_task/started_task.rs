@@ -1,0 +1,136 @@
+use std::path::{Path, PathBuf};
+
+use anyhow::Result;
+use tak_core::model::ResolvedTask;
+
+use super::super::attempt_submit::resolve_initial_runtime_metadata;
+use super::super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement};
+use super::super::session_cascade::task_with_session_context;
+use super::super::session_workspaces::{ExecutionSessionManager, PreparedTaskSession};
+use super::super::workspace_stage::stage_remote_workspace;
+use super::super::{
+    LeaseContext, PlacementMode, RunOptions, TaskFinishedEvent, TaskRunResult, emit_task_finished,
+};
+
+mod attempts;
+use attempts::{StartedAttemptContext, run_attempts};
+
+pub(super) struct StartedTaskContext<'a> {
+    pub(super) task: &'a ResolvedTask,
+    pub(super) workspace_root: &'a Path,
+    pub(super) options: &'a RunOptions,
+    pub(super) lease_context: &'a LeaseContext,
+    pub(super) sessions: &'a mut ExecutionSessionManager,
+    pub(super) task_run_id: &'a str,
+    pub(super) placement: &'a mut TaskPlacement,
+    pub(super) attempt: &'a mut u32,
+}
+
+pub(super) async fn run_started_task(context: StartedTaskContext<'_>) -> Result<TaskRunResult> {
+    let StartedTaskContext {
+        task,
+        workspace_root,
+        options,
+        lease_context,
+        sessions,
+        task_run_id,
+        placement,
+        attempt,
+    } = context;
+    let runtime_metadata = resolve_initial_runtime_metadata(task, placement).await?;
+    let remote_workspace =
+        stage_remote_workspace_if_needed(task, workspace_root, options, placement)?;
+    let prepared_session = sessions.prepare_task(
+        task,
+        placement.session.as_ref(),
+        workspace_root,
+        placement.placement_mode == PlacementMode::Local,
+    )?;
+    let run_root = run_root(
+        workspace_root,
+        &runtime_metadata,
+        &remote_workspace,
+        &prepared_session,
+    );
+    run_attempts(
+        task,
+        workspace_root,
+        options,
+        lease_context,
+        sessions,
+        StartedAttemptContext {
+            task_run_id,
+            placement,
+            attempt,
+            runtime_metadata: runtime_metadata.as_ref(),
+            remote_workspace: remote_workspace.as_ref(),
+            session: prepared_session.as_ref(),
+            run_root: &run_root,
+        },
+    )
+    .await
+}
+
+pub(super) fn emit_started_task_failure(
+    options: &RunOptions,
+    task: &ResolvedTask,
+    task_run_id: &str,
+    attempts: u32,
+    placement: &TaskPlacement,
+) -> Result<()> {
+    emit_task_finished(
+        options.output_observer.as_ref(),
+        TaskFinishedEvent {
+            task_run_id: task_run_id.to_string(),
+            task_label: task.label.clone(),
+            attempts: attempts.max(1),
+            success: false,
+            exit_code: None,
+            placement_mode: placement.placement_mode,
+            remote_node_id: placement.remote_node_id.clone(),
+        },
+    )
+}
+
+fn stage_remote_workspace_if_needed(
+    task: &ResolvedTask,
+    workspace_root: &Path,
+    options: &RunOptions,
+    placement: &TaskPlacement,
+) -> Result<Option<RemoteWorkspaceStage>> {
+    if placement.placement_mode != PlacementMode::Remote {
+        return Ok(None);
+    }
+    let remote_stage_task = task_with_session_context(task, placement.session.as_ref());
+    let stage_task = remote_stage_task.as_ref().unwrap_or(task);
+    Ok(Some(stage_remote_workspace(
+        stage_task,
+        workspace_root,
+        options.output_observer.as_ref(),
+    )?))
+}
+
+fn run_root(
+    workspace_root: &Path,
+    runtime_metadata: &Option<RuntimeExecutionMetadata>,
+    remote_workspace: &Option<RemoteWorkspaceStage>,
+    prepared_session: &Option<PreparedTaskSession>,
+) -> PathBuf {
+    if let Some(root) = prepared_session
+        .as_ref()
+        .and_then(|session| session.root.as_ref())
+    {
+        return root.clone();
+    }
+    if runtime_metadata
+        .as_ref()
+        .and_then(|metadata| metadata.container_plan.as_ref())
+        .is_some()
+    {
+        return workspace_root.to_path_buf();
+    }
+    remote_workspace
+        .as_ref()
+        .map(|staged| staged.temp_dir.path().to_path_buf())
+        .unwrap_or_else(|| workspace_root.to_path_buf())
+}
