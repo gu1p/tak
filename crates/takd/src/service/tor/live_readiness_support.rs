@@ -39,14 +39,17 @@ pub(super) fn readiness_probe<'a, R>(
 where
     R: Runtime + Send + Sync + 'a,
 {
-    Box::pin(probe::wait_for_tor_hidden_service_startup_with_detail(
+    Box::pin(probe::wait_for_tor_hidden_service_startup_with_options(
         client,
         base_url,
         token,
-        params.startup_timeout,
-        params.startup_policy.initial_backoff,
-        params.startup_policy.max_backoff,
-        Some(params.state_root),
+        probe::HiddenServiceStartupProbeOptions::new(
+            params.startup_timeout,
+            params.startup_policy.initial_backoff,
+            params.startup_policy.max_backoff,
+            Some(params.state_root),
+            params.startup_failure_threshold,
+        ),
     ))
 }
 

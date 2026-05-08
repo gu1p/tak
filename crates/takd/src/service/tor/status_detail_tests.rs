@@ -39,7 +39,7 @@ fn hidden_service_status_controls_when_self_probe_should_run() {
 }
 
 #[test]
-fn descriptor_download_failures_do_not_trigger_startup_relaunch() {
+fn single_descriptor_download_failures_do_not_trigger_startup_relaunch() {
     assert_eq!(
         self_probe_failure_action(
             "connect takd hidden-service startup probe: Unable to download hidden service descriptor"

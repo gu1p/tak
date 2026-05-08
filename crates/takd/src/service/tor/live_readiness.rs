@@ -19,6 +19,7 @@ use super::live_readiness_support::{
 use super::live_readiness_watchdog::{startup_watchdog_detail, startup_watchdog_restart_reason};
 use super::live_state::mark_transport_ready;
 use super::monitor::TorHealthEvent;
+use super::probe;
 use super::rend::spawn_rend_request;
 use super::startup_policy::TorStartupProbeRetryPolicy;
 use super::status_detail::{
@@ -39,6 +40,7 @@ where
     pub(super) startup_timeout: Duration,
     pub(super) startup_policy: &'a TorStartupProbeRetryPolicy,
     pub(super) startup_backoff: &'a mut TorRecoveryBackoff,
+    pub(super) startup_failure_threshold: u32,
 }
 
 pub(super) enum StartupReadiness<S> {
@@ -106,8 +108,13 @@ where
                     }
                     Err(err) => {
                         let detail = format!("{err:#}");
+                        let action = if probe::requires_tor_client_restart(&err) {
+                            SelfProbeRecoveryAction::RestartTorClient
+                        } else {
+                            self_probe_recovery_action(&detail, service_state)
+                        };
                         record_self_probe_failure(&params, service_state, &service_status, &detail)?;
-                        match self_probe_recovery_action(&detail, service_state) {
+                        match action {
                             SelfProbeRecoveryAction::KeepWaiting => {
                                 tracing::warn!("takd onion service still pending after self-probe: {detail}");
                                 readiness = readiness_probe(

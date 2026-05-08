@@ -71,6 +71,7 @@ pub(super) async fn serve_live_tor_session(
                 startup_timeout,
                 startup_policy: &startup_probe_retry_policy,
                 startup_backoff: &mut startup_backoff,
+                startup_failure_threshold: recovery.failure_threshold,
             },
             running_service,
             rend_requests,

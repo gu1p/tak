@@ -99,6 +99,11 @@ pub(super) fn tor_guard_exhaustion_signal(detail: &str) -> bool {
     detail.contains("no usable guards") || detail.contains("unable to select a guard relay")
 }
 
+pub(super) fn immediate_tor_startup_restart_signal(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    tor_guard_exhaustion_signal(&detail) || tor_fallback_exhaustion_signal(&detail)
+}
+
 fn tor_fallback_exhaustion_signal(detail: &str) -> bool {
     detail.contains("no usable fallbacks")
 }

@@ -10,7 +10,10 @@ use tor_rtcompat::Runtime;
 
 use health_detail::{log_probe_progress, record_probe_failure};
 use http_client::{RemoteStream, send_node_info_request};
-use startup_failure::{remember_tor_startup_failure_signal, startup_probe_error};
+use startup_failure::{
+    StartupTorClientRestart, StartupTorFailureDecision, StartupTorFailureTracker,
+    startup_probe_error,
+};
 
 use super::startup_policy::CappedExponentialBackoff;
 
@@ -20,6 +23,36 @@ mod http_client;
 mod startup_failure;
 
 const MAX_PROBE_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(15);
+
+pub(super) struct HiddenServiceStartupProbeOptions<'a> {
+    timeout: Duration,
+    initial_backoff: Duration,
+    max_backoff: Duration,
+    detail_state_root: Option<&'a Path>,
+    startup_failure_threshold: u32,
+}
+
+impl<'a> HiddenServiceStartupProbeOptions<'a> {
+    pub(super) fn new(
+        timeout: Duration,
+        initial_backoff: Duration,
+        max_backoff: Duration,
+        detail_state_root: Option<&'a Path>,
+        startup_failure_threshold: u32,
+    ) -> Self {
+        Self {
+            timeout,
+            initial_backoff,
+            max_backoff,
+            detail_state_root,
+            startup_failure_threshold,
+        }
+    }
+
+    fn without_detail(timeout: Duration, backoff: Duration) -> Self {
+        Self::new(timeout, backoff, backoff, None, u32::MAX)
+    }
+}
 
 pub(super) async fn wait_for_tor_hidden_service_startup<R>(
     tor_client: &arti_client::TorClient<R>,
@@ -31,38 +64,32 @@ pub(super) async fn wait_for_tor_hidden_service_startup<R>(
 where
     R: Runtime,
 {
-    wait_for_tor_hidden_service_startup_with_detail(
+    wait_for_tor_hidden_service_startup_with_options(
         tor_client,
         base_url,
         bearer_token,
-        timeout,
-        backoff,
-        backoff,
-        None,
+        HiddenServiceStartupProbeOptions::without_detail(timeout, backoff),
     )
     .await
 }
 
-pub(super) async fn wait_for_tor_hidden_service_startup_with_detail<R>(
+pub(super) async fn wait_for_tor_hidden_service_startup_with_options<R>(
     tor_client: &arti_client::TorClient<R>,
     base_url: &str,
     bearer_token: &str,
-    timeout: Duration,
-    backoff: Duration,
-    max_backoff: Duration,
-    detail_state_root: Option<&Path>,
+    options: HiddenServiceStartupProbeOptions<'_>,
 ) -> Result<()>
 where
     R: Runtime,
 {
     let started_at = Instant::now();
-    let deadline = Instant::now() + timeout;
+    let deadline = Instant::now() + options.timeout;
     let (host, port) = endpoint_host_port(base_url)?;
     let authority = endpoint_socket_addr(base_url)?;
     let mut last_error = anyhow!("hidden service startup probe failed before a response");
-    let mut observed_tor_failure = None;
+    let mut startup_failures = StartupTorFailureTracker::new(options.startup_failure_threshold);
     let mut attempt = 0_u32;
-    let mut backoff = CappedExponentialBackoff::new(backoff, max_backoff);
+    let mut backoff = CappedExponentialBackoff::new(options.initial_backoff, options.max_backoff);
 
     loop {
         attempt = attempt.saturating_add(1);
@@ -71,7 +98,7 @@ where
             "self-probe connect",
             attempt,
             started_at,
-            timeout,
+            options.timeout,
             "connecting to takd onion service through embedded Arti",
         );
         match run_with_attempt_timeout(
@@ -89,7 +116,7 @@ where
                     "self-probe http",
                     attempt,
                     started_at,
-                    timeout,
+                    options.timeout,
                     "probing /v1/node/info through takd onion service",
                 );
                 match run_with_attempt_timeout(
@@ -103,32 +130,32 @@ where
                     Ok(()) => return Ok(()),
                     Err(err) => {
                         let detail = format!("{err:#}");
-                        remember_tor_startup_failure_signal(&mut observed_tor_failure, &detail);
                         record_probe_failure(
-                            detail_state_root,
+                            options.detail_state_root,
                             base_url,
                             "self-probe http",
                             attempt,
                             started_at,
-                            timeout,
-                            detail,
+                            options.timeout,
+                            &detail,
                         );
+                        record_startup_failure(&mut startup_failures, &detail)?;
                         last_error = err;
                     }
                 }
             }
             Err(err) => {
                 let detail = format!("{err:#}");
-                remember_tor_startup_failure_signal(&mut observed_tor_failure, &detail);
                 record_probe_failure(
-                    detail_state_root,
+                    options.detail_state_root,
                     base_url,
                     "self-probe connect",
                     attempt,
                     started_at,
-                    timeout,
-                    detail,
+                    options.timeout,
+                    &detail,
                 );
+                record_startup_failure(&mut startup_failures, &detail)?;
                 last_error = err;
             }
         }
@@ -145,10 +172,23 @@ where
 
     Err(startup_probe_error(
         last_error,
-        observed_tor_failure.as_deref(),
+        startup_failures.observed_tor_failure(),
         base_url,
-        timeout,
+        options.timeout,
     ))
+}
+
+pub(super) fn requires_tor_client_restart(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<StartupTorClientRestart>().is_some()
+}
+
+fn record_startup_failure(tracker: &mut StartupTorFailureTracker, detail: &str) -> Result<()> {
+    match tracker.record_failure(detail) {
+        StartupTorFailureDecision::KeepWaiting => Ok(()),
+        StartupTorFailureDecision::RestartTorClient { reason } => {
+            Err(StartupTorClientRestart::new(reason).into())
+        }
+    }
 }
 
 async fn probe_node_info(
