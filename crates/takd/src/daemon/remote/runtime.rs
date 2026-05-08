@@ -3,6 +3,8 @@ use std::time::Duration;
 
 const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
 const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
+const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 60 * 1000;
+const DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS: u64 = 1000;
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,6 +19,8 @@ pub struct RemoteRuntimeConfig {
     skip_exec_root_probe: bool,
     remote_cleanup_ttl: Duration,
     remote_cleanup_interval: Duration,
+    remote_client_stale_ttl: Duration,
+    remote_client_watchdog_interval: Duration,
 }
 
 impl RemoteRuntimeConfig {
@@ -40,6 +44,14 @@ impl RemoteRuntimeConfig {
                 "TAKD_REMOTE_CLEANUP_INTERVAL_MS",
                 DEFAULT_REMOTE_CLEANUP_INTERVAL_MS,
             )),
+            remote_client_stale_ttl: Duration::from_millis(duration_from_env(
+                "TAKD_REMOTE_CLIENT_STALE_TTL_MS",
+                DEFAULT_REMOTE_CLIENT_STALE_TTL_MS,
+            )),
+            remote_client_watchdog_interval: Duration::from_millis(duration_from_env(
+                "TAKD_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS",
+                DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS,
+            )),
         }
     }
 
@@ -55,6 +67,10 @@ impl RemoteRuntimeConfig {
             skip_exec_root_probe: false,
             remote_cleanup_ttl: Duration::from_millis(DEFAULT_REMOTE_CLEANUP_TTL_MS),
             remote_cleanup_interval: Duration::from_millis(DEFAULT_REMOTE_CLEANUP_INTERVAL_MS),
+            remote_client_stale_ttl: Duration::from_millis(DEFAULT_REMOTE_CLIENT_STALE_TTL_MS),
+            remote_client_watchdog_interval: Duration::from_millis(
+                DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS,
+            ),
         }
     }
 
@@ -103,6 +119,16 @@ impl RemoteRuntimeConfig {
         self
     }
 
+    pub fn with_remote_client_stale_ttl(mut self, ttl: Duration) -> Self {
+        self.remote_client_stale_ttl = ttl;
+        self
+    }
+
+    pub fn with_remote_client_watchdog_interval(mut self, interval: Duration) -> Self {
+        self.remote_client_watchdog_interval = interval;
+        self
+    }
+
     pub(crate) fn explicit_remote_exec_root(&self) -> Option<&PathBuf> {
         self.explicit_remote_exec_root.as_ref()
     }
@@ -137,6 +163,14 @@ impl RemoteRuntimeConfig {
 
     pub(crate) fn remote_cleanup_interval(&self) -> Duration {
         self.remote_cleanup_interval
+    }
+
+    pub(crate) fn remote_client_stale_ttl(&self) -> Duration {
+        self.remote_client_stale_ttl
+    }
+
+    pub(crate) fn remote_client_watchdog_interval(&self) -> Duration {
+        self.remote_client_watchdog_interval
     }
 
     pub(crate) fn default_remote_execution_root_base(&self) -> PathBuf {

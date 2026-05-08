@@ -10,6 +10,8 @@ use tak_core::model::TaskLabel;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 
+use crate::engine::RunCancellation;
+use crate::engine::cancelled_error;
 use crate::{OutputStream, TaskOutputObserver};
 
 mod output_relay;
@@ -29,6 +31,7 @@ pub(crate) struct StepRunContext<'a> {
     pub(crate) attempt: u32,
     pub(crate) task_run_id: &'a str,
     pub(crate) output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
+    pub(crate) cancellation: &'a RunCancellation,
 }
 
 /// Executes one step definition with optional timeout enforcement.
@@ -44,9 +47,13 @@ pub(crate) async fn run_step(
     timeout_s: Option<u64>,
     context: StepRunContext<'_>,
 ) -> Result<StepRunResult> {
+    if context.cancellation.is_cancelled() {
+        return Err(cancelled_error());
+    }
     let (mut command, cwd) = build_command(step, context.workspace_root, context.runtime_env)?;
     command.current_dir(cwd);
     command.kill_on_drop(true);
+    configure_child_process_group(&mut command);
     if context.output_observer.is_some() {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
@@ -71,24 +78,20 @@ pub(crate) async fn run_step(
         relay_observer,
     );
 
-    let wait_result = if let Some(seconds) = timeout_s {
-        match tokio::time::timeout(Duration::from_secs(seconds), child.wait()).await {
-            Ok(wait) => wait.context("failed while waiting for process")?,
-            Err(_) => {
-                let _ = child.kill().await;
-                let _ = child.wait().await;
-                let _ = finish_output_relays(stdout_task, stderr_task).await;
-                return Ok(StepRunResult {
-                    success: false,
-                    exit_code: None,
-                });
-            }
+    let wait_result = wait_for_child(&mut child, timeout_s, context.cancellation).await;
+    let wait_result = match wait_result {
+        Ok(Some(status)) => status,
+        Ok(None) => {
+            let _ = finish_output_relays(stdout_task, stderr_task).await;
+            return Ok(StepRunResult {
+                success: false,
+                exit_code: None,
+            });
         }
-    } else {
-        child
-            .wait()
-            .await
-            .context("failed while waiting for process")?
+        Err(error) => {
+            let _ = finish_output_relays(stdout_task, stderr_task).await;
+            return Err(error);
+        }
     };
     finish_output_relays(stdout_task, stderr_task).await?;
 
@@ -96,6 +99,63 @@ pub(crate) async fn run_step(
         success: wait_result.success(),
         exit_code: wait_result.code(),
     })
+}
+
+async fn wait_for_child(
+    child: &mut tokio::process::Child,
+    timeout_s: Option<u64>,
+    cancellation: &RunCancellation,
+) -> Result<Option<std::process::ExitStatus>> {
+    if let Some(seconds) = timeout_s {
+        let timeout = tokio::time::sleep(Duration::from_secs(seconds));
+        tokio::pin!(timeout);
+        return tokio::select! {
+            wait = child.wait() => Ok(Some(wait.context("failed while waiting for process")?)),
+            _ = &mut timeout => {
+                kill_child(child).await;
+                Ok(None)
+            }
+            _ = cancellation.cancelled() => {
+                kill_child(child).await;
+                Err(cancelled_error())
+            }
+        };
+    }
+    tokio::select! {
+        wait = child.wait() => Ok(Some(wait.context("failed while waiting for process")?)),
+        _ = cancellation.cancelled() => {
+            kill_child(child).await;
+            Err(cancelled_error())
+        }
+    }
+}
+
+#[cfg(unix)]
+fn configure_child_process_group(command: &mut Command) {
+    command.process_group(0);
+}
+
+#[cfg(not(unix))]
+fn configure_child_process_group(_command: &mut Command) {}
+
+async fn kill_child(child: &mut tokio::process::Child) {
+    kill_child_process_group(child).await;
+    let _ = child.wait().await;
+}
+
+#[cfg(unix)]
+async fn kill_child_process_group(child: &mut tokio::process::Child) {
+    if let Some(pid) = child.id() {
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
+    let _ = child.kill().await;
+}
+
+#[cfg(not(unix))]
+async fn kill_child_process_group(child: &mut tokio::process::Child) {
+    let _ = child.kill().await;
 }
 
 type OutputRelayTask = Option<tokio::task::JoinHandle<Result<()>>>;

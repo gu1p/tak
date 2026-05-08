@@ -34,6 +34,6 @@ fn remote_cancel_route_serves_protobuf_response() {
     assert_eq!(response.status_code, 202);
     let cancel =
         CancelTaskResponse::decode(response.body.as_slice()).expect("decode cancel response");
-    assert!(cancel.cancelled);
+    assert!(!cancel.cancelled);
     assert_eq!(cancel.task_run_id, "task-run-9");
 }

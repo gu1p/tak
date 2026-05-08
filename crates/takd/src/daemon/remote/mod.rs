@@ -12,7 +12,7 @@ use tak_core::label::parse_label;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef, normalize_path_ref};
 use tak_runner::{
     OutputStream, RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver,
-    execute_remote_worker_steps_with_output,
+    execute_remote_worker_steps_with_output_and_cancellation,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -21,6 +21,7 @@ use zip::read::ZipArchive;
 
 use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
+mod active_executions;
 mod cleanup_janitor;
 mod execution_root;
 mod http_server;
@@ -30,6 +31,7 @@ mod http_server_request_validation_unit_tests;
 mod http_server_test_support;
 #[cfg(test)]
 mod http_server_unit_tests;
+mod orphan_watchdog;
 mod query_helpers;
 mod route_events;
 mod route_logs;
@@ -69,6 +71,7 @@ use execution_root::{
     remote_execution_root_base,
 };
 pub(crate) use http_server::handle_remote_v1_http_stream;
+pub(crate) use orphan_watchdog::spawn_remote_orphan_watchdog;
 use query_helpers::{
     binary_response, error_response, protobuf_response, query_param_string, query_param_u64,
     remote_task_path_arg, resolve_submit_idempotency_key_for_task_run,

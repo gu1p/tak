@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::Result;
 use tak_core::model::ResolvedTask;
 
-use super::TaskOutputObserver;
+use super::{RunCancellation, TaskOutputObserver};
 
 use crate::container_runtime::run_task_steps_in_container;
 use crate::step_runner::{StepRunContext, StepRunResult, run_step};
@@ -26,6 +26,7 @@ pub(crate) async fn run_task_steps(
     attempt: u32,
     task_run_id: &str,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    cancellation: &RunCancellation,
 ) -> Result<StepRunResult> {
     for step in &task.steps {
         let status = run_step(
@@ -38,6 +39,7 @@ pub(crate) async fn run_task_steps(
                 attempt,
                 task_run_id,
                 output_observer,
+                cancellation,
             },
         )
         .await?;
@@ -59,18 +61,23 @@ pub(crate) async fn run_task_steps_with_runtime(
     attempt: u32,
     task_run_id: &str,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    cancellation: &RunCancellation,
 ) -> Result<StepRunResult> {
     if let Some(metadata) = runtime_metadata
         && let Some(plan) = metadata.container_plan.as_ref()
     {
         return run_task_steps_in_container(
             task,
-            workspace_root,
             plan,
-            Some(&metadata.env_overrides),
-            attempt,
-            task_run_id,
-            output_observer,
+            StepRunContext {
+                workspace_root,
+                runtime_env: Some(&metadata.env_overrides),
+                task_label: &task.label,
+                attempt,
+                task_run_id,
+                output_observer,
+                cancellation,
+            },
         )
         .await;
     }
@@ -82,6 +89,7 @@ pub(crate) async fn run_task_steps_with_runtime(
         attempt,
         task_run_id,
         output_observer,
+        cancellation,
     )
     .await
 }

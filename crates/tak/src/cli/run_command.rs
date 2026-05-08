@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tak_exec::{RunOptions, run_tasks};
+use tak_exec::{RunCancellation, RunOptions, RunSummary, run_tasks};
 
 use super::run_overrides::{
     RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
@@ -48,23 +48,21 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         },
     )?;
 
-    let summary = run_tasks(
-        &spec,
-        &targets,
-        &RunOptions {
-            jobs: args.jobs,
-            keep_going: args.keep_going,
-            lease_socket: std::env::var_os("TAKD_SOCKET").map(std::path::PathBuf::from),
-            lease_ttl_ms: 30_000,
-            lease_poll_interval_ms: 200,
-            session_id: std::env::var("TAK_SESSION_ID").ok(),
-            user: std::env::var("TAK_USER").ok(),
-            output_observer: Some(Arc::new(HistoryOutputObserver::new(
-                TaskHistoryStore::open_default()?,
-            ))),
-        },
-    )
-    .await?;
+    let cancellation = RunCancellation::new();
+    let options = RunOptions {
+        jobs: args.jobs,
+        keep_going: args.keep_going,
+        lease_socket: std::env::var_os("TAKD_SOCKET").map(std::path::PathBuf::from),
+        lease_ttl_ms: 30_000,
+        lease_poll_interval_ms: 200,
+        session_id: std::env::var("TAK_SESSION_ID").ok(),
+        user: std::env::var("TAK_USER").ok(),
+        output_observer: Some(Arc::new(HistoryOutputObserver::new(
+            TaskHistoryStore::open_default()?,
+        ))),
+        cancellation: cancellation.clone(),
+    };
+    let summary = run_tasks_until_interrupted(&spec, &targets, &options, cancellation).await?;
 
     for (label, result) in summary.results {
         println!(
@@ -89,4 +87,24 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn run_tasks_until_interrupted(
+    spec: &tak_core::model::WorkspaceSpec,
+    targets: &[tak_core::model::TaskLabel],
+    options: &RunOptions,
+    cancellation: RunCancellation,
+) -> Result<RunSummary> {
+    let run = run_tasks(spec, targets, options);
+    tokio::pin!(run);
+    tokio::select! {
+        result = &mut run => result,
+        signal = tokio::signal::ctrl_c() => {
+            if signal.is_ok() {
+                eprintln!("cancelling remote tasks...");
+            }
+            cancellation.cancel();
+            run.await
+        }
+    }
 }

@@ -10,10 +10,12 @@ use super::super::http::{read_request_path, write_protobuf_response};
 use super::non_terminal_events_responses::{
     error, event_response, node_info, result_response, submit_response,
 };
+use tak_proto::CancelTaskResponse;
 
 pub struct NonTerminalEventsServer {
     pub base_url: String,
     pub events_calls: Arc<AtomicUsize>,
+    pub cancel_calls: Arc<AtomicUsize>,
     handle: Option<thread::JoinHandle<()>>,
     port: u16,
 }
@@ -23,7 +25,9 @@ impl NonTerminalEventsServer {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind event server");
         let port = listener.local_addr().expect("event listener addr").port();
         let events_calls = Arc::new(AtomicUsize::new(0));
+        let cancel_calls = Arc::new(AtomicUsize::new(0));
         let calls = Arc::clone(&events_calls);
+        let cancels = Arc::clone(&cancel_calls);
         let handle = thread::spawn(move || {
             loop {
                 let (mut stream, _) = listener.accept().expect("accept event request");
@@ -46,6 +50,17 @@ impl NonTerminalEventsServer {
                         "200 OK",
                         &event_response(calls.fetch_add(1, Ordering::SeqCst) + 1),
                     ),
+                    _ if path.contains("/cancel") => {
+                        cancels.fetch_add(1, Ordering::SeqCst);
+                        write_protobuf_response(
+                            &mut stream,
+                            "202 Accepted",
+                            &CancelTaskResponse {
+                                cancelled: true,
+                                task_run_id: "task-run-1".into(),
+                            },
+                        )
+                    }
                     _ if path.contains("/result") && calls.load(Ordering::SeqCst) >= 3 => {
                         write_protobuf_response(&mut stream, "200 OK", &result_response())
                     }
@@ -63,6 +78,7 @@ impl NonTerminalEventsServer {
         Self {
             base_url: format!("http://127.0.0.1:{port}"),
             events_calls,
+            cancel_calls,
             handle: Some(handle),
             port,
         }

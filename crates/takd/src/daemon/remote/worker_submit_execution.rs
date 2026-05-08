@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 pub(super) struct RemoteWorkerSubmitExecution {
     pub(super) store: SubmitAttemptStore,
-    pub(super) status_state: status_state::SharedNodeStatusState,
+    pub(super) context: RemoteNodeContext,
     pub(super) idempotency_key: String,
     pub(super) execution_root_base: std::path::PathBuf,
     pub(super) selected_node_id: String,
     pub(super) transport_kind: String,
     pub(super) image_cache: Option<super::types::RemoteImageCacheRuntimeConfig>,
+    pub(super) cancellation: tak_runner::RunCancellation,
     pub(super) payload: RemoteWorkerSubmitPayload,
 }
 
@@ -25,7 +26,6 @@ pub(super) fn spawn_remote_worker_submit_execution(
 
 fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
     let store = &execution.store;
-    let status_state = &execution.status_state;
     let idempotency_key = execution.idempotency_key.as_str();
     let started_at = unix_epoch_ms();
     let output_observer = Arc::new(RemoteWorkerEventObserver::new(
@@ -57,6 +57,7 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
                 execution.image_cache.as_ref(),
                 &execution.payload,
                 output_observer.clone(),
+                &execution.cancellation,
             )
         });
     let finished_at = unix_epoch_ms();
@@ -110,6 +111,21 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
                 );
             }
         }
+        Err(error)
+            if tak_runner::is_run_cancelled_error(&error)
+                || execution.cancellation.is_cancelled() =>
+        {
+            persist_cancelled_result(CancelledSubmitResult {
+                store,
+                idempotency_key,
+                transport_kind: &execution.transport_kind,
+                started_at,
+                finished_at,
+                duration_ms,
+                stdout_tail: &stdout_tail,
+                seq: output_observer.claim_next_seq(),
+            });
+        }
         Err(error) => {
             let stderr_tail = failure_stderr_tail(&error, &stderr_tail);
             if let Err(persist_error) = store.set_result_payload(
@@ -151,10 +167,71 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
         }
     }
 
-    if let Ok(mut guard) = status_state.lock() {
-        guard.finish_job(idempotency_key);
-    } else {
-        tracing::error!("failed to clear active node status entry for submit {idempotency_key}");
+    if let Err(error) = execution.context.finish_active_job(idempotency_key) {
+        tracing::error!(
+            "failed to clear active node status entry for submit {idempotency_key}: {error:#}"
+        );
+    }
+    if let Err(error) = execution
+        .context
+        .unregister_active_execution(idempotency_key)
+    {
+        tracing::error!(
+            "failed to unregister active execution for submit {idempotency_key}: {error:#}"
+        );
+    }
+}
+
+struct CancelledSubmitResult<'a> {
+    store: &'a SubmitAttemptStore,
+    idempotency_key: &'a str,
+    transport_kind: &'a str,
+    started_at: i64,
+    finished_at: i64,
+    duration_ms: i64,
+    stdout_tail: &'a str,
+    seq: u64,
+}
+
+fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
+    let stderr_tail = "task cancelled";
+    if let Err(error) = result.store.set_result_payload(
+        result.idempotency_key,
+        &serde_json::json!({
+            "success": false,
+            "status": "cancelled",
+            "exit_code": serde_json::Value::Null,
+            "started_at": result.started_at,
+            "finished_at": result.finished_at,
+            "duration_ms": result.duration_ms,
+            "transport_kind": result.transport_kind,
+            "sync_mode": "OUTPUTS_AND_LOGS",
+            "outputs": serde_json::json!([]),
+            "stdout_tail": json_tail_value(result.stdout_tail),
+            "stderr_tail": stderr_tail,
+        })
+        .to_string(),
+    ) {
+        tracing::error!(
+            "failed to persist cancelled submit result {}: {error:#}",
+            result.idempotency_key
+        );
+    }
+    if let Err(error) = result.store.append_event(
+        result.idempotency_key,
+        result.seq,
+        &serde_json::json!({
+            "kind": "TASK_CANCELLED",
+            "timestamp_ms": result.finished_at,
+            "success": false,
+            "message": stderr_tail,
+        })
+        .to_string(),
+    ) {
+        tracing::error!(
+            "failed to append TASK_CANCELLED event for submit {}: {error:#}",
+            result.idempotency_key
+        );
     }
 }
 

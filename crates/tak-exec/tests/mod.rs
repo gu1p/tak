@@ -13,6 +13,7 @@ mod module_layout_contract;
 mod no_matching_remote_error_disabled_inventory_contract;
 mod no_matching_remote_error_rejections_contract;
 mod public_exec_api_contract;
+mod remote_cancel_client_behavior;
 mod remote_events_liveness_behavior;
 mod remote_events_polling_behavior;
 mod remote_events_result_probe_behavior;

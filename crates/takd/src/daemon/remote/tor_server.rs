@@ -44,6 +44,7 @@ pub async fn run_remote_v1_tor_hidden_service(
         .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
     let context = remote_node_context_from_env(Some(onion_endpoint.clone()));
     spawn_remote_cleanup_janitor(context.clone(), store.clone());
+    spawn_remote_orphan_watchdog(context.clone());
     tracing::info!("takd remote v1 onion service ready at {}", onion_endpoint);
 
     futures::pin_mut!(rend_requests);

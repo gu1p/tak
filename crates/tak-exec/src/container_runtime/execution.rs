@@ -1,10 +1,7 @@
 use super::*;
 
 pub(super) async fn run_step_in_container(
-    docker: &Docker,
-    engine: ContainerEngine,
-    podman_wait_socket: Option<&str>,
-    image: &str,
+    executor: &ContainerStepExecutor<'_>,
     step: &ContainerStepSpec,
     timeout_s: Option<u64>,
     run_context: &ContainerStepRunContext<'_>,
@@ -22,7 +19,7 @@ pub(super) async fn run_step_in_container(
         .collect::<Vec<_>>();
 
     let config = ContainerConfig {
-        image: Some(image.to_string()),
+        image: Some(executor.image.to_string()),
         cmd: Some(step.argv.clone()),
         env: Some(env),
         working_dir: Some(step.cwd.to_string_lossy().to_string()),
@@ -37,7 +34,8 @@ pub(super) async fn run_step_in_container(
         ..Default::default()
     };
 
-    let created = docker
+    let created = executor
+        .docker
         .create_container(
             Some(CreateContainerOptions {
                 name: container_name.as_str(),
@@ -48,12 +46,13 @@ pub(super) async fn run_step_in_container(
         .await
         .context("infra error: container lifecycle start failed: create container failed")?;
     let container_id = created.id;
-    docker
+    executor
+        .docker
         .start_container(&container_id, None::<StartContainerOptions<String>>)
         .await
         .context("infra error: container lifecycle start failed: start container failed")?;
     let log_task = spawn_container_log_task(
-        docker.clone(),
+        executor.docker.clone(),
         container_id.clone(),
         run_context.task_label.clone(),
         run_context.task_run_id.to_string(),
@@ -61,30 +60,63 @@ pub(super) async fn run_step_in_container(
         run_context.output_observer.cloned(),
     );
 
-    let wait_result =
-        wait_for_container_exit_code(docker, engine, podman_wait_socket, &container_id);
-    let status = if let Some(seconds) = timeout_s {
-        match tokio::time::timeout(Duration::from_secs(seconds), wait_result).await {
-            Ok(result) => result?,
-            Err(_) => {
-                let _ = cleanup_container(docker, &container_id).await;
-                let _ = finish_container_log_task(log_task).await;
-                return Ok(StepRunResult {
-                    success: false,
-                    exit_code: None,
-                });
-            }
+    let status = wait_for_container_step(
+        executor.docker,
+        executor.engine,
+        executor.podman_wait_socket,
+        &container_id,
+        timeout_s,
+        run_context.cancellation,
+    )
+    .await;
+    let status = match status {
+        Ok(Some(status)) => status,
+        Ok(None) => {
+            let _ = cleanup_container(executor.docker, &container_id).await;
+            let _ = finish_container_log_task(log_task).await;
+            return Ok(StepRunResult {
+                success: false,
+                exit_code: None,
+            });
         }
-    } else {
-        wait_result.await?
+        Err(err) => {
+            let _ = cleanup_container(executor.docker, &container_id).await;
+            let _ = finish_container_log_task(log_task).await;
+            return Err(err);
+        }
     };
     finish_container_log_task(log_task).await?;
 
-    let _ = cleanup_container(docker, &container_id).await;
+    let _ = cleanup_container(executor.docker, &container_id).await;
     Ok(StepRunResult {
         success: status == 0,
         exit_code: Some(status),
     })
+}
+
+async fn wait_for_container_step(
+    docker: &Docker,
+    engine: ContainerEngine,
+    podman_wait_socket: Option<&str>,
+    container_id: &str,
+    timeout_s: Option<u64>,
+    cancellation: &RunCancellation,
+) -> Result<Option<i32>> {
+    let wait = wait_for_container_exit_code(docker, engine, podman_wait_socket, container_id);
+    tokio::pin!(wait);
+    if let Some(seconds) = timeout_s {
+        let timeout = tokio::time::sleep(Duration::from_secs(seconds));
+        tokio::pin!(timeout);
+        return tokio::select! {
+            result = &mut wait => Ok(Some(result?)),
+            _ = &mut timeout => Ok(None),
+            _ = cancellation.cancelled() => Err(crate::engine::cancelled_error()),
+        };
+    }
+    tokio::select! {
+        result = &mut wait => Ok(Some(result?)),
+        _ = cancellation.cancelled() => Err(crate::engine::cancelled_error()),
+    }
 }
 
 async fn wait_for_container_exit_code(

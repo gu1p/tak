@@ -5,6 +5,7 @@ fn execute_remote_worker_submit(
     image_cache: Option<&super::types::RemoteImageCacheRuntimeConfig>,
     payload: &RemoteWorkerSubmitPayload,
     output_observer: Arc<dyn TaskOutputObserver>,
+    cancellation: &tak_runner::RunCancellation,
 ) -> Result<(
     tak_runner::RemoteWorkerExecutionResult,
     Vec<RemoteWorkerOutputRecord>,
@@ -24,20 +25,23 @@ fn execute_remote_worker_submit(
             .context("failed to create tokio runtime for remote worker execution")?;
         let task_label = parse_label(&payload.task_label, "//")
             .map_err(|err| anyhow!("invalid submit task label {}: {err}", payload.task_label))?;
-        let result = runtime.block_on(execute_remote_worker_steps_with_output(
-            &execution_root,
-            &RemoteWorkerExecutionSpec {
-                task_label,
-                attempt: payload.attempt,
-                steps: payload.steps.clone(),
-                timeout_s: payload.timeout_s,
-                runtime: payload.runtime.clone(),
-                node_id: selected_node_id.to_string(),
-                container_user: remote_container_user(),
-                image_cache: image_cache.map(image_cache_options),
-            },
-            Some(output_observer),
-        ))?;
+        let result = runtime.block_on(
+            execute_remote_worker_steps_with_output_and_cancellation(
+                &execution_root,
+                &RemoteWorkerExecutionSpec {
+                    task_label,
+                    attempt: payload.attempt,
+                    steps: payload.steps.clone(),
+                    timeout_s: payload.timeout_s,
+                    runtime: payload.runtime.clone(),
+                    node_id: selected_node_id.to_string(),
+                    container_user: remote_container_user(),
+                    image_cache: image_cache.map(image_cache_options),
+                },
+                Some(output_observer),
+                cancellation,
+            ),
+        )?;
         let outputs = collect_declared_remote_worker_outputs(
             &execution_root,
             &payload.outputs,

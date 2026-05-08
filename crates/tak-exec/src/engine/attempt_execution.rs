@@ -3,11 +3,15 @@ use std::path::Path;
 use anyhow::{Result, anyhow};
 use tak_core::model::ResolvedTask;
 
-use super::{PlacementMode, RemoteLogChunk, SyncedOutput, TaskOutputObserver, TaskStatusPhase};
+use super::{
+    PlacementMode, RemoteLogChunk, RunCancellation, SyncedOutput, TaskOutputObserver,
+    TaskStatusPhase,
+};
 
 use crate::step_runner::StepRunResult;
 
 use super::output_observer::emit_task_status_message;
+use super::protocol_cancel::remote_protocol_cancel;
 use super::protocol_events::remote_protocol_events;
 use super::protocol_result_http::remote_protocol_result;
 use super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement};
@@ -25,6 +29,7 @@ pub(crate) struct AttemptExecutionContext<'a> {
     pub(crate) task_run_id: &'a str,
     pub(crate) attempt: u32,
     pub(crate) output_observer: Option<&'a std::sync::Arc<dyn TaskOutputObserver>>,
+    pub(crate) cancellation: &'a RunCancellation,
 }
 
 pub(crate) struct AttemptExecutionOutcome {
@@ -49,6 +54,7 @@ pub(crate) async fn execute_task_attempt(
             context.attempt,
             context.task_run_id,
             context.output_observer,
+            context.cancellation,
         )
         .await
     } else {
@@ -71,14 +77,21 @@ pub(crate) async fn execute_task_attempt(
                     context.task.label
                 )
             })?;
-        let (remote_logs, protocol_result) = remote_protocol_events(
+        let events = remote_protocol_events(
             target,
             context.task_run_id,
             &context.task.label,
             context.attempt,
             context.output_observer,
-        )
-        .await?;
+        );
+        tokio::pin!(events);
+        let (remote_logs, protocol_result) = tokio::select! {
+            result = &mut events => result?,
+            _ = context.cancellation.cancelled() => {
+                let _ = remote_protocol_cancel(target, context.task_run_id, context.attempt).await;
+                return Err(super::cancellation::cancelled_error());
+            }
+        };
         let result = match protocol_result {
             Some(result) => result,
             None => remote_protocol_result(target, context.task_run_id, context.attempt).await?,

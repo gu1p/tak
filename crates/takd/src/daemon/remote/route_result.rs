@@ -28,7 +28,10 @@ pub(super) fn handle_remote_result_route(
         .get("success")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
-    let status = if success { "success" } else { "failure" };
+    let status = payload_value
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(if success { "success" } else { "failure" });
     let node_id = store
         .selected_node_id_for_submit(&key)?
         .unwrap_or_else(|| "unknown".to_string());

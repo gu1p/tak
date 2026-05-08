@@ -6,6 +6,7 @@ use serde::Serialize;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef};
 use tak_proto::{NodeInfo, NodeStatusResponse};
 
+use super::active_executions::SharedActiveExecutions;
 use super::execution_root::remote_execution_root_base;
 use super::runtime::RemoteRuntimeConfig;
 use super::runtime_state::RemoteRuntimeState;
@@ -81,6 +82,7 @@ pub struct RemoteNodeContext {
     node: Arc<Mutex<NodeInfo>>,
     pub bearer_token: String,
     status_state: SharedNodeStatusState,
+    active_executions: SharedActiveExecutions,
     runtime_state: Arc<RemoteRuntimeState>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
     state_root: Option<PathBuf>,
@@ -92,6 +94,7 @@ impl RemoteNodeContext {
             node: Arc::new(Mutex::new(node)),
             bearer_token,
             status_state: new_shared_node_status_state(),
+            active_executions: SharedActiveExecutions::default(),
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
             image_cache: None,
             state_root: None,
@@ -164,6 +167,41 @@ impl RemoteNodeContext {
             .map_err(|_| anyhow!("node status state lock poisoned"))?;
         guard.finish_job(idempotency_key);
         Ok(())
+    }
+
+    pub(crate) fn register_active_execution(
+        &self,
+        idempotency_key: String,
+        task_run_id: &str,
+        attempt: u32,
+    ) -> Result<tak_runner::RunCancellation> {
+        self.active_executions
+            .register(idempotency_key, task_run_id, attempt)
+    }
+
+    pub(crate) fn unregister_active_execution(&self, idempotency_key: &str) -> Result<()> {
+        self.active_executions.unregister(idempotency_key)
+    }
+
+    pub(crate) fn cancel_active_task(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+    ) -> Result<bool> {
+        self.active_executions.cancel_task(task_run_id, attempt)
+    }
+
+    pub(crate) fn refresh_active_client(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+    ) -> Result<()> {
+        self.active_executions.refresh_client(task_run_id, attempt)
+    }
+
+    pub(crate) fn cancel_stale_active_executions(&self) -> Result<Vec<String>> {
+        self.active_executions
+            .cancel_stale(self.runtime_config().remote_client_stale_ttl())
     }
 
     pub(crate) fn node_status(&self) -> Result<NodeStatusResponse> {

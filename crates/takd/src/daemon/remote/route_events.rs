@@ -3,6 +3,7 @@ use base64::Engine;
 use tak_proto::{PollTaskEventsResponse, RemoteEvent};
 
 pub(super) fn handle_remote_events_route(
+    context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
     method: &str,
     path_only: &str,
@@ -16,6 +17,8 @@ pub(super) fn handle_remote_events_route(
     }
 
     let after_seq = query_param_u64(query, "after_seq").unwrap_or(0);
+    let attempt = query_param_u64(query, "attempt").and_then(|value| u32::try_from(value).ok());
+    context.refresh_active_client(task_run_id, attempt)?;
     let key = resolve_submit_idempotency_key_for_task_run(store, task_run_id, query)?;
     let Some(key) = key else {
         return Ok(Some(error_response(404, "task_not_found")));
@@ -35,7 +38,7 @@ pub(super) fn handle_remote_events_route(
             .to_string();
         done |= matches!(
             kind.as_str(),
-            "TASK_COMPLETED" | "TASK_FAILED" | "TASK_TERMINAL"
+            "TASK_COMPLETED" | "TASK_FAILED" | "TASK_TERMINAL" | "TASK_CANCELLED"
         );
         if event.seq <= after_seq {
             continue;

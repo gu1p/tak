@@ -61,6 +61,12 @@ async fn handle_connection(
         "GET" if path.ends_with("/logs") => write_logs_response(&mut stream).await?,
         "POST" if path.ends_with("/wait") => write_wait_response(&mut stream, &state, path).await?,
         "DELETE" if path.contains("/containers/") => {
+            if let Some(container_id) = path
+                .split_once("/containers/")
+                .and_then(|(_, tail)| tail.split('/').next())
+            {
+                state.record_container_removed(container_id);
+            }
             write_empty_response(&mut stream, "204 No Content").await?
         }
         _ => write_response(&mut stream, "404 Not Found", "text/plain", b"not found").await?,

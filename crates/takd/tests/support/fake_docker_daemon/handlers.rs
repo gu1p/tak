@@ -70,14 +70,11 @@ pub(super) async fn write_wait_response(
     state: &FakeDockerDaemonState,
     path: &str,
 ) -> io::Result<()> {
-    let wait_delay = state.wait_response_delay;
-    if !wait_delay.is_zero() {
-        tokio::time::sleep(wait_delay).await;
-    }
     let container_id = path
         .split_once("/containers/")
         .and_then(|(_, tail)| tail.split('/').next())
         .unwrap_or_default();
+    state.wait_for_exit_or_remove(container_id).await;
     let body = format!(
         r#"{{"StatusCode":{}}}"#,
         state.container_exit_code(container_id)

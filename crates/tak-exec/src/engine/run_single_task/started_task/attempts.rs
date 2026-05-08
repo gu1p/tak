@@ -84,6 +84,7 @@ async fn submit_remote_attempt_if_needed(
             session: context.session,
         },
         options.output_observer.as_ref(),
+        &options.cancellation,
     )
     .await
 }
@@ -106,6 +107,7 @@ async fn run_one_attempt(
         task_run_id: context.task_run_id,
         attempt,
         output_observer: options.output_observer.as_ref(),
+        cancellation: &options.cancellation,
     };
     let lease_id = acquire_task_lease(task, attempt, options, lease_context).await?;
     let attempt_result = execute_task_attempt(&attempt_context).await;

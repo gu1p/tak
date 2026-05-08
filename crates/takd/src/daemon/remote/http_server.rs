@@ -12,6 +12,7 @@ pub async fn run_remote_v1_http_server(
     context: RemoteNodeContext,
 ) -> Result<()> {
     spawn_remote_cleanup_janitor(context.clone(), store.clone());
+    spawn_remote_orphan_watchdog(context.clone());
     loop {
         let (stream, _) = listener.accept().await.context("accept failed")?;
         let store = store.clone();

@@ -38,9 +38,13 @@ pub(crate) async fn resolve_attempt_submit_state(
     placement: &mut TaskPlacement,
     submit: AttemptSubmitState<'_>,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    cancellation: &super::RunCancellation,
 ) -> Result<()> {
     if placement.placement_mode != PlacementMode::Remote {
         return Ok(());
+    }
+    if cancellation.is_cancelled() {
+        return Err(super::cancelled_error());
     }
     refresh_remote_target_for_attempt(
         task,

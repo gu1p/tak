@@ -32,7 +32,7 @@ pub fn handle_remote_v1_request(
         return handle_remote_submit_route(context, store, body);
     }
 
-    if let Some(response) = handle_remote_events_route(store, &method, path_only, query)? {
+    if let Some(response) = handle_remote_events_route(context, store, &method, path_only, query)? {
         return Ok(response);
     }
     if let Some(response) = handle_remote_outputs_route(context, store, &method, path_only, query)?
@@ -43,7 +43,7 @@ pub fn handle_remote_v1_request(
         return Ok(response);
     }
 
-    if let Some(response) = handle_remote_cancel_route(&method, path_only) {
+    if let Some(response) = handle_remote_cancel_route(context, &method, path_only, query) {
         return Ok(response);
     }
 

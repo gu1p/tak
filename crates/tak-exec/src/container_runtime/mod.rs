@@ -17,7 +17,8 @@ use tak_core::model::{ResolvedTask, StepDef, TaskLabel};
 use uuid::Uuid;
 
 use crate::container_engine::ContainerEngine;
-use crate::step_runner::{StepRunResult, resolve_cwd};
+use crate::engine::RunCancellation;
+use crate::step_runner::{StepRunContext, StepRunResult, resolve_cwd};
 use crate::{ContainerExecutionPlan, OutputStream, TaskOutputObserver};
 
 mod build_context;
@@ -49,45 +50,55 @@ struct ContainerStepRunContext<'a> {
     attempt: u32,
     output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
     container_user: Option<&'a str>,
+    cancellation: &'a RunCancellation,
+}
+
+struct ContainerStepExecutor<'a> {
+    docker: &'a Docker,
+    engine: ContainerEngine,
+    podman_wait_socket: Option<&'a str>,
+    image: &'a str,
 }
 
 pub(crate) async fn run_task_steps_in_container(
     task: &ResolvedTask,
-    workspace_root: &Path,
     plan: &ContainerExecutionPlan,
-    runtime_env: Option<&BTreeMap<String, String>>,
-    attempt: u32,
-    task_run_id: &str,
-    output_observer: Option<&Arc<dyn TaskOutputObserver>>,
+    context: StepRunContext<'_>,
 ) -> Result<StepRunResult> {
     let client = connect_container_engine(plan.engine).await?;
     let run_context = ContainerStepRunContext {
-        workspace_root,
-        task_label: &task.label,
-        task_run_id,
-        attempt,
-        output_observer,
+        workspace_root: context.workspace_root,
+        task_label: context.task_label,
+        task_run_id: context.task_run_id,
+        attempt: context.attempt,
+        output_observer: context.output_observer,
         container_user: plan.container_user.as_deref(),
+        cancellation: context.cancellation,
     };
-    ensure_container_runtime_source(&client.docker, workspace_root, plan, &run_context).await?;
+    let executor = ContainerStepExecutor {
+        docker: &client.docker,
+        engine: plan.engine,
+        podman_wait_socket: client.podman_wait_socket.as_deref(),
+        image: &plan.image,
+    };
+    tokio::select! {
+        result = ensure_container_runtime_source(executor.docker, context.workspace_root, plan, &run_context) => result?,
+        _ = context.cancellation.cancelled() => return Err(crate::engine::cancelled_error()),
+    }
 
     for step in &task.steps {
-        let mut step_spec = build_container_step_spec(step, workspace_root, runtime_env)?;
+        if context.cancellation.is_cancelled() {
+            return Err(crate::engine::cancelled_error());
+        }
+        let mut step_spec =
+            build_container_step_spec(step, context.workspace_root, context.runtime_env)?;
         apply_container_user_defaults(
             &mut step_spec,
-            workspace_root,
+            context.workspace_root,
             plan.container_user.as_deref(),
         );
-        let status = run_step_in_container(
-            &client.docker,
-            plan.engine,
-            client.podman_wait_socket.as_deref(),
-            &plan.image,
-            &step_spec,
-            task.timeout_s,
-            &run_context,
-        )
-        .await?;
+        let status =
+            run_step_in_container(&executor, &step_spec, task.timeout_s, &run_context).await?;
         if !status.success {
             return Ok(status);
         }

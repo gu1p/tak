@@ -7,6 +7,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 use std::time::Duration;
+use tokio::sync::Notify;
 
 use super::CreateRecord;
 
@@ -20,6 +21,8 @@ pub(super) struct FakeDockerDaemonState {
     present_images: Mutex<BTreeSet<String>>,
     create_records: Mutex<Vec<CreateRecord>>,
     container_exit_codes: Mutex<BTreeMap<String, i64>>,
+    removed_containers: Mutex<Vec<String>>,
+    remove_notify: Notify,
 }
 
 impl FakeDockerDaemonState {
@@ -44,6 +47,8 @@ impl FakeDockerDaemonState {
             present_images: Mutex::new(present_images),
             create_records: Mutex::new(Vec::new()),
             container_exit_codes: Mutex::new(BTreeMap::new()),
+            removed_containers: Mutex::new(Vec::new()),
+            remove_notify: Notify::new(),
         }
     }
 
@@ -56,6 +61,41 @@ impl FakeDockerDaemonState {
 
     pub(super) fn pull_count(&self) -> u64 {
         self.pull_count.load(Ordering::SeqCst)
+    }
+    pub(super) fn removed_containers(&self) -> Vec<String> {
+        self.removed_containers
+            .lock()
+            .expect("removed containers lock")
+            .clone()
+    }
+    pub(super) fn record_container_removed(&self, container_id: &str) {
+        self.removed_containers
+            .lock()
+            .expect("removed containers lock")
+            .push(container_id.to_string());
+        self.remove_notify.notify_waiters();
+    }
+    pub(super) async fn wait_for_exit_or_remove(&self, container_id: &str) {
+        if self.wait_response_delay.is_zero() {
+            return;
+        }
+        let sleep = tokio::time::sleep(self.wait_response_delay);
+        tokio::pin!(sleep);
+        loop {
+            if self
+                .removed_containers
+                .lock()
+                .expect("removed containers lock")
+                .iter()
+                .any(|removed| removed == container_id)
+            {
+                return;
+            }
+            tokio::select! {
+                _ = &mut sleep => return,
+                _ = self.remove_notify.notified() => {}
+            }
+        }
     }
     pub(super) fn daemon_arch(&self) -> &str {
         &self.daemon_arch

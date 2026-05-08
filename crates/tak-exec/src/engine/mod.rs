@@ -6,6 +6,7 @@ use tak_core::model::ResolvedTask;
 mod attempt_execution;
 mod attempt_placement;
 mod attempt_submit;
+mod cancellation;
 mod lease_context;
 mod output_observer;
 mod placement;
@@ -14,6 +15,7 @@ mod placement_session;
 pub(crate) mod preflight_failure;
 pub(crate) mod preflight_fallback;
 mod preflight_status_output;
+mod protocol_cancel;
 mod protocol_detection;
 mod protocol_events;
 pub(crate) mod protocol_result_http;
@@ -50,6 +52,7 @@ mod workspace_outputs;
 mod workspace_stage;
 mod workspace_sync;
 
+pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
 pub use public_types::{
     ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk, RemoteWorkerExecutionResult,
     RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput, TaskFinishedEvent,
@@ -61,9 +64,14 @@ pub use remote_diagnostics::{
     RemotePreflightExhaustedError, RemotePreflightFailure, RemotePreflightFailureKind,
     RequiredRemoteDiagnostic,
 };
-pub use remote_worker::{execute_remote_worker_steps, execute_remote_worker_steps_with_output};
+pub use remote_worker::{
+    execute_remote_worker_steps, execute_remote_worker_steps_with_cancellation,
+    execute_remote_worker_steps_with_output,
+    execute_remote_worker_steps_with_output_and_cancellation,
+};
 pub use run_tasks::run_tasks;
 
+pub(crate) use cancellation::cancelled_error;
 pub(crate) use lease_context::LeaseContext;
 pub(crate) use output_observer::{emit_task_finished, emit_task_output, emit_task_started};
 pub(crate) use remote_http_exchange_error::{RemoteHttpExchangeError, RemoteHttpExchangeErrorKind};

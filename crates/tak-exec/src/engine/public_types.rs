@@ -3,6 +3,8 @@ use std::path::PathBuf;
 
 use tak_core::model::{RemoteRuntimeSpec, StepDef, TaskLabel};
 
+use super::cancellation::RunCancellation;
+
 mod observer;
 
 pub use observer::{
@@ -20,6 +22,7 @@ pub struct RunOptions {
     pub session_id: Option<String>,
     pub user: Option<String>,
     pub output_observer: Option<std::sync::Arc<dyn TaskOutputObserver>>,
+    pub cancellation: RunCancellation,
 }
 
 impl std::fmt::Debug for RunOptions {
@@ -32,6 +35,7 @@ impl std::fmt::Debug for RunOptions {
             .field("lease_poll_interval_ms", &self.lease_poll_interval_ms)
             .field("session_id", &self.session_id)
             .field("user", &self.user)
+            .field("cancellation", &self.cancellation)
             .field(
                 "output_observer",
                 &self.output_observer.as_ref().map(|_| "configured"),
@@ -59,6 +63,7 @@ impl Default for RunOptions {
             session_id: None,
             user: None,
             output_observer: None,
+            cancellation: RunCancellation::default(),
         }
     }
 }

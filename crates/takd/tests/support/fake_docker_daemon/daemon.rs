@@ -49,6 +49,10 @@ impl FakeDockerDaemon {
     pub fn pull_count(&self) -> u64 {
         self.state.pull_count()
     }
+
+    pub fn removed_containers(&self) -> Vec<String> {
+        self.state.removed_containers()
+    }
 }
 
 impl Drop for FakeDockerDaemon {

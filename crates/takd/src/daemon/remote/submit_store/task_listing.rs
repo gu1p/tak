@@ -110,14 +110,30 @@ fn task_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SubmitAtte
         })?,
         task_label: row.get(2)?,
         selected_node_id: row.get(3)?,
-        state: if result_payload.is_some() {
-            "completed".to_string()
-        } else {
-            "active".to_string()
-        },
+        state: task_state(result_payload.as_deref()),
         created_at_ms: row.get(4)?,
         finished_at_ms,
     })
+}
+
+fn task_state(result_payload: Option<&str>) -> String {
+    let Some(payload) = result_payload else {
+        return "active".to_string();
+    };
+    if serde_json::from_str::<serde_json::Value>(payload)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("status")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .as_deref()
+        == Some("cancelled")
+    {
+        return "cancelled".to_string();
+    }
+    "completed".to_string()
 }
 
 fn result_finished_at_ms(payload: &str) -> Option<i64> {
