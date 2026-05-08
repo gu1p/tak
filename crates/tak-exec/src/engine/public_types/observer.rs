@@ -41,6 +41,12 @@ pub struct TaskStatusEvent {
 pub struct TaskStartedEvent {
     pub task_run_id: String,
     pub task_label: TaskLabel,
+    pub placement_mode: PlacementMode,
+    pub remote_node_id: Option<String>,
+    pub origin: Option<String>,
+    pub runtime: Option<String>,
+    pub runtime_source: Option<String>,
+    pub command: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

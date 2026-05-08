@@ -9,6 +9,7 @@ use super::{
 
 use crate::lease_client::{acquire_task_lease, release_task_lease};
 use crate::retry::{retry_backoff_delay, should_retry};
+use crate::task_run_metadata::task_run_metadata_for_placement;
 
 use super::attempt_execution::{AttemptExecutionContext, execute_task_attempt};
 use super::attempt_placement::preflight_task_placement;
@@ -41,13 +42,6 @@ pub(crate) async fn run_single_task(
     let mut attempt = 0;
     let task_run_id = Uuid::new_v4().to_string();
     let task_label = task.label.to_string();
-    emit_task_started(
-        options.output_observer.as_ref(),
-        TaskStartedEvent {
-            task_run_id: task_run_id.clone(),
-            task_label: task.label.clone(),
-        },
-    )?;
     let mut placement = if let Some(placement) = placement_override {
         placement
     } else {
@@ -60,6 +54,20 @@ pub(crate) async fn run_single_task(
         )
         .await?
     };
+    let metadata = task_run_metadata_for_placement(task, &placement);
+    emit_task_started(
+        options.output_observer.as_ref(),
+        TaskStartedEvent {
+            task_run_id: task_run_id.clone(),
+            task_label: task.label.clone(),
+            placement_mode: placement.placement_mode,
+            remote_node_id: placement.remote_node_id.clone(),
+            origin: Some(metadata.origin),
+            runtime: metadata.runtime,
+            runtime_source: metadata.runtime_source,
+            command: metadata.command,
+        },
+    )?;
     let runtime_metadata = resolve_initial_runtime_metadata(task, &mut placement).await?;
     let remote_stage_task = task_with_session_context(task, placement.session.as_ref());
     let stage_task = remote_stage_task.as_ref().unwrap_or(task);

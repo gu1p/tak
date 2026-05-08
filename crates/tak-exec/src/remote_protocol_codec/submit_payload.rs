@@ -13,7 +13,7 @@ use tak_proto::{
 
 use crate::{
     OutputStream, ParsedRemoteEvents, RemoteLogChunk, RemoteWorkspaceStage, StrictRemoteTarget,
-    SyncedOutput,
+    SyncedOutput, task_run_metadata::task_run_metadata_for_runtime,
 };
 
 pub(crate) fn build_remote_submit_payload(
@@ -25,6 +25,7 @@ pub(crate) fn build_remote_submit_payload(
     session: Option<&crate::engine::session_workspaces::PreparedTaskSession>,
 ) -> Result<SubmitTaskRequest> {
     let _ = &remote_workspace.manifest_hash;
+    let metadata = task_run_metadata_for_runtime(task, target.runtime.as_ref());
     Ok(SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt,
@@ -42,6 +43,9 @@ pub(crate) fn build_remote_submit_payload(
         needs: task.needs.iter().map(need_submit_value).collect(),
         outputs: task.outputs.iter().map(output_selector_submit_value).collect(),
         session: session.map(session_submit_value),
+        origin: Some(metadata.origin),
+        runtime_source: metadata.runtime_source,
+        command: metadata.command,
     })
 }
 

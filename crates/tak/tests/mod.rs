@@ -1,5 +1,6 @@
 mod architecture_doc_contract;
 mod daemon_surface_contract;
+mod docker_cli_contract;
 mod docs_catalog_contract;
 mod docs_dump_contract;
 mod docs_dump_source_contract;

@@ -12,7 +12,7 @@ use crate::cli::remote_probe_support::transport::{
 use super::http::fetch_status_once;
 use super::{RemoteRecord, RemoteStatusResult};
 
-pub(super) async fn fetch_snapshot(remotes: &[RemoteRecord]) -> Vec<RemoteStatusResult> {
+pub(in crate::cli) async fn fetch_snapshot(remotes: &[RemoteRecord]) -> Vec<RemoteStatusResult> {
     let mut results = join_all(remotes.iter().map(fetch_remote_status_result)).await;
     results.sort_unstable_by(|left, right| left.remote.node_id.cmp(&right.remote.node_id));
     results

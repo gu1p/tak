@@ -49,11 +49,8 @@ impl TaskOutputObserver for HistoryOutputObserver {
             .history_lock
             .lock()
             .map_err(|_| anyhow!("task history lock poisoned"))?;
-        self.store.record_started(
-            &event.task_run_id,
-            &canonical_task_label(&event.task_label),
-            1,
-        )
+        self.store
+            .record_started_event(&event, &canonical_task_label(&event.task_label))
     }
 
     fn observe_task_finished(&self, event: TaskFinishedEvent) -> Result<()> {

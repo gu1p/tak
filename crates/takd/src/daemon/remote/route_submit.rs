@@ -45,12 +45,17 @@ pub(super) fn handle_remote_submit_route(
         context.register_active_job(
             idempotency_key.clone(),
             super::status_state::ActiveJobMetadata::new(
-                task_run_id,
-                payload.attempt,
-                &payload.task_label,
-                &payload.needs,
-                payload.runtime.as_ref().and_then(runtime_label),
-                execution_root,
+                super::status_state::ActiveJobMetadataInput {
+                    task_run_id,
+                    attempt: payload.attempt,
+                    task_label: &payload.task_label,
+                    needs: &payload.needs,
+                    runtime: payload.runtime.as_ref().and_then(runtime_label),
+                    origin: payload.origin.clone(),
+                    runtime_source: payload.runtime_source.clone(),
+                    command: payload.command.clone(),
+                    execution_root,
+                },
             ),
         )?;
         let execution = RemoteWorkerSubmitExecution {

@@ -63,6 +63,9 @@ pub fn submit_shell_task_with_outputs(
         needs: Vec::new(),
         outputs,
         session: None,
+        origin: Some("task".into()),
+        runtime_source: Some("image:alpine:3.20".into()),
+        command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
     };
     let submit = handle_remote_v1_request(
         context,

@@ -13,6 +13,8 @@ mod render;
 use fetch::fetch_snapshot;
 use render::render_snapshot;
 
+pub(super) use fetch::fetch_snapshot as fetch_remote_status_snapshot;
+
 pub(super) async fn run_remote_status(
     node_filters: &[String],
     watch: bool,

@@ -5,6 +5,10 @@ CREATE TABLE IF NOT EXISTS task_runs (
     state TEXT NOT NULL,
     placement TEXT NOT NULL DEFAULT 'unknown',
     remote_node_id TEXT NOT NULL DEFAULT '',
+    origin TEXT NOT NULL DEFAULT 'task',
+    runtime TEXT NOT NULL DEFAULT '',
+    runtime_source TEXT NOT NULL DEFAULT '',
+    command TEXT NOT NULL DEFAULT '',
     started_at_ms INTEGER NOT NULL,
     finished_at_ms INTEGER
 );

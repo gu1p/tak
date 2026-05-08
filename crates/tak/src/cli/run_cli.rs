@@ -15,6 +15,16 @@ use remote::run_remote_command;
 pub async fn run_cli() -> Result<ExitCode> {
     tak_core::crypto_provider::ensure_rustls_crypto_provider();
     let cli = Cli::parse();
+    let selectors = DockerCliSelectors {
+        local: cli.local,
+        node: cli.node,
+        arch: cli.arch,
+        os: cli.os,
+        pool: cli.pool,
+        tags: cli.tags,
+        capabilities: cli.capabilities,
+        transport: cli.transport,
+    };
 
     match cli.command {
         Commands::List => {
@@ -131,6 +141,9 @@ pub async fn run_cli() -> Result<ExitCode> {
                 container_build_context,
             })
             .await?;
+        }
+        Commands::Docker { argv } => {
+            return run_docker_command(selectors, argv).await;
         }
         Commands::Remote { command } => run_remote_command(command).await?,
         Commands::Task { command } => match command {

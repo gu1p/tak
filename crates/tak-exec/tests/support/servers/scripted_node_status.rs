@@ -37,6 +37,9 @@ pub(super) fn node_status(node_id: &str, port: u16) -> NodeStatusResponse {
             needs: Vec::new(),
             execution_root_bytes: 256,
             runtime: Some("containerized".into()),
+            origin: Some("task".into()),
+            runtime_source: Some("image:alpine:3.20".into()),
+            command: Some("sleep 30".into()),
         }],
         image_cache: None,
     }

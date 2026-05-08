@@ -62,6 +62,9 @@ pub fn submit_container_task(
         needs: Vec::new(),
         outputs: Vec::new(),
         session: None,
+        origin: Some("task".into()),
+        runtime_source: Some("image:alpine:3.20".into()),
+        command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
     };
     let submit = handle_remote_v1_request(
         context,
