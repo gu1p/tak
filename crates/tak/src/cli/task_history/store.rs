@@ -6,7 +6,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, anyhow, bail};
 use rusqlite::{Connection, params};
 
+mod active;
 mod write;
+
+pub(in crate::cli) use active::ActiveTaskRow;
 
 #[derive(Clone)]
 pub(in crate::cli) struct TaskHistoryStore {
@@ -20,17 +23,6 @@ pub(super) struct TaskHistoryRow {
     pub(super) state: String,
     pub(super) placement: String,
     pub(super) remote_node_id: String,
-}
-
-pub(in crate::cli) struct ActiveContainerRow {
-    pub(in crate::cli) task_run_id: String,
-    pub(in crate::cli) task_label: String,
-    pub(in crate::cli) attempts: u32,
-    pub(in crate::cli) origin: String,
-    pub(in crate::cli) runtime: String,
-    pub(in crate::cli) runtime_source: String,
-    pub(in crate::cli) command: String,
-    pub(in crate::cli) started_at_ms: i64,
 }
 
 pub(super) struct TaskOutputRow {
@@ -88,34 +80,6 @@ impl TaskHistoryStore {
             Ok(TaskOutputRow {
                 stream: row.get(0)?,
                 bytes: row.get(1)?,
-            })
-        })?;
-        collect_rows(rows)
-    }
-
-    pub(in crate::cli) fn active_container_runs(&self) -> Result<Vec<ActiveContainerRow>> {
-        let conn = self.open_connection()?;
-        let mut stmt = conn.prepare(
-            "
-            SELECT task_run_id, task_label, attempts, origin, runtime, runtime_source, command, started_at_ms
-            FROM task_runs
-            WHERE state = 'active'
-              AND placement = 'local'
-              AND runtime = 'containerized'
-            ORDER BY started_at_ms DESC, task_run_id ASC
-            ",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            let attempts = row.get::<_, i64>(2)?;
-            Ok(ActiveContainerRow {
-                task_run_id: row.get(0)?,
-                task_label: row.get(1)?,
-                attempts: u32::try_from(attempts).unwrap_or(u32::MAX),
-                origin: row.get(3)?,
-                runtime: row.get(4)?,
-                runtime_source: row.get(5)?,
-                command: row.get(6)?,
-                started_at_ms: row.get(7)?,
             })
         })?;
         collect_rows(rows)

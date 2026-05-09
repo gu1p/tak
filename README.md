@@ -69,7 +69,9 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `--keep-going`
   - Continue independent tasks even after one target fails.
 - `tak status`
-  - Report coordination status when supported; the current client-only build returns an unsupported error.
+  - Show local task/container/resource status plus configured remote node status.
+- `tak local status`
+  - Show local active tasks, containerized runs, CPU, RAM, storage, and optional local daemon lease status.
 - `tak remote add <token>`
   - Import a secret `takd` agent invite/token into local client config.
 - `tak remote add`
@@ -83,9 +85,9 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `tak remote list`
   - Show configured remote agents in client priority order.
 - `tak remote status`
-  - Show running jobs plus CPU, RAM, and storage usage for configured remote agents.
+  - Show running jobs, containers, CPU, RAM, storage, and image-cache usage for configured remote agents.
 - `tak remote status --watch --interval-ms <N>`
-  - Refresh remote node status continuously in-place.
+  - Refresh remote node status continuously in a dynamic terminal dashboard.
 - `takd init`
   - Create Tor-first agent identity and hidden-service runtime state.
 - `takd serve`

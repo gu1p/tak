@@ -2,16 +2,26 @@ use std::io::stdout;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
+use crossterm::cursor;
+use crossterm::execute;
+use crossterm::terminal::EnterAlternateScreen;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use ratatui::Terminal;
 use ratatui::backend::{Backend, CrosstermBackend};
 use tokio::time::sleep;
 
+#[path = "live_interrupt.rs"]
+mod interrupt;
+#[path = "live_terminal.rs"]
+mod terminal_cleanup;
+
 use super::fetch::fetch_remote_status_result;
 use super::render::render_dashboard;
 use super::view::RemoteStatusView;
 use super::{RemoteRecord, RemoteStatusResult};
+use interrupt::{InterruptListener, PollOutcome, interruptible, wait_for_next_poll};
+use terminal_cleanup::{TerminalCleanup, finish_terminal};
 
 pub(super) async fn run_remote_status_dashboard(
     remotes: &[RemoteRecord],
@@ -19,21 +29,51 @@ pub(super) async fn run_remote_status_dashboard(
     poll_interval: Duration,
     max_polls: Option<usize>,
 ) -> Result<()> {
-    let backend = CrosstermBackend::new(stdout());
+    let mut interrupt = if watch {
+        Some(InterruptListener::new()?)
+    } else {
+        None
+    };
+    let mut out = stdout();
+    let mut cleanup = if watch {
+        execute!(out, EnterAlternateScreen, cursor::Hide)?;
+        Some(TerminalCleanup::new())
+    } else {
+        None
+    };
+    let backend = CrosstermBackend::new(out);
     let mut terminal = Terminal::new(backend).context("create remote status terminal")?;
     terminal.clear().context("clear remote status terminal")?;
     let color_enabled = color_enabled();
     let mut polls = 0_usize;
 
     loop {
-        let snapshot = fetch_dashboard_poll(
-            remotes,
-            polls.saturating_add(1),
-            watch,
-            &mut terminal,
-            color_enabled,
-        )
-        .await?;
+        let snapshot = if let Some(interrupt) = interrupt.as_mut() {
+            match interruptible(
+                interrupt,
+                fetch_dashboard_poll(
+                    remotes,
+                    polls.saturating_add(1),
+                    watch,
+                    &mut terminal,
+                    color_enabled,
+                ),
+            )
+            .await?
+            {
+                PollOutcome::Completed(snapshot) => snapshot,
+                PollOutcome::Interrupted => return finish_terminal(terminal, cleanup.take()),
+            }
+        } else {
+            fetch_dashboard_poll(
+                remotes,
+                polls.saturating_add(1),
+                watch,
+                &mut terminal,
+                color_enabled,
+            )
+            .await?
+        };
 
         polls = polls.saturating_add(1);
         if !watch {
@@ -43,9 +83,18 @@ pub(super) async fn run_remote_status_dashboard(
             return Ok(());
         }
         if max_polls.is_some_and(|limit| polls >= limit) {
-            return Ok(());
+            return finish_terminal(terminal, cleanup.take());
         }
-        sleep(poll_interval).await;
+        if wait_for_next_poll(
+            interrupt
+                .as_mut()
+                .expect("watch mode installs an interrupt listener"),
+            poll_interval,
+        )
+        .await?
+        {
+            return finish_terminal(terminal, cleanup.take());
+        }
     }
 }
 
@@ -102,3 +151,7 @@ where
 fn color_enabled() -> bool {
     std::env::var_os("NO_COLOR").is_none()
 }
+
+#[cfg(test)]
+#[path = "live_tests.rs"]
+mod live_tests;

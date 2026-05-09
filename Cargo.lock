@@ -5648,6 +5648,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sysinfo 0.36.1",
  "tak-core",
  "tak-exec",
  "tak-loader",

@@ -1,12 +1,15 @@
 #![allow(dead_code)]
 
 use std::fs;
+use std::io::Write;
+use std::net::TcpListener;
 use std::path::Path;
+use std::thread::{self, JoinHandle};
 
 use prost::Message;
 use tak_proto::ImageCacheStatus;
 
-use super::remote_cli::remote_inventory_path;
+use super::remote_cli::{read_request, remote_inventory_path};
 
 #[path = "remote_status/value.rs"]
 mod value;
@@ -31,6 +34,30 @@ pub fn write_inventory_entries(config_root: &Path, remotes: &[(&str, &str, &str,
 
 pub fn status_payload(base_url: &str, with_job: bool) -> Vec<u8> {
     status_payload_for("builder-a", base_url, "direct", with_job)
+}
+
+pub fn spawn_status_server(with_job: bool) -> (String, JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind node status server");
+    let addr = listener.local_addr().expect("listener addr");
+    let base_url = format!("http://{addr}");
+    let server_base_url = base_url.clone();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept status request");
+        let request = read_request(&mut stream);
+        assert!(
+            request.starts_with("GET /v1/node/status HTTP/1.1\r\n"),
+            "unexpected request: {request}"
+        );
+        let body = status_payload(&server_base_url, with_job);
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/x-protobuf\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .expect("write response head");
+        stream.write_all(&body).expect("write response body");
+    });
+    (base_url, server)
 }
 
 pub fn status_payload_with_image_cache(base_url: &str) -> Vec<u8> {

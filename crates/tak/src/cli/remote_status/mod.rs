@@ -17,6 +17,7 @@ use live::run_remote_status_dashboard;
 use render::render_snapshot;
 
 pub(super) use fetch::fetch_snapshot as fetch_remote_status_snapshot;
+pub(super) use render::render_snapshot_with_prefix as render_remote_status_snapshot_with_prefix;
 
 pub(super) async fn run_remote_status(
     node_filters: &[String],

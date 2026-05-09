@@ -32,6 +32,7 @@ pub mod root_task_contracts;
 pub mod run;
 pub mod streaming;
 pub mod takd_binary;
+pub mod task_history;
 pub mod tasks;
 pub mod tor_probe_env;
 pub mod tor_smoke;

@@ -31,8 +31,18 @@ fn dashboard_renders_progress_rows_and_active_jobs() {
         "missing active jobs section:\n{text}"
     );
     assert!(
+        text.contains("Containers"),
+        "missing containers section:\n{text}"
+    );
+    assert!(text.contains("CPU"), "missing cpu label:\n{text}");
+    assert!(text.contains("RAM"), "missing ram label:\n{text}");
+    assert!(
         text.contains("//apps/web:build"),
         "missing active job:\n{text}"
+    );
+    assert!(
+        text.contains("command=make build"),
+        "missing command metadata:\n{text}"
     );
 }
 

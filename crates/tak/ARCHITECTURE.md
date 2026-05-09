@@ -33,13 +33,14 @@ High-level flow:
 | `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional guided label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)` | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
 | `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
-| `tak status` | "Is live coordination status available here?" | none in the current client-only build | Returns an unsupported error. |
+| `tak status [--node <id>...] [--watch] [--interval-ms N]` | "What is local Tak doing, and what are my configured remotes doing?" | XDG task history + optional `TAKD_SOCKET` status + `/v1/node/status` per matching remote | Local section plus remote node, container, and active-job sections; watch mode repeats snapshots. |
+| `tak local status [--watch] [--interval-ms N]` | "What is this local Tak client doing?" | XDG task history + local CPU/RAM/storage + optional `TAKD_SOCKET` status | Local resource line plus container and active-job sections. |
 | `tak remote add <token>` | "Add a remote execution agent" | secret invite/token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
 | `tak remote add` | "Add a remote execution agent interactively" | method picker + word/token/secret Tor invite input + probe + confirmation before config write | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote add --words [word...]` | "Add a Tor remote execution agent by manual typing" | provided words stay non-interactive; empty `--words` opens the word-entry TUI; both use the same probe/confirmation/write path as appropriate | `added remote <node_id>`. |
 | `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
 | `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
-| `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each configured remote node doing right now?" | config read + `/v1/node/status` fetch per matching remote | Node summary section plus active-job section; watch mode refreshes the snapshot in place. |
+| `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each configured remote node doing right now?" | config read + `/v1/node/status` fetch per matching remote | Node, container, and active-job sections; terminal watch mode uses a Ratatui dashboard. |
 | `tak remote logs --node <id> [--all|--lines N]` | "What is this remote node's daemon log?" | config read + `/v1/node/logs` fetch | Raw remote service log bytes on stdout. |
 | `tak remote tasks --node <id> [--active] [--limit N]` | "Which task attempts does this remote node know about?" | config read + `/v1/tasks` fetch | `Remote Tasks` section with node, task label, task run id, attempt, and state. |
 | `tak remote task logs --node <id> <task-run-id>` | "What did this task emit on that remote node?" | config read + `/v1/tasks/<id>/events` polling | Remote stdout chunks to stdout and stderr chunks to stderr. |
@@ -93,15 +94,22 @@ High-level flow:
 
 ### `status`
 
-- Returns an unsupported error in the current client-only build.
-- Exists so the CLI surface can reserve the status verb until live coordination status is restored.
+- Combines `tak local status` with remote node snapshots from enabled remotes.
+- Missing local daemon status is reported as `daemon=unavailable` rather than failing the command.
+- Non-terminal output is plain and section-oriented for scripts; terminal remote watch uses Ratatui.
+
+### `local status`
+
+- Reads active local task metadata from `$XDG_STATE_HOME/tak/tasks.sqlite`.
+- Samples local CPU, RAM, and storage through `sysinfo`.
+- Queries the optional local lease daemon through `TAKD_SOCKET` and reports unavailable daemon state as a warning field.
 
 ### `remote status`
 
 - Queries enabled remotes from client inventory, or the selected subset passed via `--node`.
 - Uses remote v1 authenticated HTTP to fetch running jobs and node resource usage.
-- One-shot mode prints a `Nodes` section and an `Active Jobs` section.
-- Watch mode refreshes stdout in place at the requested interval.
+- One-shot mode prints `Nodes`, `Containers`, and `Active Jobs` sections.
+- Terminal watch mode refreshes a Ratatui dashboard at the requested interval and restores the screen on clean interrupt.
 
 ### `remote logs`, `remote tasks`, and `remote task logs`
 

@@ -111,7 +111,7 @@ fn complete_row_summary(result: &RemoteStatusResult) -> RowSummary {
         badge,
         style,
         detail: format!(
-            "{} state={} jobs={} cpu={} ram={} storage={} tak_exec={} image_cache={}{}",
+            "{} state={} jobs={} CPU={} RAM={} storage={} tak_exec={} image_cache={}{}",
             transport,
             state,
             status.active_jobs.len(),

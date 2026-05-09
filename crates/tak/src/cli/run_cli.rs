@@ -146,6 +146,11 @@ pub async fn run_cli() -> Result<ExitCode> {
             return run_docker_command(selectors, argv).await;
         }
         Commands::Remote { command } => run_remote_command(command).await?,
+        Commands::Local { command } => match command {
+            super::command_model::LocalCommands::Status { watch, interval_ms } => {
+                run_local_status(watch, interval_ms).await?;
+            }
+        },
         Commands::Task { command } => match command {
             super::command_model::TaskCommands::List { limit } => {
                 print_task_history(limit)?;
@@ -158,8 +163,12 @@ pub async fn run_cli() -> Result<ExitCode> {
                 print_task_logs(&task_run_id, follow, interval_ms).await?;
             }
         },
-        Commands::Status => {
-            bail!("coordination status is unavailable in this client-only build");
+        Commands::Status {
+            node_ids,
+            watch,
+            interval_ms,
+        } => {
+            run_status(&node_ids, watch, interval_ms).await?;
         }
     }
 

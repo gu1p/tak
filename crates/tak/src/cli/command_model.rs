@@ -139,19 +139,47 @@ pub(super) enum Commands {
         #[command(subcommand)]
         command: RemoteCommands,
     },
+    /// Inspect local execution status on this machine.
+    Local {
+        #[command(subcommand)]
+        command: LocalCommands,
+    },
     /// Inspect task runs initiated by this local Tak client.
     Task {
         #[command(subcommand)]
         command: TaskCommands,
     },
-    /// Report coordination status when the current client build supports it.
-    Status,
+    /// Show local and remote execution status.
+    Status {
+        /// Limit remote status output to these remote node ids.
+        #[arg(long = "node")]
+        node_ids: Vec<String>,
+        /// Keep refreshing the status view until interrupted.
+        #[arg(long, default_value_t = false)]
+        watch: bool,
+        /// Refresh the status snapshot every N milliseconds while watching.
+        #[arg(long, default_value_t = 1000)]
+        interval_ms: u64,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub(super) enum DocsCommands {
     /// Print the source-owned Tak authoring bundle for agents and contributors.
     Dump,
+}
+
+#[derive(Debug, Subcommand)]
+pub(super) enum LocalCommands {
+    /// Show local task, container, resource, and daemon status.
+    Status {
+        /// Keep refreshing the status view until interrupted.
+        #[arg(long, default_value_t = false)]
+        watch: bool,
+        /// Refresh the status snapshot every N milliseconds while watching.
+        #[arg(long, default_value_t = 1000)]
+        interval_ms: u64,
+    },
 }
 
 pub(crate) fn command_tree() -> clap::Command {

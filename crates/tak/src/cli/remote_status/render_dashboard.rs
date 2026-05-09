@@ -5,12 +5,15 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use super::super::view::RemoteStatusView;
 
+#[path = "render_dashboard_containers.rs"]
+mod containers;
 #[path = "render_dashboard_rows.rs"]
 mod rows;
 
 #[cfg(test)]
 use ratatui::buffer::Buffer;
 
+use containers::push_container_lines;
 use rows::{node_line, push_job_lines};
 
 const STYLE_TITLE: Style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
@@ -52,6 +55,13 @@ fn dashboard_lines(view: &RemoteStatusView, color_enabled: bool) -> Vec<Line<'st
     for (index, row) in view.rows().iter().enumerate() {
         lines.push(node_line(index, row, view.tick, color_enabled));
     }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![Span::styled(
+        "Containers",
+        enabled_style(STYLE_TITLE, color_enabled),
+    )]));
+    push_container_lines(&mut lines, view);
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![Span::styled(

@@ -61,8 +61,20 @@ fn remote_status_lists_running_jobs_and_resources() {
         "missing jobs section:\n{stdout}"
     );
     assert!(
+        stdout.contains("Containers"),
+        "missing containers section:\n{stdout}"
+    );
+    assert!(
         stdout.contains("//apps/web:build"),
         "missing active task label:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("command=make build"),
+        "missing active command metadata:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("source=image:alpine:3.20"),
+        "missing runtime source metadata:\n{stdout}"
     );
     assert!(
         !stdout.contains("\x1b["),

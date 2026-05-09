@@ -7,11 +7,20 @@ mod dashboard;
 #[cfg(test)]
 #[path = "render_test_support.rs"]
 mod render_test_support;
+#[path = "render_sections.rs"]
+mod sections;
 
 pub(super) use dashboard::render_dashboard;
 
-pub(super) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
-    let mut output = String::from("Nodes\n");
+pub(in crate::cli) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
+    render_snapshot_with_prefix(results, "")
+}
+
+pub(in crate::cli) fn render_snapshot_with_prefix(
+    results: &[RemoteStatusResult],
+    section_prefix: &str,
+) -> String {
+    let mut output = format!("{section_prefix}Nodes\n");
     for result in results {
         let transport = result
             .status
@@ -64,29 +73,8 @@ pub(super) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
         }
     }
 
-    output.push_str("\nActive Jobs\n");
-    let mut any_jobs = false;
-    for result in results {
-        let Some(status) = &result.status else {
-            continue;
-        };
-        for job in &status.active_jobs {
-            any_jobs = true;
-            output.push_str(&format!(
-                "{} {} attempt={} age={} needs={} exec_root={} runtime={}\n",
-                result.remote.node_id,
-                job.task_label,
-                job.attempt,
-                age_since(job.started_at_ms),
-                format_needs(&job.needs),
-                human_bytes(job.execution_root_bytes),
-                job.runtime.as_deref().unwrap_or("none"),
-            ));
-        }
-    }
-    if !any_jobs {
-        output.push_str("(none)\n");
-    }
+    sections::push_containers_section(&mut output, results, section_prefix);
+    sections::push_active_jobs_section(&mut output, results, section_prefix);
     output
 }
 
