@@ -77,9 +77,12 @@ pub(super) enum Commands {
         /// Inject one environment variable in `KEY=VALUE` form.
         #[arg(long = "env", value_name = "KEY=VALUE")]
         env: Vec<String>,
-        /// Force local execution.
+        /// Force local placement; a declared container runtime may still be used.
         #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
         local: bool,
+        /// Force local host execution without a container.
+        #[arg(long = "local-no-container", default_value_t = false)]
+        local_no_container: bool,
         /// Force remote containerized execution.
         #[arg(long = "remote", default_value_t = false)]
         remote: bool,
@@ -109,9 +112,12 @@ pub(super) enum Commands {
         /// Continue scheduling independent tasks after a task failure.
         #[arg(long = "keep-going", default_value_t = false)]
         keep_going: bool,
-        /// Force local execution.
+        /// Force local placement; a declared container runtime may still be used.
         #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
         local: bool,
+        /// Force local host execution without a container.
+        #[arg(long = "local-no-container", default_value_t = false)]
+        local_no_container: bool,
         /// Force remote containerized execution.
         #[arg(long = "remote", default_value_t = false)]
         remote: bool,

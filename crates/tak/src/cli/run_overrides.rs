@@ -11,6 +11,7 @@ pub(super) fn warn_redundant_remote_container_flag(remote: bool, container: bool
 
 pub(super) struct RunExecutionOverrideArgs<'a> {
     pub local: bool,
+    pub local_no_container: bool,
     pub remote: bool,
     pub container: bool,
     pub container_image: Option<&'a str>,
@@ -23,7 +24,8 @@ pub(super) fn apply_run_execution_overrides(
     targets: &[TaskLabel],
     args: RunExecutionOverrideArgs<'_>,
 ) -> Result<WorkspaceSpec> {
-    let placement = resolve_run_placement_selector(args.local, args.remote)?;
+    let placement =
+        resolve_run_placement_selector(args.local, args.local_no_container, args.remote)?;
     validate_container_flag_usage(
         placement,
         args.container,

@@ -4,10 +4,11 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use support::run_tak_expect_success;
 
-const REQUIRED_CLI_DOC_TOKENS: [&str; 4] = [
+const REQUIRED_CLI_DOC_TOKENS: [&str; 5] = [
     "List every task from the current workspace with its label, dependencies, and description",
     "Execute one or more task labels plus their dependencies",
     "Continue scheduling independent tasks after a task failure",
+    "Force local host execution without a container",
     "Refresh the node snapshot every N milliseconds while watching",
 ];
 const REQUIRED_DSL_DOC_TOKENS: [&str; 4] = [

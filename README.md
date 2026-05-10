@@ -64,6 +64,12 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Configure parallelism and continue with independent work after failures.
 - `tak run //:check`
   - Run the repo-owned quality gate declared in `TASKS.py`.
+- `tak run --local-no-container <label...>`
+  - Force local host execution and ignore declared container runtimes.
+- `tak run --local --container <label...>`
+  - Force local containerized execution using the declared or supplied container runtime.
+- `tak run --remote <label...>`
+  - Force remote containerized execution.
 - `tak run .`
   - Invalid input. Use `tak list` first, then pass a real label such as `//:task` or `//pkg:task`.
 - `--keep-going`
@@ -181,6 +187,36 @@ Runtime model:
 - local host execution
 - local containerized execution
 - remote containerized execution
+
+Use `--local-no-container` when a task has a remote/container fallback policy but you want the local host path explicitly. Use `--local --container` for local containerized execution, and use `--remote` for remote containerized execution.
+
+### Needs, Leases, And Cascades
+
+`needs` are resource requests, not task dependencies. Dependencies decide which tasks must finish before another task can run. `needs` tell Tak what shared capacity a task wants before it starts, such as one exclusive UI lock, two CPU slots from a machine pool, or one token from a rate limiter.
+
+A lease is Tak's permission slip from the local daemon. If a lease socket is configured, Tak asks for the lease before local host work, local container work, remote work, or fused container work starts. Two tasks that both need the same exclusive lock wait their turn instead of running together.
+
+For example:
+
+```python
+test_ui = task(
+    "test-ui",
+    needs=[need("ui_lock", 1, scope=Scope.Machine)],
+    steps=[cmd("sh", "-c", "echo run ui tests")],
+)
+
+SPEC = module_spec(
+    tasks=[test_ui],
+    limiters=[lock("ui_lock", scope=Scope.Machine)],
+)
+SPEC
+```
+
+Remote execution still reports submitted `needs` to the remote `takd` process so status views can show what a job asked for. The limit is enforced by the client-side lease acquired before the remote submit.
+
+A cascaded container session can run a dependency chain inside one per-run container instead of launching one container per task. Shared dependencies are allowed when the roots use the same execution and session. If different cascades try to pull the same dependency into different executions, Tak rejects the run before starting work.
+
+When a fused container cascade has members with `needs`, Tak merges those requests and acquires one lease before launching the fused run. Local fused execution reuses that outer lease; it does not acquire duplicate per-member leases.
 
 For Tor onboarding, `takd token show --wait` now waits until the agent-side `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe from the client machine, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
 

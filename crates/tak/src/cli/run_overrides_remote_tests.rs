@@ -28,6 +28,7 @@ fn remote_override_preserves_existing_remote_requirements_and_runtime() {
         std::slice::from_ref(&label),
         RunExecutionOverrideArgs {
             local: false,
+            local_no_container: false,
             remote: true,
             container: false,
             container_image: None,

@@ -28,6 +28,7 @@ fn local_override_preserves_existing_runtime_without_container_flag() {
         std::slice::from_ref(&label),
         RunExecutionOverrideArgs {
             local: true,
+            local_no_container: false,
             remote: false,
             container: false,
             container_image: None,
@@ -44,6 +45,43 @@ fn local_override_preserves_existing_runtime_without_container_flag() {
             } => assert_eq!(image, "alpine:3.20"),
             other => panic!("expected image runtime, got {other:?}"),
         },
+        other => panic!("expected local execution, got {other:?}"),
+    }
+}
+
+#[test]
+fn local_no_container_override_drops_existing_runtime() {
+    let label = task_label("check");
+    let spec = workspace_with_task(resolved_task(
+        label.clone(),
+        TaskExecutionSpec::RemoteOnly(RemoteSpec {
+            pool: Some("build".to_string()),
+            required_tags: vec!["builder".to_string()],
+            required_capabilities: vec!["linux".to_string()],
+            transport_kind: RemoteTransportKind::Direct,
+            runtime: Some(image_runtime("alpine:3.20")),
+            selection: RemoteSelectionSpec::Sequential,
+            session: None,
+        }),
+    ));
+
+    let overridden = apply_run_execution_overrides(
+        &spec,
+        std::slice::from_ref(&label),
+        RunExecutionOverrideArgs {
+            local: false,
+            local_no_container: true,
+            remote: false,
+            container: false,
+            container_image: None,
+            container_dockerfile: None,
+            container_build_context: None,
+        },
+    )
+    .expect("apply local-no-container override");
+
+    match &overridden.tasks.get(&label).expect("task").execution {
+        TaskExecutionSpec::LocalOnly(local) => assert!(local.runtime.is_none()),
         other => panic!("expected local execution, got {other:?}"),
     }
 }

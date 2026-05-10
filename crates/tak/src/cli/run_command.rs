@@ -12,6 +12,7 @@ pub(super) struct RunCliArgs {
     pub(super) jobs: usize,
     pub(super) keep_going: bool,
     pub(super) local: bool,
+    pub(super) local_no_container: bool,
     pub(super) remote: bool,
     pub(super) container: bool,
     pub(super) container_image: Option<String>,
@@ -40,6 +41,7 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         &targets,
         RunExecutionOverrideArgs {
             local: args.local,
+            local_no_container: args.local_no_container,
             remote: args.remote,
             container: args.container,
             container_image: args.container_image.as_deref(),

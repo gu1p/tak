@@ -3,12 +3,12 @@ use tak_core::model::{
     RemoteSpec, RemoteTransportKind, ResolvedTask, TaskExecutionSpec,
 };
 
-use super::run_override_runtime::declared_container_runtime;
-use super::*;
+use super::{run_override_runtime::declared_container_runtime, *};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RunPlacementSelector {
     Local,
+    LocalNoContainer,
     Remote,
 }
 
@@ -32,6 +32,7 @@ pub(super) fn resolved_runtime_for_execution_override(
             )
             .map(Some)
         }
+        RunPlacementSelector::LocalNoContainer => Ok(None),
         RunPlacementSelector::Local => Ok(declared_container_runtime(execution)),
         RunPlacementSelector::Remote => {
             resolve_container_runtime_for_execution(
@@ -72,7 +73,7 @@ pub(super) fn rewrite_execution_for_placement(
     runtime: Option<RemoteRuntimeSpec>,
 ) -> TaskExecutionSpec {
     match placement {
-        RunPlacementSelector::Local => {
+        RunPlacementSelector::Local | RunPlacementSelector::LocalNoContainer => {
             let mut local = existing_local_spec(execution).unwrap_or_default();
             local.runtime = runtime;
             TaskExecutionSpec::LocalOnly(local)
@@ -135,26 +136,29 @@ fn default_remote_spec() -> RemoteSpec {
 fn remote_placement_spec(placement: &ExecutionPlacementSpec) -> Option<RemoteSpec> {
     match placement {
         ExecutionPlacementSpec::Remote(remote) => Some(remote.clone()),
-        ExecutionPlacementSpec::Local(_) => None,
+        _ => None,
     }
 }
 
 fn local_placement_spec(placement: &ExecutionPlacementSpec) -> Option<LocalSpec> {
     match placement {
         ExecutionPlacementSpec::Local(local) => Some(local.clone()),
-        ExecutionPlacementSpec::Remote(_) => None,
+        _ => None,
     }
 }
 
 pub(super) fn resolve_run_placement_selector(
     local: bool,
+    local_no_container: bool,
     remote: bool,
 ) -> Result<Option<RunPlacementSelector>> {
-    match (local, remote) {
-        (true, true) => bail!("--local and --remote are mutually exclusive"),
-        (true, false) => Ok(Some(RunPlacementSelector::Local)),
-        (false, true) => Ok(Some(RunPlacementSelector::Remote)),
-        (false, false) => Ok(None),
+    match (local, local_no_container, remote) {
+        (_, true, true) => bail!("--local-no-container and --remote are mutually exclusive"),
+        (true, false, true) => bail!("--local and --remote are mutually exclusive"),
+        (_, true, false) => Ok(Some(RunPlacementSelector::LocalNoContainer)),
+        (true, false, false) => Ok(Some(RunPlacementSelector::Local)),
+        (false, false, true) => Ok(Some(RunPlacementSelector::Remote)),
+        (false, false, false) => Ok(None),
     }
 }
 
@@ -170,6 +174,16 @@ pub(super) fn validate_container_flag_usage(
     }
     if container_build_context.is_some() && container_dockerfile.is_none() {
         bail!("--container-build-context requires --container-dockerfile");
+    }
+    if placement == Some(RunPlacementSelector::LocalNoContainer) && container {
+        bail!("--local-no-container and --container are mutually exclusive");
+    }
+    if placement == Some(RunPlacementSelector::LocalNoContainer)
+        && (container_image.is_some()
+            || container_dockerfile.is_some()
+            || container_build_context.is_some())
+    {
+        bail!("--local-no-container cannot be combined with container source flags");
     }
     if !container
         && placement != Some(RunPlacementSelector::Remote)
