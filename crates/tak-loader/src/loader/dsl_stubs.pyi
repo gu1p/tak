@@ -252,12 +252,17 @@ class PathsReuseSpec(TypedDict):
     paths: list[PathSelector | GlobOutput]
 
 
+# Fuse a cascaded task graph into one per-run container invocation.
+class ContainerReuseSpec(TypedDict):
+    kind: Literal["container"]
+
+
 # Named session returned by `session(...)`.
 class SessionSpec(TypedDict):
     id: str
     name: str | None
     execution: LocalExecutionSpec | RemoteExecutionSpec | "ExecutionPolicySpec" | None
-    reuse: WorkspaceReuseSpec | PathsReuseSpec
+    reuse: WorkspaceReuseSpec | PathsReuseSpec | ContainerReuseSpec
     lifetime: Literal["per_run"]
     context: CurrentStateSpec | None
 
@@ -508,6 +513,10 @@ class SessionReuse:
     @staticmethod
     def Paths(paths: list[PathSelector | GlobOutput]) -> PathsReuseSpec: ...
 
+    # Fuse a cascaded task graph into one per-run container invocation.
+    @staticmethod
+    def Container() -> ContainerReuseSpec: ...
+
 def module_spec(
     tasks: list[TaskSpec],
     limiters: (
@@ -634,7 +643,7 @@ def PolicyContext(
 def session(
     name: str | None = ...,
     execution: LocalExecutionSpec | RemoteExecutionSpec | ExecutionPolicySpec | None = ...,
-    reuse: WorkspaceReuseSpec | PathsReuseSpec = ...,
+    reuse: WorkspaceReuseSpec | PathsReuseSpec | ContainerReuseSpec = ...,
     lifetime: Literal["per_run"] = ...,
     context: CurrentStateSpec | None = ...,
 ) -> SessionSpec: ...

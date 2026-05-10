@@ -40,3 +40,38 @@ fn share_workspace_session_preserves_remote_workspace_between_tasks() {
     wait_for_terminal_events(&context, &store, "task-run-test");
     assert_success(&context, &store, "task-run-test");
 }
+
+#[test]
+fn container_session_is_accepted_without_preserving_remote_workspace() {
+    let _env_lock = env_lock();
+    let mut env = EnvGuard::default();
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
+    let temp = tempfile::tempdir().expect("tempdir");
+    let exec_root_base = temp.path().join("exec-root");
+
+    let context = test_context_with_runtime(
+        RemoteRuntimeConfig::for_tests()
+            .with_explicit_remote_exec_root(exec_root_base)
+            .with_skip_exec_root_probe(true),
+    );
+    let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
+    submit_session_task(
+        &context,
+        &store,
+        "task-run-container-build",
+        "mkdir -p .session && printf 'cached\\n' > .session/build.txt",
+        session("run-1-container", "container", Vec::new()),
+    );
+    wait_for_terminal_events(&context, &store, "task-run-container-build");
+    assert_success(&context, &store, "task-run-container-build");
+
+    submit_session_task(
+        &context,
+        &store,
+        "task-run-container-test",
+        "test ! -f .session/build.txt",
+        session("run-1-container", "container", Vec::new()),
+    );
+    wait_for_terminal_events(&context, &store, "task-run-container-test");
+    assert_success(&context, &store, "task-run-container-test");
+}

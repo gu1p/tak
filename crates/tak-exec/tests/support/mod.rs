@@ -5,6 +5,9 @@ pub mod fake_docker;
 pub mod fake_docker_daemon;
 pub mod http;
 pub mod inventory;
+pub mod lease_order_case;
+pub mod lease_order_fused;
+pub mod lease_order_need;
 pub mod output_spec;
 pub mod remote_mismatch;
 pub mod remote_progress_wait;
@@ -18,6 +21,11 @@ pub use env::{EnvGuard, env_lock};
 pub use fake_docker::install_fake_docker;
 pub use fake_docker_daemon::FakeDockerDaemon;
 pub use inventory::{RemoteInventoryRecord, write_remote_inventory};
+pub use lease_order_case::{
+    RemoteLeaseCase, remote_lease_case, remote_lease_case_with_submit_failure,
+};
+pub use lease_order_fused::fused_remote_cascade_spec;
+pub use lease_order_need::add_ui_lock_need;
 pub use output_spec::{workspace_output_glob, workspace_output_path};
 pub use remote_mismatch::{
     prepare_workspace, write_disabled_remote, write_enabled_remote_mismatches,
@@ -27,7 +35,8 @@ pub use remote_worker_runtime::{
 };
 pub use servers::{
     AuthRejectingSubmitServer, DelayedEventsServer, EventPollPlan, NonTerminalEventsServer,
-    RunningTakdServer, ScriptedEventsServer,
+    RecordingEvents, RecordingLeaseServer, RecordingRemoteServer, RunningTakdServer,
+    ScriptedEventsServer,
 };
 pub use status_observer::CollectingStatusObserver;
 pub use task_spec::{

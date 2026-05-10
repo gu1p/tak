@@ -29,6 +29,7 @@ mod remote_execution_sync_reserved_query_path_behavior;
 mod remote_execution_tor_behavior;
 mod remote_execution_tor_direct_ipv6_behavior;
 mod remote_execution_tor_retry_behavior;
+mod remote_lease_order_behavior;
 mod remote_preflight_transport_state_behavior;
 mod remote_progress_auth_fallback_behavior;
 mod remote_progress_retry_behavior;

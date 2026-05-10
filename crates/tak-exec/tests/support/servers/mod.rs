@@ -6,11 +6,13 @@ mod delayed_events;
 mod delayed_events_responses;
 mod non_terminal_events;
 mod non_terminal_events_responses;
+mod recording;
 mod scripted_events;
 mod takd_server;
 
 pub use auth_rejecting_submit::AuthRejectingSubmitServer;
 pub use delayed_events::DelayedEventsServer;
 pub use non_terminal_events::NonTerminalEventsServer;
+pub use recording::{RecordingEvents, RecordingLeaseServer, RecordingRemoteServer};
 pub use scripted_events::{EventPollPlan, ScriptedEventsServer};
 pub use takd_server::RunningTakdServer;

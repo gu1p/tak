@@ -25,6 +25,7 @@ fn protobuf_messages_and_tokens_round_trip_as_binary() {
         origin: None,
         runtime_source: None,
         command: None,
+        fused_members: Vec::new(),
     };
     let encoded = request.encode_to_vec();
     let decoded = SubmitTaskRequest::decode(encoded.as_slice()).expect("decode request");

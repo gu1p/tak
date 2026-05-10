@@ -83,6 +83,14 @@ impl ExecutionSessionManager {
                     _task_workspace: Some(prepared),
                 }))
             }
+            SessionReuseSpec::Container => Ok(Some(PreparedTaskSession {
+                key: self.session_key(&session.name),
+                name: session.name.clone(),
+                display_name: session.display_name.clone(),
+                reuse: session.reuse.clone(),
+                root: None,
+                _task_workspace: None,
+            })),
         }
     }
 

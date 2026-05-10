@@ -185,5 +185,6 @@ fn resolve_session_reuse(
                 paths: resolve_output_selectors(paths, package)?,
             })
         }
+        SessionReuseDef::Container => Ok(SessionReuseSpec::Container),
     }
 }

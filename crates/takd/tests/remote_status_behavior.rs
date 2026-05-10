@@ -45,6 +45,7 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
         origin: Some("task".into()),
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some("sh -c 'sleep 1'".into()),
+        fused_members: Vec::new(),
     };
     let submit = handle_remote_v1_request(
         &context,

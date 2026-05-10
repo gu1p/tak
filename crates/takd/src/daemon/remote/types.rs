@@ -2,8 +2,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
-use serde::Serialize;
-use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef};
 use tak_proto::{NodeInfo, NodeStatusResponse};
 
 use super::active_executions::SharedActiveExecutions;
@@ -12,46 +10,13 @@ use super::runtime::RemoteRuntimeConfig;
 use super::runtime_state::RemoteRuntimeState;
 use super::status_state::{ActiveJobMetadata, SharedNodeStatusState, new_shared_node_status_state};
 
-#[derive(Debug, Clone)]
-pub(super) struct RemoteWorkerSubmitPayload {
-    pub(super) workspace_zip: Vec<u8>,
-    pub(super) task_label: String,
-    pub(super) attempt: u32,
-    pub(super) steps: Vec<StepDef>,
-    pub(super) timeout_s: Option<u64>,
-    pub(super) runtime: Option<RemoteRuntimeSpec>,
-    pub(super) outputs: Vec<OutputSelectorSpec>,
-    pub(super) session: Option<RemoteWorkerSession>,
-}
+mod worker_payload;
 
-#[derive(Debug, Clone)]
-pub(super) struct RemoteWorkerSession {
-    pub(super) key: String,
-    pub(super) reuse: RemoteWorkerSessionReuse,
-}
-
-#[derive(Debug, Clone)]
-pub(super) enum RemoteWorkerSessionReuse {
-    ShareWorkspace,
-    SharePaths { paths: Vec<OutputSelectorSpec> },
-}
-
-#[derive(Debug, Clone)]
-pub struct RemoteImageCacheRuntimeConfig {
-    pub db_path: PathBuf,
-    pub budget_bytes: u64,
-    pub mutable_tag_ttl_secs: u64,
-    pub sweep_interval_secs: u64,
-    pub low_disk_min_free_percent: f64,
-    pub low_disk_min_free_bytes: u64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(super) struct RemoteWorkerOutputRecord {
-    pub(super) path: String,
-    pub(super) digest: String,
-    pub(super) size: u64,
-}
+pub use worker_payload::RemoteImageCacheRuntimeConfig;
+pub(super) use worker_payload::{
+    RemoteWorkerFusedMember, RemoteWorkerOutputRecord, RemoteWorkerSession,
+    RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubmitEventRecord {

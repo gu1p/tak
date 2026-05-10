@@ -4,6 +4,8 @@ use tak_core::model::{
 };
 use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 
+mod fused_members;
+
 pub(super) fn parse_remote_worker_submit_payload(
     request: &tak_proto::SubmitTaskRequest,
 ) -> Result<RemoteWorkerSubmitPayload> {
@@ -34,6 +36,11 @@ pub(super) fn parse_remote_worker_submit_payload(
             .as_ref()
             .map(parse_remote_worker_session)
             .transpose()?,
+        fused_members: request
+            .fused_members
+            .iter()
+            .map(fused_members::parse_remote_worker_fused_member)
+            .collect::<Result<Vec<_>>>()?,
     })
 }
 
@@ -46,6 +53,7 @@ fn parse_remote_worker_session(
     }
     let reuse = match session.reuse.as_str() {
         "share_workspace" => RemoteWorkerSessionReuse::ShareWorkspace,
+        "container" => RemoteWorkerSessionReuse::Container,
         "share_paths" => {
             if session.share_paths.is_empty() {
                 bail!("invalid_submit_fields: session.share_paths cannot be empty");
@@ -63,7 +71,7 @@ fn parse_remote_worker_session(
     Ok(RemoteWorkerSession { key, reuse })
 }
 
-fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {
+pub(super) fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {
     match step.kind.as_ref() {
         Some(step::Kind::Cmd(cmd)) => Ok(StepDef::Cmd {
             argv: cmd.argv.clone(),

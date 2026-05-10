@@ -53,3 +53,21 @@ fn assert_session_policy(execution: &TaskExecutionSpec) {
         other => panic!("expected session execution policy, got {other:?}"),
     }
 }
+
+#[test]
+fn loader_resolves_container_reuse_session() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("TASKS.py"),
+        r#"RUNTIME = Container.Image("alpine:3.20")
+SESSION = session("container", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Container())
+SPEC = module_spec(tasks=[task("check", steps=[cmd("true")], use_session=SESSION)])
+SPEC
+"#,
+    )
+    .expect("write tasks");
+
+    let spec = load_workspace(temp.path(), &LoadOptions::default()).expect("load workspace");
+    let session = spec.sessions.values().next().expect("session");
+    assert!(matches!(session.reuse, SessionReuseSpec::Container));
+}

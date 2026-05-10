@@ -16,6 +16,7 @@ use crate::{
 };
 
 mod events_parser;
+mod fused_members;
 mod outputs_parser;
 
 pub(crate) use events_parser::parse_remote_events_response;
@@ -28,6 +29,7 @@ pub(crate) fn build_remote_submit_payload(
     task: &ResolvedTask,
     remote_workspace: &RemoteWorkspaceStage,
     session: Option<&crate::engine::session_workspaces::PreparedTaskSession>,
+    fused_members: Option<&[ResolvedTask]>,
 ) -> Result<SubmitTaskRequest> {
     let _ = &remote_workspace.manifest_hash;
     let metadata = task_run_metadata_for_runtime(task, target.runtime.as_ref());
@@ -55,6 +57,11 @@ pub(crate) fn build_remote_submit_payload(
         origin: Some(metadata.origin),
         runtime_source: metadata.runtime_source,
         command: metadata.command,
+        fused_members: fused_members
+            .unwrap_or(&[])
+            .iter()
+            .map(fused_members::fused_member_submit_value)
+            .collect::<Result<Vec<_>>>()?,
     })
 }
 
@@ -66,6 +73,7 @@ fn session_submit_value(
         tak_core::model::SessionReuseSpec::SharePaths { paths } => {
             paths.iter().map(output_selector_submit_value).collect()
         }
+        tak_core::model::SessionReuseSpec::Container => Vec::new(),
     };
     ExecutionSession {
         key: session.key.clone(),
@@ -160,5 +168,7 @@ fn scope_value(scope: &Scope) -> &'static str {
 mod submit_payload_behavior_tests;
 #[cfg(test)]
 mod submit_payload_error_tests;
+#[cfg(test)]
+mod submit_payload_fused_tests;
 #[cfg(test)]
 mod submit_payload_test_support;

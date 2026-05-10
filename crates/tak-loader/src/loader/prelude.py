@@ -349,6 +349,12 @@ def SessionReuse_Paths(paths):
         "paths": _or_empty_list(paths),
     }
 
+def SessionReuse_Container():
+    """Fuse a cascaded task graph into one per-run container invocation."""
+    return {
+        "kind": "container",
+    }
+
 def session(name=None, execution=None, reuse=None, lifetime=_SessionLifetime_PerRun, context=None, execution_policy=None):
     """Declare a per-run execution session for containerized task chains."""
     if execution_policy is not None:

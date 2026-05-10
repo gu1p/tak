@@ -2,10 +2,7 @@
 
 use prost::Message;
 use std::{thread, time::Duration};
-use tak_proto::{
-    CmdStep, ContainerRuntime, NodeInfo, PollTaskEventsResponse, RuntimeSpec, Step,
-    SubmitTaskRequest, runtime_spec, step,
-};
+use tak_proto::{CmdStep, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest, step};
 use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
 pub fn streaming_context() -> RemoteNodeContext {
@@ -58,6 +55,7 @@ pub fn streaming_submit_request_with_command(
         origin: Some("task".into()),
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
+        fused_members: Vec::new(),
     }
 }
 pub fn wait_for_streaming_events(
@@ -92,12 +90,4 @@ fn empty_workspace_zip() -> Vec<u8> {
         .into_inner()
 }
 
-fn test_container_runtime() -> RuntimeSpec {
-    RuntimeSpec {
-        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
-            image: Some("alpine:3.20".into()),
-            dockerfile: None,
-            build_context: None,
-        })),
-    }
-}
+include!("remote_binary/runtime.rs");

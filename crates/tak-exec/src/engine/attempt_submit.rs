@@ -7,7 +7,7 @@ use super::output_observer::emit_task_status_message;
 use super::preflight_fallback::{
     fallback_after_auth_submit_failure, is_auth_submit_failure, preflight_ordered_remote_target,
 };
-use super::protocol_submit::remote_protocol_submit;
+use super::protocol_submit::{RemoteProtocolSubmit, remote_protocol_submit};
 use super::remote_models::{
     RemoteSubmitContext, RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
@@ -18,9 +18,9 @@ use super::session_workspaces::PreparedTaskSession;
 pub(crate) struct AttemptSubmitState<'a> {
     pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
     pub(crate) task_run_id: &'a str,
-    pub(crate) task_label: &'a str,
     pub(crate) attempt: u32,
     pub(crate) session: Option<&'a PreparedTaskSession>,
+    pub(crate) fused_members: Option<&'a [ResolvedTask]>,
 }
 
 pub(crate) async fn resolve_initial_runtime_metadata(
@@ -80,15 +80,15 @@ pub(crate) async fn resolve_attempt_submit_state(
         ),
     )?;
 
-    match remote_protocol_submit(
-        &target,
-        submit.task_run_id,
-        submit.attempt,
-        submit.task_label,
+    match remote_protocol_submit(RemoteProtocolSubmit {
+        target: &target,
+        task_run_id: submit.task_run_id,
+        attempt: submit.attempt,
         task,
         remote_workspace,
-        submit.session,
-    )
+        session: submit.session,
+        fused_members: submit.fused_members,
+    })
     .await
     {
         Ok(()) => {
@@ -113,9 +113,9 @@ pub(crate) async fn resolve_attempt_submit_state(
                     RemoteSubmitContext {
                         task_run_id: submit.task_run_id,
                         attempt: submit.attempt,
-                        task_label: submit.task_label,
                         remote_workspace,
                         session: submit.session,
+                        fused_members: submit.fused_members,
                     },
                     submit_error.to_string(),
                     output_observer,

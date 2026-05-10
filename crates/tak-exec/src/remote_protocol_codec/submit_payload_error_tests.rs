@@ -10,6 +10,7 @@ fn build_remote_submit_payload_rejects_invalid_workspace_archive() {
         &task_with_steps_and_needs(),
         &workspace("%%%not-base64%%%"),
         None,
+        None,
     )
     .expect_err("invalid archive should fail");
 

@@ -23,25 +23,14 @@ fn execute_remote_worker_submit(
             .enable_all()
             .build()
             .context("failed to create tokio runtime for remote worker execution")?;
-        let task_label = parse_label(&payload.task_label, "//")
-            .map_err(|err| anyhow!("invalid submit task label {}: {err}", payload.task_label))?;
-        let result = runtime.block_on(
-            execute_remote_worker_steps_with_output_and_cancellation(
-                &execution_root,
-                &RemoteWorkerExecutionSpec {
-                    task_label,
-                    attempt: payload.attempt,
-                    steps: payload.steps.clone(),
-                    timeout_s: payload.timeout_s,
-                    runtime: payload.runtime.clone(),
-                    node_id: selected_node_id.to_string(),
-                    container_user: remote_container_user(),
-                    image_cache: image_cache.map(image_cache_options),
-                },
-                Some(output_observer),
-                cancellation,
-            ),
-        )?;
+        let result = runtime.block_on(execute_payload_steps(
+            &execution_root,
+            selected_node_id,
+            image_cache,
+            payload,
+            output_observer.clone(),
+            cancellation,
+        ))?;
         let outputs = collect_declared_remote_worker_outputs(
             &execution_root,
             &payload.outputs,
@@ -70,99 +59,114 @@ fn execute_remote_worker_submit(
     }
 }
 
-fn image_cache_options(
-    config: &super::types::RemoteImageCacheRuntimeConfig,
-) -> tak_runner::ImageCacheOptions {
-    tak_runner::ImageCacheOptions {
-        db_path: config.db_path.clone(),
-        budget_bytes: config.budget_bytes,
-        mutable_tag_ttl_secs: config.mutable_tag_ttl_secs,
-        sweep_interval_secs: config.sweep_interval_secs,
-        low_disk_min_free_percent: config.low_disk_min_free_percent,
-        low_disk_min_free_bytes: config.low_disk_min_free_bytes,
-    }
-}
-
-fn execution_root_for_payload(
-    idempotency_key: &str,
-    execution_root_base: &Path,
+async fn execute_payload_steps(
+    execution_root: &Path,
+    selected_node_id: &str,
+    image_cache: Option<&super::types::RemoteImageCacheRuntimeConfig>,
     payload: &RemoteWorkerSubmitPayload,
-) -> Result<PathBuf> {
-    if matches!(
-        payload.session.as_ref().map(|session| &session.reuse),
-        Some(RemoteWorkerSessionReuse::ShareWorkspace)
-    ) {
-        let session = payload.session.as_ref().expect("checked session");
-        return Ok(session_workspace_root(execution_root_base, &session.key));
-    }
-    Ok(execution_root_for_submit_key_at_base(
-        idempotency_key,
-        execution_root_base,
-    ))
-}
-
-fn remote_container_user() -> Option<String> {
-    match std::env::var("TAKD_REMOTE_CONTAINER_USER") {
-        Ok(value) if value == "image" => None,
-        Ok(value) => Some(value),
-        Err(std::env::VarError::NotPresent) => default_remote_container_user(),
-        Err(std::env::VarError::NotUnicode(_)) => default_remote_container_user(),
-    }
-}
-
-#[cfg(unix)]
-fn default_remote_container_user() -> Option<String> {
-    Some(format!(
-        "{}:{}",
-        unsafe { libc::geteuid() },
-        unsafe { libc::getegid() }
-    ))
-}
-
-#[cfg(not(unix))]
-fn default_remote_container_user() -> Option<String> {
-    None
-}
-
-fn prepare_execution_root(execution_root: &Path, payload: &RemoteWorkerSubmitPayload) -> Result<()> {
-    if is_share_workspace(payload) && execution_root.exists() {
-        return Ok(());
-    }
-    if execution_root.exists() {
-        fs::remove_dir_all(execution_root).with_context(|| {
-            format!(
-                "failed to clear existing remote execution root {}",
-                execution_root.display()
-            )
-        })?;
-    }
-    fs::create_dir_all(execution_root).with_context(|| {
-        format!(
-            "failed to create remote execution root {}",
-            execution_root.display()
+    output_observer: Arc<dyn TaskOutputObserver>,
+    cancellation: &tak_runner::RunCancellation,
+) -> Result<tak_runner::RemoteWorkerExecutionResult> {
+    let context = RemoteMemberExecutionContext {
+        execution_root,
+        selected_node_id,
+        image_cache,
+        runtime: payload.runtime.clone(),
+        output_observer,
+        cancellation,
+    };
+    if payload.fused_members.is_empty() {
+        return execute_one_remote_member(
+            &context,
+            &payload.task_label,
+            payload.attempt,
+            payload.steps.clone(),
+            payload.timeout_s,
         )
-    })
+        .await;
+    }
+    execute_fused_remote_members(&context, payload).await
 }
 
-fn unpack_payload_workspace(payload: &RemoteWorkerSubmitPayload, execution_root: &Path) -> Result<()> {
-    if is_share_workspace(payload) && execution_root.read_dir()?.next().is_some() {
-        return Ok(());
+async fn execute_fused_remote_members(
+    context: &RemoteMemberExecutionContext<'_>,
+    payload: &RemoteWorkerSubmitPayload,
+) -> Result<tak_runner::RemoteWorkerExecutionResult> {
+    let mut last_result = successful_remote_worker_result();
+    for member in &payload.fused_members {
+        let result = execute_remote_member_with_retries(context, member).await?;
+        let success = result.success;
+        last_result = result;
+        if !success {
+            return Ok(last_result);
+        }
     }
-    unpack_remote_worker_workspace(&payload.workspace_zip, execution_root)
+    Ok(last_result)
 }
 
-fn cleanup_execution_root(payload: &RemoteWorkerSubmitPayload, execution_root: &Path) -> Result<()> {
-    if is_share_workspace(payload) {
-        return Ok(());
+struct RemoteMemberExecutionContext<'a> {
+    execution_root: &'a Path,
+    selected_node_id: &'a str,
+    image_cache: Option<&'a super::types::RemoteImageCacheRuntimeConfig>,
+    runtime: Option<RemoteRuntimeSpec>,
+    output_observer: Arc<dyn TaskOutputObserver>,
+    cancellation: &'a tak_runner::RunCancellation,
+}
+
+async fn execute_remote_member_with_retries(
+    context: &RemoteMemberExecutionContext<'_>,
+    member: &RemoteWorkerFusedMember,
+) -> Result<tak_runner::RemoteWorkerExecutionResult> {
+    let mut member_attempt = 0;
+    loop {
+        member_attempt += 1;
+        let result = execute_one_remote_member(
+            context,
+            &member.task_label,
+            member_attempt,
+            member.steps.clone(),
+            member.timeout_s,
+        )
+        .await?;
+        if result.success || !can_retry(member, member_attempt, result.exit_code) {
+            return Ok(result);
+        }
+        wait_before_retry(member, member_attempt).await;
     }
-    match fs::remove_dir_all(execution_root) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(err).with_context(|| {
-            format!(
-                "failed to remove remote execution root {}",
-                execution_root.display()
-            )
-        }),
+}
+
+async fn execute_one_remote_member(
+    context: &RemoteMemberExecutionContext<'_>,
+    task_label: &str,
+    attempt: u32,
+    steps: Vec<StepDef>,
+    timeout_s: Option<u64>,
+) -> Result<tak_runner::RemoteWorkerExecutionResult> {
+    let task_label = parse_label(task_label, "//")
+        .map_err(|err| anyhow!("invalid submit task label {task_label}: {err}"))?;
+    execute_remote_worker_steps_with_output_and_cancellation(
+        context.execution_root,
+        &RemoteWorkerExecutionSpec {
+            task_label,
+            attempt,
+            steps,
+            timeout_s,
+            runtime: context.runtime.clone(),
+            node_id: context.selected_node_id.to_string(),
+            container_user: remote_container_user(),
+            image_cache: context.image_cache.map(image_cache_options),
+        },
+        Some(context.output_observer.clone()),
+        context.cancellation,
+    )
+    .await
+}
+
+fn successful_remote_worker_result() -> tak_runner::RemoteWorkerExecutionResult {
+    tak_runner::RemoteWorkerExecutionResult {
+        success: true,
+        exit_code: Some(0),
+        runtime_kind: None,
+        runtime_engine: None,
     }
 }

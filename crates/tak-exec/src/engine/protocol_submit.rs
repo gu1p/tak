@@ -19,22 +19,27 @@ use super::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind}
 /// #     Ok(())
 /// # }
 /// ```
+pub(crate) struct RemoteProtocolSubmit<'a> {
+    pub(crate) target: &'a StrictRemoteTarget,
+    pub(crate) task_run_id: &'a str,
+    pub(crate) attempt: u32,
+    pub(crate) task: &'a ResolvedTask,
+    pub(crate) remote_workspace: &'a RemoteWorkspaceStage,
+    pub(crate) session: Option<&'a super::session_workspaces::PreparedTaskSession>,
+    pub(crate) fused_members: Option<&'a [ResolvedTask]>,
+}
+
 pub(crate) async fn remote_protocol_submit(
-    target: &StrictRemoteTarget,
-    task_run_id: &str,
-    attempt: u32,
-    _task_label: &str,
-    task: &ResolvedTask,
-    remote_workspace: &RemoteWorkspaceStage,
-    session: Option<&super::session_workspaces::PreparedTaskSession>,
+    submit: RemoteProtocolSubmit<'_>,
 ) -> std::result::Result<(), RemoteSubmitFailure> {
     let body = build_remote_submit_payload(
-        target,
-        task_run_id,
-        attempt,
-        task,
-        remote_workspace,
-        session,
+        submit.target,
+        submit.task_run_id,
+        submit.attempt,
+        submit.task,
+        submit.remote_workspace,
+        submit.session,
+        submit.fused_members,
     )
     .map_err(|err| RemoteSubmitFailure {
         kind: RemoteSubmitFailureKind::Other,
@@ -42,7 +47,7 @@ pub(crate) async fn remote_protocol_submit(
     })?
     .encode_to_vec();
     let (status, response_body) = remote_protocol_http_request(
-        target,
+        submit.target,
         "POST",
         "/v1/tasks/submit",
         Some(&body),
@@ -60,7 +65,7 @@ pub(crate) async fn remote_protocol_submit(
             kind: RemoteSubmitFailureKind::Auth,
             message: format!(
                 "infra error: remote node {} auth failed during submit with HTTP {}",
-                target.node_id, status
+                submit.target.node_id, status
             ),
         });
     }
@@ -69,7 +74,7 @@ pub(crate) async fn remote_protocol_submit(
             kind: RemoteSubmitFailureKind::Other,
             message: format!(
                 "infra error: remote node {} submit failed with HTTP {}",
-                target.node_id, status
+                submit.target.node_id, status
             ),
         });
     }
@@ -79,7 +84,7 @@ pub(crate) async fn remote_protocol_submit(
             kind: RemoteSubmitFailureKind::Other,
             message: format!(
                 "infra error: remote node {} returned invalid protobuf for submit",
-                target.node_id
+                submit.target.node_id
             ),
         })?;
     if !parsed.accepted {
@@ -87,7 +92,7 @@ pub(crate) async fn remote_protocol_submit(
             kind: RemoteSubmitFailureKind::Other,
             message: format!(
                 "infra error: remote node {} rejected submit for task {} attempt {}",
-                target.node_id, task.label, attempt
+                submit.target.node_id, submit.task.label, submit.attempt
             ),
         });
     }
@@ -96,7 +101,7 @@ pub(crate) async fn remote_protocol_submit(
             kind: RemoteSubmitFailureKind::Other,
             message: format!(
                 "infra error: remote node {} returned submit acknowledgement without remote worker support",
-                target.node_id
+                submit.target.node_id
             ),
         });
     }

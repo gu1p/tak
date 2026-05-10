@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, anyhow, bail};
 use tak_core::model::{TaskLabel, WorkspaceSpec};
@@ -7,6 +7,8 @@ use super::{LeaseContext, RunOptions, RunSummary};
 
 use crate::execution_graph::collect_required_labels;
 
+use super::fused_cascade::plan_fused_cascades;
+use super::fused_cascade_run::run_fused_cascade;
 use super::run_single_task::run_single_task;
 use super::session_cascade::{resolve_cascaded_executions, task_with_execution_override};
 use super::session_workspaces::ExecutionSessionManager;
@@ -54,11 +56,37 @@ pub async fn run_tasks(
         options.output_observer.as_ref(),
     )
     .await?;
+    let fused_cascades = plan_fused_cascades(spec, &order, &cascaded_executions)?;
     let mut summary = RunSummary::default();
     let lease_context = LeaseContext::from_options(options);
     let mut sessions = ExecutionSessionManager::new(Uuid::new_v4().to_string());
+    let mut covered_by_fused_cascade = BTreeSet::new();
 
     for label in order {
+        if covered_by_fused_cascade.contains(&label) {
+            continue;
+        }
+        if let Some(fused) = fused_cascades.get(&label) {
+            let task_result =
+                run_fused_cascade(fused, &spec.root, options, &lease_context, &mut sessions)
+                    .await?;
+            let failed = !task_result.success;
+            for member in &fused.members {
+                summary
+                    .results
+                    .insert(member.label.clone(), task_result.clone());
+                covered_by_fused_cascade.insert(member.label.clone());
+            }
+
+            if failed && !options.keep_going {
+                if let Some(detail) = task_result.failure_detail.as_deref() {
+                    bail!("task {} failed: {detail}", fused.root);
+                }
+                bail!("task {} failed", fused.root);
+            }
+            continue;
+        }
+
         let task = spec
             .tasks
             .get(&label)

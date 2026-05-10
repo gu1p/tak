@@ -7,6 +7,8 @@ mod attempt_execution;
 mod attempt_placement;
 mod attempt_submit;
 mod cancellation;
+mod fused_cascade;
+mod fused_cascade_run;
 mod lease_context;
 mod output_observer;
 mod placement;

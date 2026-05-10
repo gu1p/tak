@@ -18,6 +18,7 @@ pub enum SessionLifetimeSpec {
 pub enum SessionReuseSpec {
     ShareWorkspace,
     SharePaths { paths: Vec<OutputSelectorSpec> },
+    Container,
 }
 
 impl SessionReuseSpec {
@@ -34,6 +35,7 @@ impl SessionReuseSpec {
         match self {
             Self::ShareWorkspace => "share_workspace",
             Self::SharePaths { .. } => "share_paths",
+            Self::Container => "container",
         }
     }
 }

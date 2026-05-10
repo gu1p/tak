@@ -52,6 +52,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
         origin: Some("task".into()),
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some("sh -c true".into()),
+        fused_members: Vec::new(),
     };
     let submit = handle_remote_v1_request(
         &context,

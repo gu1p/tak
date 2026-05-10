@@ -37,6 +37,7 @@ pub(super) fn session_reuse_method_replacement(name: &str) -> Option<&'static st
     match name {
         "Workspace" => Some("SessionReuse_Workspace"),
         "Paths" => Some("SessionReuse_Paths"),
+        "Container" => Some("SessionReuse_Container"),
         _ => None,
     }
 }

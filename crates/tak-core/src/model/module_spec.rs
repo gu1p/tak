@@ -94,6 +94,7 @@ pub struct SessionDef {
 pub enum SessionReuseDef {
     ShareWorkspace,
     SharePaths { paths: Vec<OutputSelectorDef> },
+    Container,
 }
 
 /// Returns the only supported session lifetime in v1.

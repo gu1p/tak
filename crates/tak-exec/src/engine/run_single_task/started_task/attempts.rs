@@ -40,22 +40,17 @@ pub(super) async fn run_attempts(
     context: StartedAttemptContext<'_>,
 ) -> Result<TaskRunResult> {
     let mut context = context;
-    let task_label = task.label.to_string();
     loop {
         *context.attempt += 1;
         let current_attempt = *context.attempt;
-        submit_remote_attempt_if_needed(task, options, &task_label, current_attempt, &mut context)
-            .await?;
-
-        let outcome = run_one_attempt(
-            task,
-            workspace_root,
-            options,
-            lease_context,
-            current_attempt,
-            &context,
-        )
-        .await?;
+        let lease_id = acquire_task_lease(task, current_attempt, options, lease_context).await?;
+        let attempt_result = async {
+            submit_remote_attempt_if_needed(task, options, current_attempt, &mut context).await?;
+            run_one_attempt(task, workspace_root, options, current_attempt, &context).await
+        }
+        .await;
+        release_attempt_lease(lease_id.as_deref(), task, options).await?;
+        let outcome = attempt_result?;
         if outcome.attempt_success || !can_retry(task, current_attempt, outcome.last_exit_code) {
             let result = build_task_result(current_attempt, outcome, &context);
             sessions.finish_task(context.session, result.success)?;
@@ -69,7 +64,6 @@ pub(super) async fn run_attempts(
 async fn submit_remote_attempt_if_needed(
     task: &ResolvedTask,
     options: &RunOptions,
-    task_label: &str,
     attempt: u32,
     context: &mut StartedAttemptContext<'_>,
 ) -> Result<()> {
@@ -79,9 +73,9 @@ async fn submit_remote_attempt_if_needed(
         AttemptSubmitState {
             remote_workspace: context.remote_workspace,
             task_run_id: context.task_run_id,
-            task_label,
             attempt,
             session: context.session,
+            fused_members: None,
         },
         options.output_observer.as_ref(),
         &options.cancellation,
@@ -93,7 +87,6 @@ async fn run_one_attempt(
     task: &ResolvedTask,
     workspace_root: &Path,
     options: &RunOptions,
-    lease_context: &LeaseContext,
     attempt: u32,
     context: &StartedAttemptContext<'_>,
 ) -> Result<AttemptExecutionOutcome> {
@@ -109,16 +102,20 @@ async fn run_one_attempt(
         output_observer: options.output_observer.as_ref(),
         cancellation: &options.cancellation,
     };
-    let lease_id = acquire_task_lease(task, attempt, options, lease_context).await?;
-    let attempt_result = execute_task_attempt(&attempt_context).await;
+    execute_task_attempt(&attempt_context).await
+}
 
-    if let Some(id) = lease_id.as_ref() {
+async fn release_attempt_lease(
+    lease_id: Option<&str>,
+    task: &ResolvedTask,
+    options: &RunOptions,
+) -> Result<()> {
+    if let Some(id) = lease_id {
         release_task_lease(id, options)
             .await
             .context(format!("failed releasing lease for {}", task.label))?;
     }
-
-    attempt_result
+    Ok(())
 }
 
 fn build_task_result(

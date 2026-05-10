@@ -12,7 +12,7 @@ use super::{
         emit_remote_unavailable, next_candidate_available,
     },
     protocol_detection::detect_remote_protocol_mode,
-    protocol_submit::remote_protocol_submit,
+    protocol_submit::{RemoteProtocolSubmit, remote_protocol_submit},
     remote_models::{RemoteSubmitContext, StrictRemoteTarget},
     remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind},
     transport,
@@ -107,7 +107,6 @@ pub(crate) async fn fallback_after_auth_submit_failure(
     {
         emit_remote_unavailable(output_observer, &task.label, submit.attempt, failed_node_id)?;
     }
-
     for (index, candidate) in candidates.iter().enumerate() {
         if candidate.node_id == failed_node_id {
             continue;
@@ -148,15 +147,15 @@ pub(crate) async fn fallback_after_auth_submit_failure(
             &candidate.node_id,
             &submit.remote_workspace.upload_size_mb(),
         )?;
-        match remote_protocol_submit(
-            candidate,
-            submit.task_run_id,
-            submit.attempt,
-            submit.task_label,
+        match remote_protocol_submit(RemoteProtocolSubmit {
+            target: candidate,
+            task_run_id: submit.task_run_id,
+            attempt: submit.attempt,
             task,
-            submit.remote_workspace,
-            submit.session,
-        )
+            remote_workspace: submit.remote_workspace,
+            session: submit.session,
+            fused_members: submit.fused_members,
+        })
         .await
         {
             Ok(()) => {

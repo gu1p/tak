@@ -20,6 +20,7 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
         &task_with_steps_and_needs(),
         &workspace(&encoded_workspace()),
         None,
+        None,
     )
     .expect("submit payload");
 

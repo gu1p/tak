@@ -57,6 +57,7 @@ fn session_submit_value(
         tak_core::model::SessionReuseSpec::SharePaths { paths } => {
             paths.iter().map(output_selector_submit_value).collect()
         }
+        tak_core::model::SessionReuseSpec::Container => Vec::new(),
     };
     ExecutionSession {
         key: session.key.clone(),
