@@ -7,7 +7,7 @@ use std::fs;
 use std::process::Command as StdCommand;
 
 use support::container_runtime::simulated_container_runtime_env;
-use support::run_tak_expect_success;
+use support::{run_tak_expect_success, run_tak_output};
 
 #[test]
 fn run_command_executes_locally_without_takd() {
@@ -42,6 +42,36 @@ SPEC
     assert_eq!(
         fs::read_to_string(marker).expect("read marker").trim(),
         "client-side-run"
+    );
+}
+
+#[test]
+fn run_command_reports_task_start_before_silent_local_task() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("TASKS.py"),
+        r#"
+SPEC = module_spec(tasks=[
+  task("silent", steps=[cmd("sh", "-c", ":")]),
+])
+SPEC
+"#,
+    )
+    .expect("write tasks");
+
+    let env = BTreeMap::new();
+    let output = run_tak_output(temp.path(), &["run", "//:silent"], &env).expect("run");
+
+    assert!(
+        output.status.success(),
+        "run should succeed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("//:silent: started"),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 

@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
@@ -13,6 +14,8 @@ pub(in crate::cli) struct HistoryOutputObserver {
     inner: StdStreamOutputObserver,
     store: TaskHistoryStore,
     history_lock: Mutex<()>,
+    announce_task_start: bool,
+    announcement_lock: Mutex<()>,
 }
 
 impl HistoryOutputObserver {
@@ -21,7 +24,35 @@ impl HistoryOutputObserver {
             inner: StdStreamOutputObserver::default(),
             store,
             history_lock: Mutex::new(()),
+            announce_task_start: false,
+            announcement_lock: Mutex::new(()),
         }
+    }
+
+    pub(in crate::cli) fn new_with_start_announcements(store: TaskHistoryStore) -> Self {
+        Self {
+            announce_task_start: true,
+            ..Self::new(store)
+        }
+    }
+
+    fn announce_task_started(&self, event: &TaskStartedEvent) -> Result<()> {
+        if !self.announce_task_start {
+            return Ok(());
+        }
+
+        let _guard = self
+            .announcement_lock
+            .lock()
+            .map_err(|_| anyhow!("task start announcement lock poisoned"))?;
+        let mut stderr = io::stderr().lock();
+        writeln!(
+            stderr,
+            "{}: started",
+            canonical_task_label(&event.task_label)
+        )?;
+        stderr.flush()?;
+        Ok(())
     }
 }
 
@@ -45,6 +76,7 @@ impl TaskOutputObserver for HistoryOutputObserver {
     }
 
     fn observe_task_started(&self, event: TaskStartedEvent) -> Result<()> {
+        self.announce_task_started(&event)?;
         let _guard = self
             .history_lock
             .lock()

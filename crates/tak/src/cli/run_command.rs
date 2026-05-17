@@ -59,9 +59,9 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         lease_poll_interval_ms: 200,
         session_id: std::env::var("TAK_SESSION_ID").ok(),
         user: std::env::var("TAK_USER").ok(),
-        output_observer: Some(Arc::new(HistoryOutputObserver::new(
-            TaskHistoryStore::open_default()?,
-        ))),
+        output_observer: Some(Arc::new(
+            HistoryOutputObserver::new_with_start_announcements(TaskHistoryStore::open_default()?),
+        )),
         cancellation: cancellation.clone(),
     };
     let summary = run_tasks_until_interrupted(&spec, &targets, &options, cancellation).await?;
