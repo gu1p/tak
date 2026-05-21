@@ -115,6 +115,16 @@ pub(crate) async fn remote_protocol_events(
         let parsed = parse_remote_events_response(target, &response_body, last_seen_seq)?;
         let saw_new_activity = parsed.next_seq > previous_seq;
         last_seen_seq = parsed.next_seq;
+        for message in &parsed.status_messages {
+            emit_task_status_message(
+                output_observer,
+                task_label,
+                attempt,
+                TaskStatusPhase::RemoteWait,
+                Some(target.node_id.as_str()),
+                message.clone(),
+            )?;
+        }
         for chunk in &parsed.remote_logs {
             emit_task_output(
                 output_observer,

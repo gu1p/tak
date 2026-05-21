@@ -2,8 +2,8 @@
 
 use prost::Message;
 use tak_proto::{
-    CmdStep, ContainerRuntime, OutputSelector, RuntimeSpec, Step, SubmitTaskRequest,
-    SubmitTaskResponse, runtime_spec, step,
+    CmdStep, ContainerResourceLimits, ContainerRuntime, OutputSelector, RuntimeSpec, Step,
+    SubmitTaskRequest, SubmitTaskResponse, runtime_spec, step,
 };
 use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
@@ -88,12 +88,4 @@ pub fn empty_workspace_zip() -> Vec<u8> {
         .into_inner()
 }
 
-pub fn test_container_runtime() -> RuntimeSpec {
-    RuntimeSpec {
-        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
-            image: Some("alpine:3.20".into()),
-            dockerfile: None,
-            build_context: None,
-        })),
-    }
-}
+include!("remote_output/runtime.rs");

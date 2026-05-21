@@ -7,6 +7,7 @@ use sysinfo::{CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, Refresh
 use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, SubmittedNeed};
 
 use super::query_helpers::unix_epoch_ms;
+use super::resource_admission::ResourceRequest;
 use super::status_state_helpers::{active_job_value, aggregate_need_usage, storage_usage};
 use super::types::RemoteImageCacheRuntimeConfig;
 
@@ -21,6 +22,7 @@ pub(crate) struct ActiveJobMetadata {
     pub(crate) origin: Option<String>,
     pub(crate) runtime_source: Option<String>,
     pub(crate) command: Option<String>,
+    pub(crate) resource_limits: Option<tak_core::model::ContainerResourceLimitsSpec>,
     pub(crate) execution_root: PathBuf,
 }
 
@@ -33,6 +35,7 @@ pub(crate) struct ActiveJobMetadataInput<'a> {
     pub(crate) origin: Option<String>,
     pub(crate) runtime_source: Option<String>,
     pub(crate) command: Option<String>,
+    pub(crate) resource_limits: Option<tak_core::model::ContainerResourceLimitsSpec>,
     pub(crate) execution_root: PathBuf,
 }
 
@@ -48,6 +51,7 @@ impl ActiveJobMetadata {
             origin: input.origin,
             runtime_source: input.runtime_source,
             command: input.command,
+            resource_limits: input.resource_limits,
             execution_root: input.execution_root,
         }
     }
@@ -97,6 +101,7 @@ impl NodeStatusState {
         node: &NodeInfo,
         execution_root_base: &std::path::Path,
         image_cache: Option<&RemoteImageCacheRuntimeConfig>,
+        queued_jobs: Vec<ResourceRequest>,
     ) -> Result<NodeStatusResponse> {
         self.system.refresh_memory();
         self.system.refresh_cpu_usage();
@@ -150,6 +155,11 @@ impl NodeStatusState {
                 )
                 .ok()
             }),
+            queued_jobs: queued_jobs
+                .iter()
+                .enumerate()
+                .map(|(index, job)| super::status_state_helpers::queued_job_value(job, index + 1))
+                .collect(),
         })
     }
 }

@@ -1,4 +1,4 @@
-use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
+use tak_core::model::{ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_proto::{runtime_spec, step};
 
 use super::submit_payload_test_support::{
@@ -12,6 +12,10 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
         source: ContainerRuntimeSourceSpec::Image {
             image: "ghcr.io/acme/web:latest".into(),
         },
+        resource_limits: Some(ContainerResourceLimitsSpec {
+            cpu_cores: Some(2.0),
+            memory_mb: Some(4096),
+        }),
     }));
     let payload = build_remote_submit_payload(
         &target,
@@ -67,6 +71,9 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
             assert_eq!(container.image.as_deref(), Some("ghcr.io/acme/web:latest"));
             assert_eq!(container.dockerfile, None);
             assert_eq!(container.build_context, None);
+            let limits = container.resource_limits.expect("resource limits");
+            assert_eq!(limits.cpu_cores, 2.0);
+            assert_eq!(limits.memory_mb, 4096);
         }
     }
     match payload.steps[0].kind.as_ref().expect("cmd step") {

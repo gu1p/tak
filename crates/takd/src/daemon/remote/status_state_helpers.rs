@@ -4,8 +4,9 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use sysinfo::Disks;
-use tak_proto::{ActiveJob, AggregatedNeedUsage, StorageUsage};
+use tak_proto::{ActiveJob, AggregatedNeedUsage, QueuedJob, StorageUsage};
 
+use super::resource_admission::{ResourceRequest, proto_resource_limits};
 use super::status_state::ActiveJobMetadata;
 
 pub(super) fn active_job_value(job: &ActiveJobMetadata) -> Result<ActiveJob> {
@@ -20,7 +21,23 @@ pub(super) fn active_job_value(job: &ActiveJobMetadata) -> Result<ActiveJob> {
         origin: job.origin.clone(),
         runtime_source: job.runtime_source.clone(),
         command: job.command.clone(),
+        resource_limits: job.resource_limits.as_ref().and_then(proto_resource_limits),
     })
+}
+
+pub(super) fn queued_job_value(job: &ResourceRequest, queue_position: usize) -> QueuedJob {
+    QueuedJob {
+        task_run_id: job.task_run_id.clone(),
+        attempt: job.attempt,
+        task_label: job.task_label.clone(),
+        queued_at_ms: job.queued_at_ms,
+        queue_position: u32::try_from(queue_position).unwrap_or(u32::MAX),
+        resource_limits: proto_resource_limits(&job.resource_limits),
+        runtime: job.runtime.clone(),
+        origin: job.origin.clone(),
+        runtime_source: job.runtime_source.clone(),
+        command: job.command.clone(),
+    }
 }
 
 pub(super) fn storage_usage(

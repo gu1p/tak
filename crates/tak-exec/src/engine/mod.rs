@@ -14,6 +14,7 @@ mod output_observer;
 mod placement;
 mod placement_remote;
 mod placement_session;
+mod preflight_capacity;
 pub(crate) mod preflight_failure;
 pub(crate) mod preflight_fallback;
 mod preflight_status_output;

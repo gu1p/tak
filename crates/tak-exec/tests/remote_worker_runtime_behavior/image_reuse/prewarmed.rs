@@ -52,6 +52,7 @@ fn mutable_image_spec(db_path: std::path::PathBuf) -> RemoteWorkerExecutionSpec 
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

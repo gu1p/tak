@@ -63,6 +63,7 @@ fn cleanup_case() -> (
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

@@ -58,7 +58,10 @@ pub enum ContainerRuntimeSourceSpec {
 
 #[derive(Debug, Clone)]
 pub enum RemoteRuntimeSpec {
-    Containerized { source: ContainerRuntimeSourceSpec },
+    Containerized {
+        source: ContainerRuntimeSourceSpec,
+        resource_limits: Option<ContainerResourceLimitsSpec>,
+    },
 }
 
 #[derive(Debug, Clone)]

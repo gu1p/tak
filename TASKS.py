@@ -1,6 +1,7 @@
 CARGO_SHARED_ENV_SCRIPT = (
-    'mkdir -p /var/tmp/tak-tests .tmp/cargo-home .tmp/cargo-target-local && '
-    'TMPDIR="/var/tmp/tak-tests" '
+    'TAK_TEST_TMPDIR="${TAK_TEST_TMPDIR:-/var/tmp/tak-tests}" && '
+    'mkdir -p "$TAK_TEST_TMPDIR" .tmp/cargo-home .tmp/cargo-target-local && '
+    'TMPDIR="$TAK_TEST_TMPDIR" '
     'CARGO_HOME="$PWD/.tmp/cargo-home" '
     'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" exec "$@"'
 )
@@ -15,6 +16,7 @@ CHECK_CONTEXT = CurrentState(ignored=[gitignore()])
 CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
+    resources=Container.Resources(cpu_cores=4.0, memory_mb=8192),
 )
 
 CHECK_SESSION = session(

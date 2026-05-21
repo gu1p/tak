@@ -5,12 +5,16 @@ use tak_core::model::{
 use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 
 mod fused_members;
+mod resources;
+
+use resources::parse_required_container_resource_limits;
 
 pub(super) fn parse_remote_worker_submit_payload(
     request: &tak_proto::SubmitTaskRequest,
 ) -> Result<RemoteWorkerSubmitPayload> {
     Ok(RemoteWorkerSubmitPayload {
         workspace_zip: request.workspace_zip.clone(),
+        task_run_id: request.task_run_id.clone(),
         task_label: request.task_label.clone(),
         attempt: request.attempt,
         steps: request
@@ -26,6 +30,7 @@ pub(super) fn parse_remote_worker_submit_payload(
                 .ok_or_else(|| anyhow!("invalid_submit_fields: execution.runtime is required")) // fail closed against host-level remote execution
                 .and_then(parse_remote_worker_runtime_spec)?,
         ),
+        needs: request.needs.clone(),
         outputs: request
             .outputs
             .iter()
@@ -41,6 +46,9 @@ pub(super) fn parse_remote_worker_submit_payload(
             .iter()
             .map(fused_members::parse_remote_worker_fused_member)
             .collect::<Result<Vec<_>>>()?,
+        origin: request.origin.clone(),
+        runtime_source: request.runtime_source.clone(),
+        command: request.command.clone(),
     })
 }
 
@@ -114,6 +122,7 @@ fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntime
                     source: ContainerRuntimeSourceSpec::Image {
                         image: image.to_string(),
                     },
+                    resource_limits: Some(parse_required_container_resource_limits(container)?),
                 }),
                 (None, Some(dockerfile)) => {
                     let dockerfile = normalize_workspace_submit_path(
@@ -129,6 +138,7 @@ fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntime
                             dockerfile,
                             build_context,
                         },
+                        resource_limits: Some(parse_required_container_resource_limits(container)?),
                     })
                 }
             }

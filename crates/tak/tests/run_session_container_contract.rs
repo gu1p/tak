@@ -12,7 +12,7 @@ fn container_reuse_cascade_fuses_dependency_closure_into_one_run() -> Result<()>
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("container", reuse=SessionReuse.Container())
 EXEC = Execution.Local(container=RUNTIME, session=SESSION)
 
@@ -45,7 +45,7 @@ fn outer_container_reuse_cascade_absorbs_inner_alias_with_same_execution() -> Re
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("container", reuse=SessionReuse.Container())
 EXEC = Execution.Local(container=RUNTIME, session=SESSION)
 

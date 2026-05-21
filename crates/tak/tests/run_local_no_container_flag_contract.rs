@@ -16,7 +16,7 @@ fn run_command_local_no_container_ignores_remote_dockerfile_runtime() -> Result<
     write_tasks(
         temp.path(),
         r#"EXEC = Execution.FirstAvailable([
-  Execution.Remote(container=Container.Dockerfile(path("docker/Dockerfile"))),
+  Execution.Remote(container=Container.Dockerfile(path("docker/Dockerfile"), resources=Container.Resources(cpu_cores=1.0, memory_mb=512))),
   Execution.Local(),
 ])
 
@@ -33,7 +33,7 @@ fn run_command_local_no_container_ignores_default_container_runtime() -> Result<
     write_tasks(
         temp.path(),
         r#"SPEC = module_spec(
-  defaults=Defaults(container=Container.Image("alpine:3.20")),
+  defaults=Defaults(container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))),
   tasks=[task("check", steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime.txt")])],
 )
 SPEC

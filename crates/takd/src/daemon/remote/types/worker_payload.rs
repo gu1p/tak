@@ -2,18 +2,24 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, RetryDef, StepDef};
+use tak_proto::SubmittedNeed;
 
 #[derive(Debug, Clone)]
 pub(in crate::daemon::remote) struct RemoteWorkerSubmitPayload {
     pub(in crate::daemon::remote) workspace_zip: Vec<u8>,
+    pub(in crate::daemon::remote) task_run_id: String,
     pub(in crate::daemon::remote) task_label: String,
     pub(in crate::daemon::remote) attempt: u32,
     pub(in crate::daemon::remote) steps: Vec<StepDef>,
     pub(in crate::daemon::remote) timeout_s: Option<u64>,
     pub(in crate::daemon::remote) runtime: Option<RemoteRuntimeSpec>,
+    pub(in crate::daemon::remote) needs: Vec<SubmittedNeed>,
     pub(in crate::daemon::remote) outputs: Vec<OutputSelectorSpec>,
     pub(in crate::daemon::remote) session: Option<RemoteWorkerSession>,
     pub(in crate::daemon::remote) fused_members: Vec<RemoteWorkerFusedMember>,
+    pub(in crate::daemon::remote) origin: Option<String>,
+    pub(in crate::daemon::remote) runtime_source: Option<String>,
+    pub(in crate::daemon::remote) command: Option<String>,
 }
 
 #[derive(Debug, Clone)]

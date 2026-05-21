@@ -1,4 +1,7 @@
-use tak_core::model::{BackoffDef, ContainerRuntimeSourceSpec, RemoteRuntimeSpec, RetryDef};
+use tak_core::model::{
+    BackoffDef, ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, RemoteRuntimeSpec,
+    RetryDef,
+};
 
 use super::submit_payload_test_support::{
     direct_target, encoded_workspace, task_with_steps_and_needs, workspace,
@@ -11,6 +14,10 @@ fn build_remote_submit_payload_includes_fused_member_policies() {
         source: ContainerRuntimeSourceSpec::Image {
             image: "ghcr.io/acme/web:latest".into(),
         },
+        resource_limits: Some(ContainerResourceLimitsSpec {
+            cpu_cores: Some(1.0),
+            memory_mb: Some(512),
+        }),
     }));
     let mut member = task_with_steps_and_needs();
     member.label.name = "flaky".into();

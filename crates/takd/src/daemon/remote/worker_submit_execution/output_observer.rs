@@ -14,11 +14,15 @@ struct RemoteWorkerEventObserver {
 }
 
 impl RemoteWorkerEventObserver {
-    fn new(store: SubmitAttemptStore, idempotency_key: String) -> Self {
+    fn new_with_next_seq(
+        store: SubmitAttemptStore,
+        idempotency_key: String,
+        next_seq: u64,
+    ) -> Self {
         Self {
             store,
             idempotency_key,
-            next_seq: Arc::new(AtomicU64::new(2)),
+            next_seq: Arc::new(AtomicU64::new(next_seq)),
             stdout_tail: Arc::new(Mutex::new(Vec::new())),
             stderr_tail: Arc::new(Mutex::new(Vec::new())),
         }

@@ -13,7 +13,7 @@ use bollard::container::{
 use bollard::errors::Error as BollardError;
 use bollard::models::HostConfig;
 use futures::StreamExt;
-use tak_core::model::{ResolvedTask, StepDef, TaskLabel};
+use tak_core::model::{ContainerResourceLimitsSpec, ResolvedTask, StepDef, TaskLabel};
 use uuid::Uuid;
 
 use crate::container_engine::ContainerEngine;
@@ -23,6 +23,7 @@ use crate::{ContainerExecutionPlan, OutputStream, TaskOutputObserver};
 
 mod build_context;
 mod execution;
+mod execution_wait;
 mod foundation;
 mod log_stream;
 mod tar_archive;
@@ -30,6 +31,7 @@ mod tar_archive;
 pub(crate) use build_context::deterministic_dockerfile_image_tag;
 use build_context::ensure_container_runtime_source;
 use execution::run_step_in_container;
+use execution_wait::{cleanup_container, wait_for_container_step};
 pub(crate) use foundation::connect_container_engine;
 use log_stream::{ContainerLogTask, finish_container_log_task, spawn_container_log_task};
 use tar_archive::{append_tar_entry, tar_builder};
@@ -59,6 +61,7 @@ struct ContainerStepExecutor<'a> {
     engine: ContainerEngine,
     podman_wait_socket: Option<&'a str>,
     image: &'a str,
+    resource_limits: Option<&'a ContainerResourceLimitsSpec>,
 }
 
 pub(crate) async fn run_task_steps_in_container(
@@ -82,6 +85,7 @@ pub(crate) async fn run_task_steps_in_container(
         engine: plan.engine,
         podman_wait_socket: client.podman_wait_socket.as_deref(),
         image: &plan.image,
+        resource_limits: plan.resource_limits.as_ref(),
     };
     tokio::select! {
         result = ensure_container_runtime_source(executor.docker, context.workspace_root, plan, &run_context) => result?,

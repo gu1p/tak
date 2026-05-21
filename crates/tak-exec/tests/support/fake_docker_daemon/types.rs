@@ -12,6 +12,8 @@ pub struct BuildRecord {
 pub struct CreateRecord {
     pub user: Option<String>,
     pub binds: Vec<String>,
+    pub nano_cpus: Option<i64>,
+    pub memory: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

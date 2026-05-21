@@ -14,6 +14,7 @@ mod global_config;
 mod load_options;
 mod module_eval;
 mod module_merge;
+mod module_merge_validation;
 mod monty_deserializer;
 mod output_resolution;
 mod project_resolution;

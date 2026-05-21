@@ -1,5 +1,8 @@
 use prost::Message;
-use tak_proto::{ActiveJob, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, StorageUsage};
+use tak_proto::{
+    ActiveJob, ContainerResourceLimits, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse,
+    StorageUsage,
+};
 
 pub(super) fn node_status_payload(
     node_id: &str,
@@ -38,6 +41,7 @@ pub(super) fn node_status_payload(
         allocated_needs: vec![],
         active_jobs,
         image_cache: None,
+        queued_jobs: vec![],
     }
     .encode_to_vec()
 }
@@ -60,5 +64,9 @@ pub(super) fn active_job(
         origin: Some(origin.into()),
         runtime_source: Some(runtime_source.into()),
         command: Some(command.into()),
+        resource_limits: Some(ContainerResourceLimits {
+            cpu_cores: 2.0,
+            memory_mb: 1024,
+        }),
     }
 }

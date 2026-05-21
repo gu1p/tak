@@ -73,6 +73,7 @@ pub fn empty_status(node_id: &str) -> NodeStatusResponse {
         allocated_needs: Vec::new(),
         active_jobs: Vec::new(),
         image_cache: None,
+        queued_jobs: Vec::new(),
     }
 }
 

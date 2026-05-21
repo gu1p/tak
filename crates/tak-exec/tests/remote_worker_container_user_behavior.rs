@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
+use tak_core::model::{ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_exec::execute_remote_worker_steps;
 
 use crate::support;
@@ -25,8 +25,30 @@ async fn remote_worker_container_runtime_omits_user_for_image_default() {
     assert_eq!(create.user, None);
 }
 
+#[tokio::test]
+async fn remote_worker_container_runtime_passes_resource_limits_to_docker() {
+    let create = run_container_task(
+        None,
+        Some(ContainerResourceLimitsSpec {
+            cpu_cores: Some(1.5),
+            memory_mb: Some(768),
+        }),
+    )
+    .await;
+
+    assert_eq!(create.nano_cpus, Some(1_500_000_000));
+    assert_eq!(create.memory, Some(805_306_368));
+}
+
 async fn run_container_task_with_user(
     user: Option<&str>,
+) -> support::fake_docker_daemon::CreateRecord {
+    run_container_task(user, None).await
+}
+
+async fn run_container_task(
+    user: Option<&str>,
+    resource_limits: Option<ContainerResourceLimitsSpec>,
 ) -> support::fake_docker_daemon::CreateRecord {
     let _env_lock = env_lock();
     let mut env_guard = EnvGuard::default();
@@ -44,6 +66,7 @@ async fn run_container_task_with_user(
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits,
         }),
         "builder-a",
     );

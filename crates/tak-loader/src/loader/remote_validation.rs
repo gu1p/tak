@@ -48,7 +48,10 @@ pub(crate) fn validate_runtime(
         .map_err(|err| anyhow!("execution {owner}.container {err}"))?;
     let source = resolve_container_runtime_source(validated.source, package, owner)?;
 
-    Ok(Some(RemoteRuntimeSpec::Containerized { source }))
+    Ok(Some(RemoteRuntimeSpec::Containerized {
+        source,
+        resource_limits: validated.resource_limits,
+    }))
 }
 
 pub(crate) fn validate_local_runtime(
@@ -63,6 +66,22 @@ pub(crate) fn validate_local_runtime(
         return Ok(None);
     }
     validate_runtime(Some(runtime), package, owner)
+}
+
+pub(crate) fn validate_remote_runtime_limits(
+    runtime: &RemoteRuntimeSpec,
+    owner: &str,
+) -> Result<()> {
+    let RemoteRuntimeSpec::Containerized {
+        resource_limits, ..
+    } = runtime;
+    let Some(limits) = resource_limits else {
+        bail!("{owner} remote container resources require cpu_cores and memory_mb");
+    };
+    if limits.cpu_cores.is_none() || limits.memory_mb.is_none() {
+        bail!("{owner} remote container resources require cpu_cores and memory_mb");
+    }
+    Ok(())
 }
 
 fn resolve_container_runtime_source(

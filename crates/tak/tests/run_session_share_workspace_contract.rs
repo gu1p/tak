@@ -17,7 +17,7 @@ fn share_workspace_preserves_session_files_without_syncing_them_back() -> Result
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("rust", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(
@@ -54,7 +54,7 @@ fn remote_share_workspace_preserves_files_between_session_tasks() -> Result<()> 
     let roots = LiveDirectRoots::new(temp.path());
     write_tasks(
         &workspace,
-        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20"))
+        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)))
 SESSION = session("remote-rust", execution=REMOTE, reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(

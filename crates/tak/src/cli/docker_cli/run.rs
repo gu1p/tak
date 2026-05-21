@@ -12,6 +12,7 @@ use tak_exec::{RunOptions, TaskOutputObserver, run_resolved_task};
 
 use super::super::remote_inventory::RemoteRecord;
 use super::super::run_output::StdStreamOutputObserver;
+use super::super::run_override_runtime::default_cli_container_resource_limits;
 use super::super::task_history::{HistoryOutputObserver, TaskHistoryStore};
 use super::DockerCliSelectors;
 use super::run_spec::{DockerRunSpec, parse_docker_run};
@@ -112,7 +113,10 @@ fn docker_run_runtime(spec: &DockerRunSpec) -> Result<RemoteRuntimeSpec> {
                 .with_context(|| format!("invalid build context path `{build_context}`"))?,
         }
     };
-    Ok(RemoteRuntimeSpec::Containerized { source })
+    Ok(RemoteRuntimeSpec::Containerized {
+        source,
+        resource_limits: Some(default_cli_container_resource_limits()),
+    })
 }
 
 fn docker_run_execution(

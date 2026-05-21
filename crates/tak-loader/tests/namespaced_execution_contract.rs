@@ -12,7 +12,7 @@ fn loads_namespaced_local_remote_runtime_and_session_surface() {
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n").expect("dockerfile");
     fs::write(
         temp.path().join("TASKS.py"),
-        r#"IMAGE_RUNTIME = Container.Image("alpine:3.20")
+        r#"IMAGE_RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 DOCKER_RUNTIME = Container.Dockerfile(path("docker/Dockerfile"))
 SESSION = session(
   "container-check",
@@ -78,6 +78,7 @@ fn assert_runtime_image(runtime: Option<&RemoteRuntimeSpec>, expected: &str) {
     match runtime.expect("runtime") {
         RemoteRuntimeSpec::Containerized {
             source: ContainerRuntimeSourceSpec::Image { image },
+            ..
         } => assert_eq!(image, expected),
         other => panic!("expected image runtime, got {other:?}"),
     }

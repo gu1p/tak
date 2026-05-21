@@ -46,6 +46,12 @@ message ContainerRuntime {
   optional string image = 1;
   optional string dockerfile = 2;
   optional string build_context = 3;
+  optional ContainerResourceLimits resource_limits = 4;
+}
+
+message ContainerResourceLimits {
+  double cpu_cores = 1;
+  uint64 memory_mb = 2;
 }
 
 message RuntimeSpec {
@@ -218,6 +224,20 @@ message ActiveJob {
   optional string origin = 8;
   optional string runtime_source = 9;
   optional string command = 10;
+  optional ContainerResourceLimits resource_limits = 11;
+}
+
+message QueuedJob {
+  string task_run_id = 1;
+  uint32 attempt = 2;
+  string task_label = 3;
+  int64 queued_at_ms = 4;
+  uint32 queue_position = 5;
+  optional ContainerResourceLimits resource_limits = 6;
+  optional string runtime = 7;
+  optional string origin = 8;
+  optional string runtime_source = 9;
+  optional string command = 10;
 }
 
 message TaskAttemptSummary {
@@ -243,6 +263,7 @@ message NodeStatusResponse {
   repeated AggregatedNeedUsage allocated_needs = 6;
   repeated ActiveJob active_jobs = 7;
   ImageCacheStatus image_cache = 8;
+  repeated QueuedJob queued_jobs = 9;
 }
 
 message ErrorResponse {

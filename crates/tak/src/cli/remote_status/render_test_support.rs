@@ -2,7 +2,8 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use tak_proto::{
-    ActiveJob, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, StorageUsage, SubmittedNeed,
+    ActiveJob, ContainerResourceLimits, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse,
+    StorageUsage, SubmittedNeed,
 };
 
 use super::dashboard::buffer_to_plain_text;
@@ -110,6 +111,7 @@ fn status(node_id: &str, transport_state: &str, with_job: bool) -> NodeStatusRes
         allocated_needs: vec![],
         active_jobs: active_jobs(with_job),
         image_cache: None,
+        queued_jobs: vec![],
     }
 }
 
@@ -133,5 +135,9 @@ fn active_jobs(with_job: bool) -> Vec<ActiveJob> {
         origin: Some("task".to_string()),
         runtime_source: Some("image:alpine:3.20".to_string()),
         command: Some("make build".to_string()),
+        resource_limits: Some(ContainerResourceLimits {
+            cpu_cores: 2.0,
+            memory_mb: 1024,
+        }),
     }]
 }

@@ -6,7 +6,7 @@ use tak_core::model::{
     Scope, StepDef,
 };
 use tak_proto::{
-    CmdStep, ContainerRuntime, ExecutionSession, GetTaskResultResponse,
+    CmdStep, ContainerResourceLimits, ContainerRuntime, ExecutionSession, GetTaskResultResponse,
     PollTaskEventsResponse, RuntimeSpec, ScriptStep, Step, SubmitTaskRequest,
     SubmittedNeed, runtime_spec, step,
 };
@@ -94,7 +94,10 @@ fn step_submit_value(step_def: &StepDef) -> Result<Step> {
 
 fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> RuntimeSpec {
     match runtime {
-        RemoteRuntimeSpec::Containerized { source } => RuntimeSpec {
+        RemoteRuntimeSpec::Containerized {
+            source,
+            resource_limits,
+        } => RuntimeSpec {
             kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
                 image: match source {
                     ContainerRuntimeSourceSpec::Image { image } => Some(image.clone()),
@@ -112,9 +115,21 @@ fn remote_runtime_submit_value(runtime: &RemoteRuntimeSpec) -> RuntimeSpec {
                         Some(build_context.path.clone())
                     }
                 },
+                resource_limits: resource_limits
+                    .as_ref()
+                    .and_then(proto_resource_limits_value),
             })),
         },
     }
+}
+
+fn proto_resource_limits_value(
+    limits: &tak_core::model::ContainerResourceLimitsSpec,
+) -> Option<ContainerResourceLimits> {
+    Some(ContainerResourceLimits {
+        cpu_cores: limits.cpu_cores?,
+        memory_mb: limits.memory_mb?,
+    })
 }
 
 fn need_submit_value(need: &NeedDef) -> SubmittedNeed {

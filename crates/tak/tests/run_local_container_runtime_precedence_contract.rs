@@ -15,10 +15,10 @@ fn run_command_prefers_task_runtime_over_workspace_default_when_infering_contain
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n")?;
     write_tasks(
         temp.path(),
-        r#"LOCAL = Execution.Local(container=Container.Dockerfile(path("docker/Dockerfile")))
+        r#"LOCAL = Execution.Local(container=Container.Dockerfile(path("docker/Dockerfile"), resources=Container.Resources(cpu_cores=1.0, memory_mb=512)))
 
 SPEC = module_spec(
-  defaults=Defaults(container=Container.Image("alpine:3.20")),
+  defaults=Defaults(container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))),
   tasks=[task(
     "check",
     steps=[cmd(

@@ -42,6 +42,7 @@ fn local_override_preserves_existing_runtime_without_container_flag() {
         TaskExecutionSpec::LocalOnly(local) => match local.runtime.as_ref().expect("runtime") {
             RemoteRuntimeSpec::Containerized {
                 source: ContainerRuntimeSourceSpec::Image { image },
+                ..
             } => assert_eq!(image, "alpine:3.20"),
             other => panic!("expected image runtime, got {other:?}"),
         },

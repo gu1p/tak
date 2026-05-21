@@ -19,7 +19,7 @@ fn run_remote_timeout_reports_last_known_transport_state() -> Result<()> {
     let state_root = temp.path().join("state");
     write_tasks(
         temp.path(),
-        "REMOTE = Execution.Remote(pool=\"build\", required_tags=[\"builder\"], required_capabilities=[\"linux\"], transport=Transport.TorOnionService(), container=Container.Image(\"alpine:3.20\"))\nSPEC = module_spec(tasks=[task(\"check\", steps=[cmd(\"sh\", \"-c\", \"echo should-not-run\")], execution=REMOTE)])\nSPEC\n",
+        "REMOTE = Execution.Remote(pool=\"build\", required_tags=[\"builder\"], required_capabilities=[\"linux\"], transport=Transport.TorOnionService(), container=Container.Image(\"alpine:3.20\", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)))\nSPEC = module_spec(tasks=[task(\"check\", steps=[cmd(\"sh\", \"-c\", \"echo should-not-run\")], execution=REMOTE)])\nSPEC\n",
     )?;
     write_remote_inventory(
         &config_root,

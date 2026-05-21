@@ -33,6 +33,7 @@ mod http_server_test_support;
 mod http_server_unit_tests;
 mod orphan_watchdog;
 mod query_helpers;
+mod resource_admission;
 mod route_events;
 mod route_logs;
 mod route_node;

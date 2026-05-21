@@ -66,6 +66,7 @@ pub(super) fn mutable_image_spec_for(
             source: ContainerRuntimeSourceSpec::Image {
                 image: image.to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

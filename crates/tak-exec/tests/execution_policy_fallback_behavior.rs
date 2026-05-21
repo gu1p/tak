@@ -1,5 +1,4 @@
 #![allow(clippy::await_holding_lock)]
-
 use crate::support::{
     EnvGuard, RemoteInventoryRecord, env_lock, shell_step, write_remote_inventory,
 };
@@ -96,5 +95,6 @@ fn image_runtime() -> RemoteRuntimeSpec {
         source: ContainerRuntimeSourceSpec::Image {
             image: "alpine:3.20".into(),
         },
+        resource_limits: None,
     }
 }

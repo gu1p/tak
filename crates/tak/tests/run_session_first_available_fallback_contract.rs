@@ -12,7 +12,7 @@ fn first_available_session_local_fallback_preserves_cascaded_workspace() -> Resu
     fs::create_dir_all(&config)?;
     write_tasks(
         &workspace,
-        r#"CONTAINER = Container.Image("alpine:3.20")
+        r#"CONTAINER = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session(
   "remote-or-local",
   execution=Execution.FirstAvailable([

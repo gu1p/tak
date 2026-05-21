@@ -28,7 +28,7 @@ fn policy_placements(task: &ResolvedTask) -> &[ExecutionPlacementSpec] {
 #[test]
 fn inline_execution_policy_on_task_resolves_ordered_placements() {
     let task = load_task(
-        r#"RUNTIME=Container.Image("alpine:3.20"); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(pool="build", required_tags=["builder"], container=RUNTIME), Execution.Local(container=RUNTIME)]); SPEC=module_spec(tasks=[task("check", steps=[cmd("true")], execution=POLICY)]); SPEC"#,
+        r#"RUNTIME=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(pool="build", required_tags=["builder"], container=RUNTIME), Execution.Local(container=RUNTIME)]); SPEC=module_spec(tasks=[task("check", steps=[cmd("true")], execution=POLICY)]); SPEC"#,
     );
 
     let placements = policy_placements(&task);
@@ -53,7 +53,7 @@ fn inline_execution_policy_on_task_resolves_ordered_placements() {
 #[test]
 fn module_default_execution_accepts_inline_execution_policy() {
     let task = load_task(
-        r#"RUNTIME=Container.Image("alpine:3.20"); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(pool="build", container=RUNTIME)]); SPEC=module_spec(defaults=Defaults(execution=POLICY), tasks=[task("check", steps=[cmd("true")])]); SPEC"#,
+        r#"RUNTIME=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(pool="build", container=RUNTIME)]); SPEC=module_spec(defaults=Defaults(execution=POLICY), tasks=[task("check", steps=[cmd("true")])]); SPEC"#,
     );
     match &policy_placements(&task)[0] {
         ExecutionPlacementSpec::Remote(remote) => {
@@ -67,7 +67,7 @@ fn module_default_execution_accepts_inline_execution_policy() {
 #[test]
 fn module_default_execution_accepts_direct_execution_value() {
     let task = load_task(
-        r#"RUNTIME=Container.Image("alpine:3.20"); SPEC=module_spec(defaults=Defaults(execution=Execution.Local(container=RUNTIME)), tasks=[task("check", steps=[cmd("true")])]); SPEC"#,
+        r#"RUNTIME=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)); SPEC=module_spec(defaults=Defaults(execution=Execution.Local(container=RUNTIME)), tasks=[task("check", steps=[cmd("true")])]); SPEC"#,
     );
     match &task.execution {
         TaskExecutionSpec::LocalOnly(local) => {
@@ -80,7 +80,7 @@ fn module_default_execution_accepts_direct_execution_value() {
 #[test]
 fn execution_policy_accepts_explicit_shuffle_remote_selection() {
     let task = load_task(
-        r#"RUNTIME=Container.Image("alpine:3.20"); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(container=RUNTIME, selection=RemoteSelection.Shuffle())]); SPEC=module_spec(tasks=[task("check", steps=[cmd("true")], execution=POLICY)]); SPEC"#,
+        r#"RUNTIME=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(container=RUNTIME, selection=RemoteSelection.Shuffle())]); SPEC=module_spec(tasks=[task("check", steps=[cmd("true")], execution=POLICY)]); SPEC"#,
     );
     match &policy_placements(&task)[0] {
         ExecutionPlacementSpec::Remote(remote) => {
@@ -91,7 +91,7 @@ fn execution_policy_accepts_explicit_shuffle_remote_selection() {
 }
 
 fn assert_runtime_image(runtime: Option<&RemoteRuntimeSpec>, expected: &str) {
-    let RemoteRuntimeSpec::Containerized { source } = runtime.expect("runtime");
+    let RemoteRuntimeSpec::Containerized { source, .. } = runtime.expect("runtime");
     let ContainerRuntimeSourceSpec::Image { image } = source else {
         panic!("expected image runtime");
     };

@@ -1,5 +1,4 @@
 use std::fs;
-
 use tak_loader::{LoadOptions, load_workspace};
 
 #[test]
@@ -32,7 +31,10 @@ remote: RemoteExecutionSpec = Execution.Remote(
   required_tags=["builder"],
   required_capabilities=["linux"],
   transport=Transport.DirectHttps(),
-  container=Container.Image("alpine:3.20"),
+  container=Container.Image(
+    "alpine:3.20",
+    resources=Container.Resources(cpu_cores=1.0, memory_mb=512),
+  ),
 )
 context: CurrentStateSpec = CurrentState(
   roots=[path("src")],
@@ -79,21 +81,18 @@ SPEC
     .expect("write tasks");
 
     let spec = load_workspace(temp.path(), &LoadOptions::default()).expect("load workspace");
-    let labels = spec.tasks.keys().map(canonical_label).collect::<Vec<_>>();
+    let labels = spec.tasks.keys().collect::<Vec<_>>();
 
     assert!(
-        labels.iter().any(|label| label == "//:build"),
+        labels
+            .iter()
+            .any(|label| label.package == "//" && label.name == "build"),
         "missing build label: {labels:?}"
     );
     assert!(
-        labels.iter().any(|label| label == "//:check"),
+        labels
+            .iter()
+            .any(|label| label.package == "//" && label.name == "check"),
         "missing check label: {labels:?}"
     );
-}
-
-fn canonical_label(label: &tak_core::model::TaskLabel) -> String {
-    match label.package.as_str() {
-        "//" => format!("//:{}", label.name),
-        _ => format!("{}:{}", label.package, label.name),
-    }
 }

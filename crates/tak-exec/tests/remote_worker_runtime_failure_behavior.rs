@@ -32,6 +32,7 @@ async fn remote_worker_reports_injected_container_lifecycle_failure() {
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         node_id: "builder-a".to_string(),
         container_user: None,

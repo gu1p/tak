@@ -48,6 +48,7 @@ async fn remote_worker_preserves_executable_bits_in_dockerfile_build_context() {
                     path: ".".to_string(),
                 },
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

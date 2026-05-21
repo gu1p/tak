@@ -18,7 +18,7 @@ fn policy_chosen_remote_inherits_module_default_container_runtime() -> Result<()
         &workspace_root,
         r#"def choose_remote(ctx):
   return Decision.remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), reason=Reason.LOCAL_CPU_HIGH)
-SPEC = module_spec(defaults=Defaults(container=Container.Image("alpine:3.20")), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=Execution.Decide(choose_remote))])
+SPEC = module_spec(defaults=Defaults(container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))), tasks=[task("check", outputs=[path("out")], steps=[cmd("sh", "-c", "mkdir -p out && printf '%s\n' \"$TAK_RUNTIME_SOURCE\" > out/runtime-source.txt")], execution=Execution.Decide(choose_remote))])
 SPEC
 "#,
     )?;

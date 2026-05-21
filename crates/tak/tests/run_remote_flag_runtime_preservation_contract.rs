@@ -24,7 +24,7 @@ fn run_command_remote_flag_preserves_declared_local_container_runtime() -> Resul
     )?;
     write_tasks(
         &workspace_root,
-        r#"LOCAL = Execution.Local(container=Container.Dockerfile(path("docker/Dockerfile")))
+        r#"LOCAL = Execution.Local(container=Container.Dockerfile(path("docker/Dockerfile"), resources=Container.Resources(cpu_cores=1.0, memory_mb=512)))
 
 SPEC = module_spec(tasks=[task(
   "check",

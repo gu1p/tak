@@ -12,6 +12,7 @@ pub(super) fn container_method_replacement(name: &str) -> Option<&'static str> {
     match name {
         "Image" => Some("Container_Image"),
         "Dockerfile" => Some("Container_Dockerfile"),
+        "Resources" => Some("Container_Resources"),
         _ => None,
     }
 }

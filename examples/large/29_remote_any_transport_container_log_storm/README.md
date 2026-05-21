@@ -7,7 +7,7 @@ Large tier: transport-agnostic remote execution, container metadata, and sustain
 
 ## What This Example Exercises
 - omitted `transport` in `Execution.Remote(...)`, which means any matching enabled remote transport
-- `Container.Image("alpine:3.20")`
+- `Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))`
 - heavy remote stdout and stderr streaming while the task is still running
 - local verification of remote-produced artifacts after sync
 
@@ -18,7 +18,10 @@ REMOTE = Execution.Remote(
     pool="build",
     required_tags=["builder"],
     required_capabilities=["linux"],
-    container=Container.Image("alpine:3.20"),
+    container=Container.Image(
+        "alpine:3.20",
+        resources=Container.Resources(cpu_cores=1.0, memory_mb=512),
+    ),
 )
 
 SPEC = module_spec(tasks=[

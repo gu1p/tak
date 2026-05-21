@@ -6,41 +6,22 @@ use tak_proto::{NodeInfo, NodeStatusResponse};
 
 use super::active_executions::SharedActiveExecutions;
 use super::execution_root::remote_execution_root_base;
+use super::resource_admission::{
+    ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
+};
 use super::runtime::RemoteRuntimeConfig;
 use super::runtime_state::RemoteRuntimeState;
 use super::status_state::{ActiveJobMetadata, SharedNodeStatusState, new_shared_node_status_state};
 
+mod records;
 mod worker_payload;
 
+pub use records::{RemoteV1Response, SubmitAttemptSummaryRecord, SubmitEventRecord};
 pub use worker_payload::RemoteImageCacheRuntimeConfig;
 pub(super) use worker_payload::{
     RemoteWorkerFusedMember, RemoteWorkerOutputRecord, RemoteWorkerSession,
     RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SubmitEventRecord {
-    pub seq: u64,
-    pub payload_json: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RemoteV1Response {
-    pub status_code: u16,
-    pub content_type: String,
-    pub body: Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SubmitAttemptSummaryRecord {
-    pub task_run_id: String,
-    pub attempt: u32,
-    pub task_label: String,
-    pub selected_node_id: String,
-    pub state: String,
-    pub created_at_ms: i64,
-    pub finished_at_ms: Option<i64>,
-}
 
 #[derive(Clone)]
 pub struct RemoteNodeContext {
@@ -48,6 +29,7 @@ pub struct RemoteNodeContext {
     pub bearer_token: String,
     status_state: SharedNodeStatusState,
     active_executions: SharedActiveExecutions,
+    resource_admission: SharedResourceAdmission,
     runtime_state: Arc<RemoteRuntimeState>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
     state_root: Option<PathBuf>,
@@ -60,6 +42,7 @@ impl RemoteNodeContext {
             bearer_token,
             status_state: new_shared_node_status_state(),
             active_executions: SharedActiveExecutions::default(),
+            resource_admission: SharedResourceAdmission::new_detected(),
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
             image_cache: None,
             state_root: None,
@@ -171,6 +154,7 @@ impl RemoteNodeContext {
 
     pub(crate) fn node_status(&self) -> Result<NodeStatusResponse> {
         let node = self.node_info()?;
+        let queued_jobs = self.resource_admission.queued_jobs()?;
         let mut guard = self
             .status_state
             .lock()
@@ -179,6 +163,7 @@ impl RemoteNodeContext {
             &node,
             &remote_execution_root_base(self),
             self.image_cache.as_ref(),
+            queued_jobs,
         )
     }
 
@@ -196,5 +181,20 @@ impl RemoteNodeContext {
 
     pub(crate) fn runtime_state(&self) -> &Arc<RemoteRuntimeState> {
         &self.runtime_state
+    }
+
+    pub(crate) fn admit_or_queue_resources(
+        &self,
+        request: ResourceRequest,
+    ) -> Result<ResourceAdmissionDecision> {
+        self.resource_admission.admit_or_queue(request)
+    }
+
+    pub(crate) fn wait_until_resources_admitted(&self, idempotency_key: &str) -> Result<()> {
+        self.resource_admission.wait_until_admitted(idempotency_key)
+    }
+
+    pub(crate) fn release_resources(&self, idempotency_key: &str) -> Result<()> {
+        self.resource_admission.release(idempotency_key)
     }
 }

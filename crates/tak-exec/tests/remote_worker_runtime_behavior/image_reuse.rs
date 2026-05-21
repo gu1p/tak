@@ -30,6 +30,7 @@ async fn remote_worker_reuses_present_mutable_image_when_image_cache_is_enabled(
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );
