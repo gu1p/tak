@@ -9,17 +9,33 @@ use crate::engine::attempt_execution::{
 use crate::engine::attempt_submit::{AttemptSubmitState, resolve_attempt_submit_state};
 use crate::engine::fused_cascade::FusedCascade;
 use crate::engine::remote_models::{RemoteWorkspaceStage, TaskPlacement};
+use crate::engine::remote_selection::SharedRemoteSelectionState;
 use crate::engine::session_workspaces::PreparedTaskSession;
 
+pub(super) struct RemoteFusedAttemptContext<'a> {
+    pub(super) cascade: &'a FusedCascade,
+    pub(super) workspace_root: &'a Path,
+    pub(super) options: &'a RunOptions,
+    pub(super) task_run_id: &'a str,
+    pub(super) placement: &'a mut TaskPlacement,
+    pub(super) remote_selection_state: &'a SharedRemoteSelectionState,
+    pub(super) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    pub(super) session: Option<&'a PreparedTaskSession>,
+}
+
 pub(super) async fn run_remote_fused_attempt(
-    cascade: &FusedCascade,
-    workspace_root: &Path,
-    options: &RunOptions,
-    task_run_id: &str,
-    placement: &mut TaskPlacement,
-    remote_workspace: Option<&RemoteWorkspaceStage>,
-    session: Option<&PreparedTaskSession>,
+    context: RemoteFusedAttemptContext<'_>,
 ) -> Result<(u32, AttemptExecutionOutcome)> {
+    let RemoteFusedAttemptContext {
+        cascade,
+        workspace_root,
+        options,
+        task_run_id,
+        placement,
+        remote_selection_state,
+        remote_workspace,
+        session,
+    } = context;
     resolve_attempt_submit_state(
         &cascade.task,
         placement,
@@ -32,6 +48,7 @@ pub(super) async fn run_remote_fused_attempt(
         },
         options.output_observer.as_ref(),
         &options.cancellation,
+        remote_selection_state,
     )
     .await?;
     let context = AttemptExecutionContext {

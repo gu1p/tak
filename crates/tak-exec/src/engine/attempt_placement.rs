@@ -7,7 +7,7 @@ use super::TaskOutputObserver;
 use super::placement::{PlacementCandidate, resolve_task_placement_candidates};
 use super::preflight_fallback::preflight_ordered_remote_target;
 use super::remote_models::TaskPlacement;
-use super::remote_selection::ordered_remote_targets_for_attempt;
+use super::remote_selection::SharedRemoteSelectionState;
 
 pub(crate) async fn preflight_task_placement(
     task: &ResolvedTask,
@@ -15,6 +15,7 @@ pub(crate) async fn preflight_task_placement(
     task_run_id: &str,
     attempt: u32,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<TaskPlacement> {
     let mut failures = Vec::new();
     for candidate in resolve_task_placement_candidates(task, workspace_root)? {
@@ -28,21 +29,31 @@ pub(crate) async fn preflight_task_placement(
         if placement.ordered_remote_targets.is_empty() {
             return Ok(placement);
         }
-        let ordered = ordered_remote_targets_for_attempt(
+        let ordered = remote_selection_state.reserve_ordered_targets_for_attempt(
             &placement.ordered_remote_targets,
             placement.remote_selection,
             &task.label.to_string(),
             task_run_id,
             attempt,
         );
+        let reserved_node_id = ordered.first().map(|target| target.node_id.clone());
         let selected = match preflight_ordered_remote_target(task, &ordered, output_observer).await
         {
             Ok(selected) => selected,
             Err(err) => {
+                remote_selection_state.release_reserved_target(
+                    placement.remote_selection,
+                    reserved_node_id.as_deref(),
+                );
                 failures.push(err);
                 continue;
             }
         };
+        remote_selection_state.confirm_selected_target(
+            placement.remote_selection,
+            reserved_node_id.as_deref(),
+            &selected.node_id,
+        );
         placement.ordered_remote_targets = ordered;
         placement.remote_node_id = Some(selected.node_id.clone());
         placement.strict_remote_target = Some(selected);

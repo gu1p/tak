@@ -7,7 +7,8 @@ use super::attempt_placement::preflight_task_placement;
 use super::attempt_submit::resolve_initial_runtime_metadata;
 use super::fused_cascade::FusedCascade;
 use super::remote_models::TaskPlacement;
-use super::session_workspaces::ExecutionSessionManager;
+use super::remote_selection::SharedRemoteSelectionState;
+use super::session_workspaces::SharedExecutionSessionManager;
 use super::{LeaseContext, PlacementMode, RunOptions, TaskRunResult};
 use crate::lease_client::{acquire_task_lease, release_task_lease};
 
@@ -16,12 +17,23 @@ mod local;
 mod remote;
 mod setup;
 
+struct StartedFusedCascadeContext<'a> {
+    cascade: &'a FusedCascade,
+    workspace_root: &'a Path,
+    options: &'a RunOptions,
+    lease_context: &'a LeaseContext,
+    sessions: &'a SharedExecutionSessionManager,
+    remote_selection_state: &'a SharedRemoteSelectionState,
+    task_run_id: &'a str,
+}
+
 pub(crate) async fn run_fused_cascade(
     cascade: &FusedCascade,
     workspace_root: &Path,
     options: &RunOptions,
     lease_context: &LeaseContext,
-    sessions: &mut ExecutionSessionManager,
+    sessions: &SharedExecutionSessionManager,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<TaskRunResult> {
     let task_run_id = Uuid::new_v4().to_string();
     let mut placement = match cascade.placement.clone() {
@@ -33,18 +45,22 @@ pub(crate) async fn run_fused_cascade(
                 &task_run_id,
                 1,
                 options.output_observer.as_ref(),
+                remote_selection_state,
             )
             .await?
         }
     };
     events::emit_started(cascade, options, &task_run_id, &placement)?;
     match run_started_fused_cascade(
-        cascade,
-        workspace_root,
-        options,
-        lease_context,
-        sessions,
-        &task_run_id,
+        StartedFusedCascadeContext {
+            cascade,
+            workspace_root,
+            options,
+            lease_context,
+            sessions,
+            remote_selection_state,
+            task_run_id: &task_run_id,
+        },
         &mut placement,
     )
     .await
@@ -58,14 +74,18 @@ pub(crate) async fn run_fused_cascade(
 }
 
 async fn run_started_fused_cascade(
-    cascade: &FusedCascade,
-    workspace_root: &Path,
-    options: &RunOptions,
-    lease_context: &LeaseContext,
-    sessions: &mut ExecutionSessionManager,
-    task_run_id: &str,
+    context: StartedFusedCascadeContext<'_>,
     placement: &mut TaskPlacement,
 ) -> Result<TaskRunResult> {
+    let StartedFusedCascadeContext {
+        cascade,
+        workspace_root,
+        options,
+        lease_context,
+        sessions,
+        remote_selection_state,
+        task_run_id,
+    } = context;
     let runtime_metadata = resolve_initial_runtime_metadata(&cascade.task, placement).await?;
     let remote_workspace =
         setup::stage_remote_workspace_if_needed(&cascade.task, workspace_root, options, placement)?;
@@ -83,15 +103,16 @@ async fn run_started_fused_cascade(
     );
     let lease_id = acquire_task_lease(&cascade.task, 1, options, lease_context).await?;
     let fused_result = if placement.placement_mode == PlacementMode::Remote {
-        remote::run_remote_fused_attempt(
+        remote::run_remote_fused_attempt(remote::RemoteFusedAttemptContext {
             cascade,
             workspace_root,
             options,
             task_run_id,
             placement,
-            remote_workspace.as_ref(),
-            prepared_session.as_ref(),
-        )
+            remote_selection_state,
+            remote_workspace: remote_workspace.as_ref(),
+            session: prepared_session.as_ref(),
+        })
         .await
     } else {
         local::run_local_fused_attempt(local::LocalFusedAttemptContext {
