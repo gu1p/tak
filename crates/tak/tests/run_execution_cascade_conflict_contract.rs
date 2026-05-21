@@ -10,7 +10,7 @@ fn overlapping_execution_cascades_with_different_executions_fail_before_running(
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"CONTAINER = Container.Image("alpine:3.20")
+        r#"CONTAINER = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 FAST = Execution.Local()
 REMOTE = Execution.Remote(container=CONTAINER)
 

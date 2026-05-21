@@ -2,15 +2,13 @@ use std::path::Path;
 
 use anyhow::{Result, anyhow, bail};
 use tak_core::label::parse_label;
-use tak_core::model::{
-    ExecutionPlacementSpec, LimiterKey, ModuleSpec, RemoteRuntimeSpec, ResolvedTask, RetryDef,
-    TaskExecutionSpec,
-};
+use tak_core::model::{LimiterKey, ModuleSpec, ResolvedTask, RetryDef};
 
 use super::{
     MergeState,
     context_resolution::resolve_current_state,
     execution_policy_registry::resolve_task_execution,
+    module_merge_validation::{validate_remote_resource_limits, validate_remote_session_runtime},
     output_resolution::resolve_output_selectors,
     remote_validation::validate_runtime,
     scope_keys::{
@@ -129,6 +127,7 @@ pub(crate) fn merge_module(
             state,
         )?;
         validate_remote_session_runtime(&execution, container_runtime.as_ref())?;
+        validate_remote_resource_limits(&execution, container_runtime.as_ref())?;
         let context = resolve_current_state(task.context, package)?;
         let outputs = resolve_output_selectors(task.outputs, package)?;
 
@@ -157,36 +156,4 @@ pub(crate) fn merge_module(
     }
 
     Ok(())
-}
-
-fn validate_remote_session_runtime(
-    execution: &TaskExecutionSpec,
-    default_runtime: Option<&RemoteRuntimeSpec>,
-) -> Result<()> {
-    match execution {
-        TaskExecutionSpec::RemoteOnly(remote) => {
-            validate_remote_session_runtime_for_remote(remote, default_runtime)
-        }
-        TaskExecutionSpec::ByExecutionPolicy { placements, .. } => {
-            for placement in placements {
-                if let ExecutionPlacementSpec::Remote(remote) = placement {
-                    validate_remote_session_runtime_for_remote(remote, default_runtime)?;
-                }
-            }
-            Ok(())
-        }
-        TaskExecutionSpec::LocalOnly(_)
-        | TaskExecutionSpec::ByCustomPolicy { .. }
-        | TaskExecutionSpec::UseSession { .. } => Ok(()),
-    }
-}
-
-fn validate_remote_session_runtime_for_remote(
-    remote: &tak_core::model::RemoteSpec,
-    default_runtime: Option<&RemoteRuntimeSpec>,
-) -> Result<()> {
-    if remote.session.is_none() || remote.runtime.is_some() || default_runtime.is_some() {
-        return Ok(());
-    }
-    bail!("Execution.Remote(session=...) requires a container or Defaults(container=...)")
 }

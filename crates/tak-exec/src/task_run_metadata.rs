@@ -67,7 +67,7 @@ fn runtime_kind(runtime: &RemoteRuntimeSpec) -> String {
 
 fn runtime_source_display(runtime: &RemoteRuntimeSpec) -> String {
     match runtime {
-        RemoteRuntimeSpec::Containerized { source } => match source {
+        RemoteRuntimeSpec::Containerized { source, .. } => match source {
             ContainerRuntimeSourceSpec::Image { image } => format!("image:{image}"),
             ContainerRuntimeSourceSpec::Dockerfile { dockerfile, .. } => {
                 format!("dockerfile:{}", dockerfile.path)

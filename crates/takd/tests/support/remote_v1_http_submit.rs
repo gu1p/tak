@@ -1,7 +1,7 @@
 use prost::Message;
 use tak_proto::{
-    CmdStep, ContainerRuntime, OutputSelector, RuntimeSpec, Step, SubmitTaskRequest, runtime_spec,
-    step,
+    CmdStep, ContainerResourceLimits, ContainerRuntime, OutputSelector, RuntimeSpec, Step,
+    SubmitTaskRequest, runtime_spec, step,
 };
 
 pub fn truncated_submit_request(task_run_id: &str) -> Vec<u8> {
@@ -66,6 +66,10 @@ fn test_container_runtime() -> RuntimeSpec {
             image: Some("alpine:3.20".into()),
             dockerfile: None,
             build_context: None,
+            resource_limits: Some(ContainerResourceLimits {
+                cpu_cores: 1.0,
+                memory_mb: 512,
+            }),
         })),
     }
 }

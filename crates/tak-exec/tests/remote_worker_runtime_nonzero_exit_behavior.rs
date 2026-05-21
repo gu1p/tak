@@ -34,6 +34,7 @@ async fn remote_worker_reports_nonzero_docker_wait_as_task_failure() {
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );
@@ -71,6 +72,7 @@ async fn remote_worker_preserves_docker_wait_error_as_infra_failure() {
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

@@ -47,6 +47,7 @@ async fn remote_worker_preserves_restrictive_file_modes_in_dockerfile_build_cont
                     path: ".".to_string(),
                 },
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

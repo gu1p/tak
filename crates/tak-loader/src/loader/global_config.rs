@@ -60,7 +60,8 @@ pub(crate) fn validate_global_execution_policy(policy: &ExecutionPolicySpec) -> 
             matches!(
                 runtime,
                 tak_core::model::RemoteRuntimeSpec::Containerized {
-                    source: ContainerRuntimeSourceSpec::Dockerfile { .. }
+                    source: ContainerRuntimeSourceSpec::Dockerfile { .. },
+                    ..
                 }
             )
         }) {

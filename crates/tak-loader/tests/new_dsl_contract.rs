@@ -25,7 +25,7 @@ fn load_error(source: &str) -> String {
 #[test]
 fn first_available_resolves_ordered_container_placements() {
     let task = load_task(
-        r#"CONTAINER = Container.Image("alpine:3.20")
+        r#"CONTAINER = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 EXEC = Execution.FirstAvailable([
   Execution.Remote(pool="build", required_tags=["builder"], container=CONTAINER),
   Execution.Local(container=CONTAINER),

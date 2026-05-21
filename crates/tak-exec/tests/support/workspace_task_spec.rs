@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, CurrentStateSpec, LimiterKey, OutputSelectorSpec, QueueDef,
-    RemoteRuntimeSpec, RemoteSpec, ResolvedTask, RetryDef, StepDef, TaskExecutionSpec, TaskLabel,
-    WorkspaceSpec,
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, CurrentStateSpec, LimiterKey,
+    OutputSelectorSpec, QueueDef, RemoteRuntimeSpec, RemoteSpec, ResolvedTask, RetryDef, StepDef,
+    TaskExecutionSpec, TaskLabel, WorkspaceSpec,
 };
 
 pub fn build_remote_task_spec(
@@ -34,6 +34,10 @@ pub fn build_remote_task_spec(
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".into(),
             },
+            resource_limits: Some(ContainerResourceLimitsSpec {
+                cpu_cores: Some(1.0),
+                memory_mb: Some(512),
+            }),
         }),
         execution: TaskExecutionSpec::RemoteOnly(remote),
         session: None,

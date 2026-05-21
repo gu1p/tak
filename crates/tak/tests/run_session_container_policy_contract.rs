@@ -12,7 +12,7 @@ fn container_reuse_cascade_honors_dependency_retry_policy() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("container", reuse=SessionReuse.Container())
 EXEC = Execution.Local(container=RUNTIME, session=SESSION)
 
@@ -41,7 +41,7 @@ fn container_reuse_cascade_honors_dependency_timeout_policy() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("container", reuse=SessionReuse.Container())
 EXEC = Execution.Local(container=RUNTIME, session=SESSION)
 
@@ -67,7 +67,7 @@ fn container_reuse_cascade_outputs_reflect_final_workspace_state() -> Result<()>
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("container", reuse=SessionReuse.Container())
 EXEC = Execution.Local(container=RUNTIME, session=SESSION)
 

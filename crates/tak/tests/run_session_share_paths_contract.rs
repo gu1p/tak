@@ -17,7 +17,7 @@ fn share_paths_preserves_only_declared_paths_between_session_tasks() -> Result<(
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session(
   "cargo",
   execution=Execution.Local(container=RUNTIME),
@@ -56,7 +56,7 @@ fn remote_share_paths_preserves_only_declared_paths_between_session_tasks() -> R
     let roots = LiveDirectRoots::new(temp.path());
     write_tasks(
         &workspace,
-        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20"))
+        r#"REMOTE = Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)))
 SESSION = session("remote-cargo", execution=REMOTE, reuse=SessionReuse.Paths([path("target")]))
 
 SPEC = module_spec(

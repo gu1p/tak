@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
-    RemoteTransportKind, ResolvedTask, SessionUseSpec,
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec,
+    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, SessionUseSpec,
 };
 
 use crate::ImageCacheOptions;
@@ -89,6 +89,7 @@ pub(crate) struct ParsedRemoteEvents {
     pub(crate) next_seq: u64,
     pub(crate) done: bool,
     pub(crate) remote_logs: Vec<RemoteLogChunk>,
+    pub(crate) status_messages: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -122,6 +123,7 @@ pub(crate) struct ContainerExecutionPlan {
     pub(crate) engine: ContainerEngine,
     pub(crate) source: ContainerRuntimeSourceSpec,
     pub(crate) image: String,
+    pub(crate) resource_limits: Option<ContainerResourceLimitsSpec>,
     pub(crate) container_user: Option<String>,
     pub(crate) image_cache: Option<ImageCachePlan>,
 }

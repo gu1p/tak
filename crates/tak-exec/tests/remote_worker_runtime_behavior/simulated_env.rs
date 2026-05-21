@@ -24,6 +24,7 @@ async fn remote_worker_simulated_container_runtime_sets_expected_env() {
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );
@@ -68,6 +69,7 @@ async fn remote_worker_simulated_dockerfile_runtime_does_not_read_build_context(
                     path: ".".to_string(),
                 },
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

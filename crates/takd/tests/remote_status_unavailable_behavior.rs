@@ -1,12 +1,11 @@
-use crate::support;
-
 use std::fs;
 use std::os::unix::fs::symlink;
 
+use crate::support;
 use prost::Message;
 use tak_proto::{
-    CmdStep, ContainerRuntime, ErrorResponse, NodeInfo, RuntimeSpec, Step, SubmitTaskRequest,
-    runtime_spec, step,
+    CmdStep, ContainerResourceLimits, ContainerRuntime, ErrorResponse, NodeInfo, RuntimeSpec, Step,
+    SubmitTaskRequest, runtime_spec, step,
 };
 use takd::{
     RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, build_submit_idempotency_key,
@@ -92,6 +91,10 @@ fn test_container_runtime() -> RuntimeSpec {
             image: Some("alpine:3.20".into()),
             dockerfile: None,
             build_context: None,
+            resource_limits: Some(ContainerResourceLimits {
+                cpu_cores: 1.0,
+                memory_mb: 512,
+            }),
         })),
     }
 }

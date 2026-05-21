@@ -38,6 +38,7 @@ async fn remote_worker_reuses_same_dockerfile_runtime_image_for_unchanged_contex
                     path: ".".to_string(),
                 },
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

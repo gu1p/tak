@@ -1,4 +1,4 @@
-use tak_proto::{ContainerRuntime, RuntimeSpec, runtime_spec};
+use tak_proto::{ContainerResourceLimits, ContainerRuntime, RuntimeSpec, runtime_spec};
 
 fn test_container_runtime() -> RuntimeSpec {
     RuntimeSpec {
@@ -6,6 +6,10 @@ fn test_container_runtime() -> RuntimeSpec {
             image: Some("alpine:3.20".into()),
             dockerfile: None,
             build_context: None,
+            resource_limits: Some(ContainerResourceLimits {
+                cpu_cores: 1.0,
+                memory_mb: 512,
+            }),
         })),
     }
 }

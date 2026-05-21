@@ -26,7 +26,7 @@ SPEC
     match &task.execution {
         TaskExecutionSpec::LocalOnly(local) => match local.runtime.as_ref().expect("local runtime")
         {
-            RemoteRuntimeSpec::Containerized { source } => match source {
+            RemoteRuntimeSpec::Containerized { source, .. } => match source {
                 ContainerRuntimeSourceSpec::Dockerfile {
                     dockerfile,
                     build_context,

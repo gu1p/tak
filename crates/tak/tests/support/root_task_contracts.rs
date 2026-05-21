@@ -7,9 +7,9 @@ use tak_core::label::parse_label;
 use tak_core::model::{ResolvedTask, StepDef, TaskLabel, WorkspaceSpec};
 use tak_loader::{LoadOptions, load_workspace};
 
-const CARGO_SHARED_ENV_SCRIPT: &str = "mkdir -p /var/tmp/tak-tests \
-.tmp/cargo-home .tmp/cargo-target-local && TMPDIR=\"/var/tmp/tak-tests\" \
-CARGO_HOME=\"$PWD/.tmp/cargo-home\" \
+const CARGO_SHARED_ENV_SCRIPT: &str = "TAK_TEST_TMPDIR=\"${TAK_TEST_TMPDIR:-/var/tmp/tak-tests}\" \
+&& mkdir -p \"$TAK_TEST_TMPDIR\" .tmp/cargo-home .tmp/cargo-target-local \
+&& TMPDIR=\"$TAK_TEST_TMPDIR\" CARGO_HOME=\"$PWD/.tmp/cargo-home\" \
 CARGO_TARGET_DIR=\"$PWD/.tmp/cargo-target-local\" exec \"$@\"";
 
 fn repo_root() -> &'static Path {

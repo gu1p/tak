@@ -156,6 +156,24 @@ def Transport_TorOnionService():
         "kind": "tor",
     }
 
+def Container_Resources(cpu_cores, memory_mb):
+    """Declare CPU and memory limits for containerized remote execution."""
+    return {
+        "__tak_kind": "container_resources",
+        "cpu_cores": float(cpu_cores),
+        "memory_mb": int(memory_mb),
+    }
+
+def _normalize_container_resources(resources):
+    if resources is None:
+        return None
+    if not isinstance(resources, dict) or resources.get("__tak_kind") != "container_resources":
+        raise TypeError("resources must be created with Container.Resources(...)")
+    return {
+        "cpu_cores": resources.get("cpu_cores"),
+        "memory_mb": resources.get("memory_mb"),
+    }
+
 def Container_Image(image, command=None, mounts=None, env=None, resources=None):
     """Run work inside a prebuilt container image."""
     return {
@@ -166,7 +184,7 @@ def Container_Image(image, command=None, mounts=None, env=None, resources=None):
         "command": _or_empty_list(command) if command is not None else None,
         "mounts": _or_empty_list(mounts),
         "env": _or_empty_dict(env),
-        "resource_limits": resources,
+        "resource_limits": _normalize_container_resources(resources),
     }
 
 def Container_Dockerfile(dockerfile, build_context=None, command=None, mounts=None, env=None, resources=None):
@@ -181,7 +199,7 @@ def Container_Dockerfile(dockerfile, build_context=None, command=None, mounts=No
         "command": _or_empty_list(command) if command is not None else None,
         "mounts": _or_empty_list(mounts),
         "env": _or_empty_dict(env),
-        "resource_limits": resources,
+        "resource_limits": _normalize_container_resources(resources),
     }
 
 def PolicyContext(task_side_effecting=False, local_cpu_percent=0.0):

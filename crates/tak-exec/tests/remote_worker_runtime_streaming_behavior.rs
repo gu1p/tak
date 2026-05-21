@@ -32,6 +32,7 @@ async fn remote_worker_container_runtime_streams_logs_to_output_observer_while_r
             source: ContainerRuntimeSourceSpec::Image {
                 image: "alpine:3.20".to_string(),
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

@@ -14,10 +14,16 @@ pub(crate) fn parse_remote_events_response(
 
     let mut checkpoint = last_seen_seq;
     let mut remote_logs = Vec::new();
+    let mut status_messages = Vec::new();
     for event in parsed.events {
         checkpoint = checkpoint.max(event.seq);
         if event.seq <= last_seen_seq {
             continue;
+        }
+        if matches!(event.kind.as_str(), "TASK_QUEUED" | "TASK_QUEUE_POSITION")
+            && let Some(message) = event.message.clone()
+        {
+            status_messages.push(message);
         }
         let stream = match event.kind.as_str() {
             "TASK_STDOUT_CHUNK" | "TASK_LOG_CHUNK" => Some(OutputStream::Stdout),
@@ -47,5 +53,6 @@ pub(crate) fn parse_remote_events_response(
         next_seq: checkpoint,
         done: parsed.done,
         remote_logs,
+        status_messages,
     })
 }

@@ -3,6 +3,7 @@ use tak_core::model::ResolvedTask;
 
 use super::{
     RemotePreflightExhaustedError, RemotePreflightFailure, TaskOutputObserver,
+    preflight_capacity::remote_target_has_capacity,
     preflight_failure::{
         RemoteNodeInfoFailure, remote_preflight_error_failure, remote_preflight_timeout_failure,
         remote_preflight_unhealthy_failure,
@@ -25,12 +26,13 @@ pub(crate) async fn preflight_ordered_remote_target(
 ) -> Result<StrictRemoteTarget> {
     let mut failures = Vec::new();
 
+    let mut reachable = Vec::new();
     for (index, candidate) in candidates.iter().enumerate() {
         emit_remote_probe(output_observer, &task.label, 1, &candidate.node_id)?;
         match preflight_strict_remote_target(candidate).await {
             Ok(()) => {
                 emit_remote_connected(output_observer, &task.label, 1, &candidate.node_id)?;
-                return Ok(candidate.clone());
+                reachable.push(candidate.clone());
             }
             Err(err) => {
                 failures.push(err);
@@ -39,6 +41,15 @@ pub(crate) async fn preflight_ordered_remote_target(
                 }
             }
         }
+    }
+
+    for candidate in &reachable {
+        if remote_target_has_capacity(candidate).await.unwrap_or(true) {
+            return Ok(candidate.clone());
+        }
+    }
+    if let Some(candidate) = reachable.into_iter().next() {
+        return Ok(candidate);
     }
 
     Err(RemotePreflightExhaustedError {
@@ -91,109 +102,4 @@ pub(crate) fn is_auth_submit_failure(err: &anyhow::Error) -> bool {
         .is_some_and(|failure| failure.kind == RemoteSubmitFailureKind::Auth)
 }
 
-pub(crate) async fn fallback_after_auth_submit_failure(
-    task: &ResolvedTask,
-    candidates: &[StrictRemoteTarget],
-    failed_node_id: &str,
-    submit: RemoteSubmitContext<'_>,
-    initial_failure: String,
-    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
-) -> Result<StrictRemoteTarget> {
-    let mut failures = vec![initial_failure.clone()];
-    let mut preflight_failures = Vec::new();
-    if candidates
-        .iter()
-        .any(|candidate| candidate.node_id != failed_node_id)
-    {
-        emit_remote_unavailable(output_observer, &task.label, submit.attempt, failed_node_id)?;
-    }
-    for (index, candidate) in candidates.iter().enumerate() {
-        if candidate.node_id == failed_node_id {
-            continue;
-        }
-
-        emit_remote_probe(
-            output_observer,
-            &task.label,
-            submit.attempt,
-            &candidate.node_id,
-        )?;
-        match preflight_strict_remote_target(candidate).await {
-            Ok(()) => emit_remote_connected(
-                output_observer,
-                &task.label,
-                submit.attempt,
-                &candidate.node_id,
-            )?,
-            Err(err) => {
-                failures.push(err.message.clone());
-                preflight_failures.push(err);
-                if next_candidate_available(candidates, failed_node_id, index) {
-                    emit_remote_unavailable(
-                        output_observer,
-                        &task.label,
-                        submit.attempt,
-                        &candidate.node_id,
-                    )?;
-                }
-                continue;
-            }
-        }
-
-        emit_remote_submit(
-            output_observer,
-            &task.label,
-            submit.attempt,
-            &candidate.node_id,
-            &submit.remote_workspace.upload_size_mb(),
-        )?;
-        match remote_protocol_submit(RemoteProtocolSubmit {
-            target: candidate,
-            task_run_id: submit.task_run_id,
-            attempt: submit.attempt,
-            task,
-            remote_workspace: submit.remote_workspace,
-            session: submit.session,
-            fused_members: submit.fused_members,
-        })
-        .await
-        {
-            Ok(()) => {
-                emit_remote_accepted(
-                    output_observer,
-                    &task.label,
-                    submit.attempt,
-                    &candidate.node_id,
-                )?;
-                return Ok(candidate.clone());
-            }
-            Err(err) => {
-                failures.push(err.to_string());
-                if next_candidate_available(candidates, failed_node_id, index) {
-                    emit_remote_unavailable(
-                        output_observer,
-                        &task.label,
-                        submit.attempt,
-                        &candidate.node_id,
-                    )?;
-                }
-                continue;
-            }
-        }
-    }
-
-    if !preflight_failures.is_empty() && failures.len() == preflight_failures.len() + 1 {
-        let exhausted: Result<StrictRemoteTarget> = Err(RemotePreflightExhaustedError {
-            task_label: task.label.to_string(),
-            failures: preflight_failures,
-        }
-        .into());
-        return exhausted.context(initial_failure);
-    }
-
-    bail!(
-        "infra error: no reachable remote fallback candidates for task {}: {}",
-        task.label,
-        failures.join("; ")
-    );
-}
+include!("preflight_fallback/auth_fallback.rs");

@@ -57,6 +57,7 @@ fn container_runtime() -> RemoteRuntimeSpec {
         source: ContainerRuntimeSourceSpec::Image {
             image: "alpine:3.20".into(),
         },
+        resource_limits: None,
     }
 }
 

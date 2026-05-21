@@ -40,24 +40,6 @@ pub(super) fn handle_remote_submit_route(
     };
 
     if !attached {
-        let execution_root =
-            execution_root_for_submit_key_at_base(&idempotency_key, &execution_root_base);
-        context.register_active_job(
-            idempotency_key.clone(),
-            super::status_state::ActiveJobMetadata::new(
-                super::status_state::ActiveJobMetadataInput {
-                    task_run_id,
-                    attempt: payload.attempt,
-                    task_label: &payload.task_label,
-                    needs: &payload.needs,
-                    runtime: payload.runtime.as_ref().and_then(runtime_label),
-                    origin: payload.origin.clone(),
-                    runtime_source: payload.runtime_source.clone(),
-                    command: payload.command.clone(),
-                    execution_root,
-                },
-            ),
-        )?;
         let cancellation = context.register_active_execution(
             idempotency_key.clone(),
             task_run_id,
@@ -90,10 +72,4 @@ pub(super) fn handle_remote_submit_route(
             remote_worker: true,
         },
     ))
-}
-
-fn runtime_label(runtime: &tak_proto::RuntimeSpec) -> Option<String> {
-    runtime.kind.as_ref().map(|kind| match kind {
-        tak_proto::runtime_spec::Kind::Container(_) => "containerized".to_string(),
-    })
 }

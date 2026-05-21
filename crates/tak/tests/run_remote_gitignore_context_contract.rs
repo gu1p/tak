@@ -32,7 +32,7 @@ fn run_remote_context_uses_gitignore_and_readds_included_subtree() -> Result<()>
     fs::write(workspace_root.join("target/reinclude/two.txt"), "two\n")?;
     write_tasks(
         &workspace_root,
-        r#"SPEC = module_spec(defaults=Defaults(container=Container.Image("alpine:3.20")), tasks=[task(
+        r#"SPEC = module_spec(defaults=Defaults(container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))), tasks=[task(
   "check",
   context=CurrentState(
     ignored=[gitignore()],

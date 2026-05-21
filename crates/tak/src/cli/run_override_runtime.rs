@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, ExecutionPlacementSpec, PolicyDecisionSpec, RemoteRuntimeSpec,
-    ResolvedTask, TaskExecutionSpec, normalize_container_image_reference, normalize_path_ref,
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, ExecutionPlacementSpec,
+    PolicyDecisionSpec, RemoteRuntimeSpec, ResolvedTask, TaskExecutionSpec,
+    normalize_container_image_reference, normalize_path_ref,
 };
 
 use super::*;
@@ -18,6 +19,7 @@ pub(super) fn explicit_container_runtime_override(
             .canonical;
         return Ok(Some(RemoteRuntimeSpec::Containerized {
             source: ContainerRuntimeSourceSpec::Image { image },
+            resource_limits: Some(default_cli_container_resource_limits()),
         }));
     }
 
@@ -41,7 +43,15 @@ pub(super) fn explicit_container_runtime_override(
             dockerfile,
             build_context,
         },
+        resource_limits: Some(default_cli_container_resource_limits()),
     }))
+}
+
+pub(super) fn default_cli_container_resource_limits() -> ContainerResourceLimitsSpec {
+    ContainerResourceLimitsSpec {
+        cpu_cores: Some(1.0),
+        memory_mb: Some(512),
+    }
 }
 
 #[allow(dead_code)]

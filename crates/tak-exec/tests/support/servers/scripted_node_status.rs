@@ -1,4 +1,7 @@
-use tak_proto::{ActiveJob, CpuUsage, ErrorResponse, MemoryUsage, NodeInfo, NodeStatusResponse};
+use tak_proto::{
+    ActiveJob, ContainerResourceLimits, CpuUsage, ErrorResponse, MemoryUsage, NodeInfo,
+    NodeStatusResponse,
+};
 
 pub(super) fn node_info(node_id: &str, port: u16) -> NodeInfo {
     NodeInfo {
@@ -40,8 +43,13 @@ pub(super) fn node_status(node_id: &str, port: u16) -> NodeStatusResponse {
             origin: Some("task".into()),
             runtime_source: Some("image:alpine:3.20".into()),
             command: Some("sleep 30".into()),
+            resource_limits: Some(ContainerResourceLimits {
+                cpu_cores: 1.0,
+                memory_mb: 512,
+            }),
         }],
         image_cache: None,
+        queued_jobs: vec![],
     }
 }
 

@@ -4,11 +4,15 @@ use tak_core::model::{
     RemoteRuntimeSpec, ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel,
 };
 
+#[path = "run_override_runtime_tests/default_runtime_tests.rs"]
+mod default_runtime;
+
 fn image_runtime(image: &str) -> RemoteRuntimeSpec {
     RemoteRuntimeSpec::Containerized {
         source: ContainerRuntimeSourceSpec::Image {
             image: image.to_string(),
         },
+        resource_limits: None,
     }
 }
 
@@ -24,6 +28,7 @@ fn dockerfile_runtime(path: &str) -> RemoteRuntimeSpec {
                 path: ".".to_string(),
             },
         },
+        resource_limits: None,
     }
 }
 
@@ -74,27 +79,11 @@ fn resolve_container_runtime_prefers_declared_task_runtime_over_workspace_defaul
                     dockerfile,
                     build_context,
                 },
+            ..
         } => {
             assert_eq!(dockerfile.path, "docker/task.Dockerfile");
             assert_eq!(build_context.path, ".");
         }
         other => panic!("expected dockerfile runtime, got {other:?}"),
-    }
-}
-
-#[test]
-fn resolve_container_runtime_uses_workspace_default_when_task_has_no_declared_runtime() {
-    let task = resolved_task(
-        TaskExecutionSpec::LocalOnly(LocalSpec::default()),
-        Some(image_runtime("alpine:3.20")),
-    );
-
-    let runtime = resolve_container_runtime_for_task(&task, None).expect("default runtime");
-
-    match runtime {
-        RemoteRuntimeSpec::Containerized {
-            source: ContainerRuntimeSourceSpec::Image { image },
-        } => assert_eq!(image, "alpine:3.20"),
-        other => panic!("expected image runtime, got {other:?}"),
     }
 }

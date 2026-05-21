@@ -11,6 +11,7 @@ pub(super) fn image_runtime(image: &str) -> RemoteRuntimeSpec {
         source: ContainerRuntimeSourceSpec::Image {
             image: image.to_string(),
         },
+        resource_limits: None,
     }
 }
 

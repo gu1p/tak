@@ -3,6 +3,9 @@ use tak_loader::{LoadOptions, load_workspace};
 
 use super::support::write_root_and_app_tasks;
 
+#[path = "remote_runtime/resources.rs"]
+mod resources;
+
 #[test]
 fn resolves_remote_dockerfile_runtime_with_explicit_build_context() {
     let temp = tempfile::tempdir().expect("tempdir");
@@ -12,7 +15,11 @@ fn resolves_remote_dockerfile_runtime_with_explicit_build_context() {
 REMOTE = Execution.Remote(
   pool="build",
   required_capabilities=["linux"],
-  container=Container.Dockerfile(path("../infra/test.Dockerfile"), build_context=path("..")),
+  container=Container.Dockerfile(
+    path("../infra/test.Dockerfile"),
+    build_context=path(".."),
+    resources=Container.Resources(cpu_cores=1.0, memory_mb=512),
+  ),
 )
 SPEC = module_spec(tasks=[task("remote_only", steps=[cmd("echo", "ok")], execution=REMOTE)])
 SPEC
@@ -28,7 +35,7 @@ SPEC
     match &task.execution {
         TaskExecutionSpec::RemoteOnly(remote) => {
             match remote.runtime.as_ref().expect("remote runtime") {
-                RemoteRuntimeSpec::Containerized { source } => match source {
+                RemoteRuntimeSpec::Containerized { source, .. } => match source {
                     ContainerRuntimeSourceSpec::Dockerfile {
                         dockerfile,
                         build_context,

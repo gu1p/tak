@@ -12,7 +12,7 @@ fn first_available_plain_local_fallback_runs_in_repo_checkout_without_session() 
     fs::create_dir_all(&config)?;
     write_tasks(
         &workspace,
-        r#"CONTAINER = Container.Image("alpine:3.20")
+        r#"CONTAINER = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("remote-state", reuse=SessionReuse.Workspace())
 EXEC = Execution.FirstAvailable([
   Execution.Remote(pool="missing", container=CONTAINER, session=SESSION),

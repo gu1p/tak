@@ -56,6 +56,7 @@ async fn remote_worker_build_context_supports_long_relative_paths() {
                     path: ".".to_string(),
                 },
             },
+            resource_limits: None,
         }),
         "builder-a",
     );

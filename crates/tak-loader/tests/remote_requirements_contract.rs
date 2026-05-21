@@ -29,7 +29,10 @@ SPEC = module_spec(tasks=[
     required_tags=["builder"],
     required_capabilities=["linux"],
     transport=Transport.TorOnionService(),
-    container=Container.Image("alpine:3.20"),
+    container=Container.Image(
+      "alpine:3.20",
+      resources=Container.Resources(cpu_cores=1.0, memory_mb=512),
+    ),
   )),
 ])
 SPEC
@@ -52,7 +55,8 @@ SPEC
             assert!(matches!(
                 remote.runtime,
                 Some(RemoteRuntimeSpec::Containerized {
-                    source: ContainerRuntimeSourceSpec::Image { ref image }
+                    source: ContainerRuntimeSourceSpec::Image { ref image },
+                    ..
                 }) if image == "alpine:3.20"
             ));
         }

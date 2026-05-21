@@ -6,7 +6,8 @@ use tak_core::model::{
 
 use super::execution_policy_resolution::resolve_inline_execution_policy;
 use super::remote_validation::{
-    validate_local_runtime, validate_remote_transport, validate_runtime,
+    validate_local_runtime, validate_remote_runtime_limits, validate_remote_transport,
+    validate_runtime,
 };
 use super::session_resolution::resolve_attached_session;
 
@@ -75,7 +76,6 @@ pub(crate) fn scoped_session_name(name: &str, package: &str) -> String {
     }
     format!("{package}:{name}")
 }
-
 /// Resolves a policy-produced execution decision into strict runtime form.
 ///
 /// ```no_run
@@ -176,6 +176,9 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         .collect();
     let transport_kind = validate_remote_transport(transport)?;
     let runtime = validate_runtime(runtime, package, "Remote")?;
+    if let Some(runtime) = runtime.as_ref() {
+        validate_remote_runtime_limits(runtime, "Execution.Remote")?;
+    }
     let session = resolve_attached_session(session, package)?;
 
     Ok(RemoteSpec {

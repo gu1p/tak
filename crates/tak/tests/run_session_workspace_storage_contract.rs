@@ -11,7 +11,7 @@ fn local_session_workspace_prefers_workspace_tmp_directory() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 SESSION = session("rust", execution=Execution.Local(container=RUNTIME), reuse=SessionReuse.Workspace())
 
 SPEC = module_spec(

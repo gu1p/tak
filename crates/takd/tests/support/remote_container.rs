@@ -3,8 +3,8 @@ use std::path::Path;
 
 use prost::Message;
 use tak_proto::{
-    CmdStep, ContainerRuntime, GetTaskResultResponse, RuntimeSpec, Step, SubmitTaskRequest,
-    SubmitTaskResponse, runtime_spec, step,
+    CmdStep, ContainerResourceLimits, ContainerRuntime, GetTaskResultResponse, RuntimeSpec, Step,
+    SubmitTaskRequest, SubmitTaskResponse, runtime_spec, step,
 };
 use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
@@ -56,6 +56,10 @@ pub fn submit_container_task(
                 image: Some("alpine:3.20".to_string()),
                 dockerfile: None,
                 build_context: None,
+                resource_limits: Some(ContainerResourceLimits {
+                    cpu_cores: 1.0,
+                    memory_mb: 512,
+                }),
             })),
         }),
         task_label: "//apps/web:test".to_string(),

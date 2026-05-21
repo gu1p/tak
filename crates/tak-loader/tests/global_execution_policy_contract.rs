@@ -41,7 +41,7 @@ fn repo_default_execution_object_overrides_global_default_policy() {
     write_global_config(&temp.path().join("config"), "global");
     write_tasks(
         temp.path(),
-        r#"RUNTIME = Container.Image("alpine:3.20")
+        r#"RUNTIME = Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))
 POLICY = Execution.FirstAvailable(placements=[Execution.Remote(pool="repo", container=RUNTIME)])
 SPEC = module_spec(defaults=Defaults(execution=POLICY), tasks=[task("check", steps=[cmd("true")])])
 SPEC
@@ -73,7 +73,7 @@ name = "default"
 kind = "remote_only"
 [execution_policies.placements.remote]
 pool = "{pool}"
-runtime = {{ kind = "containerized", image = "alpine:3.20" }}
+runtime = {{ kind = "containerized", image = "alpine:3.20", resource_limits = {{ cpu_cores = 1.0, memory_mb = 512 }} }}
 "#
         ),
     )

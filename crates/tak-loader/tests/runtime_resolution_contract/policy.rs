@@ -28,7 +28,7 @@ fn evaluates_named_policy_to_local_runtime_selector() {
                 .runtime
                 .expect("local runtime");
             match runtime {
-                RemoteRuntimeSpec::Containerized { source } => match source {
+                RemoteRuntimeSpec::Containerized { source, .. } => match source {
                     ContainerRuntimeSourceSpec::Dockerfile {
                         dockerfile,
                         build_context,

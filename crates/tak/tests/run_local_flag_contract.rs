@@ -55,7 +55,7 @@ fn run_command_local_flag_preserves_declared_remote_container_runtime() -> Resul
     fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n")?;
     write_tasks(
         temp.path(),
-        r#"REMOTE = Execution.Remote(container=Container.Dockerfile(path("docker/Dockerfile")))
+        r#"REMOTE = Execution.Remote(container=Container.Dockerfile(path("docker/Dockerfile"), resources=Container.Resources(cpu_cores=1.0, memory_mb=512)))
 
 SPEC = module_spec(tasks=[task(
   "check",

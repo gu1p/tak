@@ -47,6 +47,7 @@ fn remote_override_preserves_existing_remote_requirements_and_runtime() {
             match remote.runtime.as_ref().expect("runtime") {
                 RemoteRuntimeSpec::Containerized {
                     source: ContainerRuntimeSourceSpec::Image { image },
+                    ..
                 } => assert_eq!(image, "alpine:3.20"),
                 other => panic!("expected image runtime, got {other:?}"),
             }

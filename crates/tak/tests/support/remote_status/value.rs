@@ -1,5 +1,6 @@
 use tak_proto::{
-    ActiveJob, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, StorageUsage, SubmittedNeed,
+    ActiveJob, ContainerResourceLimits, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse,
+    StorageUsage, SubmittedNeed,
 };
 
 pub(super) fn status_value(
@@ -41,6 +42,7 @@ pub(super) fn status_value(
         allocated_needs: vec![],
         active_jobs: active_jobs(with_job),
         image_cache: None,
+        queued_jobs: vec![],
     }
 }
 
@@ -64,5 +66,9 @@ fn active_jobs(with_job: bool) -> Vec<ActiveJob> {
         origin: Some("task".into()),
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some("make build".into()),
+        resource_limits: Some(ContainerResourceLimits {
+            cpu_cores: 2.0,
+            memory_mb: 1024,
+        }),
     }]
 }

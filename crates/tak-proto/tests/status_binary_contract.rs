@@ -1,7 +1,7 @@
 use prost::Message;
 use tak_proto::{
-    ActiveJob, AggregatedNeedUsage, CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse,
-    StorageUsage, SubmittedNeed,
+    ActiveJob, AggregatedNeedUsage, ContainerResourceLimits, CpuUsage, MemoryUsage, NodeInfo,
+    NodeStatusResponse, QueuedJob, StorageUsage, SubmittedNeed,
 };
 
 #[test]
@@ -57,8 +57,27 @@ fn node_status_messages_round_trip_as_binary() {
             origin: Some("task".to_string()),
             runtime_source: Some("image:alpine:3.20".to_string()),
             command: Some("make build".to_string()),
+            resource_limits: Some(ContainerResourceLimits {
+                cpu_cores: 2.0,
+                memory_mb: 1024,
+            }),
         }],
         image_cache: None,
+        queued_jobs: vec![QueuedJob {
+            task_run_id: "task-run-2".to_string(),
+            attempt: 1,
+            task_label: "//apps/api:test".to_string(),
+            queued_at_ms: 1_734_000_000_500,
+            queue_position: 1,
+            resource_limits: Some(ContainerResourceLimits {
+                cpu_cores: 1.0,
+                memory_mb: 512,
+            }),
+            runtime: Some("containerized".to_string()),
+            origin: Some("task".to_string()),
+            runtime_source: Some("image:alpine:3.20".to_string()),
+            command: Some("make test".to_string()),
+        }],
     };
     let encoded = status.encode_to_vec();
     let decoded = NodeStatusResponse::decode(encoded.as_slice()).expect("decode node status");
@@ -67,4 +86,6 @@ fn node_status_messages_round_trip_as_binary() {
     assert_eq!(node.transport_state, "ready");
     assert_eq!(decoded.active_jobs.len(), 1);
     assert_eq!(decoded.active_jobs[0].task_label, "//apps/web:build");
+    assert_eq!(decoded.queued_jobs.len(), 1);
+    assert_eq!(decoded.queued_jobs[0].queue_position, 1);
 }

@@ -26,8 +26,8 @@ class ContainerMountSpec(TypedDict):
     read_only: bool
 
 
-# Optional CPU and memory limits for a container.
-class ContainerResourceLimitsSpec(TypedDict, total=False):
+# CPU and memory limits for containerized remote execution.
+class ContainerResourceLimitsSpec:
     cpu_cores: float
     memory_mb: int
 
@@ -455,6 +455,10 @@ class Execution:
 
 # Container namespace.
 class Container:
+    # Declare CPU and memory limits for containerized remote execution.
+    @staticmethod
+    def Resources(cpu_cores: float, memory_mb: int) -> ContainerResourceLimitsSpec: ...
+
     # Run work inside a prebuilt container image.
     @staticmethod
     def Image(
