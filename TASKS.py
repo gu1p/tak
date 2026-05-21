@@ -6,6 +6,12 @@ CARGO_SHARED_ENV_SCRIPT = (
     'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" exec "$@"'
 )
 
+CARGO_CHECK_LOCK = "cargo-check-workspace"
+
+
+def cargo_needs():
+    return [need(CARGO_CHECK_LOCK, 1, scope=Scope.Worktree)]
+
 
 def cargo_cmd(*argv):
     return cmd("sh", "-c", CARGO_SHARED_ENV_SCRIPT, "tak-cargo", "cargo", *argv)
@@ -116,8 +122,13 @@ PACKAGE_RELEASE_AARCH64_APPLE_DARWIN = release_package_task(
 SPEC = module_spec(
     project_id="tak",
     defaults=Defaults(container=CHECK_CONTAINER),
+    limiters=[lock(CARGO_CHECK_LOCK, scope=Scope.Worktree)],
     tasks=[
-        task("fmt-check", steps=[cargo_cmd("fmt", "--all", "--", "--check")]),
+        task(
+            "fmt-check",
+            needs=cargo_needs(),
+            steps=[cargo_cmd("fmt", "--all", "--", "--check")],
+        ),
         task("line-limits-check", steps=[cmd("bash", "scripts/check_rust_file_limits.sh")]),
         task(
             "src-test-separation-check",
@@ -133,11 +144,17 @@ SPEC = module_spec(
         ),
         task(
             "lint",
+            needs=cargo_needs(),
             steps=[cargo_cmd("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")],
         ),
-        task("test", steps=[cargo_cmd("test", "--workspace", "--lib", "--tests")]),
+        task(
+            "test",
+            needs=cargo_needs(),
+            steps=[cargo_cmd("test", "--workspace", "--lib", "--tests")],
+        ),
         task(
             "docs-check",
+            needs=cargo_needs(),
             steps=[
                 cargo_cmd("test", "--workspace", "--doc"),
                 cargo_cmd("test", "-p", "tak", "--test", "doctest_contract"),
@@ -146,6 +163,7 @@ SPEC = module_spec(
         task(
             "docs-wiki",
             doc="Build a Zensical wiki from source-derived Tak docs and embedded rustdoc internals.",
+            needs=cargo_needs(),
             outputs=[path(".tmp/docs-wiki")],
             steps=[
                 cargo_cmd("build", "-p", "tak", "--bin", "tak"),
@@ -155,6 +173,7 @@ SPEC = module_spec(
         task(
             "docs-wiki-serve",
             doc="Preview the Zensical wiki generated from source-derived Tak docs and rustdoc internals.",
+            needs=cargo_needs(),
             steps=[
                 cargo_cmd("build", "-p", "tak", "--bin", "tak"),
                 cmd("python3", "scripts/docs_wiki.py", "serve"),
