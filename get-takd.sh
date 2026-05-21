@@ -91,6 +91,46 @@ resolve_tag() {
   printf '%s' "$tag"
 }
 
+active_shell_rc() {
+  local shell_name
+  shell_name="$(basename -- "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)
+      printf '%s' "$HOME/.zshrc"
+      ;;
+    bash)
+      printf '%s' "$HOME/.bashrc"
+      ;;
+    *)
+      printf '%s' "$HOME/.profile"
+      ;;
+  esac
+}
+
+ensure_path() {
+  local dir="$1"
+  local rc_file line
+
+  case ":$PATH:" in
+    *":$dir:"*)
+      return
+      ;;
+  esac
+
+  rc_file="$(active_shell_rc)"
+  line="export PATH=\"$dir:\$PATH\""
+
+  if [[ -f "$rc_file" ]] && grep -Fqx "$line" "$rc_file"; then
+    :
+  else
+    printf '\n%s\n' "$line" >> "$rc_file"
+  fi
+
+  export PATH="$dir:$PATH"
+  printf 'Added %s to PATH in %s\n' "$dir" "$rc_file"
+  printf 'Reload your shell or run: source %s\n' "$rc_file"
+}
+
 config_home() {
   printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}"
 }
@@ -369,6 +409,7 @@ main() {
   mkdir -p "$TAKD_INSTALL_DIR"
   takd_bin="$TAKD_INSTALL_DIR/takd"
   install -m 0755 "$temp_dir/takd" "$takd_bin"
+  ensure_path "$TAKD_INSTALL_DIR"
   highlight install "Installed takd to ${takd_bin}"
   if [[ ! -f "$(agent_config_path)" ]]; then
     init_args=(init)

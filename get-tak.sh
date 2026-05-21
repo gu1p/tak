@@ -79,6 +79,46 @@ resolve_tag() {
   printf '%s' "$tag"
 }
 
+active_shell_rc() {
+  local shell_name
+  shell_name="$(basename -- "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)
+      printf '%s' "$HOME/.zshrc"
+      ;;
+    bash)
+      printf '%s' "$HOME/.bashrc"
+      ;;
+    *)
+      printf '%s' "$HOME/.profile"
+      ;;
+  esac
+}
+
+ensure_path() {
+  local dir="$1"
+  local rc_file line
+
+  case ":$PATH:" in
+    *":$dir:"*)
+      return
+      ;;
+  esac
+
+  rc_file="$(active_shell_rc)"
+  line="export PATH=\"$dir:\$PATH\""
+
+  if [[ -f "$rc_file" ]] && grep -Fqx "$line" "$rc_file"; then
+    :
+  else
+    printf '\n%s\n' "$line" >> "$rc_file"
+  fi
+
+  export PATH="$dir:$PATH"
+  printf 'Added %s to PATH in %s\n' "$dir" "$rc_file"
+  printf 'Reload your shell or run: source %s\n' "$rc_file"
+}
+
 main() {
   local target tag archive_name archive_url temp_dir archive_path
 
@@ -105,17 +145,10 @@ main() {
   install -m 0755 "$temp_dir/tak" "$TAK_INSTALL_DIR/tak"
   install -m 0755 "$temp_dir/takd" "$TAK_INSTALL_DIR/takd"
 
+  ensure_path "$TAK_INSTALL_DIR"
+
   printf 'Installed tak and takd to %s\n' "$TAK_INSTALL_DIR"
   "$TAK_INSTALL_DIR/tak" --version || true
-
-  case ":$PATH:" in
-    *":$TAK_INSTALL_DIR:"*)
-      ;;
-    *)
-      printf 'Add this to your shell profile:\n'
-      printf '  export PATH="%s:$PATH"\n' "$TAK_INSTALL_DIR"
-      ;;
-  esac
 }
 
 main "$@"

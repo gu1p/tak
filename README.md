@@ -292,6 +292,7 @@ Install behavior:
 
 - Downloads latest public release asset for macOS/Linux (`x86_64` + `aarch64`).
 - Installs `tak` and `takd` to `~/.local/bin` by default.
+- Adds the install directory to your shell startup file when it is not already on `PATH`.
 - `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.
 - `get-takd.sh` prints install milestones, selected Tor readiness highlights, and a terminal QR code after the agent is ready.
 - Full `takd` service logs stay on disk; use `takd logs --all` or `takd logs --lines 200` to inspect them.
