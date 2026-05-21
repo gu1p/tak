@@ -5,10 +5,10 @@ use crate::support::{
     write_remote_inventory,
 };
 use std::collections::{BTreeMap, HashMap};
-use tak_core::model::{ContainerRuntimeSourceSpec::Image, RemoteRuntimeSpec::Containerized};
 use tak_core::model::{
-    CurrentStateSpec, LimiterKey, QueueDef, RemoteSelectionSpec, RemoteTransportKind, ResolvedTask,
-    RetryDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec::Image, CurrentStateSpec, LimiterKey,
+    QueueDef, RemoteRuntimeSpec::Containerized, RemoteSelectionSpec, RemoteTransportKind,
+    ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
 };
 use tak_exec::{RunOptions, run_tasks};
 #[tokio::test]
@@ -82,6 +82,10 @@ fn remote_task(label: &TaskLabel) -> ResolvedTask {
             source: Image {
                 image: "alpine:3.20".into(),
             },
+            resource_limits: Some(ContainerResourceLimitsSpec {
+                cpu_cores: Some(1.0),
+                memory_mb: Some(512),
+            }),
         }),
         execution: TaskExecutionSpec::RemoteOnly(remote),
         session: None,
