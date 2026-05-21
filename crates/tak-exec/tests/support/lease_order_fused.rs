@@ -1,6 +1,7 @@
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, CurrentStateSpec, RemoteRuntimeSpec, ResolvedTask, RetryDef,
-    SessionReuseSpec, SessionUseSpec, StepDef, TaskExecutionSpec, TaskLabel, WorkspaceSpec,
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, CurrentStateSpec, RemoteRuntimeSpec,
+    ResolvedTask, RetryDef, SessionReuseSpec, SessionUseSpec, StepDef, TaskExecutionSpec,
+    TaskLabel, WorkspaceSpec,
 };
 
 use super::{add_ui_lock_need, remote_builder_spec, shell_step};
@@ -57,7 +58,10 @@ fn container_runtime() -> RemoteRuntimeSpec {
         source: ContainerRuntimeSourceSpec::Image {
             image: "alpine:3.20".into(),
         },
-        resource_limits: None,
+        resource_limits: Some(ContainerResourceLimitsSpec {
+            cpu_cores: Some(1.0),
+            memory_mb: Some(512),
+        }),
     }
 }
 
