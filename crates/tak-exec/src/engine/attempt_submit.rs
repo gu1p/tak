@@ -11,7 +11,7 @@ use super::protocol_submit::{RemoteProtocolSubmit, remote_protocol_submit};
 use super::remote_models::{
     RemoteSubmitContext, RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
-use super::remote_selection::ordered_remote_targets_for_attempt;
+use super::remote_selection::SharedRemoteSelectionState;
 use super::runtime_metadata::resolve_runtime_execution_metadata;
 use super::session_workspaces::PreparedTaskSession;
 
@@ -39,6 +39,7 @@ pub(crate) async fn resolve_attempt_submit_state(
     submit: AttemptSubmitState<'_>,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
     cancellation: &super::RunCancellation,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<()> {
     if placement.placement_mode != PlacementMode::Remote {
         return Ok(());
@@ -52,6 +53,7 @@ pub(crate) async fn resolve_attempt_submit_state(
         submit.task_run_id,
         submit.attempt,
         output_observer,
+        remote_selection_state,
     )
     .await?;
 
@@ -121,6 +123,11 @@ pub(crate) async fn resolve_attempt_submit_state(
                     output_observer,
                 )
                 .await?;
+                remote_selection_state.replace_assignment(
+                    placement.remote_selection,
+                    &failed_node_id,
+                    &fallback_target.node_id,
+                );
                 placement.remote_node_id = Some(fallback_target.node_id.clone());
                 placement.strict_remote_target = Some(fallback_target);
             } else {
@@ -138,18 +145,32 @@ async fn refresh_remote_target_for_attempt(
     task_run_id: &str,
     attempt: u32,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<()> {
     if attempt == 1 && placement.strict_remote_target.is_some() {
         return Ok(());
     }
-    let ordered = ordered_remote_targets_for_attempt(
+    let ordered = remote_selection_state.reserve_ordered_targets_for_attempt(
         &placement.ordered_remote_targets,
         placement.remote_selection,
         &task.label.to_string(),
         task_run_id,
         attempt,
     );
-    let selected = preflight_ordered_remote_target(task, &ordered, output_observer).await?;
+    let reserved_node_id = ordered.first().map(|target| target.node_id.clone());
+    let selected = match preflight_ordered_remote_target(task, &ordered, output_observer).await {
+        Ok(selected) => selected,
+        Err(err) => {
+            remote_selection_state
+                .release_reserved_target(placement.remote_selection, reserved_node_id.as_deref());
+            return Err(err);
+        }
+    };
+    remote_selection_state.confirm_selected_target(
+        placement.remote_selection,
+        reserved_node_id.as_deref(),
+        &selected.node_id,
+    );
     placement.ordered_remote_targets = ordered;
     placement.remote_node_id = Some(selected.node_id.clone());
     placement.strict_remote_target = Some(selected);

@@ -97,14 +97,16 @@ pub async fn run_resolved_task(
     options: &RunOptions,
 ) -> Result<TaskRunResult> {
     let lease_context = lease_context::LeaseContext::from_options(options);
-    let mut sessions =
-        session_workspaces::ExecutionSessionManager::new(uuid::Uuid::new_v4().to_string());
+    let sessions =
+        session_workspaces::SharedExecutionSessionManager::new(uuid::Uuid::new_v4().to_string());
+    let remote_selection_state = remote_selection::SharedRemoteSelectionState::default();
     run_single_task::run_single_task(
         task,
         workspace_root,
         options,
         &lease_context,
-        &mut sessions,
+        &sessions,
+        &remote_selection_state,
         None,
     )
     .await

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use super::attempt_placement::preflight_task_placement;
 use super::remote_models::TaskPlacement;
+use super::remote_selection::SharedRemoteSelectionState;
 use super::session_cascade::ExecutionCascadeOverride;
 use super::session_cascade_context::{
     apply_root_context_to_session, execution_with_root_context, session_for_cascade_root,
@@ -16,6 +17,7 @@ pub(crate) async fn select_cascade_execution(
     task: &ResolvedTask,
     workspace_root: &Path,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<ExecutionCascadeOverride> {
     if !should_preflight_cascade_execution(task)? {
         let execution = fixed_cascade_execution(task)?;
@@ -27,8 +29,15 @@ pub(crate) async fn select_cascade_execution(
         });
     }
     let task_run_id = Uuid::new_v4().to_string();
-    let mut placement =
-        preflight_task_placement(task, workspace_root, &task_run_id, 1, output_observer).await?;
+    let mut placement = preflight_task_placement(
+        task,
+        workspace_root,
+        &task_run_id,
+        1,
+        output_observer,
+        remote_selection_state,
+    )
+    .await?;
     pin_selected_remote_target(&mut placement);
     apply_root_context_to_session(task, &mut placement);
     let execution = execution_from_placement(&placement)?;

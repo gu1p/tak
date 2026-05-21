@@ -6,6 +6,7 @@ use tak_core::model::{ResolvedTask, SessionUseSpec, TaskExecutionSpec, TaskLabel
 
 use super::TaskOutputObserver;
 use super::remote_models::TaskPlacement;
+use super::remote_selection::SharedRemoteSelectionState;
 use super::session_cascade_selection::select_cascade_execution;
 
 #[derive(Clone)]
@@ -21,6 +22,7 @@ pub(crate) async fn resolve_cascaded_executions(
     required: &BTreeSet<TaskLabel>,
     workspace_root: &Path,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<BTreeMap<TaskLabel, ExecutionCascadeOverride>> {
     let mut resolved = BTreeMap::new();
     for label in required {
@@ -28,7 +30,13 @@ pub(crate) async fn resolve_cascaded_executions(
         if !task_requests_execution_cascade(task) {
             continue;
         }
-        let cascade = select_cascade_execution(task, workspace_root, output_observer).await?;
+        let cascade = select_cascade_execution(
+            task,
+            workspace_root,
+            output_observer,
+            remote_selection_state,
+        )
+        .await?;
         let mut closure = BTreeSet::new();
         collect_dependency_closure(spec, label, &mut closure)?;
         for member_label in closure {

@@ -5,8 +5,9 @@ use tak_core::model::ResolvedTask;
 
 use super::super::attempt_submit::resolve_initial_runtime_metadata;
 use super::super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement};
+use super::super::remote_selection::SharedRemoteSelectionState;
 use super::super::session_cascade::task_with_session_context;
-use super::super::session_workspaces::{ExecutionSessionManager, PreparedTaskSession};
+use super::super::session_workspaces::{PreparedTaskSession, SharedExecutionSessionManager};
 use super::super::workspace_stage::stage_remote_workspace;
 use super::super::{
     LeaseContext, PlacementMode, RunOptions, TaskFinishedEvent, TaskRunResult, emit_task_finished,
@@ -20,7 +21,8 @@ pub(super) struct StartedTaskContext<'a> {
     pub(super) workspace_root: &'a Path,
     pub(super) options: &'a RunOptions,
     pub(super) lease_context: &'a LeaseContext,
-    pub(super) sessions: &'a mut ExecutionSessionManager,
+    pub(super) sessions: &'a SharedExecutionSessionManager,
+    pub(super) remote_selection_state: &'a SharedRemoteSelectionState,
     pub(super) task_run_id: &'a str,
     pub(super) placement: &'a mut TaskPlacement,
     pub(super) attempt: &'a mut u32,
@@ -33,6 +35,7 @@ pub(super) async fn run_started_task(context: StartedTaskContext<'_>) -> Result<
         options,
         lease_context,
         sessions,
+        remote_selection_state,
         task_run_id,
         placement,
         attempt,
@@ -58,6 +61,7 @@ pub(super) async fn run_started_task(context: StartedTaskContext<'_>) -> Result<
         options,
         lease_context,
         sessions,
+        remote_selection_state,
         StartedAttemptContext {
             task_run_id,
             placement,

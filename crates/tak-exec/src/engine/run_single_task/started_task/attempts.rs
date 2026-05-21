@@ -14,7 +14,8 @@ use super::super::super::output_observer::emit_task_status_message;
 use super::super::super::remote_models::{
     RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
-use super::super::super::session_workspaces::{ExecutionSessionManager, PreparedTaskSession};
+use super::super::super::remote_selection::SharedRemoteSelectionState;
+use super::super::super::session_workspaces::{PreparedTaskSession, SharedExecutionSessionManager};
 use super::super::super::task_result::{TaskRunResultContext, build_task_run_result};
 use super::super::super::{
     LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStatusPhase,
@@ -36,7 +37,8 @@ pub(super) async fn run_attempts(
     workspace_root: &Path,
     options: &RunOptions,
     lease_context: &LeaseContext,
-    sessions: &mut ExecutionSessionManager,
+    sessions: &SharedExecutionSessionManager,
+    remote_selection_state: &SharedRemoteSelectionState,
     context: StartedAttemptContext<'_>,
 ) -> Result<TaskRunResult> {
     let mut context = context;
@@ -45,7 +47,14 @@ pub(super) async fn run_attempts(
         let current_attempt = *context.attempt;
         let lease_id = acquire_task_lease(task, current_attempt, options, lease_context).await?;
         let attempt_result = async {
-            submit_remote_attempt_if_needed(task, options, current_attempt, &mut context).await?;
+            submit_remote_attempt_if_needed(
+                task,
+                options,
+                current_attempt,
+                &mut context,
+                remote_selection_state,
+            )
+            .await?;
             run_one_attempt(task, workspace_root, options, current_attempt, &context).await
         }
         .await;
@@ -66,6 +75,7 @@ async fn submit_remote_attempt_if_needed(
     options: &RunOptions,
     attempt: u32,
     context: &mut StartedAttemptContext<'_>,
+    remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<()> {
     resolve_attempt_submit_state(
         task,
@@ -79,6 +89,7 @@ async fn submit_remote_attempt_if_needed(
         },
         options.output_observer.as_ref(),
         &options.cancellation,
+        remote_selection_state,
     )
     .await
 }

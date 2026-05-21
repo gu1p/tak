@@ -8,7 +8,8 @@ use crate::task_run_metadata::task_run_metadata_for_placement;
 use super::attempt_placement::preflight_task_placement;
 use super::emit_task_started;
 use super::remote_models::TaskPlacement;
-use super::session_workspaces::ExecutionSessionManager;
+use super::remote_selection::SharedRemoteSelectionState;
+use super::session_workspaces::SharedExecutionSessionManager;
 use super::task_result::empty_task_result;
 use super::{LeaseContext, RunOptions, TaskRunResult, TaskStartedEvent};
 
@@ -21,7 +22,8 @@ pub(crate) async fn run_single_task(
     workspace_root: &Path,
     options: &RunOptions,
     lease_context: &LeaseContext,
-    sessions: &mut ExecutionSessionManager,
+    sessions: &SharedExecutionSessionManager,
+    remote_selection_state: &SharedRemoteSelectionState,
     placement_override: Option<TaskPlacement>,
 ) -> Result<TaskRunResult> {
     if task.steps.is_empty() {
@@ -37,6 +39,7 @@ pub(crate) async fn run_single_task(
             &task_run_id,
             1,
             options.output_observer.as_ref(),
+            remote_selection_state,
         )
         .await?
     };
@@ -61,6 +64,7 @@ pub(crate) async fn run_single_task(
         options,
         lease_context,
         sessions,
+        remote_selection_state,
         task_run_id: &task_run_id,
         placement: &mut placement,
         attempt: &mut attempt,

@@ -12,6 +12,7 @@ mod eligibility;
 use builder::{canonical_label, dependency_closure, fused_members, fused_task};
 use eligibility::{uses_container_session, validate_containerized_execution};
 
+#[derive(Clone)]
 pub(crate) struct FusedCascade {
     pub(crate) root: TaskLabel,
     pub(crate) members: Vec<ResolvedTask>,
