@@ -28,7 +28,9 @@ pub(in crate::cli) struct ActiveTaskRow {
 
 impl TaskHistoryStore {
     pub(in crate::cli) fn active_container_runs(&self) -> Result<Vec<ActiveContainerRow>> {
-        let conn = self.open_connection()?;
+        let Some(conn) = self.open_read_connection()? else {
+            return Ok(Vec::new());
+        };
         let mut stmt = conn.prepare(
             "
             SELECT task_run_id, task_label, attempts, origin, runtime, runtime_source, command, started_at_ms
@@ -56,7 +58,9 @@ impl TaskHistoryStore {
     }
 
     pub(in crate::cli) fn active_local_runs(&self) -> Result<Vec<ActiveTaskRow>> {
-        let conn = self.open_connection()?;
+        let Some(conn) = self.open_read_connection()? else {
+            return Ok(Vec::new());
+        };
         let mut stmt = conn.prepare(
             "
             SELECT task_run_id, task_label, attempts, placement, remote_node_id,

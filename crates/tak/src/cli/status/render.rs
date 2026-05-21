@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::daemon::LocalDaemonStatus;
-use super::local::{LocalResources, LocalStatusSnapshot, LocalTask};
+use super::local::{LocalHistoryStatus, LocalResources, LocalStatusSnapshot, LocalTask};
 use crate::cli::remote_status::{RemoteStatusResult, render_remote_status_snapshot_with_prefix};
 
 pub(super) fn render_status_snapshot(
@@ -34,6 +34,10 @@ pub(super) fn render_local_snapshot(snapshot: &LocalStatusSnapshot) -> String {
         format_memory(&snapshot.resources),
         format_storage(&snapshot.resources),
     ));
+    output.push_str(&format!("  history={}\n", history_state(&snapshot.history)));
+    if let LocalHistoryStatus::Unavailable { detail } = &snapshot.history {
+        output.push_str(&format!("  history_detail={detail}\n"));
+    }
     if let LocalDaemonStatus::Unavailable { detail } = &snapshot.daemon {
         output.push_str(&format!("  daemon_detail={detail}\n"));
     }
@@ -87,6 +91,13 @@ fn daemon_state(status: &LocalDaemonStatus) -> &'static str {
     match status {
         LocalDaemonStatus::Available(_) => "ok",
         LocalDaemonStatus::Unavailable { .. } => "unavailable",
+    }
+}
+
+fn history_state(status: &LocalHistoryStatus) -> &'static str {
+    match status {
+        LocalHistoryStatus::Ok => "ok",
+        LocalHistoryStatus::Unavailable { .. } => "unavailable",
     }
 }
 

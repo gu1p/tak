@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OpenFlags, params};
 
 mod active;
 mod write;
@@ -14,6 +14,10 @@ pub(in crate::cli) use active::ActiveTaskRow;
 #[derive(Clone)]
 pub(in crate::cli) struct TaskHistoryStore {
     db_path: PathBuf,
+}
+
+pub(in crate::cli::task_history) struct TaskHistoryWriter {
+    conn: Connection,
 }
 
 pub(super) struct TaskHistoryRow {
@@ -32,15 +36,15 @@ pub(super) struct TaskOutputRow {
 
 impl TaskHistoryStore {
     pub(in crate::cli) fn open_default() -> Result<Self> {
-        let store = Self {
-            db_path: state_home()?.join("tak").join("tasks.sqlite"),
-        };
-        store.ensure_schema()?;
-        Ok(store)
+        Ok(Self {
+            db_path: default_db_path()?,
+        })
     }
 
     pub(super) fn list_runs(&self, limit: usize) -> Result<Vec<TaskHistoryRow>> {
-        let conn = self.open_connection()?;
+        let Some(conn) = self.open_read_connection()? else {
+            return Ok(Vec::new());
+        };
         let mut stmt = conn.prepare(
             "
             SELECT task_run_id, task_label, attempts, state, placement, remote_node_id
@@ -67,7 +71,9 @@ impl TaskHistoryStore {
         if !self.run_exists(task_run_id)? {
             bail!("task_run_id {task_run_id} not found in local task history");
         }
-        let conn = self.open_connection()?;
+        let Some(conn) = self.open_read_connection()? else {
+            bail!("task_run_id {task_run_id} not found in local task history");
+        };
         let mut stmt = conn.prepare(
             "
             SELECT stream, bytes
@@ -85,33 +91,64 @@ impl TaskHistoryStore {
         collect_rows(rows)
     }
 
-    fn open_connection(&self) -> Result<Connection> {
-        if let Some(parent) = self.db_path.parent() {
-            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+    fn open_read_connection(&self) -> Result<Option<Connection>> {
+        if !self.db_path.exists() {
+            return Ok(None);
         }
-        let conn = Connection::open(&self.db_path)
+        let conn = Connection::open_with_flags(&self.db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .with_context(|| format!("open task history db {}", self.db_path.display()))?;
         conn.busy_timeout(Duration::from_secs(5))
             .context("configure task history sqlite busy timeout")?;
-        Ok(conn)
-    }
-
-    fn ensure_schema(&self) -> Result<()> {
-        let conn = self.open_connection()?;
-        conn.execute_batch(include_str!("schema.sql"))?;
-        ensure_task_runs_column(&conn, "origin", "TEXT NOT NULL DEFAULT 'task'")?;
-        ensure_task_runs_column(&conn, "runtime", "TEXT NOT NULL DEFAULT ''")?;
-        ensure_task_runs_column(&conn, "runtime_source", "TEXT NOT NULL DEFAULT ''")?;
-        ensure_task_runs_column(&conn, "command", "TEXT NOT NULL DEFAULT ''")?;
-        Ok(())
+        Ok(Some(conn))
     }
 
     fn run_exists(&self, task_run_id: &str) -> Result<bool> {
-        let conn = self.open_connection()?;
+        let Some(conn) = self.open_read_connection()? else {
+            return Ok(false);
+        };
         let mut stmt = conn.prepare("SELECT 1 FROM task_runs WHERE task_run_id = ?1 LIMIT 1")?;
         let mut rows = stmt.query(params![task_run_id.trim()])?;
         Ok(rows.next()?.is_some())
     }
+}
+
+impl TaskHistoryWriter {
+    pub(in crate::cli::task_history) fn open_default() -> Result<Self> {
+        Self::open(default_db_path()?)
+    }
+
+    fn open(db_path: PathBuf) -> Result<Self> {
+        if let Some(parent) = db_path.parent() {
+            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+        }
+        let conn = Connection::open_with_flags(
+            &db_path,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+        )
+        .with_context(|| format!("open task history db {}", db_path.display()))?;
+        configure_write_connection(&conn)?;
+        ensure_schema(&conn)?;
+        Ok(Self { conn })
+    }
+}
+
+fn configure_write_connection(conn: &Connection) -> Result<()> {
+    conn.busy_timeout(Duration::from_secs(30))
+        .context("configure task history sqlite busy timeout")?;
+    conn.pragma_update(None, "journal_mode", "WAL")
+        .context("enable task history sqlite WAL mode")?;
+    conn.pragma_update(None, "synchronous", "NORMAL")
+        .context("configure task history sqlite sync mode")?;
+    Ok(())
+}
+
+fn ensure_schema(conn: &Connection) -> Result<()> {
+    conn.execute_batch(include_str!("schema.sql"))?;
+    ensure_task_runs_column(conn, "origin", "TEXT NOT NULL DEFAULT 'task'")?;
+    ensure_task_runs_column(conn, "runtime", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_task_runs_column(conn, "runtime_source", "TEXT NOT NULL DEFAULT ''")?;
+    ensure_task_runs_column(conn, "command", "TEXT NOT NULL DEFAULT ''")?;
+    Ok(())
 }
 
 fn ensure_task_runs_column(conn: &Connection, name: &str, definition: &str) -> Result<()> {
@@ -148,6 +185,10 @@ fn state_home() -> Result<PathBuf> {
         .map(PathBuf::from)
         .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".local/state")))
         .map_err(|_| anyhow!("failed to resolve xdg_state_home"))
+}
+
+fn default_db_path() -> Result<PathBuf> {
+    Ok(state_home()?.join("tak").join("tasks.sqlite"))
 }
 
 fn unix_epoch_ms() -> i64 {

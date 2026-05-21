@@ -2,7 +2,7 @@ use anyhow::Result;
 use rusqlite::{Connection, params};
 use tak_exec::{OutputStream, TaskFinishedEvent, TaskOutputChunk, TaskStartedEvent};
 
-use super::{TaskHistoryStore, unix_epoch_ms};
+use super::{TaskHistoryWriter, unix_epoch_ms};
 
 struct StartedRunRecord<'a> {
     task_run_id: &'a str,
@@ -17,9 +17,9 @@ struct StartedRunRecord<'a> {
     update_placement: bool,
 }
 
-impl TaskHistoryStore {
+impl TaskHistoryWriter {
     pub(in crate::cli::task_history) fn record_started(
-        &self,
+        &mut self,
         task_run_id: &str,
         task_label: &str,
         attempt: u32,
@@ -39,7 +39,7 @@ impl TaskHistoryStore {
     }
 
     pub(in crate::cli::task_history) fn record_started_event(
-        &self,
+        &mut self,
         event: &TaskStartedEvent,
         task_label: &str,
     ) -> Result<()> {
@@ -57,9 +57,8 @@ impl TaskHistoryStore {
         })
     }
 
-    fn record_started_metadata(&self, record: StartedRunRecord<'_>) -> Result<()> {
-        let conn = self.open_connection()?;
-        conn.execute(
+    fn record_started_metadata(&mut self, record: StartedRunRecord<'_>) -> Result<()> {
+        self.conn.execute(
             "
             INSERT INTO task_runs (
                 task_run_id, task_label, attempts, state, placement, remote_node_id,
@@ -118,12 +117,11 @@ impl TaskHistoryStore {
     }
 
     pub(in crate::cli::task_history) fn append_output(
-        &self,
+        &mut self,
         chunk: &TaskOutputChunk,
     ) -> Result<()> {
-        let conn = self.open_connection()?;
-        let seq = next_output_seq(&conn, &chunk.task_run_id)?;
-        conn.execute(
+        let seq = next_output_seq(&self.conn, &chunk.task_run_id)?;
+        self.conn.execute(
             "
             INSERT INTO task_outputs (task_run_id, seq, attempt, stream, bytes)
             VALUES (?1, ?2, ?3, ?4, ?5)
@@ -140,11 +138,10 @@ impl TaskHistoryStore {
     }
 
     pub(in crate::cli::task_history) fn record_finished(
-        &self,
+        &mut self,
         event: &TaskFinishedEvent,
     ) -> Result<()> {
-        let conn = self.open_connection()?;
-        conn.execute(
+        self.conn.execute(
             "
             INSERT INTO task_runs (
                 task_run_id, task_label, attempts, state, placement, remote_node_id,

@@ -6,8 +6,17 @@ use anyhow::Result;
 use super::store::{TaskHistoryStore, TaskOutputRow};
 
 pub(in crate::cli) fn print_task_history(limit: usize) -> Result<()> {
-    let rows = TaskHistoryStore::open_default()?.list_runs(limit)?;
     println!("Local Tasks");
+    let rows = match TaskHistoryStore::open_default().and_then(|store| store.list_runs(limit)) {
+        Ok(rows) => rows,
+        Err(err) => {
+            println!(
+                "history=unavailable detail={}",
+                single_line(&format!("{err:#}"))
+            );
+            return Ok(());
+        }
+    };
     if rows.is_empty() {
         println!("(none)");
         return Ok(());
@@ -68,6 +77,10 @@ fn write_output_row(row: &TaskOutputRow) -> Result<()> {
 
 fn empty_none(value: &str) -> &str {
     if value.is_empty() { "none" } else { value }
+}
+
+fn single_line(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn test_max_polls() -> Option<usize> {
