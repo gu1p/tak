@@ -75,6 +75,36 @@ impl FakeDockerDaemonState {
             .push(container_id.to_string());
         self.remove_notify.notify_waiters();
     }
+
+    pub(super) fn add_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
+        self.record_create(
+            CreateRecord {
+                container_id: container_id.to_string(),
+                image: Some("alpine:3.20".to_string()),
+                cmd: vec!["sleep".to_string(), "60".to_string()],
+                user: None,
+                working_dir: None,
+                binds: Vec::new(),
+                labels,
+            },
+            0,
+        );
+    }
+
+    pub(super) fn container_summaries(&self) -> Vec<CreateRecord> {
+        let removed = self
+            .removed_containers
+            .lock()
+            .expect("removed containers lock")
+            .clone();
+        self.create_records
+            .lock()
+            .expect("create records lock")
+            .iter()
+            .filter(|record| !removed.contains(&record.container_id))
+            .cloned()
+            .collect()
+    }
     pub(super) async fn wait_for_exit_or_remove(&self, container_id: &str) {
         if self.wait_response_delay.is_zero() {
             return;

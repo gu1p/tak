@@ -1,5 +1,5 @@
 use super::FakeDockerDaemonState;
-use crate::support::fake_docker_daemon::{BuildRecord, CreateRecord, PullRecord};
+use crate::support::fake_docker_daemon::{BuildRecord, CreateRecord, PullRecord, RemoveRecord};
 
 impl FakeDockerDaemonState {
     pub(in crate::support::fake_docker_daemon) fn build_records(&self) -> Vec<BuildRecord> {
@@ -8,6 +8,10 @@ impl FakeDockerDaemonState {
 
     pub(in crate::support::fake_docker_daemon) fn create_records(&self) -> Vec<CreateRecord> {
         self.creates.lock().expect("create records lock").clone()
+    }
+
+    pub(in crate::support::fake_docker_daemon) fn remove_records(&self) -> Vec<RemoveRecord> {
+        self.removes.lock().expect("remove records lock").clone()
     }
 
     pub(in crate::support::fake_docker_daemon) fn pull_records(&self) -> Vec<PullRecord> {

@@ -31,6 +31,7 @@ mod remote_binary_contract;
 mod remote_cancel_active_behavior;
 mod remote_cancel_behavior;
 mod remote_cleanup_janitor_behavior;
+mod remote_container_janitor_behavior;
 mod remote_container_nonzero_exit_behavior;
 mod remote_container_user_behavior;
 mod remote_exec_root_explicit_behavior;

@@ -94,6 +94,12 @@ pub async fn execute_remote_worker_steps_with_output_and_cancellation(
     {
         container_plan.image_cache = Some(image_cache_plan(options, container_plan));
     }
+    if let Some(identity) = spec.container_identity.clone()
+        && let Some(metadata) = runtime_metadata.as_mut()
+        && metadata.container_plan.is_some()
+    {
+        metadata.container_identity = Some(identity);
+    }
 
     let result = run_task_steps_with_runtime(
         &task,

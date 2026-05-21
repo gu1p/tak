@@ -81,9 +81,31 @@ pub(super) async fn handle_connection(
             .await?;
         }
         "POST" if path.ends_with("/start") => {
-            write_empty_response(&mut stream, "204 No Content").await?
+            if let Some(message) = state.start_failure_message() {
+                write_response(
+                    &mut stream,
+                    "500 Internal Server Error",
+                    "application/json",
+                    format!(r#"{{"message":"{message}"}}"#).as_bytes(),
+                )
+                .await?;
+            } else {
+                write_empty_response(&mut stream, "204 No Content").await?
+            }
         }
-        "GET" if path.ends_with("/logs") => write_logs_response(&mut stream, &state).await?,
+        "GET" if path.ends_with("/logs") => {
+            if let Some(message) = state.logs_failure_message() {
+                write_response(
+                    &mut stream,
+                    "500 Internal Server Error",
+                    "application/json",
+                    format!(r#"{{"message":"{message}"}}"#).as_bytes(),
+                )
+                .await?;
+            } else {
+                write_logs_response(&mut stream, &state).await?
+            }
+        }
         "POST" if path.ends_with("/wait") => {
             state.wait_until_released().await;
             write_response(
@@ -95,6 +117,12 @@ pub(super) async fn handle_connection(
             .await?;
         }
         "DELETE" if path.contains("/containers/") => {
+            if let Some(container_id) = path
+                .split_once("/containers/")
+                .and_then(|(_, tail)| tail.split('/').next())
+            {
+                state.record_remove(container_id.to_string());
+            }
             write_empty_response(&mut stream, "204 No Content").await?
         }
         "DELETE" if path.contains("/images/") => {

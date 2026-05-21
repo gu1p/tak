@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 
 use tokio::sync::Notify;
 
-use super::{BuildRecord, CreateRecord, PullRecord};
+use super::{BuildRecord, CreateRecord, PullRecord, RemoveRecord};
 pub(in crate::support::fake_docker_daemon) use image::ImageDeleteResult;
 
 pub(super) struct FakeDockerDaemonState {
@@ -20,10 +20,13 @@ pub(super) struct FakeDockerDaemonState {
     pub(super) images: Mutex<BTreeMap<String, u64>>,
     pub(super) builds: Mutex<Vec<BuildRecord>>,
     pub(super) creates: Mutex<Vec<CreateRecord>>,
+    pub(super) removes: Mutex<Vec<RemoveRecord>>,
     pub(super) pulls: Mutex<Vec<PullRecord>>,
     pub(super) image_removal_attempts: Mutex<Vec<String>>,
     build_failure_message: Mutex<Option<String>>,
     image_removal_failure_status: Mutex<Option<u16>>,
+    start_failure_message: Mutex<Option<String>>,
+    logs_failure_message: Mutex<Option<String>>,
 }
 
 impl FakeDockerDaemonState {
@@ -39,10 +42,13 @@ impl FakeDockerDaemonState {
             images: Mutex::new(images),
             builds: Mutex::new(Vec::new()),
             creates: Mutex::new(Vec::new()),
+            removes: Mutex::new(Vec::new()),
             pulls: Mutex::new(Vec::new()),
             image_removal_attempts: Mutex::new(Vec::new()),
             build_failure_message: Mutex::new(None),
             image_removal_failure_status: Mutex::new(None),
+            start_failure_message: Mutex::new(None),
+            logs_failure_message: Mutex::new(None),
         }
     }
 
@@ -69,6 +75,13 @@ impl FakeDockerDaemonState {
             .push(create);
     }
 
+    pub(super) fn record_remove(&self, container_id: String) {
+        self.removes
+            .lock()
+            .expect("remove records lock")
+            .push(RemoveRecord { container_id });
+    }
+
     pub(super) fn record_pull(&self, pull: PullRecord) {
         if !pull.image.is_empty() && self.image_info(&pull.image).is_none() {
             self.set_image(&pull.image, super::IMAGE_ID, 1024);
@@ -87,6 +100,31 @@ impl FakeDockerDaemonState {
         self.build_failure_message
             .lock()
             .expect("build failure lock")
+            .clone()
+    }
+
+    pub(super) fn fail_start(&self, message: &str) {
+        *self
+            .start_failure_message
+            .lock()
+            .expect("start failure lock") = Some(message.to_string());
+    }
+
+    pub(super) fn start_failure_message(&self) -> Option<String> {
+        self.start_failure_message
+            .lock()
+            .expect("start failure lock")
+            .clone()
+    }
+
+    pub(super) fn fail_logs(&self, message: &str) {
+        *self.logs_failure_message.lock().expect("logs failure lock") = Some(message.to_string());
+    }
+
+    pub(super) fn logs_failure_message(&self) -> Option<String> {
+        self.logs_failure_message
+            .lock()
+            .expect("logs failure lock")
             .clone()
     }
 }

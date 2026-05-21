@@ -115,6 +115,7 @@ pub(crate) struct RuntimeExecutionMetadata {
     pub(crate) engine: Option<String>,
     pub(crate) env_overrides: BTreeMap<String, String>,
     pub(crate) container_plan: Option<ContainerExecutionPlan>,
+    pub(crate) container_identity: Option<super::ContainerExecutionIdentity>,
 }
 
 #[derive(Debug, Clone)]

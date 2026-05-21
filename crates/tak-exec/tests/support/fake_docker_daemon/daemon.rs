@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 
 use super::server::run_fake_docker_daemon;
 use super::state::FakeDockerDaemonState;
-use super::{BuildRecord, CreateRecord, PullRecord};
+use super::{BuildRecord, CreateRecord, PullRecord, RemoveRecord};
 
 pub struct FakeDockerDaemon {
     socket_path: PathBuf,
@@ -53,6 +53,10 @@ impl FakeDockerDaemon {
         self.state.create_records()
     }
 
+    pub fn remove_records(&self) -> Vec<RemoveRecord> {
+        self.state.remove_records()
+    }
+
     pub fn pull_records(&self) -> Vec<PullRecord> {
         self.state.pull_records()
     }
@@ -63,6 +67,14 @@ impl FakeDockerDaemon {
 
     pub fn fail_build(&self, message: &str) {
         self.state.fail_build(message);
+    }
+
+    pub fn fail_start(&self, message: &str) {
+        self.state.fail_start(message);
+    }
+
+    pub fn fail_logs(&self, message: &str) {
+        self.state.fail_logs(message);
     }
 
     pub fn image_removal_attempts(&self) -> Vec<String> {

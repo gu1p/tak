@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
 use std::sync::Arc;
@@ -31,7 +31,7 @@ pub(crate) use build_context::deterministic_dockerfile_image_tag;
 use build_context::ensure_container_runtime_source;
 use execution::run_step_in_container;
 pub(crate) use foundation::connect_container_engine;
-use log_stream::{finish_container_log_task, spawn_container_log_task};
+use log_stream::{ContainerLogTask, finish_container_log_task, spawn_container_log_task};
 use tar_archive::{append_tar_entry, tar_builder};
 
 use foundation::ensure_container_image;
@@ -51,6 +51,7 @@ struct ContainerStepRunContext<'a> {
     output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
     container_user: Option<&'a str>,
     cancellation: &'a RunCancellation,
+    container_identity: Option<&'a crate::ContainerExecutionIdentity>,
 }
 
 struct ContainerStepExecutor<'a> {
@@ -74,6 +75,7 @@ pub(crate) async fn run_task_steps_in_container(
         output_observer: context.output_observer,
         container_user: plan.container_user.as_deref(),
         cancellation: context.cancellation,
+        container_identity: context.container_identity,
     };
     let executor = ContainerStepExecutor {
         docker: &client.docker,

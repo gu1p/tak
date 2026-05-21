@@ -25,6 +25,7 @@ fn execute_remote_worker_submit(
             .context("failed to create tokio runtime for remote worker execution")?;
         let result = runtime.block_on(execute_payload_steps(
             &execution_root,
+            idempotency_key,
             selected_node_id,
             image_cache,
             payload,
@@ -61,6 +62,7 @@ fn execute_remote_worker_submit(
 
 async fn execute_payload_steps(
     execution_root: &Path,
+    idempotency_key: &str,
     selected_node_id: &str,
     image_cache: Option<&super::types::RemoteImageCacheRuntimeConfig>,
     payload: &RemoteWorkerSubmitPayload,
@@ -69,6 +71,8 @@ async fn execute_payload_steps(
 ) -> Result<tak_runner::RemoteWorkerExecutionResult> {
     let context = RemoteMemberExecutionContext {
         execution_root,
+        submit_key: idempotency_key,
+        task_run_id: task_run_id_from_submit_key(idempotency_key, payload.attempt),
         selected_node_id,
         image_cache,
         runtime: payload.runtime.clone(),
@@ -106,6 +110,8 @@ async fn execute_fused_remote_members(
 
 struct RemoteMemberExecutionContext<'a> {
     execution_root: &'a Path,
+    submit_key: &'a str,
+    task_run_id: String,
     selected_node_id: &'a str,
     image_cache: Option<&'a super::types::RemoteImageCacheRuntimeConfig>,
     runtime: Option<RemoteRuntimeSpec>,
@@ -155,6 +161,11 @@ async fn execute_one_remote_member(
             node_id: context.selected_node_id.to_string(),
             container_user: remote_container_user(),
             image_cache: context.image_cache.map(image_cache_options),
+            container_identity: Some(tak_runner::ContainerExecutionIdentity {
+                owner: "takd".to_string(),
+                submit_key: context.submit_key.to_string(),
+                task_run_id: context.task_run_id.clone(),
+            }),
         },
         Some(context.output_observer.clone()),
         context.cancellation,
@@ -169,4 +180,11 @@ fn successful_remote_worker_result() -> tak_runner::RemoteWorkerExecutionResult 
         runtime_kind: None,
         runtime_engine: None,
     }
+}
+
+fn task_run_id_from_submit_key(idempotency_key: &str, attempt: u32) -> String {
+    idempotency_key
+        .strip_suffix(&format!(":{attempt}"))
+        .unwrap_or(idempotency_key)
+        .to_string()
 }

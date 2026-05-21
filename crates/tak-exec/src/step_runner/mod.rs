@@ -10,8 +10,8 @@ use tak_core::model::TaskLabel;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 
-use crate::engine::RunCancellation;
 use crate::engine::cancelled_error;
+use crate::engine::{ContainerExecutionIdentity, RunCancellation};
 use crate::{OutputStream, TaskOutputObserver};
 
 mod output_relay;
@@ -32,6 +32,7 @@ pub(crate) struct StepRunContext<'a> {
     pub(crate) task_run_id: &'a str,
     pub(crate) output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
     pub(crate) cancellation: &'a RunCancellation,
+    pub(crate) container_identity: Option<&'a ContainerExecutionIdentity>,
 }
 
 /// Executes one step definition with optional timeout enforcement.

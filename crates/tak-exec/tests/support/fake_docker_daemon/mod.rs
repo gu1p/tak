@@ -13,7 +13,7 @@ mod tar;
 mod types;
 
 pub use daemon::FakeDockerDaemon;
-pub use types::{BuildRecord, CreateRecord, PullRecord};
+pub use types::{BuildRecord, CreateRecord, PullRecord, RemoveRecord};
 
 const CONTAINER_ID: &str = "container-123";
 const IMAGE_ID: &str = "sha256:test-image";

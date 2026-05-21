@@ -26,13 +26,9 @@ pub use client_observations::{
     record_remote_observation, write_remote_observation, write_remote_observation_at,
 };
 pub use client_tor::default_client_tor_config;
-pub(crate) use engine::{
-    ContainerExecutionPlan, LeaseContext, ParsedRemoteEvents, RemoteTargetSelection,
-    RemoteWorkspaceStage, StrictRemoteTarget, emit_task_output,
-};
 pub use engine::{
-    ImageCacheOptions, NoMatchingRemoteError, OutputStream, PlacementMode,
-    RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteLogChunk,
+    ContainerExecutionIdentity, ImageCacheOptions, NoMatchingRemoteError, OutputStream,
+    PlacementMode, RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteLogChunk,
     RemotePreflightExhaustedError, RemotePreflightFailure, RemotePreflightFailureKind,
     RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RequiredRemoteDiagnostic,
     RunCancellation, RunCancelled, RunOptions, RunSummary, SyncedOutput, TaskFinishedEvent,
@@ -41,6 +37,10 @@ pub use engine::{
     execute_remote_worker_steps_with_output,
     execute_remote_worker_steps_with_output_and_cancellation, is_run_cancelled_error,
     run_resolved_task, run_tasks,
+};
+pub(crate) use engine::{
+    ContainerExecutionPlan, LeaseContext, ParsedRemoteEvents, RemoteTargetSelection,
+    RemoteWorkspaceStage, StrictRemoteTarget, emit_task_output,
 };
 pub use image_cache::{image_cache_status, run_image_cache_janitor_once};
 pub use summary::target_set_from_summary;

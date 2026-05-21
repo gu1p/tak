@@ -152,6 +152,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
                 engine: Some(engine_name),
                 env_overrides,
                 container_plan,
+                container_identity: None,
             }))
         }
     }

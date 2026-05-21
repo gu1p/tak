@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -9,6 +10,7 @@ pub struct CreateRecord {
     pub user: Option<String>,
     pub working_dir: Option<String>,
     pub binds: Vec<String>,
+    pub labels: BTreeMap<String, String>,
 }
 
 impl CreateRecord {

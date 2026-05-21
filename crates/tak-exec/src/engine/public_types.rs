@@ -112,6 +112,14 @@ pub struct RemoteWorkerExecutionSpec {
     pub node_id: String,
     pub container_user: Option<String>,
     pub image_cache: Option<ImageCacheOptions>,
+    pub container_identity: Option<ContainerExecutionIdentity>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainerExecutionIdentity {
+    pub owner: String,
+    pub submit_key: String,
+    pub task_run_id: String,
 }
 
 #[derive(Debug, Clone)]

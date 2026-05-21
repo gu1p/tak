@@ -2,6 +2,7 @@ use std::io;
 use std::path::Path;
 
 use serde::Deserialize;
+use std::collections::BTreeMap;
 
 use super::CreateRecord;
 use super::request::FakeDockerRequest;
@@ -15,6 +16,7 @@ struct CreateContainerPayload {
     cmd: Vec<String>,
     user: Option<String>,
     working_dir: Option<String>,
+    labels: Option<BTreeMap<String, String>>,
     host_config: Option<HostConfigPayload>,
 }
 
@@ -48,6 +50,7 @@ pub(super) fn create_container(
             user: payload.user,
             working_dir: payload.working_dir,
             binds,
+            labels: payload.labels.unwrap_or_default(),
         },
         exit_code,
     })

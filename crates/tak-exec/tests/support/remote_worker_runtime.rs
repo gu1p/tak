@@ -59,6 +59,7 @@ pub fn worker_spec(
         node_id: node_id.to_string(),
         container_user: None,
         image_cache: None,
+        container_identity: None,
     }
 }
 

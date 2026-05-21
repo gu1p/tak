@@ -39,6 +39,9 @@ async fn handle_connection(
             write_response(&mut stream, "200 OK", "text/plain", b"OK").await?
         }
         "GET" if path.ends_with("/version") => write_version_response(&mut stream, &state).await?,
+        "GET" if path.ends_with("/containers/json") => {
+            write_container_list_response(&mut stream, &state).await?
+        }
         "GET" if path.contains("/images/") && path.ends_with("/json") => {
             let Some(image) = requested_image_name(&request) else {
                 write_response(&mut stream, "404 Not Found", "text/plain", b"not found").await?;
@@ -73,6 +76,36 @@ async fn handle_connection(
     }
 
     Ok(())
+}
+
+async fn write_container_list_response(
+    stream: &mut UnixStream,
+    state: &FakeDockerDaemonState,
+) -> io::Result<()> {
+    let containers = state
+        .container_summaries()
+        .into_iter()
+        .map(|record| {
+            serde_json::json!({
+                "Id": record.container_id,
+                "Names": [format!("/{}", record.container_id)],
+                "Image": record.image.unwrap_or_default(),
+                "Command": record.cmd.join(" "),
+                "Labels": record.labels,
+                "State": "running",
+                "Status": "Up",
+            })
+        })
+        .collect::<Vec<_>>();
+    write_response(
+        stream,
+        "200 OK",
+        "application/json",
+        serde_json::to_string(&containers)
+            .expect("serialize fake container list")
+            .as_bytes(),
+    )
+    .await
 }
 
 fn requested_image_name(request: &FakeDockerRequest) -> Option<String> {

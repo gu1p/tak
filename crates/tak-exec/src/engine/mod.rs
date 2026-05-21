@@ -56,10 +56,10 @@ mod workspace_sync;
 
 pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
 pub use public_types::{
-    ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk, RemoteWorkerExecutionResult,
-    RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput, TaskFinishedEvent,
-    TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent, TaskStatusEvent,
-    TaskStatusPhase,
+    ContainerExecutionIdentity, ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk,
+    RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput,
+    TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent,
+    TaskStatusEvent, TaskStatusPhase,
 };
 pub use remote_diagnostics::{
     NoMatchingRemoteError, RemoteCandidateDiagnostic, RemoteCandidateRejection,

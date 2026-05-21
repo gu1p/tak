@@ -23,6 +23,11 @@ fn remote_worker_public_api_stays_available() {
         node_id: "node".to_string(),
         container_user: None,
         image_cache: None,
+        container_identity: Some(tak_exec::ContainerExecutionIdentity {
+            owner: "takd".to_string(),
+            submit_key: "task:1".to_string(),
+            task_run_id: "task".to_string(),
+        }),
     };
     let _remote_worker_result = tak_exec::RemoteWorkerExecutionResult {
         success: true,

@@ -40,6 +40,7 @@ pub(crate) async fn run_task_steps(
                 task_run_id,
                 output_observer,
                 cancellation,
+                container_identity: None,
             },
         )
         .await?;
@@ -77,6 +78,7 @@ pub(crate) async fn run_task_steps_with_runtime(
                 task_run_id,
                 output_observer,
                 cancellation,
+                container_identity: metadata.container_identity.as_ref(),
             },
         )
         .await;

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -52,6 +53,10 @@ impl FakeDockerDaemon {
 
     pub fn removed_containers(&self) -> Vec<String> {
         self.state.removed_containers()
+    }
+
+    pub fn add_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
+        self.state.add_container(container_id, labels);
     }
 }
 

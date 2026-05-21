@@ -15,6 +15,11 @@ pub struct CreateRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveRecord {
+    pub container_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PullRecord {
     pub image: String,
 }
