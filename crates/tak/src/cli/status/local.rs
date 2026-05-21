@@ -8,7 +8,14 @@ use crate::cli::task_history::TaskHistoryStore;
 pub(super) struct LocalStatusSnapshot {
     pub(super) resources: LocalResources,
     pub(super) daemon: LocalDaemonStatus,
+    pub(super) history: LocalHistoryStatus,
     pub(super) active_tasks: Vec<LocalTask>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum LocalHistoryStatus {
+    Ok,
+    Unavailable { detail: String },
 }
 
 #[derive(Clone, Debug)]
@@ -37,15 +44,12 @@ pub(super) struct LocalTask {
 }
 
 pub(super) async fn local_status_snapshot() -> Result<LocalStatusSnapshot> {
-    let store = TaskHistoryStore::open_default()?;
+    let (history, active_tasks) = local_history_tasks();
     Ok(LocalStatusSnapshot {
         resources: sample_local_resources(),
         daemon: local_daemon_status().await,
-        active_tasks: store
-            .active_local_runs()?
-            .into_iter()
-            .map(LocalTask::from)
-            .collect(),
+        history,
+        active_tasks,
     })
 }
 
@@ -55,6 +59,21 @@ impl LocalStatusSnapshot {
             .iter()
             .filter(|task| task.runtime == "containerized")
             .collect()
+    }
+}
+
+fn local_history_tasks() -> (LocalHistoryStatus, Vec<LocalTask>) {
+    match TaskHistoryStore::open_default().and_then(|store| store.active_local_runs()) {
+        Ok(rows) => (
+            LocalHistoryStatus::Ok,
+            rows.into_iter().map(LocalTask::from).collect(),
+        ),
+        Err(err) => (
+            LocalHistoryStatus::Unavailable {
+                detail: single_line(&format!("{err:#}")),
+            },
+            Vec::new(),
+        ),
     }
 }
 
@@ -121,6 +140,10 @@ fn local_storage_usage() -> LocalStorageUsage {
         available_bytes: 0,
         used_bytes: 0,
     }
+}
+
+fn single_line(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 struct LocalStorageUsage {

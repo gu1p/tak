@@ -60,7 +60,7 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         session_id: std::env::var("TAK_SESSION_ID").ok(),
         user: std::env::var("TAK_USER").ok(),
         output_observer: Some(Arc::new(
-            HistoryOutputObserver::new_with_start_announcements(TaskHistoryStore::open_default()?),
+            HistoryOutputObserver::new_with_start_announcements(),
         )),
         cancellation: cancellation.clone(),
     };

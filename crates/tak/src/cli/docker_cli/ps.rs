@@ -29,8 +29,12 @@ pub(super) async fn run_docker_ps(
     }
 
     let mut rows = Vec::new();
+    let mut local_history_error = None;
     if should_include_local_ps(&selectors) {
-        rows.extend(local_ps_rows()?);
+        match local_ps_rows() {
+            Ok(local_rows) => rows.extend(local_rows),
+            Err(err) => local_history_error = Some(single_line(&format!("{err:#}"))),
+        }
     }
     if !selectors.local {
         let remotes = matching_remotes(&selectors)?;
@@ -45,7 +49,7 @@ pub(super) async fn run_docker_ps(
         }
     }
 
-    print!("{}", render_docker_ps(rows));
+    print!("{}", render_docker_ps(rows, local_history_error.as_deref()));
     Ok(ExitCode::SUCCESS)
 }
 
@@ -118,7 +122,7 @@ fn empty_as_none(value: String) -> String {
     }
 }
 
-fn render_docker_ps(mut rows: Vec<DockerPsRow>) -> String {
+fn render_docker_ps(mut rows: Vec<DockerPsRow>, local_history_error: Option<&str>) -> String {
     rows.sort_unstable_by(|left, right| {
         left.node
             .cmp(&right.node)
@@ -127,6 +131,9 @@ fn render_docker_ps(mut rows: Vec<DockerPsRow>) -> String {
             .then(left.task_run_id.cmp(&right.task_run_id))
     });
     let mut output = String::from("Tak Containers\n");
+    if let Some(detail) = local_history_error {
+        output.push_str(&format!("local history=unavailable detail={detail}\n"));
+    }
     if rows.is_empty() {
         output.push_str("(none)\n");
         return output;
@@ -171,6 +178,10 @@ fn age_since(started_at_ms: i64) -> String {
         return format!("{}m{}s", delta_s / 60, delta_s % 60);
     }
     format!("{delta_s}s")
+}
+
+fn single_line(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn unix_epoch_ms() -> i64 {

@@ -13,7 +13,7 @@ use tak_exec::{RunOptions, TaskOutputObserver, run_resolved_task};
 use super::super::remote_inventory::RemoteRecord;
 use super::super::run_output::StdStreamOutputObserver;
 use super::super::run_override_runtime::default_cli_container_resource_limits;
-use super::super::task_history::{HistoryOutputObserver, TaskHistoryStore};
+use super::super::task_history::HistoryOutputObserver;
 use super::DockerCliSelectors;
 use super::run_spec::{DockerRunSpec, parse_docker_run};
 use super::run_validate::validate_docker_run_spec;
@@ -56,9 +56,7 @@ pub(super) async fn run_docker_run(
 
 fn output_observer(local: bool) -> Result<Arc<dyn TaskOutputObserver>> {
     if local {
-        return Ok(Arc::new(HistoryOutputObserver::new(
-            TaskHistoryStore::open_default()?,
-        )));
+        return Ok(Arc::new(HistoryOutputObserver::new()));
     }
     Ok(Arc::new(StdStreamOutputObserver::default()))
 }

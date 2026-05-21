@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 
 use rusqlite::{Connection, params};
 
@@ -19,6 +20,29 @@ pub fn write_active_remote_container_run(state_root: &Path) {
     );
 }
 
+#[allow(dead_code)]
+pub fn db_path(state_root: &Path) -> PathBuf {
+    state_root.join("tak/tasks.sqlite")
+}
+
+#[allow(dead_code)]
+pub fn create_unopenable_db_path(state_root: &Path) {
+    fs::create_dir_all(db_path(state_root)).expect("create directory at task history db path");
+}
+
+#[cfg(unix)]
+#[allow(dead_code)]
+pub fn make_db_read_only(state_root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let db_path = db_path(state_root);
+    let mut permissions = fs::metadata(&db_path)
+        .expect("task history db metadata")
+        .permissions();
+    permissions.set_mode(0o444);
+    fs::set_permissions(db_path, permissions).expect("mark task history db read-only");
+}
+
 fn write_active_container_run_for(
     state_root: &Path,
     task_run_id: &str,
@@ -26,7 +50,7 @@ fn write_active_container_run_for(
     placement: &str,
     remote_node_id: &str,
 ) {
-    let db_path = state_root.join("tak/tasks.sqlite");
+    let db_path = db_path(state_root);
     fs::create_dir_all(db_path.parent().expect("task history parent")).expect("create state dir");
     let conn = Connection::open(&db_path).expect("open task history");
     conn.execute_batch(
