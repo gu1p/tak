@@ -82,6 +82,8 @@ pub(crate) struct RemoteProtocolResult {
     pub(crate) synced_outputs: Vec<SyncedOutput>,
     pub(crate) runtime_kind: Option<String>,
     pub(crate) runtime_engine: Option<String>,
+    pub(crate) stdout_tail: Option<String>,
+    pub(crate) stderr_tail: Option<String>,
 }
 
 #[derive(Debug, Clone)]

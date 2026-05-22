@@ -66,13 +66,15 @@ pub(crate) fn parse_remote_protocol_result(
         success: parsed.success,
         exit_code: parsed.exit_code,
         failure_detail: (!parsed.success)
-            .then_some(parsed.stderr_tail)
+            .then_some(parsed.stderr_tail.clone())
             .flatten()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty()),
         synced_outputs,
         runtime_kind: parsed.runtime,
         runtime_engine: parsed.runtime_engine,
+        stdout_tail: parsed.stdout_tail,
+        stderr_tail: parsed.stderr_tail,
     })
 }
 

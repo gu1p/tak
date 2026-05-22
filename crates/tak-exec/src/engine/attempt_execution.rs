@@ -3,11 +3,6 @@ use std::path::Path;
 use anyhow::{Result, anyhow};
 use tak_core::model::ResolvedTask;
 
-use super::{
-    PlacementMode, RemoteLogChunk, RunCancellation, SyncedOutput, TaskOutputObserver,
-    TaskStatusPhase,
-};
-
 use crate::step_runner::StepRunResult;
 
 use super::output_observer::emit_task_status_message;
@@ -15,9 +10,16 @@ use super::protocol_cancel::remote_protocol_cancel;
 use super::protocol_events::remote_protocol_events;
 use super::protocol_result_http::remote_protocol_result;
 use super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement};
+use super::result_tail_recovery::recover_missing_remote_result_tails;
 use super::step_execution::run_task_steps_with_runtime;
 use super::workspace_outputs::collect_workspace_outputs;
-use super::workspace_sync::{sync_remote_outputs, sync_remote_outputs_from_remote};
+use super::{
+    PlacementMode, RemoteLogChunk, RunCancellation, SyncedOutput, TaskOutputObserver,
+    TaskStatusPhase,
+};
+
+mod sync_outputs;
+use sync_outputs::sync_attempt_outputs;
 
 pub(crate) struct AttemptExecutionContext<'a> {
     pub(crate) task: &'a ResolvedTask,
@@ -85,7 +87,7 @@ pub(crate) async fn execute_task_attempt(
             context.output_observer,
         );
         tokio::pin!(events);
-        let (remote_logs, protocol_result) = tokio::select! {
+        let (mut remote_logs, protocol_result) = tokio::select! {
             result = &mut events => result?,
             _ = context.cancellation.cancelled() => {
                 let _ = remote_protocol_cancel(target, context.task_run_id, context.attempt).await;
@@ -96,6 +98,14 @@ pub(crate) async fn execute_task_attempt(
             Some(result) => result,
             None => remote_protocol_result(target, context.task_run_id, context.attempt).await?,
         };
+        recover_missing_remote_result_tails(
+            context.task_run_id,
+            &context.task.label,
+            context.attempt,
+            context.output_observer,
+            &mut remote_logs,
+            &result,
+        )?;
         (remote_logs, Some(result))
     } else {
         (Vec::new(), None)
@@ -153,42 +163,4 @@ pub(crate) async fn execute_task_attempt(
         remote_runtime_engine,
         remote_logs,
     })
-}
-
-async fn sync_attempt_outputs(
-    context: &AttemptExecutionContext<'_>,
-    synced_outputs: &[SyncedOutput],
-    run_local_attempt: bool,
-) -> Result<()> {
-    if run_local_attempt {
-        if context.run_root != context.workspace_root {
-            sync_remote_outputs(context.run_root, context.workspace_root, synced_outputs)?;
-        } else if let Some(staged_workspace) = context.remote_workspace {
-            sync_remote_outputs(
-                staged_workspace.temp_dir.path(),
-                context.workspace_root,
-                synced_outputs,
-            )?;
-        }
-        return Ok(());
-    }
-
-    let target = context
-        .placement
-        .strict_remote_target
-        .as_ref()
-        .ok_or_else(|| {
-            anyhow!(
-                "infra error: missing strict remote target during output sync for task {}",
-                context.task.label
-            )
-        })?;
-    sync_remote_outputs_from_remote(
-        target,
-        context.task_run_id,
-        context.attempt,
-        context.workspace_root,
-        synced_outputs,
-    )
-    .await
 }

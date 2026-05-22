@@ -38,6 +38,7 @@ mod remote_selection_tests;
 pub(crate) mod remote_submit_failure;
 mod remote_wait_status;
 mod remote_worker;
+mod result_tail_recovery;
 mod run_single_task;
 mod run_tasks;
 mod runtime_metadata;

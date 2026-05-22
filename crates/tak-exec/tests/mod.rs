@@ -18,6 +18,7 @@ mod remote_distribution_jobs_behavior;
 mod remote_events_liveness_behavior;
 mod remote_events_polling_behavior;
 mod remote_events_result_probe_behavior;
+mod remote_events_result_tail_behavior;
 mod remote_execution_any_transport_behavior;
 mod remote_execution_any_transport_fallback_behavior;
 mod remote_execution_auth_fallback_behavior;
