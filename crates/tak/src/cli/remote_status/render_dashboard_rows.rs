@@ -47,7 +47,7 @@ pub(super) fn push_job_lines(lines: &mut Vec<Line<'static>>, view: &RemoteStatus
             lines.push(Line::from(format!(
                 "{} {} attempt={} age={} needs={} exec_root={} runtime={}{}{}",
                 result.remote.node_id,
-                job.task_label,
+                display_job_label(&job.task_label, job.execution_label.as_deref()),
                 job.attempt,
                 age_since(job.started_at_ms),
                 format_needs(&job.needs),
@@ -168,6 +168,12 @@ fn optional_field(label: &str, value: Option<&str>) -> String {
         .filter(|value| !value.is_empty())
         .map(|value| format!("{label}{value}"))
         .unwrap_or_default()
+}
+
+fn display_job_label<'a>(task_label: &'a str, execution_label: Option<&'a str>) -> &'a str {
+    execution_label
+        .filter(|label| !label.trim().is_empty())
+        .unwrap_or(task_label)
 }
 
 struct RowSummary {

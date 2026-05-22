@@ -20,6 +20,7 @@ pub(in crate::daemon::remote) struct RemoteWorkerSubmitPayload {
     pub(in crate::daemon::remote) origin: Option<String>,
     pub(in crate::daemon::remote) runtime_source: Option<String>,
     pub(in crate::daemon::remote) command: Option<String>,
+    pub(in crate::daemon::remote) execution_label: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,7 @@ pub(in crate::daemon::remote) struct RemoteWorkerFusedMember {
     pub(in crate::daemon::remote) steps: Vec<StepDef>,
     pub(in crate::daemon::remote) timeout_s: Option<u64>,
     pub(in crate::daemon::remote) retry: RetryDef,
+    pub(in crate::daemon::remote) execution_label: Option<String>,
 }
 
 #[derive(Debug, Clone)]

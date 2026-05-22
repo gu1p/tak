@@ -107,7 +107,7 @@ def _local_spec(runtime=None, session=None):
     return spec
 
 def _remote_selection(selection=None):
-    return selection if selection is not None else {"kind": "sequential"}
+    return selection if selection is not None else {"kind": "shuffle"}
 
 def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None, session=None):
     if _is_host_runtime(runtime):

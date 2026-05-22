@@ -1,7 +1,7 @@
 use serde_json::json;
 use tak_core::model::{
     BackoffDef, Hold, LocalDef, ModuleSpec, NeedDef, QueueDef, QueueDiscipline, QueueUseDef,
-    RemoteDef, RemoteSelectionDef, RetryDef, StepDef, TaskLabel,
+    RemoteDef, RemoteSelectionDef, RemoteSelectionSpec, RetryDef, StepDef, TaskLabel,
 };
 
 #[test]
@@ -17,9 +17,14 @@ fn module_and_local_execution_defaults_follow_contract() {
 }
 
 #[test]
-fn remote_execution_defaults_to_sequential_selection() {
+fn remote_execution_defaults_to_shuffle_selection() {
     let remote: RemoteDef = serde_json::from_value(json!({})).expect("remote spec");
-    assert!(matches!(remote.selection, RemoteSelectionDef::Sequential));
+    assert!(matches!(remote.selection, RemoteSelectionDef::Shuffle));
+}
+
+#[test]
+fn resolved_remote_selection_defaults_to_shuffle() {
+    assert_eq!(RemoteSelectionSpec::default(), RemoteSelectionSpec::Shuffle);
 }
 
 #[test]

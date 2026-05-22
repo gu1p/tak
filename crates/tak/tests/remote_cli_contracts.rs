@@ -48,6 +48,8 @@ mod remote_cli_status_unsupported_transport_contract;
 mod remote_cli_status_watch_contract;
 #[path = "remote_cli_task_logs_contract.rs"]
 mod remote_cli_task_logs_contract;
+#[path = "remote_cli_task_logs_failure_contract.rs"]
+mod remote_cli_task_logs_failure_contract;
 #[path = "remote_cli_tasks_contract.rs"]
 mod remote_cli_tasks_contract;
 #[path = "remote_cli_tor_invite_pinning_contract.rs"]

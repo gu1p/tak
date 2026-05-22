@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use anyhow::anyhow;
 
 use super::failure_stderr_tail;

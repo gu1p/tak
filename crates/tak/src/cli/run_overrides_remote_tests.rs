@@ -55,3 +55,31 @@ fn remote_override_preserves_existing_remote_requirements_and_runtime() {
         other => panic!("expected remote execution, got {other:?}"),
     }
 }
+
+#[test]
+fn remote_override_defaults_new_remote_spec_to_shuffle_selection() {
+    let label = task_label("check");
+    let spec = workspace_with_task(resolved_task(label.clone(), TaskExecutionSpec::default()));
+
+    let overridden = apply_run_execution_overrides(
+        &spec,
+        std::slice::from_ref(&label),
+        RunExecutionOverrideArgs {
+            local: false,
+            local_no_container: false,
+            remote: true,
+            container: false,
+            container_image: Some("alpine:3.20"),
+            container_dockerfile: None,
+            container_build_context: None,
+        },
+    )
+    .expect("apply remote override");
+
+    match &overridden.tasks.get(&label).expect("task").execution {
+        TaskExecutionSpec::RemoteOnly(remote) => {
+            assert_eq!(remote.selection, RemoteSelectionSpec::Shuffle);
+        }
+        other => panic!("expected remote execution, got {other:?}"),
+    }
+}

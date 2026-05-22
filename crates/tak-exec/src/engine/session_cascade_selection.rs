@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Result, anyhow};
-use tak_core::model::{ResolvedTask, SessionUseSpec, TaskExecutionSpec};
+use tak_core::model::{ResolvedTask, SessionReuseSpec, SessionUseSpec, TaskExecutionSpec};
 use uuid::Uuid;
 
 use super::attempt_placement::preflight_task_placement;
@@ -12,6 +12,9 @@ use super::session_cascade_context::{
     apply_root_context_to_session, execution_with_root_context, session_for_cascade_root,
 };
 use super::{PlacementMode, TaskOutputObserver};
+
+#[path = "session_cascade_selection_tests.rs"]
+mod tests;
 
 pub(crate) async fn select_cascade_execution(
     task: &ResolvedTask,
@@ -38,6 +41,7 @@ pub(crate) async fn select_cascade_execution(
         remote_selection_state,
     )
     .await?;
+    release_aggregate_shuffle_reservation(task, &placement, remote_selection_state);
     pin_selected_remote_target(&mut placement);
     apply_root_context_to_session(task, &mut placement);
     let execution = execution_from_placement(&placement)?;
@@ -47,6 +51,30 @@ pub(crate) async fn select_cascade_execution(
         placement: Some(placement),
         root: task.label.clone(),
     })
+}
+
+fn release_aggregate_shuffle_reservation(
+    task: &ResolvedTask,
+    placement: &TaskPlacement,
+    remote_selection_state: &SharedRemoteSelectionState,
+) {
+    if !task.steps.is_empty() {
+        return;
+    }
+    if placement_uses_container_session(placement) {
+        return;
+    }
+    remote_selection_state.release_reserved_target(
+        placement.remote_selection,
+        placement.remote_node_id.as_deref(),
+    );
+}
+
+fn placement_uses_container_session(placement: &TaskPlacement) -> bool {
+    placement
+        .session
+        .as_ref()
+        .is_some_and(|session| matches!(session.reuse, SessionReuseSpec::Container))
 }
 
 fn should_preflight_cascade_execution(task: &ResolvedTask) -> Result<bool> {

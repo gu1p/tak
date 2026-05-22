@@ -3,7 +3,8 @@ CARGO_SHARED_ENV_SCRIPT = (
     'mkdir -p "$TAK_TEST_TMPDIR" .tmp/cargo-home .tmp/cargo-target-local && '
     'TMPDIR="$TAK_TEST_TMPDIR" '
     'CARGO_HOME="$PWD/.tmp/cargo-home" '
-    'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" exec "$@"'
+    'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" '
+    'CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}" exec "$@"'
 )
 
 CARGO_CHECK_LOCK = "cargo-check-workspace"

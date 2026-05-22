@@ -4,6 +4,7 @@ use std::thread;
 
 use super::RecordingEvents;
 use super::remote_routes::{SubmitBehavior, serve_remote_request};
+use tak_proto::NodeStatusResponse;
 
 pub struct RecordingRemoteServer {
     pub base_url: String,
@@ -14,14 +15,27 @@ pub struct RecordingRemoteServer {
 
 impl RecordingRemoteServer {
     pub fn spawn_success(node_id: &str, events: RecordingEvents) -> Self {
-        Self::spawn(node_id, events, SubmitBehavior::Success)
+        Self::spawn(node_id, events, SubmitBehavior::Success, None)
+    }
+
+    pub fn spawn_success_with_status(
+        node_id: &str,
+        events: RecordingEvents,
+        status: NodeStatusResponse,
+    ) -> Self {
+        Self::spawn(node_id, events, SubmitBehavior::Success, Some(status))
     }
 
     pub fn spawn_submit_failure(node_id: &str, events: RecordingEvents) -> Self {
-        Self::spawn(node_id, events, SubmitBehavior::Failure)
+        Self::spawn(node_id, events, SubmitBehavior::Failure, None)
     }
 
-    fn spawn(node_id: &str, events: RecordingEvents, submit: SubmitBehavior) -> Self {
+    fn spawn(
+        node_id: &str,
+        events: RecordingEvents,
+        submit: SubmitBehavior,
+        status: Option<NodeStatusResponse>,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind recording remote server");
         let port = listener
             .local_addr()
@@ -32,7 +46,14 @@ impl RecordingRemoteServer {
         let handle = thread::spawn(move || {
             loop {
                 let (mut stream, _) = listener.accept().expect("accept recording remote request");
-                if !serve_remote_request(&mut stream, &thread_node_id, port, &events, submit) {
+                if !serve_remote_request(
+                    &mut stream,
+                    &thread_node_id,
+                    port,
+                    &events,
+                    submit,
+                    status.as_ref(),
+                ) {
                     break;
                 }
             }

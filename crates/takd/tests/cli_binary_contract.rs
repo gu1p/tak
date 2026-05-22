@@ -48,3 +48,24 @@ fn takd_cli_binary_reuses_prebuilt_target_binary() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn takd_cli_binary_falls_back_when_cargo_bin_env_path_is_stale() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let target_dir = temp.path().join("target");
+    let binary = target_dir.join("debug").join("takd");
+    fs::create_dir_all(binary.parent().expect("debug dir"))?;
+    fs::write(&binary, b"fake takd")?;
+
+    assert_eq!(
+        resolve_takd_bin(&TakdBinaryPathInputs {
+            cargo_bin_exe: Some(temp.path().join("missing-takd")),
+            test_bin_override: None,
+            cargo_target_dir: Some(target_dir),
+            current_exe: None,
+            workspace_root: PathBuf::from("/workspace"),
+        }),
+        binary
+    );
+    Ok(())
+}

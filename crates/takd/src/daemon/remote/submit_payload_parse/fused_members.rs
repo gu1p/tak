@@ -26,6 +26,7 @@ pub(super) fn parse_remote_worker_fused_member(
             .map(parse_remote_worker_retry)
             .transpose()?
             .unwrap_or_default(),
+        execution_label: member.execution_label.clone(),
     })
 }
 

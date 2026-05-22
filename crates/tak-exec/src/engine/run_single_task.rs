@@ -17,15 +17,28 @@ mod events;
 mod started_task;
 use started_task::{StartedTaskContext, emit_started_task_failure, run_started_task};
 
-pub(crate) async fn run_single_task(
-    task: &ResolvedTask,
-    workspace_root: &Path,
-    options: &RunOptions,
-    lease_context: &LeaseContext,
-    sessions: &SharedExecutionSessionManager,
-    remote_selection_state: &SharedRemoteSelectionState,
-    placement_override: Option<TaskPlacement>,
-) -> Result<TaskRunResult> {
+pub(crate) struct RunSingleTaskContext<'a> {
+    pub(crate) task: &'a ResolvedTask,
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) options: &'a RunOptions,
+    pub(crate) lease_context: &'a LeaseContext,
+    pub(crate) sessions: &'a SharedExecutionSessionManager,
+    pub(crate) remote_selection_state: &'a SharedRemoteSelectionState,
+    pub(crate) execution_label: Option<&'a str>,
+    pub(crate) placement_override: Option<TaskPlacement>,
+}
+
+pub(crate) async fn run_single_task(context: RunSingleTaskContext<'_>) -> Result<TaskRunResult> {
+    let RunSingleTaskContext {
+        task,
+        workspace_root,
+        options,
+        lease_context,
+        sessions,
+        remote_selection_state,
+        execution_label,
+        placement_override,
+    } = context;
     if task.steps.is_empty() {
         return Ok(empty_task_result());
     }
@@ -66,6 +79,7 @@ pub(crate) async fn run_single_task(
         sessions,
         remote_selection_state,
         task_run_id: &task_run_id,
+        execution_label,
         placement: &mut placement,
         attempt: &mut attempt,
     })

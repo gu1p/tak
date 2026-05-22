@@ -6,6 +6,8 @@ use tak_core::model::{
 };
 use tak_loader::{LoadOptions, load_workspace};
 
+mod selection;
+
 fn load_task(body: &str) -> ResolvedTask {
     let temp = tempfile::tempdir().expect("tempdir");
     fs::create_dir_all(temp.path()).expect("create workspace");
@@ -37,7 +39,7 @@ fn inline_execution_policy_on_task_resolves_ordered_placements() {
         ExecutionPlacementSpec::Remote(remote) => {
             assert_eq!(remote.pool.as_deref(), Some("build"));
             assert_eq!(remote.required_tags, vec!["builder"]);
-            assert!(matches!(remote.selection, RemoteSelectionSpec::Sequential));
+            assert!(matches!(remote.selection, RemoteSelectionSpec::Shuffle));
             assert_runtime_image(remote.runtime.as_ref(), "alpine:3.20");
         }
         other => panic!("expected first remote placement, got {other:?}"),
@@ -74,19 +76,6 @@ fn module_default_execution_accepts_direct_execution_value() {
             assert_runtime_image(local.runtime.as_ref(), "alpine:3.20")
         }
         other => panic!("expected local default execution, got {other:?}"),
-    }
-}
-
-#[test]
-fn execution_policy_accepts_explicit_shuffle_remote_selection() {
-    let task = load_task(
-        r#"RUNTIME=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(container=RUNTIME, selection=RemoteSelection.Shuffle())]); SPEC=module_spec(tasks=[task("check", steps=[cmd("true")], execution=POLICY)]); SPEC"#,
-    );
-    match &policy_placements(&task)[0] {
-        ExecutionPlacementSpec::Remote(remote) => {
-            assert!(matches!(remote.selection, RemoteSelectionSpec::Shuffle))
-        }
-        other => panic!("expected remote placement, got {other:?}"),
     }
 }
 

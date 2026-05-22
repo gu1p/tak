@@ -1,29 +1,31 @@
-use anyhow::{Context, Result, bail};
-use base64::Engine;
-use prost::Message;
-use tak_core::model::{
-    ContainerRuntimeSourceSpec, NeedDef, OutputSelectorSpec, RemoteRuntimeSpec, ResolvedTask,
-    Scope, StepDef,
-};
-use tak_proto::{
-    CmdStep, ContainerResourceLimits, ContainerRuntime, ExecutionSession, GetTaskResultResponse,
-    PollTaskEventsResponse, RuntimeSpec, ScriptStep, Step, SubmitTaskRequest,
-    SubmittedNeed, runtime_spec, step,
-};
+use super::*;
 
-use crate::{
-    OutputStream, ParsedRemoteEvents, RemoteLogChunk, RemoteWorkspaceStage, StrictRemoteTarget,
-    SyncedOutput, task_run_metadata::task_run_metadata_for_runtime,
-};
+pub(crate) struct RemoteSubmitPayloadInput<'a> {
+    pub(crate) target: &'a StrictRemoteTarget,
+    pub(crate) task_run_id: &'a str,
+    pub(crate) attempt: u32,
+    pub(crate) task: &'a ResolvedTask,
+    pub(crate) remote_workspace: &'a RemoteWorkspaceStage,
+    pub(crate) session: Option<&'a crate::engine::session_workspaces::PreparedTaskSession>,
+    pub(crate) execution_label: Option<&'a str>,
+    pub(crate) fused_members: Option<&'a [ResolvedTask]>,
+    pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
+}
 
 pub(crate) fn build_remote_submit_payload(
-    target: &StrictRemoteTarget,
-    task_run_id: &str,
-    attempt: u32,
-    task: &ResolvedTask,
-    remote_workspace: &RemoteWorkspaceStage,
-    session: Option<&crate::engine::session_workspaces::PreparedTaskSession>,
+    input: RemoteSubmitPayloadInput<'_>,
 ) -> Result<SubmitTaskRequest> {
+    let RemoteSubmitPayloadInput {
+        target,
+        task_run_id,
+        attempt,
+        task,
+        remote_workspace,
+        session,
+        execution_label,
+        fused_members,
+        fused_member_execution_labels,
+    } = input;
     let _ = &remote_workspace.manifest_hash;
     let metadata = task_run_metadata_for_runtime(task, target.runtime.as_ref());
     Ok(SubmitTaskRequest {
@@ -41,11 +43,23 @@ pub(crate) fn build_remote_submit_payload(
         runtime: target.runtime.as_ref().map(remote_runtime_submit_value),
         task_label: task.label.to_string(),
         needs: task.needs.iter().map(need_submit_value).collect(),
-        outputs: task.outputs.iter().map(output_selector_submit_value).collect(),
+        outputs: task
+            .outputs
+            .iter()
+            .map(output_selector_submit_value)
+            .collect(),
         session: session.map(session_submit_value),
         origin: Some(metadata.origin),
         runtime_source: metadata.runtime_source,
         command: metadata.command,
+        fused_members: fused_members
+            .unwrap_or(&[])
+            .iter()
+            .map(|member| {
+                fused_members::fused_member_submit_value(member, fused_member_execution_labels)
+            })
+            .collect::<Result<Vec<_>>>()?,
+        execution_label: execution_label.map(str::to_string),
     })
 }
 
@@ -67,7 +81,7 @@ fn session_submit_value(
     }
 }
 
-fn step_submit_value(step_def: &StepDef) -> Result<Step> {
+pub(super) fn step_submit_value(step_def: &StepDef) -> Result<Step> {
     Ok(Step {
         kind: Some(match step_def {
             StepDef::Cmd { argv, cwd, env } => step::Kind::Cmd(CmdStep {
@@ -144,7 +158,9 @@ fn need_submit_value(need: &NeedDef) -> SubmittedNeed {
 fn output_selector_submit_value(selector: &OutputSelectorSpec) -> tak_proto::OutputSelector {
     tak_proto::OutputSelector {
         kind: Some(match selector {
-            OutputSelectorSpec::Path(path) => tak_proto::output_selector::Kind::Path(path.path.clone()),
+            OutputSelectorSpec::Path(path) => {
+                tak_proto::output_selector::Kind::Path(path.path.clone())
+            }
             OutputSelectorSpec::Glob { pattern } => {
                 tak_proto::output_selector::Kind::Glob(pattern.clone())
             }
@@ -160,10 +176,3 @@ fn scope_value(scope: &Scope) -> &'static str {
         Scope::Worktree => "worktree",
     }
 }
-
-#[cfg(test)]
-mod submit_payload_behavior_tests;
-#[cfg(test)]
-mod submit_payload_error_tests;
-#[cfg(test)]
-mod submit_payload_test_support;

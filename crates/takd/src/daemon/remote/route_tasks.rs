@@ -25,6 +25,7 @@ pub(super) fn handle_remote_tasks_route(
                     task_run_id: attempt.task_run_id,
                     attempt: attempt.attempt,
                     task_label: attempt.task_label,
+                    execution_label: attempt.execution_label,
                     node_id: attempt.selected_node_id,
                     state: attempt.state,
                     created_at_ms: attempt.created_at_ms,

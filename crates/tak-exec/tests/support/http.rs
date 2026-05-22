@@ -6,6 +6,10 @@ use std::net::TcpStream;
 use prost::Message;
 
 pub fn read_request_path(stream: &mut TcpStream) -> Option<String> {
+    read_request_path_and_body(stream).map(|request| request.path)
+}
+
+pub fn read_request_path_and_body(stream: &mut TcpStream) -> Option<TestHttpRequest> {
     let mut reader = BufReader::new(stream);
     let mut request_line = String::new();
     if reader.read_line(&mut request_line).ok()? == 0 {
@@ -24,11 +28,18 @@ pub fn read_request_path(stream: &mut TcpStream) -> Option<String> {
             content_length = value.trim().parse::<usize>().unwrap_or(0);
         }
     }
+    let body = Vec::new();
     if content_length > 0 {
         let mut body = vec![0_u8; content_length];
         reader.read_exact(&mut body).ok()?;
+        return Some(TestHttpRequest { path, body });
     }
-    Some(path)
+    Some(TestHttpRequest { path, body })
+}
+
+pub struct TestHttpRequest {
+    pub path: String,
+    pub body: Vec<u8>,
 }
 
 pub fn write_protobuf_response<M: Message>(stream: &mut TcpStream, status: &str, message: &M) {

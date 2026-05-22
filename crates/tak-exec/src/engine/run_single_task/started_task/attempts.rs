@@ -30,6 +30,7 @@ pub(super) struct StartedAttemptContext<'a> {
     pub(super) remote_workspace: Option<&'a RemoteWorkspaceStage>,
     pub(super) session: Option<&'a PreparedTaskSession>,
     pub(super) run_root: &'a Path,
+    pub(super) execution_label: Option<&'a str>,
 }
 
 pub(super) async fn run_attempts(
@@ -86,6 +87,8 @@ async fn submit_remote_attempt_if_needed(
             attempt,
             session: context.session,
             fused_members: None,
+            execution_label: context.execution_label,
+            fused_member_execution_labels: None,
         },
         options.output_observer.as_ref(),
         &options.cancellation,

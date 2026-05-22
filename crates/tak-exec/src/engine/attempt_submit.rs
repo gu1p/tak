@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
+
 use anyhow::{Result, anyhow};
-use tak_core::model::ResolvedTask;
+use tak_core::model::{ResolvedTask, TaskLabel};
 
 use super::{PlacementMode, TaskOutputObserver, TaskStatusPhase};
 
@@ -21,6 +23,8 @@ pub(crate) struct AttemptSubmitState<'a> {
     pub(crate) attempt: u32,
     pub(crate) session: Option<&'a PreparedTaskSession>,
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
+    pub(crate) execution_label: Option<&'a str>,
+    pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
 }
 
 pub(crate) async fn resolve_initial_runtime_metadata(
@@ -90,6 +94,8 @@ pub(crate) async fn resolve_attempt_submit_state(
         remote_workspace,
         session: submit.session,
         fused_members: submit.fused_members,
+        execution_label: submit.execution_label,
+        fused_member_execution_labels: submit.fused_member_execution_labels,
     })
     .await
     {
@@ -118,6 +124,8 @@ pub(crate) async fn resolve_attempt_submit_state(
                         remote_workspace,
                         session: submit.session,
                         fused_members: submit.fused_members,
+                        execution_label: submit.execution_label,
+                        fused_member_execution_labels: submit.fused_member_execution_labels,
                     },
                     submit_error.to_string(),
                     output_observer,
@@ -158,7 +166,14 @@ async fn refresh_remote_target_for_attempt(
         attempt,
     );
     let reserved_node_id = ordered.first().map(|target| target.node_id.clone());
-    let selected = match preflight_ordered_remote_target(task, &ordered, output_observer).await {
+    let selected = match preflight_ordered_remote_target(
+        task,
+        &ordered,
+        placement.remote_selection,
+        output_observer,
+    )
+    .await
+    {
         Ok(selected) => selected,
         Err(err) => {
             remote_selection_state

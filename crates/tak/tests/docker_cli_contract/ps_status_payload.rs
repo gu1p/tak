@@ -68,5 +68,6 @@ pub(super) fn active_job(
             cpu_cores: 2.0,
             memory_mb: 1024,
         }),
+        execution_label: None,
     }
 }

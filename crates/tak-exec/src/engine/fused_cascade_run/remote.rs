@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::Result;
+use tak_core::model::TaskLabel;
 
 use crate::engine::RunOptions;
 use crate::engine::attempt_execution::{
@@ -21,6 +23,8 @@ pub(super) struct RemoteFusedAttemptContext<'a> {
     pub(super) remote_selection_state: &'a SharedRemoteSelectionState,
     pub(super) remote_workspace: Option<&'a RemoteWorkspaceStage>,
     pub(super) session: Option<&'a PreparedTaskSession>,
+    pub(super) execution_label: Option<&'a str>,
+    pub(super) member_execution_labels: &'a BTreeMap<TaskLabel, String>,
 }
 
 pub(super) async fn run_remote_fused_attempt(
@@ -35,6 +39,8 @@ pub(super) async fn run_remote_fused_attempt(
         remote_selection_state,
         remote_workspace,
         session,
+        execution_label,
+        member_execution_labels,
     } = context;
     resolve_attempt_submit_state(
         &cascade.task,
@@ -45,6 +51,8 @@ pub(super) async fn run_remote_fused_attempt(
             attempt: 1,
             session,
             fused_members: Some(&cascade.members),
+            execution_label,
+            fused_member_execution_labels: Some(member_execution_labels),
         },
         options.output_observer.as_ref(),
         &options.cancellation,

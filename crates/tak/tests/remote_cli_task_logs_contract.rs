@@ -62,12 +62,7 @@ fn remote_task_logs_streams_persisted_stdout_and_stderr() {
             done: true,
         }
         .encode_to_vec();
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/x-protobuf\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        )
-        .expect("write response head");
+        write_response_head(&mut stream, body.len());
         stream.write_all(&body).expect("write response body");
     });
 
@@ -93,4 +88,11 @@ fn remote_task_logs_streams_persisted_stdout_and_stderr() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "remote stdout\n");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "remote stderr\n");
     server.join().expect("task logs server should exit");
+}
+
+fn write_response_head(stream: &mut impl Write, content_len: usize) {
+    write!(stream, "HTTP/1.1 200 OK\r\n").expect("write status");
+    write!(stream, "Content-Type: application/x-protobuf\r\n").expect("write content type");
+    write!(stream, "Content-Length: {content_len}\r\n").expect("write content length");
+    write!(stream, "Connection: close\r\n\r\n").expect("write connection");
 }

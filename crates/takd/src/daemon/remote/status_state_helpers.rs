@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -22,6 +23,7 @@ pub(super) fn active_job_value(job: &ActiveJobMetadata) -> Result<ActiveJob> {
         runtime_source: job.runtime_source.clone(),
         command: job.command.clone(),
         resource_limits: job.resource_limits.as_ref().and_then(proto_resource_limits),
+        execution_label: job.execution_label.clone(),
     })
 }
 
@@ -37,6 +39,7 @@ pub(super) fn queued_job_value(job: &ResourceRequest, queue_position: usize) -> 
         origin: job.origin.clone(),
         runtime_source: job.runtime_source.clone(),
         command: job.command.clone(),
+        execution_label: job.execution_label.clone(),
     }
 }
 
@@ -104,7 +107,11 @@ fn dir_size_bytes(path: &Path) -> Result<u64> {
         return Ok(0);
     }
 
-    let metadata = fs::metadata(path).with_context(|| format!("inspect {}", path.display()))?;
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(err).with_context(|| format!("inspect {}", path.display())),
+    };
     if metadata.is_file() {
         return Ok(metadata.len());
     }
@@ -113,8 +120,17 @@ fn dir_size_bytes(path: &Path) -> Result<u64> {
     }
 
     let mut total = 0_u64;
-    for entry in fs::read_dir(path).with_context(|| format!("read {}", path.display()))? {
-        let entry = entry.with_context(|| format!("iterate {}", path.display()))?;
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(err).with_context(|| format!("read {}", path.display())),
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) if err.kind() == ErrorKind::NotFound => continue,
+            Err(err) => return Err(err).with_context(|| format!("iterate {}", path.display())),
+        };
         total = total.saturating_add(dir_size_bytes(&entry.path())?);
     }
     Ok(total)

@@ -61,6 +61,7 @@ fn node_status_messages_round_trip_as_binary() {
                 cpu_cores: 2.0,
                 memory_mb: 1024,
             }),
+            execution_label: Some("check.build".to_string()),
         }],
         image_cache: None,
         queued_jobs: vec![QueuedJob {
@@ -77,6 +78,7 @@ fn node_status_messages_round_trip_as_binary() {
             origin: Some("task".to_string()),
             runtime_source: Some("image:alpine:3.20".to_string()),
             command: Some("make test".to_string()),
+            execution_label: Some("check.test".to_string()),
         }],
     };
     let encoded = status.encode_to_vec();
@@ -86,6 +88,10 @@ fn node_status_messages_round_trip_as_binary() {
     assert_eq!(node.transport_state, "ready");
     assert_eq!(decoded.active_jobs.len(), 1);
     assert_eq!(decoded.active_jobs[0].task_label, "//apps/web:build");
+    let active_label = decoded.active_jobs[0].execution_label.as_deref();
+    assert_eq!(active_label, Some("check.build"));
     assert_eq!(decoded.queued_jobs.len(), 1);
     assert_eq!(decoded.queued_jobs[0].queue_position, 1);
+    let queued_label = decoded.queued_jobs[0].execution_label.as_deref();
+    assert_eq!(queued_label, Some("check.test"));
 }

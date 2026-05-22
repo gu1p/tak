@@ -26,8 +26,8 @@ pub struct RemoteTransportDef {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RemoteSelectionDef {
-    #[default]
     Sequential,
+    #[default]
     Shuffle,
 }
 

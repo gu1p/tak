@@ -17,15 +17,19 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
             memory_mb: Some(4096),
         }),
     }));
-    let payload = build_remote_submit_payload(
-        &target,
-        "task-run-1",
-        7,
-        &task_with_steps_and_needs(),
-        &workspace(&encoded_workspace()),
-        None,
-        None,
-    )
+    let task = task_with_steps_and_needs();
+    let remote_workspace = workspace(&encoded_workspace());
+    let payload = build_remote_submit_payload(RemoteSubmitPayloadInput {
+        target: &target,
+        task_run_id: "task-run-1",
+        attempt: 7,
+        task: &task,
+        remote_workspace: &remote_workspace,
+        session: None,
+        execution_label: Some("check.build"),
+        fused_members: None,
+        fused_member_execution_labels: None,
+    })
     .expect("submit payload");
 
     assert_eq!(payload.task_run_id, "task-run-1");
@@ -33,6 +37,7 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
     assert_eq!(payload.workspace_zip, b"zip-bytes");
     assert_eq!(payload.timeout_s, Some(30));
     assert_eq!(payload.task_label, "apps/web:build");
+    assert_eq!(payload.execution_label.as_deref(), Some("check.build"));
     assert_eq!(
         payload
             .needs

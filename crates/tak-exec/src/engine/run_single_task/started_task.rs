@@ -24,6 +24,7 @@ pub(super) struct StartedTaskContext<'a> {
     pub(super) sessions: &'a SharedExecutionSessionManager,
     pub(super) remote_selection_state: &'a SharedRemoteSelectionState,
     pub(super) task_run_id: &'a str,
+    pub(super) execution_label: Option<&'a str>,
     pub(super) placement: &'a mut TaskPlacement,
     pub(super) attempt: &'a mut u32,
 }
@@ -37,6 +38,7 @@ pub(super) async fn run_started_task(context: StartedTaskContext<'_>) -> Result<
         sessions,
         remote_selection_state,
         task_run_id,
+        execution_label,
         placement,
         attempt,
     } = context;
@@ -64,6 +66,7 @@ pub(super) async fn run_started_task(context: StartedTaskContext<'_>) -> Result<
         remote_selection_state,
         StartedAttemptContext {
             task_run_id,
+            execution_label,
             placement,
             attempt,
             runtime_metadata: runtime_metadata.as_ref(),

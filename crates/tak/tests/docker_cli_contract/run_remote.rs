@@ -80,7 +80,7 @@ fn docker_run_executes_image_command_on_remote_by_default() -> Result<()> {
 fn remote_record() -> RemoteRecord {
     RemoteRecord {
         node_id: "builder-node-123456".into(),
-        display_name: "builder-a".into(),
+        display_name: "builder-node-123456".into(),
         base_url: "http://127.0.0.1:12345".into(),
         bearer_token: "secret".into(),
         pools: vec!["default".into()],

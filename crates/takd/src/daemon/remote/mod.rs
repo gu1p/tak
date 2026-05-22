@@ -94,7 +94,10 @@ use types::{
     RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
 };
 use worker_output_artifacts::{read_staged_remote_output, stage_remote_worker_outputs};
-use worker_submit_execution::{RemoteWorkerSubmitExecution, spawn_remote_worker_submit_execution};
+use worker_submit_execution::{
+    PreparedResourceAdmission, RemoteWorkerSubmitExecution, register_active_job,
+    spawn_remote_worker_submit_execution,
+};
 use worker_workspace_outputs::{
     collect_declared_remote_worker_outputs, unpack_remote_worker_workspace,
 };

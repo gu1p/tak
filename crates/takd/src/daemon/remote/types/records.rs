@@ -16,6 +16,7 @@ pub struct SubmitAttemptSummaryRecord {
     pub task_run_id: String,
     pub attempt: u32,
     pub task_label: String,
+    pub execution_label: Option<String>,
     pub selected_node_id: String,
     pub state: String,
     pub created_at_ms: i64,

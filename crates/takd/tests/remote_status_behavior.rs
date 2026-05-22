@@ -46,6 +46,7 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some("sh -c 'sleep 1'".into()),
         fused_members: Vec::new(),
+        execution_label: Some("check.build".into()),
     };
     let submit = handle_remote_v1_request(
         &context,
@@ -65,6 +66,10 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
         if !status.active_jobs.is_empty() {
             assert_eq!(status.node.expect("node").node_id, "builder-a");
             assert_eq!(status.active_jobs[0].task_label, "//apps/web:build");
+            assert_eq!(
+                status.active_jobs[0].execution_label.as_deref(),
+                Some("check.build")
+            );
             assert_eq!(status.active_jobs[0].attempt, 1);
             assert_eq!(status.active_jobs[0].needs.len(), 1);
             return;

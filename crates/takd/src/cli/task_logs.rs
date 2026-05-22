@@ -88,12 +88,54 @@ fn print_log_event(payload_json: &str) -> Result<bool> {
     match kind {
         "TASK_STDOUT_CHUNK" => write_chunk(&mut io::stdout(), &payload)?,
         "TASK_STDERR_CHUNK" => write_chunk(&mut io::stderr(), &payload)?,
+        "TASK_FAILED" | "TASK_CANCELLED" | "TASK_TERMINAL" => {
+            write_terminal_message(&mut io::stderr(), &payload)?
+        }
         _ => {}
     }
     Ok(matches!(
         kind,
-        "TASK_COMPLETED" | "TASK_FAILED" | "TASK_TERMINAL"
+        "TASK_COMPLETED" | "TASK_FAILED" | "TASK_TERMINAL" | "TASK_CANCELLED"
     ))
+}
+
+fn write_terminal_message(writer: &mut impl Write, payload: &serde_json::Value) -> Result<()> {
+    let Some(message) = terminal_message(payload) else {
+        return Ok(());
+    };
+    writer.write_all(message.as_bytes())?;
+    if !message.ends_with('\n') {
+        writer.write_all(b"\n")?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+fn terminal_message(payload: &serde_json::Value) -> Option<String> {
+    if let Some(message) = payload
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .filter(|message| !message.is_empty())
+    {
+        return Some(message.to_string());
+    }
+    let kind = payload
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let success = payload
+        .get("success")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let failure_verb = match kind {
+        "TASK_CANCELLED" => "cancelled",
+        "TASK_FAILED" | "TASK_TERMINAL" => "failed",
+        _ => return None,
+    };
+    (!success)
+        .then(|| payload.get("exit_code").and_then(serde_json::Value::as_i64))
+        .flatten()
+        .map(|exit_code| format!("remote task {failure_verb} with exit code {exit_code}"))
 }
 
 fn write_chunk(writer: &mut impl Write, payload: &serde_json::Value) -> Result<()> {

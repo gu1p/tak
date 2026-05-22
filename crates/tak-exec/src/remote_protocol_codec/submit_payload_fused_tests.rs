@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use tak_core::model::{
     BackoffDef, ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, RemoteRuntimeSpec,
     RetryDef,
@@ -27,21 +29,27 @@ fn build_remote_submit_payload_includes_fused_member_policies() {
         on_exit: vec![42],
         backoff: BackoffDef::Fixed { seconds: 0.25 },
     };
+    let member_labels = BTreeMap::from([(member.label.clone(), "check.flaky".to_string())]);
 
-    let payload = build_remote_submit_payload(
-        &target,
-        "task-run-1",
-        1,
-        &task_with_steps_and_needs(),
-        &workspace(&encoded_workspace()),
-        None,
-        Some(&[member]),
-    )
+    let task = task_with_steps_and_needs();
+    let remote_workspace = workspace(&encoded_workspace());
+    let payload = build_remote_submit_payload(RemoteSubmitPayloadInput {
+        target: &target,
+        task_run_id: "task-run-1",
+        attempt: 1,
+        task: &task,
+        remote_workspace: &remote_workspace,
+        session: None,
+        execution_label: Some("check"),
+        fused_members: Some(&[member]),
+        fused_member_execution_labels: Some(&member_labels),
+    })
     .expect("submit payload");
 
     assert_eq!(payload.fused_members.len(), 1);
     let fused = &payload.fused_members[0];
     assert_eq!(fused.task_label, "apps/web:flaky");
+    assert_eq!(fused.execution_label.as_deref(), Some("check.flaky"));
     assert_eq!(fused.timeout_s, Some(5));
     assert_eq!(fused.steps.len(), 2);
     let retry = fused.retry.as_ref().expect("retry");

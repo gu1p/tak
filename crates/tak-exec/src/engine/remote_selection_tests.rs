@@ -58,27 +58,6 @@ fn shuffle_selection_is_deterministic_for_task_run_and_attempt() {
     assert_eq!(sorted_node_ids(&first), ["a", "b", "c", "d", "e"]);
 }
 
-#[test]
-fn shuffle_selection_balances_assignments_across_equal_targets() {
-    let targets = targets(&["a", "b"]);
-    let mut state = RemoteSelectionState::default();
-
-    for index in 0..6 {
-        let ordered = ordered_remote_targets_for_attempt(
-            &targets,
-            RemoteSelectionSpec::Shuffle,
-            "//:check",
-            &format!("run-{index}"),
-            1,
-            &state,
-        );
-        state.record_assignment(&ordered[0].node_id);
-    }
-
-    assert_eq!(state.assignment_count("a"), 3);
-    assert_eq!(state.assignment_count("b"), 3);
-}
-
 fn targets(ids: &[&str]) -> Vec<StrictRemoteTarget> {
     ids.iter()
         .map(|id| StrictRemoteTarget {

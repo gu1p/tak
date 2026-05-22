@@ -47,6 +47,7 @@ pub(super) fn node_status(node_id: &str, port: u16) -> NodeStatusResponse {
                 cpu_cores: 1.0,
                 memory_mb: 512,
             }),
+            execution_label: None,
         }],
         image_cache: None,
         queued_jobs: vec![],

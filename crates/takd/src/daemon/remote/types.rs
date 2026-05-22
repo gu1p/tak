@@ -2,17 +2,20 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
-use tak_proto::{NodeInfo, NodeStatusResponse};
+use tak_proto::NodeInfo;
 
 use super::active_executions::SharedActiveExecutions;
-use super::execution_root::remote_execution_root_base;
 use super::resource_admission::{
     ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
 };
+
+#[path = "types_tests.rs"]
+mod tests;
 use super::runtime::RemoteRuntimeConfig;
 use super::runtime_state::RemoteRuntimeState;
-use super::status_state::{ActiveJobMetadata, SharedNodeStatusState, new_shared_node_status_state};
+use super::status_state::{SharedNodeStatusState, new_shared_node_status_state};
 
+mod context_status;
 mod records;
 mod worker_payload;
 
@@ -95,28 +98,6 @@ impl RemoteNodeContext {
         Ok(())
     }
 
-    pub(crate) fn register_active_job(
-        &self,
-        idempotency_key: String,
-        job: ActiveJobMetadata,
-    ) -> Result<()> {
-        let mut guard = self
-            .status_state
-            .lock()
-            .map_err(|_| anyhow!("node status state lock poisoned"))?;
-        guard.register_job(idempotency_key, job);
-        Ok(())
-    }
-
-    pub(crate) fn finish_active_job(&self, idempotency_key: &str) -> Result<()> {
-        let mut guard = self
-            .status_state
-            .lock()
-            .map_err(|_| anyhow!("node status state lock poisoned"))?;
-        guard.finish_job(idempotency_key);
-        Ok(())
-    }
-
     pub(crate) fn register_active_execution(
         &self,
         idempotency_key: String,
@@ -152,25 +133,6 @@ impl RemoteNodeContext {
             .cancel_stale(self.runtime_config().remote_client_stale_ttl())
     }
 
-    pub(crate) fn node_status(&self) -> Result<NodeStatusResponse> {
-        let node = self.node_info()?;
-        let queued_jobs = self.resource_admission.queued_jobs()?;
-        let mut guard = self
-            .status_state
-            .lock()
-            .map_err(|_| anyhow!("node status state lock poisoned"))?;
-        guard.snapshot(
-            &node,
-            &remote_execution_root_base(self),
-            self.image_cache.as_ref(),
-            queued_jobs,
-        )
-    }
-
-    pub(crate) fn shared_status_state(&self) -> SharedNodeStatusState {
-        self.status_state.clone()
-    }
-
     pub fn runtime_config(&self) -> RemoteRuntimeConfig {
         self.runtime_state.config.clone()
     }
@@ -190,8 +152,13 @@ impl RemoteNodeContext {
         self.resource_admission.admit_or_queue(request)
     }
 
-    pub(crate) fn wait_until_resources_admitted(&self, idempotency_key: &str) -> Result<()> {
-        self.resource_admission.wait_until_admitted(idempotency_key)
+    pub(crate) fn wait_until_resources_admitted(
+        &self,
+        idempotency_key: &str,
+        cancellation: &tak_runner::RunCancellation,
+    ) -> Result<()> {
+        self.resource_admission
+            .wait_until_admitted(idempotency_key, cancellation)
     }
 
     pub(crate) fn release_resources(&self, idempotency_key: &str) -> Result<()> {

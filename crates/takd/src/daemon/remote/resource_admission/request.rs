@@ -16,6 +16,7 @@ pub(crate) struct ResourceRequest {
     pub(crate) origin: Option<String>,
     pub(crate) runtime_source: Option<String>,
     pub(crate) command: Option<String>,
+    pub(crate) execution_label: Option<String>,
 }
 
 pub(crate) struct ResourceRequestInput<'a> {
@@ -27,6 +28,7 @@ pub(crate) struct ResourceRequestInput<'a> {
     pub(crate) origin: Option<String>,
     pub(crate) runtime_source: Option<String>,
     pub(crate) command: Option<String>,
+    pub(crate) execution_label: Option<String>,
 }
 
 impl ResourceRequest {
@@ -42,6 +44,7 @@ impl ResourceRequest {
             origin: input.origin,
             runtime_source: input.runtime_source,
             command: input.command,
+            execution_label: input.execution_label,
         })
     }
 }

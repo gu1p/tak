@@ -1,12 +1,17 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 mod request;
+#[path = "resource_admission_tests.rs"]
+mod tests;
 
 pub(crate) use request::{ResourceRequest, ResourceRequestInput, proto_resource_limits};
+
+const ADMISSION_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(20);
 
 #[derive(Clone)]
 pub(crate) struct SharedResourceAdmission {
@@ -78,9 +83,16 @@ impl SharedResourceAdmission {
         })
     }
 
-    pub(crate) fn wait_until_admitted(&self, idempotency_key: &str) -> Result<()> {
+    pub(crate) fn wait_until_admitted(
+        &self,
+        idempotency_key: &str,
+        cancellation: &tak_runner::RunCancellation,
+    ) -> Result<()> {
         let mut state = self.lock_state()?;
         loop {
+            if cancellation.is_cancelled() {
+                return Err(anyhow!("task cancelled"));
+            }
             promote_queued(&mut state);
             if state.reservations.contains_key(idempotency_key) {
                 return Ok(());
@@ -88,7 +100,8 @@ impl SharedResourceAdmission {
             state = self
                 .inner
                 .changed
-                .wait(state)
+                .wait_timeout(state, ADMISSION_CANCEL_POLL_INTERVAL)
+                .map(|(state, _)| state)
                 .map_err(|_| anyhow!("resource admission lock poisoned"))?;
         }
     }
@@ -96,6 +109,9 @@ impl SharedResourceAdmission {
     pub(crate) fn release(&self, idempotency_key: &str) -> Result<()> {
         let mut state = self.lock_state()?;
         state.reservations.remove(idempotency_key);
+        state
+            .queue
+            .retain(|request| request.idempotency_key != idempotency_key);
         promote_queued(&mut state);
         self.inner.changed.notify_all();
         Ok(())

@@ -39,7 +39,6 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
             .with_skip_exec_root_probe(true),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-
     let submit = SubmitTaskRequest {
         task_run_id: "task-run-1".to_string(),
         attempt: 1,
@@ -61,6 +60,7 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some("sh -c 'sleep 1'".into()),
         fused_members: Vec::new(),
+        execution_label: None,
     };
     let _ = handle_remote_v1_request(
         &context,

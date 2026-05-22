@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use tak_core::model::TaskLabel;
 use uuid::Uuid;
 
 use super::attempt_placement::preflight_task_placement;
@@ -25,16 +27,34 @@ struct StartedFusedCascadeContext<'a> {
     sessions: &'a SharedExecutionSessionManager,
     remote_selection_state: &'a SharedRemoteSelectionState,
     task_run_id: &'a str,
+    execution_label: Option<&'a str>,
+    member_execution_labels: &'a BTreeMap<TaskLabel, String>,
+}
+
+pub(crate) struct FusedCascadeRunContext<'a> {
+    pub(crate) cascade: &'a FusedCascade,
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) options: &'a RunOptions,
+    pub(crate) lease_context: &'a LeaseContext,
+    pub(crate) sessions: &'a SharedExecutionSessionManager,
+    pub(crate) remote_selection_state: &'a SharedRemoteSelectionState,
+    pub(crate) execution_label: Option<&'a str>,
+    pub(crate) member_execution_labels: &'a BTreeMap<TaskLabel, String>,
 }
 
 pub(crate) async fn run_fused_cascade(
-    cascade: &FusedCascade,
-    workspace_root: &Path,
-    options: &RunOptions,
-    lease_context: &LeaseContext,
-    sessions: &SharedExecutionSessionManager,
-    remote_selection_state: &SharedRemoteSelectionState,
+    context: FusedCascadeRunContext<'_>,
 ) -> Result<TaskRunResult> {
+    let FusedCascadeRunContext {
+        cascade,
+        workspace_root,
+        options,
+        lease_context,
+        sessions,
+        remote_selection_state,
+        execution_label,
+        member_execution_labels,
+    } = context;
     let task_run_id = Uuid::new_v4().to_string();
     let mut placement = match cascade.placement.clone() {
         Some(placement) => placement,
@@ -60,6 +80,8 @@ pub(crate) async fn run_fused_cascade(
             sessions,
             remote_selection_state,
             task_run_id: &task_run_id,
+            execution_label,
+            member_execution_labels,
         },
         &mut placement,
     )
@@ -85,6 +107,8 @@ async fn run_started_fused_cascade(
         sessions,
         remote_selection_state,
         task_run_id,
+        execution_label,
+        member_execution_labels,
     } = context;
     let runtime_metadata = resolve_initial_runtime_metadata(&cascade.task, placement).await?;
     let remote_workspace =
@@ -112,6 +136,8 @@ async fn run_started_fused_cascade(
             remote_selection_state,
             remote_workspace: remote_workspace.as_ref(),
             session: prepared_session.as_ref(),
+            execution_label,
+            member_execution_labels,
         })
         .await
     } else {

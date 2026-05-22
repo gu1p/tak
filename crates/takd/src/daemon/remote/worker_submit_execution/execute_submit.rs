@@ -1,15 +1,19 @@
 fn execute_remote_worker_submit(
-    idempotency_key: &str,
-    execution_root_base: &Path,
-    selected_node_id: &str,
-    image_cache: Option<&super::types::RemoteImageCacheRuntimeConfig>,
-    payload: &RemoteWorkerSubmitPayload,
-    output_observer: Arc<dyn TaskOutputObserver>,
-    cancellation: &tak_runner::RunCancellation,
+    context: RemoteWorkerSubmitRunContext<'_>,
 ) -> Result<(
     tak_runner::RemoteWorkerExecutionResult,
     Vec<RemoteWorkerOutputRecord>,
 )> {
+    let RemoteWorkerSubmitRunContext {
+        idempotency_key,
+        execution_root_base,
+        selected_node_id,
+        image_cache,
+        payload,
+        output_observer,
+        cancellation,
+        status_context,
+    } = context;
     let execution_root =
         execution_root_for_payload(idempotency_key, execution_root_base, payload)?;
     let artifact_root = artifact_root_for_submit_key_at_base(idempotency_key, execution_root_base);
@@ -23,15 +27,16 @@ fn execute_remote_worker_submit(
             .enable_all()
             .build()
             .context("failed to create tokio runtime for remote worker execution")?;
-        let result = runtime.block_on(execute_payload_steps(
-            &execution_root,
+        let result = runtime.block_on(execute_payload_steps(PayloadStepsContext {
+            execution_root: &execution_root,
             idempotency_key,
             selected_node_id,
             image_cache,
             payload,
-            output_observer.clone(),
+            output_observer: output_observer.clone(),
             cancellation,
-        ))?;
+            status_context: status_context.clone(),
+        }))?;
         let outputs = collect_declared_remote_worker_outputs(
             &execution_root,
             &payload.outputs,
@@ -61,14 +66,18 @@ fn execute_remote_worker_submit(
 }
 
 async fn execute_payload_steps(
-    execution_root: &Path,
-    idempotency_key: &str,
-    selected_node_id: &str,
-    image_cache: Option<&super::types::RemoteImageCacheRuntimeConfig>,
-    payload: &RemoteWorkerSubmitPayload,
-    output_observer: Arc<dyn TaskOutputObserver>,
-    cancellation: &tak_runner::RunCancellation,
+    input: PayloadStepsContext<'_>,
 ) -> Result<tak_runner::RemoteWorkerExecutionResult> {
+    let PayloadStepsContext {
+        execution_root,
+        idempotency_key,
+        selected_node_id,
+        image_cache,
+        payload,
+        output_observer,
+        cancellation,
+        status_context,
+    } = input;
     let context = RemoteMemberExecutionContext {
         execution_root,
         submit_key: idempotency_key,
@@ -78,11 +87,13 @@ async fn execute_payload_steps(
         runtime: payload.runtime.clone(),
         output_observer,
         cancellation,
+        status_context,
     };
     if payload.fused_members.is_empty() {
         return execute_one_remote_member(
             &context,
             &payload.task_label,
+            payload.execution_label.as_deref(),
             payload.attempt,
             payload.steps.clone(),
             payload.timeout_s,
@@ -108,17 +119,6 @@ async fn execute_fused_remote_members(
     Ok(last_result)
 }
 
-struct RemoteMemberExecutionContext<'a> {
-    execution_root: &'a Path,
-    submit_key: &'a str,
-    task_run_id: String,
-    selected_node_id: &'a str,
-    image_cache: Option<&'a super::types::RemoteImageCacheRuntimeConfig>,
-    runtime: Option<RemoteRuntimeSpec>,
-    output_observer: Arc<dyn TaskOutputObserver>,
-    cancellation: &'a tak_runner::RunCancellation,
-}
-
 async fn execute_remote_member_with_retries(
     context: &RemoteMemberExecutionContext<'_>,
     member: &RemoteWorkerFusedMember,
@@ -129,6 +129,7 @@ async fn execute_remote_member_with_retries(
         let result = execute_one_remote_member(
             context,
             &member.task_label,
+            member.execution_label.as_deref(),
             member_attempt,
             member.steps.clone(),
             member.timeout_s,
@@ -144,10 +145,12 @@ async fn execute_remote_member_with_retries(
 async fn execute_one_remote_member(
     context: &RemoteMemberExecutionContext<'_>,
     task_label: &str,
+    execution_label: Option<&str>,
     attempt: u32,
     steps: Vec<StepDef>,
     timeout_s: Option<u64>,
 ) -> Result<tak_runner::RemoteWorkerExecutionResult> {
+    update_active_member_status(context, task_label, execution_label);
     let task_label = parse_label(task_label, "//")
         .map_err(|err| anyhow!("invalid submit task label {task_label}: {err}"))?;
     execute_remote_worker_steps_with_output_and_cancellation(

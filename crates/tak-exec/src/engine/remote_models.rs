@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use tak_core::model::{
     ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec,
-    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, SessionUseSpec,
+    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, SessionUseSpec, TaskLabel,
 };
 
 use crate::ImageCacheOptions;
@@ -143,6 +143,8 @@ pub(crate) struct RemoteSubmitContext<'a> {
     pub(crate) remote_workspace: &'a RemoteWorkspaceStage,
     pub(crate) session: Option<&'a super::session_workspaces::PreparedTaskSession>,
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
+    pub(crate) execution_label: Option<&'a str>,
+    pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -74,7 +74,10 @@ fn render_remote_tasks(node_id: &str, tasks: &ListTaskAttemptsResponse) -> Strin
             } else {
                 task.node_id.as_str()
             },
-            empty_unknown(&task.task_label),
+            empty_unknown(display_task_label(
+                &task.task_label,
+                task.execution_label.as_deref()
+            )),
             task.task_run_id,
             task.attempt,
             task.state,
@@ -97,9 +100,43 @@ fn write_log_event(event: &RemoteEvent) -> Result<()> {
     match event.kind.as_str() {
         "TASK_STDOUT_CHUNK" | "TASK_LOG_CHUNK" => write_chunk(&mut io::stdout(), event)?,
         "TASK_STDERR_CHUNK" => write_chunk(&mut io::stderr(), event)?,
+        "TASK_FAILED" | "TASK_CANCELLED" | "TASK_TERMINAL" => {
+            write_terminal_message(&mut io::stderr(), event)?
+        }
         _ => {}
     }
     Ok(())
+}
+
+fn write_terminal_message(writer: &mut impl Write, event: &RemoteEvent) -> Result<()> {
+    let Some(message) = terminal_message(event) else {
+        return Ok(());
+    };
+    writer.write_all(message.as_bytes())?;
+    if !message.ends_with('\n') {
+        writer.write_all(b"\n")?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+fn terminal_message(event: &RemoteEvent) -> Option<String> {
+    if let Some(message) = event
+        .message
+        .as_deref()
+        .filter(|message| !message.is_empty())
+    {
+        return Some(message.to_string());
+    }
+    let failure_verb = match event.kind.as_str() {
+        "TASK_CANCELLED" => "cancelled",
+        "TASK_FAILED" | "TASK_TERMINAL" => "failed",
+        _ => return None,
+    };
+    (event.success == Some(false))
+        .then_some(event.exit_code)
+        .flatten()
+        .map(|exit_code| format!("remote task {failure_verb} with exit code {exit_code}"))
 }
 
 fn write_chunk(writer: &mut impl Write, event: &RemoteEvent) -> Result<()> {
@@ -114,6 +151,12 @@ fn empty_unknown(value: &str) -> &str {
     } else {
         value
     }
+}
+
+fn display_task_label<'a>(task_label: &'a str, execution_label: Option<&'a str>) -> &'a str {
+    execution_label
+        .filter(|label| !label.trim().is_empty())
+        .unwrap_or(task_label)
 }
 
 fn test_max_polls() -> Option<usize> {

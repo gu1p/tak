@@ -1,12 +1,13 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use prost::Message;
-use tak_core::model::ResolvedTask;
+use tak_core::model::{ResolvedTask, TaskLabel};
 use tak_proto::SubmitTaskResponse;
 
 use super::{RemoteWorkspaceStage, StrictRemoteTarget};
 
-use crate::remote_protocol_codec::build_remote_submit_payload;
+use crate::remote_protocol_codec::{RemoteSubmitPayloadInput, build_remote_submit_payload};
 
 use super::protocol_result_http::remote_protocol_http_request;
 use super::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
@@ -27,20 +28,24 @@ pub(crate) struct RemoteProtocolSubmit<'a> {
     pub(crate) remote_workspace: &'a RemoteWorkspaceStage,
     pub(crate) session: Option<&'a super::session_workspaces::PreparedTaskSession>,
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
+    pub(crate) execution_label: Option<&'a str>,
+    pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
 }
 
 pub(crate) async fn remote_protocol_submit(
     submit: RemoteProtocolSubmit<'_>,
 ) -> std::result::Result<(), RemoteSubmitFailure> {
-    let body = build_remote_submit_payload(
-        submit.target,
-        submit.task_run_id,
-        submit.attempt,
-        submit.task,
-        submit.remote_workspace,
-        submit.session,
-        submit.fused_members,
-    )
+    let body = build_remote_submit_payload(RemoteSubmitPayloadInput {
+        target: submit.target,
+        task_run_id: submit.task_run_id,
+        attempt: submit.attempt,
+        task: submit.task,
+        remote_workspace: submit.remote_workspace,
+        session: submit.session,
+        execution_label: submit.execution_label,
+        fused_members: submit.fused_members,
+        fused_member_execution_labels: submit.fused_member_execution_labels,
+    })
     .map_err(|err| RemoteSubmitFailure {
         kind: RemoteSubmitFailureKind::Other,
         message: format!("{err:#}"),

@@ -50,6 +50,7 @@ impl SubmitAttemptStore {
             SELECT attempts.task_run_id,
                    attempts.attempt,
                    attempts.task_label,
+                   attempts.execution_label,
                    attempts.selected_node_id,
                    attempts.created_at_ms,
                    results.payload_json
@@ -97,7 +98,8 @@ impl SubmitAttemptStore {
 
 fn task_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SubmitAttemptSummaryRecord> {
     let attempt = row.get::<_, i64>(1)?;
-    let result_payload = row.get::<_, Option<String>>(5)?;
+    let execution_label = row.get::<_, String>(3)?.trim().to_string();
+    let result_payload = row.get::<_, Option<String>>(6)?;
     let finished_at_ms = result_payload.as_deref().and_then(result_finished_at_ms);
     Ok(SubmitAttemptSummaryRecord {
         task_run_id: row.get(0)?,
@@ -109,9 +111,10 @@ fn task_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SubmitAtte
             )
         })?,
         task_label: row.get(2)?,
-        selected_node_id: row.get(3)?,
+        execution_label: (!execution_label.is_empty()).then_some(execution_label),
+        selected_node_id: row.get(4)?,
         state: task_state(result_payload.as_deref()),
-        created_at_ms: row.get(4)?,
+        created_at_ms: row.get(5)?,
         finished_at_ms,
     })
 }

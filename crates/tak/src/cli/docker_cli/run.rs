@@ -135,7 +135,7 @@ fn docker_run_execution(
         required_capabilities: required_remote_capabilities(selectors, selected_remote),
         transport_kind: selected_transport_kind(selectors.transport.as_deref())?,
         runtime: Some(runtime),
-        selection: RemoteSelectionSpec::Sequential,
+        selection: RemoteSelectionSpec::Shuffle,
         session: None,
     }))
 }

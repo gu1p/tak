@@ -1,20 +1,26 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
-use tak_core::model::{BackoffDef, ResolvedTask, RetryDef};
+use tak_core::model::{BackoffDef, ResolvedTask, RetryDef, TaskLabel};
 use tak_proto::{
     ExpJitterRetryBackoff, FixedRetryBackoff, FusedTaskMember, RetryBackoff, RetryPolicy,
     retry_backoff,
 };
 
-pub(super) fn fused_member_submit_value(task: &ResolvedTask) -> Result<FusedTaskMember> {
+pub(super) fn fused_member_submit_value(
+    task: &ResolvedTask,
+    execution_labels: Option<&BTreeMap<TaskLabel, String>>,
+) -> Result<FusedTaskMember> {
     Ok(FusedTaskMember {
         task_label: task.label.to_string(),
         steps: task
             .steps
             .iter()
-            .map(super::step_submit_value)
+            .map(super::submit_payload::step_submit_value)
             .collect::<Result<Vec<_>>>()?,
         timeout_s: task.timeout_s,
         retry: Some(retry_submit_value(&task.retry)),
+        execution_label: execution_labels.and_then(|labels| labels.get(&task.label).cloned()),
     })
 }
 

@@ -57,6 +57,7 @@ pub fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> Submit
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some("sh -c 'sleep 2'".into()),
         fused_members: Vec::new(),
+        execution_label: None,
     }
 }
 

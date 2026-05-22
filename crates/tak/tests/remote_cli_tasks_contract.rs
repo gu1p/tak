@@ -35,6 +35,7 @@ fn remote_tasks_lists_attempts_from_selected_node() {
                 state: "completed".into(),
                 created_at_ms: 10,
                 finished_at_ms: Some(20),
+                execution_label: Some("check.build".into()),
             }],
         }
         .encode_to_vec();
@@ -66,8 +67,8 @@ fn remote_tasks_lists_attempts_from_selected_node() {
         "missing task run id:\n{stdout}"
     );
     assert!(
-        stdout.contains("task_label=//apps/web:build"),
-        "missing task label:\n{stdout}"
+        stdout.contains("task_label=check.build"),
+        "missing execution label:\n{stdout}"
     );
     assert!(
         stdout.contains("state=completed"),

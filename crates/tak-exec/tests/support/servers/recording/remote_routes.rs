@@ -1,10 +1,11 @@
 use std::net::TcpStream;
 
-use tak_proto::{ErrorResponse, PollTaskEventsResponse};
+use prost::Message;
+use tak_proto::{ErrorResponse, NodeStatusResponse, PollTaskEventsResponse, SubmitTaskRequest};
 
 use super::RecordingEvents;
 use super::remote_responses::{node_info, submit_response, success_result};
-use crate::support::http::{read_request_path, write_protobuf_response};
+use crate::support::http::{read_request_path_and_body, write_protobuf_response};
 
 #[derive(Clone, Copy)]
 pub(super) enum SubmitBehavior {
@@ -18,11 +19,12 @@ pub(super) fn serve_remote_request(
     port: u16,
     events: &RecordingEvents,
     submit: SubmitBehavior,
+    status: Option<&NodeStatusResponse>,
 ) -> bool {
-    let Some(path) = read_request_path(stream) else {
+    let Some(request) = read_request_path_and_body(stream) else {
         return true;
     };
-    match path.as_str() {
+    match request.path.as_str() {
         "/__shutdown" => {
             write_protobuf_response(stream, "200 OK", &submit_response("shutdown"));
             false
@@ -31,12 +33,23 @@ pub(super) fn serve_remote_request(
             write_protobuf_response(stream, "200 OK", &node_info(node_id, port));
             true
         }
+        "/v1/node/status" => {
+            if let Some(status) = status {
+                write_protobuf_response(stream, "200 OK", status);
+            } else {
+                write_protobuf_response(stream, "404 Not Found", &error_response("not found"));
+            }
+            true
+        }
         "/v1/tasks/submit" => {
             events.record("remote_submit");
+            if let Ok(payload) = SubmitTaskRequest::decode(request.body.as_slice()) {
+                events.record_submit_payload(payload);
+            }
             write_submit_response(stream, submit);
             true
         }
-        _ if path.contains("/events") => {
+        _ if request.path.contains("/events") => {
             write_protobuf_response(
                 stream,
                 "200 OK",
@@ -47,20 +60,20 @@ pub(super) fn serve_remote_request(
             );
             true
         }
-        _ if path.contains("/result") => {
+        _ if request.path.contains("/result") => {
             write_protobuf_response(stream, "200 OK", &success_result(node_id));
             true
         }
         _ => {
-            write_protobuf_response(
-                stream,
-                "404 Not Found",
-                &ErrorResponse {
-                    message: "not found".into(),
-                },
-            );
+            write_protobuf_response(stream, "404 Not Found", &error_response("not found"));
             true
         }
+    }
+}
+
+fn error_response(message: &str) -> ErrorResponse {
+    ErrorResponse {
+        message: message.into(),
     }
 }
 

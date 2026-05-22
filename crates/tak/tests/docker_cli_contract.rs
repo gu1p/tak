@@ -14,6 +14,8 @@ mod ps_status_payload;
 mod run_dockerfile;
 #[path = "docker_cli_contract/run_remote.rs"]
 mod run_remote;
+#[path = "docker_cli_contract/run_remote_shuffle.rs"]
+mod run_remote_shuffle;
 #[path = "docker_cli_contract/run_validation.rs"]
 mod run_validation;
 #[path = "docker_cli_contract/transport.rs"]

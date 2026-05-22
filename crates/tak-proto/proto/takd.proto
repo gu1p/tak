@@ -95,6 +95,7 @@ message FusedTaskMember {
   repeated Step steps = 2;
   optional uint64 timeout_s = 3;
   optional RetryPolicy retry = 4;
+  optional string execution_label = 5;
 }
 
 message OutputSelector {
@@ -119,6 +120,7 @@ message SubmitTaskRequest {
   optional string runtime_source = 12;
   optional string command = 13;
   repeated FusedTaskMember fused_members = 14;
+  optional string execution_label = 15;
 }
 
 message ExecutionSession {
@@ -225,6 +227,7 @@ message ActiveJob {
   optional string runtime_source = 9;
   optional string command = 10;
   optional ContainerResourceLimits resource_limits = 11;
+  optional string execution_label = 12;
 }
 
 message QueuedJob {
@@ -238,6 +241,7 @@ message QueuedJob {
   optional string origin = 8;
   optional string runtime_source = 9;
   optional string command = 10;
+  optional string execution_label = 11;
 }
 
 message TaskAttemptSummary {
@@ -248,6 +252,7 @@ message TaskAttemptSummary {
   string state = 5;
   int64 created_at_ms = 6;
   optional int64 finished_at_ms = 7;
+  optional string execution_label = 8;
 }
 
 message ListTaskAttemptsResponse {

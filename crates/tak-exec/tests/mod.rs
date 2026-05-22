@@ -24,6 +24,7 @@ mod remote_execution_auth_fallback_behavior;
 mod remote_execution_default_gitignore_behavior;
 mod remote_execution_explicit_context_behavior;
 mod remote_execution_gitignore_behavior;
+mod remote_execution_labels_behavior;
 mod remote_execution_reachable_fallback_behavior;
 mod remote_execution_sync_behavior;
 mod remote_execution_sync_reserved_query_path_behavior;

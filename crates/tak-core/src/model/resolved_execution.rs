@@ -40,8 +40,8 @@ pub struct RemoteSpec {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum RemoteSelectionSpec {
-    #[default]
     Sequential,
+    #[default]
     Shuffle,
 }
 

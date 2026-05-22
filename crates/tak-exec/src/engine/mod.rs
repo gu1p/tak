@@ -7,6 +7,7 @@ mod attempt_execution;
 mod attempt_placement;
 mod attempt_submit;
 mod cancellation;
+mod execution_labels;
 mod fused_cascade;
 mod fused_cascade_run;
 mod lease_context;
@@ -30,6 +31,8 @@ pub(crate) mod remote_diagnostics;
 mod remote_http_exchange_error;
 pub(crate) mod remote_models;
 mod remote_selection;
+#[path = "remote_selection_reservation_tests.rs"]
+mod remote_selection_reservation_tests;
 #[path = "remote_selection_tests.rs"]
 mod remote_selection_tests;
 pub(crate) mod remote_submit_failure;
@@ -101,14 +104,15 @@ pub async fn run_resolved_task(
     let sessions =
         session_workspaces::SharedExecutionSessionManager::new(uuid::Uuid::new_v4().to_string());
     let remote_selection_state = remote_selection::SharedRemoteSelectionState::default();
-    run_single_task::run_single_task(
+    run_single_task::run_single_task(run_single_task::RunSingleTaskContext {
         task,
         workspace_root,
         options,
-        &lease_context,
-        &sessions,
-        &remote_selection_state,
-        None,
-    )
+        lease_context: &lease_context,
+        sessions: &sessions,
+        remote_selection_state: &remote_selection_state,
+        execution_label: None,
+        placement_override: None,
+    })
     .await
 }

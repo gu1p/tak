@@ -7,25 +7,14 @@ struct WorkerExecutionResultPersistence<'a> {
     duration_ms: i64,
 }
 
-fn persist_worker_execution_result(input: WorkerExecutionResultPersistence<'_>) {
+fn persist_worker_execution_result(
+    input: WorkerExecutionResultPersistence<'_>,
+    execution_result: Result<(tak_runner::RemoteWorkerExecutionResult, Vec<RemoteWorkerOutputRecord>)>,
+) {
     let execution = input.execution;
     let store = &execution.store;
     let stdout_tail = input.output_observer.stdout_tail();
     let stderr_tail = input.output_observer.stderr_tail();
-    let execution_result = store
-        .execution_root_base_for_submit(input.idempotency_key)
-        .map(|value| value.unwrap_or_else(|| execution.execution_root_base.clone()))
-        .and_then(|resolved_execution_root_base| {
-            execute_remote_worker_submit(
-                input.idempotency_key,
-                &resolved_execution_root_base,
-                &execution.selected_node_id,
-                execution.image_cache.as_ref(),
-                &execution.payload,
-                input.output_observer.clone(),
-                &execution.cancellation,
-            )
-        });
 
     match execution_result {
         Ok((result, outputs)) => persist_successful_worker_result(

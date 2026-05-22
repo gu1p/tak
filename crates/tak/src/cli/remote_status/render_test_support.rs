@@ -139,5 +139,6 @@ fn active_jobs(with_job: bool) -> Vec<ActiveJob> {
             cpu_cores: 2.0,
             memory_mb: 1024,
         }),
+        execution_label: Some("check.build".to_string()),
     }]
 }

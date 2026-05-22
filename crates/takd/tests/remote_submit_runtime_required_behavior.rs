@@ -32,6 +32,7 @@ fn remote_submit_without_runtime_is_rejected_as_invalid_input() {
         runtime_source: None,
         command: Some("sh -c true".into()),
         fused_members: Vec::new(),
+        execution_label: None,
     };
 
     let response = handle_remote_v1_request(

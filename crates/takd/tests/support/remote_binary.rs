@@ -56,6 +56,7 @@ pub fn streaming_submit_request_with_command(
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
         fused_members: Vec::new(),
+        execution_label: None,
     }
 }
 pub fn wait_for_streaming_events(

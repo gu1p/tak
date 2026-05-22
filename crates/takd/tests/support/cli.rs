@@ -41,7 +41,7 @@ fn profile_dir(inputs: &TakdBinaryPathInputs) -> PathBuf {
 }
 
 pub fn resolve_takd_bin(inputs: &TakdBinaryPathInputs) -> PathBuf {
-    if let Some(path) = inputs.cargo_bin_exe.clone() {
+    if let Some(path) = existing_binary(inputs.cargo_bin_exe.clone()) {
         return path;
     }
 
@@ -56,6 +56,10 @@ pub fn resolve_takd_bin(inputs: &TakdBinaryPathInputs) -> PathBuf {
         binary.display()
     );
     binary
+}
+
+fn existing_binary(path: Option<PathBuf>) -> Option<PathBuf> {
+    path.filter(|path| path.is_file())
 }
 
 pub fn takd_bin() -> PathBuf {

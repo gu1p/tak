@@ -7,6 +7,8 @@ use crate::support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
 use crate::support::remote_container::configure_fake_docker_env;
 use crate::support::remote_output::test_context_with_runtime;
 
+#[path = "remote_resource_admission_behavior/cancel.rs"]
+mod cancel;
 #[path = "remote_resource_admission_behavior/status.rs"]
 mod status;
 #[path = "remote_resource_admission_behavior/submit.rs"]

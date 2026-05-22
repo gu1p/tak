@@ -70,6 +70,7 @@ pub fn submit_container_task(
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
         fused_members: Vec::new(),
+        execution_label: None,
     };
     let submit = handle_remote_v1_request(
         context,

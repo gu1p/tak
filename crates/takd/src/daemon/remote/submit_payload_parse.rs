@@ -49,6 +49,7 @@ pub(super) fn parse_remote_worker_submit_payload(
         origin: request.origin.clone(),
         runtime_source: request.runtime_source.clone(),
         command: request.command.clone(),
+        execution_label: request.execution_label.clone(),
     })
 }
 

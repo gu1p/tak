@@ -37,7 +37,13 @@ pub(crate) async fn preflight_task_placement(
             attempt,
         );
         let reserved_node_id = ordered.first().map(|target| target.node_id.clone());
-        let selected = match preflight_ordered_remote_target(task, &ordered, output_observer).await
+        let selected = match preflight_ordered_remote_target(
+            task,
+            &ordered,
+            placement.remote_selection,
+            output_observer,
+        )
+        .await
         {
             Ok(selected) => selected,
             Err(err) => {

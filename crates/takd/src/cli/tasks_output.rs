@@ -79,7 +79,7 @@ fn render_active_tasks(status: &NodeStatusResponse) -> String {
         output.push_str(&format!(
             "node={} task_label={} task_run_id={} attempt={} age={} needs={} exec_root={} runtime={}\n",
             node_id,
-            task_label_or_unknown(&job.task_label),
+            task_label_or_unknown(display_task_label(&job.task_label, job.execution_label.as_deref())),
             job.task_run_id,
             job.attempt,
             age_since(job.started_at_ms),
@@ -97,6 +97,12 @@ fn task_label_or_unknown(label: &str) -> &str {
     } else {
         label
     }
+}
+
+fn display_task_label<'a>(task_label: &'a str, execution_label: Option<&'a str>) -> &'a str {
+    execution_label
+        .filter(|label| !label.trim().is_empty())
+        .unwrap_or(task_label)
 }
 
 fn format_needs(needs: &[SubmittedNeed]) -> String {
