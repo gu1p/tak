@@ -9,24 +9,26 @@ fn node_status_messages_round_trip_as_binary() {
     let status = NodeStatusResponse {
         node: Some(NodeInfo {
             node_id: "builder-a".to_string(),
-            display_name: "Builder A".to_string(),
-            base_url: "http://127.0.0.1:43123".to_string(),
             healthy: true,
-            pools: vec!["default".to_string()],
-            tags: vec!["builder".to_string()],
-            capabilities: vec!["linux".to_string()],
             transport: "direct".to_string(),
             transport_state: "ready".to_string(),
-            transport_detail: String::new(),
+            ..Default::default()
         }),
         sampled_at_ms: 1_734_000_000_000,
         cpu: Some(CpuUsage {
             utilization_percent: Some(12.5),
             logical_cores: 8,
+            non_tak_used_cores: Some(1.0),
+            tak_reserved_cores: Some(2.0),
+            tak_admission_available_cores: Some(5.9),
         }),
         memory: Some(MemoryUsage {
             used_bytes: 2_048,
             total_bytes: 8_192,
+            available_bytes: Some(6_144),
+            non_tak_used_bytes: Some(1_024),
+            tak_reserved_bytes: Some(2_048),
+            tak_admission_available_bytes: Some(5_017),
         }),
         storage: Some(StorageUsage {
             path: "/tmp/takd-remote-exec".to_string(),
@@ -43,9 +45,7 @@ fn node_status_messages_round_trip_as_binary() {
         }],
         active_jobs: vec![ActiveJob {
             task_run_id: "task-run-1".to_string(),
-            attempt: 1,
             task_label: "//apps/web:build".to_string(),
-            started_at_ms: 1_734_000_000_000,
             needs: vec![SubmittedNeed {
                 name: "cpu".to_string(),
                 scope: "machine".to_string(),
@@ -54,7 +54,6 @@ fn node_status_messages_round_trip_as_binary() {
             }],
             execution_root_bytes: 256,
             runtime: Some("containerized".to_string()),
-            origin: Some("task".to_string()),
             runtime_source: Some("image:alpine:3.20".to_string()),
             command: Some("make build".to_string()),
             resource_limits: Some(ContainerResourceLimits {
@@ -62,13 +61,12 @@ fn node_status_messages_round_trip_as_binary() {
                 memory_mb: 1024,
             }),
             execution_label: Some("check.build".to_string()),
+            ..Default::default()
         }],
         image_cache: None,
         queued_jobs: vec![QueuedJob {
             task_run_id: "task-run-2".to_string(),
-            attempt: 1,
             task_label: "//apps/api:test".to_string(),
-            queued_at_ms: 1_734_000_000_500,
             queue_position: 1,
             resource_limits: Some(ContainerResourceLimits {
                 cpu_cores: 1.0,
@@ -79,6 +77,7 @@ fn node_status_messages_round_trip_as_binary() {
             runtime_source: Some("image:alpine:3.20".to_string()),
             command: Some("make test".to_string()),
             execution_label: Some("check.test".to_string()),
+            ..Default::default()
         }],
     };
     let encoded = status.encode_to_vec();
@@ -94,4 +93,8 @@ fn node_status_messages_round_trip_as_binary() {
     assert_eq!(decoded.queued_jobs[0].queue_position, 1);
     let queued_label = decoded.queued_jobs[0].execution_label.as_deref();
     assert_eq!(queued_label, Some("check.test"));
+    let cpu = decoded.cpu.expect("cpu");
+    assert_eq!(cpu.tak_reserved_cores, Some(2.0));
+    let memory = decoded.memory.expect("memory");
+    assert_eq!(memory.tak_reserved_bytes, Some(2_048));
 }

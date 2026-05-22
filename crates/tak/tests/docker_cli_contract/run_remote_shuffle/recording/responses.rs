@@ -12,10 +12,12 @@ pub(super) fn status_response(node_id: &str, base_url: &str) -> NodeStatusRespon
         cpu: Some(CpuUsage {
             utilization_percent: Some(0.0),
             logical_cores: 8,
+            ..Default::default()
         }),
         memory: Some(MemoryUsage {
             used_bytes: 0,
             total_bytes: 8 * 1024 * 1024 * 1024,
+            ..Default::default()
         }),
         storage: None,
         allocated_needs: Vec::new(),

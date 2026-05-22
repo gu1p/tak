@@ -8,6 +8,7 @@ use super::active_executions::SharedActiveExecutions;
 use super::resource_admission::{
     ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
 };
+use super::tak_container_usage::SharedTakContainerUsage;
 
 #[path = "types_tests.rs"]
 mod tests;
@@ -33,6 +34,7 @@ pub struct RemoteNodeContext {
     status_state: SharedNodeStatusState,
     active_executions: SharedActiveExecutions,
     resource_admission: SharedResourceAdmission,
+    tak_container_usage: SharedTakContainerUsage,
     runtime_state: Arc<RemoteRuntimeState>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
     state_root: Option<PathBuf>,
@@ -40,12 +42,14 @@ pub struct RemoteNodeContext {
 
 impl RemoteNodeContext {
     pub fn new(node: NodeInfo, bearer_token: String, runtime_config: RemoteRuntimeConfig) -> Self {
+        let tak_container_usage = SharedTakContainerUsage::default();
         Self {
             node: Arc::new(Mutex::new(node)),
             bearer_token,
-            status_state: new_shared_node_status_state(),
+            status_state: new_shared_node_status_state(tak_container_usage.clone()),
             active_executions: SharedActiveExecutions::default(),
-            resource_admission: SharedResourceAdmission::new_detected(),
+            resource_admission: SharedResourceAdmission::new_detected(tak_container_usage.clone()),
+            tak_container_usage,
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
             image_cache: None,
             state_root: None,
@@ -163,5 +167,9 @@ impl RemoteNodeContext {
 
     pub(crate) fn release_resources(&self, idempotency_key: &str) -> Result<()> {
         self.resource_admission.release(idempotency_key)
+    }
+
+    pub(crate) fn tak_container_usage(&self) -> SharedTakContainerUsage {
+        self.tak_container_usage.clone()
     }
 }

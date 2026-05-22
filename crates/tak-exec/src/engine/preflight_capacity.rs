@@ -4,6 +4,10 @@ use tak_proto::NodeStatusResponse;
 
 use super::remote_models::StrictRemoteTarget;
 
+#[path = "preflight_capacity_live_tests.rs"]
+mod live_tests;
+#[path = "preflight_capacity_test_support.rs"]
+mod test_support;
 #[path = "preflight_capacity_tests.rs"]
 mod tests;
 
@@ -68,8 +72,13 @@ fn load_from_status(target: &StrictRemoteTarget, status: &NodeStatusResponse) ->
             )
         });
     let fits_requested_resources = required.as_ref().is_none_or(|required| {
-        used_cpu + required.cpu_cores <= cpu_capacity
-            && used_memory.saturating_add(required.memory_mb) <= memory_capacity
+        reservation_capacity_fits(
+            used_cpu,
+            used_memory,
+            cpu_capacity,
+            memory_capacity,
+            required,
+        ) && live_headroom_fits(status, required)
     });
     RemoteTargetLoad {
         status_known: true,
@@ -88,6 +97,36 @@ fn resource_ratio(used: f64, capacity: f64) -> f64 {
         return 0.0;
     }
     used / capacity
+}
+
+fn reservation_capacity_fits(
+    used_cpu: f64,
+    used_memory: u64,
+    cpu_capacity: f64,
+    memory_capacity: u64,
+    required: &tak_proto::ContainerResourceLimits,
+) -> bool {
+    used_cpu + required.cpu_cores <= cpu_capacity
+        && used_memory.saturating_add(required.memory_mb) <= memory_capacity
+}
+
+fn live_headroom_fits(
+    status: &NodeStatusResponse,
+    required: &tak_proto::ContainerResourceLimits,
+) -> bool {
+    cpu_headroom_fits(status.cpu.as_ref(), required.cpu_cores)
+        && memory_headroom_fits(status.memory.as_ref(), required.memory_mb)
+}
+
+fn cpu_headroom_fits(cpu: Option<&tak_proto::CpuUsage>, required_cpu_cores: f64) -> bool {
+    cpu.and_then(|cpu| cpu.tak_admission_available_cores)
+        .is_none_or(|available| required_cpu_cores <= available)
+}
+
+fn memory_headroom_fits(memory: Option<&tak_proto::MemoryUsage>, required_memory_mb: u64) -> bool {
+    memory
+        .and_then(|memory| memory.tak_admission_available_bytes)
+        .is_none_or(|available| required_memory_mb.saturating_mul(1024 * 1024) <= available)
 }
 
 impl RemoteTargetLoad {

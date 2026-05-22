@@ -45,6 +45,7 @@ pub async fn run_remote_v1_tor_hidden_service(
     let context = remote_node_context_from_env(Some(onion_endpoint.clone()));
     spawn_remote_cleanup_janitor(context.clone(), store.clone());
     spawn_remote_orphan_watchdog(context.clone());
+    spawn_tak_container_usage_sampler(context.runtime_config(), context.tak_container_usage());
     tracing::info!("takd remote v1 onion service ready at {}", onion_endpoint);
 
     futures::pin_mut!(rend_requests);

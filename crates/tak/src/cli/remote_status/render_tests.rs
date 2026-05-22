@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use ratatui::style::{Color, Modifier};
 
 use crate::cli::remote_status::view::RemoteStatusView;

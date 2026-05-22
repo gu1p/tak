@@ -1,20 +1,15 @@
-use super::support::{node_status, remote_workspace};
+use super::load_aware_support::{configure_workspace, run_remote_check};
+use super::support::node_status;
 use crate::support::{
     EnvGuard, RecordingEvents, RecordingRemoteServer, RemoteInventoryRecord, env_lock,
     write_remote_inventory,
 };
-use tak_core::model::TaskLabel;
-use tak_exec::{RunOptions, run_tasks};
 
 #[tokio::test]
 async fn shuffled_remote_jobs_prefer_less_loaded_reachable_node() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let workspace = temp.path().join("workspace");
-    let config = temp.path().join("config");
-    std::fs::create_dir_all(&workspace).expect("workspace");
-    env.set("XDG_CONFIG_HOME", config.display().to_string());
+    let (_temp, workspace, config) = configure_workspace(&mut env);
     let events = RecordingEvents::default();
     let busy = RecordingRemoteServer::spawn_success_with_status(
         "builder-busy",
@@ -34,33 +29,16 @@ async fn shuffled_remote_jobs_prefer_less_loaded_reachable_node() {
         ],
     );
 
-    let label = TaskLabel {
-        package: "//".into(),
-        name: "check".into(),
-    };
-    let spec = remote_workspace(&workspace, std::slice::from_ref(&label));
-    let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
-        .await
-        .expect("remote run");
+    let selected = run_remote_check(&workspace).await;
 
-    assert_eq!(
-        summary
-            .results
-            .get(&label)
-            .and_then(|result| result.remote_node_id.as_deref()),
-        Some("builder-idle")
-    );
+    assert_eq!(selected.as_deref(), Some("builder-idle"));
 }
 
 #[tokio::test]
 async fn shuffled_remote_jobs_prefer_known_status_over_unknown_status() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let workspace = temp.path().join("workspace");
-    let config = temp.path().join("config");
-    std::fs::create_dir_all(&workspace).expect("workspace");
-    env.set("XDG_CONFIG_HOME", config.display().to_string());
+    let (_temp, workspace, config) = configure_workspace(&mut env);
     let events = RecordingEvents::default();
     let unknown = RecordingRemoteServer::spawn_success("builder-unknown", events.clone());
     let known = RecordingRemoteServer::spawn_success_with_status(
@@ -76,20 +54,7 @@ async fn shuffled_remote_jobs_prefer_known_status_over_unknown_status() {
         ],
     );
 
-    let label = TaskLabel {
-        package: "//".into(),
-        name: "check".into(),
-    };
-    let spec = remote_workspace(&workspace, std::slice::from_ref(&label));
-    let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
-        .await
-        .expect("remote run");
+    let selected = run_remote_check(&workspace).await;
 
-    assert_eq!(
-        summary
-            .results
-            .get(&label)
-            .and_then(|result| result.remote_node_id.as_deref()),
-        Some("builder-known")
-    );
+    assert_eq!(selected.as_deref(), Some("builder-known"));
 }

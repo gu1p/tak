@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
@@ -96,10 +98,12 @@ fn status(node_id: &str, transport_state: &str, with_job: bool) -> NodeStatusRes
         cpu: Some(CpuUsage {
             utilization_percent: Some(12.5),
             logical_cores: 8,
+            ..Default::default()
         }),
         memory: Some(MemoryUsage {
             used_bytes: 2_048,
             total_bytes: 8_192,
+            ..Default::default()
         }),
         storage: Some(StorageUsage {
             path: "/tmp/takd-remote-exec".to_string(),

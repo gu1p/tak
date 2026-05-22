@@ -9,12 +9,22 @@ pub(super) fn full_node_limits(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
 ) -> ContainerResourceLimits {
+    let _ = status(context, store);
     let status = status(context, store);
     let cpu = status.cpu.expect("cpu status");
     let memory = status.memory.expect("memory status");
     ContainerResourceLimits {
-        cpu_cores: f64::from(cpu.logical_cores.max(1)),
-        memory_mb: (memory.total_bytes / 1024 / 1024).max(1),
+        cpu_cores: (cpu
+            .tak_admission_available_cores
+            .unwrap_or_else(|| f64::from(cpu.logical_cores.max(1)))
+            * 0.75_f64)
+            .max(1.0_f64),
+        memory_mb: memory
+            .tak_admission_available_bytes
+            .map(|bytes| bytes / 1024 / 1024)
+            .unwrap_or_else(|| memory.total_bytes / 1024 / 1024)
+            .saturating_mul(3)
+            / 4,
     }
 }
 

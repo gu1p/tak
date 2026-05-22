@@ -1,16 +1,19 @@
-use tak_proto::{CpuUsage, MemoryUsage, StorageUsage, SubmittedNeed};
-
-use super::{RemoteStatusResult, unix_epoch_ms};
+use super::RemoteStatusResult;
 
 #[path = "render_dashboard.rs"]
 mod dashboard;
-#[cfg(test)]
+#[path = "render_format.rs"]
+mod format;
 #[path = "render_test_support.rs"]
 mod render_test_support;
 #[path = "render_sections.rs"]
 mod sections;
 
 pub(super) use dashboard::render_dashboard;
+pub(super) use format::{
+    age_since, format_cpu, format_image_cache, format_memory, format_needs, format_storage,
+    human_bytes,
+};
 
 pub(in crate::cli) fn render_snapshot(results: &[RemoteStatusResult]) -> String {
     render_snapshot_with_prefix(results, "")
@@ -78,106 +81,5 @@ pub(in crate::cli) fn render_snapshot_with_prefix(
     output
 }
 
-fn format_cpu(cpu: Option<&CpuUsage>) -> String {
-    let Some(cpu) = cpu else {
-        return "n/a".to_string();
-    };
-    match cpu.utilization_percent {
-        Some(percent) => format!("{percent:.1}%/{}c", cpu.logical_cores),
-        None => format!("n/a/{}c", cpu.logical_cores),
-    }
-}
-
-fn format_memory(memory: Option<&MemoryUsage>) -> String {
-    let Some(memory) = memory else {
-        return "n/a".to_string();
-    };
-    format!(
-        "{}/{}",
-        human_bytes(memory.used_bytes),
-        human_bytes(memory.total_bytes)
-    )
-}
-
-fn format_storage(storage: Option<&StorageUsage>) -> String {
-    let Some(storage) = storage else {
-        return "n/a".to_string();
-    };
-    format!(
-        "{}/{} free={}",
-        human_bytes(storage.used_bytes),
-        human_bytes(storage.total_bytes),
-        human_bytes(storage.available_bytes),
-    )
-}
-
-fn format_image_cache(cache: Option<&tak_proto::ImageCacheStatus>) -> String {
-    let Some(cache) = cache else {
-        return "n/a".to_string();
-    };
-    format!(
-        "{:.1}GB/{:.1}GB",
-        cache.used_bytes as f64 / 1_000_000_000.0,
-        cache.budget_bytes as f64 / 1_000_000_000.0,
-    )
-}
-
-fn format_needs(needs: &[SubmittedNeed]) -> String {
-    if needs.is_empty() {
-        return "(none)".to_string();
-    }
-    needs.iter().map(format_need).collect::<Vec<_>>().join(",")
-}
-
-fn format_need(need: &SubmittedNeed) -> String {
-    let scope_key = need
-        .scope_key
-        .as_deref()
-        .map(|value| format!("/{value}"))
-        .unwrap_or_default();
-    format!(
-        "{}({}{})={}",
-        need.name,
-        need.scope,
-        scope_key,
-        format_slots(need.slots)
-    )
-}
-
-fn format_slots(value: f64) -> String {
-    if value.fract() == 0.0 {
-        format!("{value:.0}")
-    } else {
-        format!("{value:.2}")
-    }
-}
-
-fn human_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
-    let mut value = bytes as f64;
-    let mut unit_index = 0_usize;
-    while value >= 1024.0 && unit_index + 1 < UNITS.len() {
-        value /= 1024.0;
-        unit_index += 1;
-    }
-    if unit_index == 0 {
-        format!("{bytes}{}", UNITS[unit_index])
-    } else {
-        format!("{value:.1}{}", UNITS[unit_index])
-    }
-}
-
-fn age_since(started_at_ms: i64) -> String {
-    let delta_s = unix_epoch_ms().saturating_sub(started_at_ms).max(0) / 1000;
-    if delta_s >= 3600 {
-        return format!("{}h{}m", delta_s / 3600, (delta_s % 3600) / 60);
-    }
-    if delta_s >= 60 {
-        return format!("{}m{}s", delta_s / 60, delta_s % 60);
-    }
-    format!("{delta_s}s")
-}
-
-#[cfg(test)]
 #[path = "render_tests.rs"]
 mod render_tests;

@@ -25,10 +25,12 @@ pub(super) fn node_status(node_id: &str, port: u16) -> NodeStatusResponse {
         cpu: Some(CpuUsage {
             utilization_percent: Some(12.5),
             logical_cores: 8,
+            ..Default::default()
         }),
         memory: Some(MemoryUsage {
             used_bytes: 2_048,
             total_bytes: 8_192,
+            ..Default::default()
         }),
         storage: None,
         allocated_needs: Vec::new(),

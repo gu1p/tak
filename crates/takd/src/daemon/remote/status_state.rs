@@ -1,65 +1,21 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use sysinfo::{CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
-use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse, SubmittedNeed};
+use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse};
 
 use super::query_helpers::unix_epoch_ms;
 use super::resource_admission::ResourceRequest;
+use super::status_resources::{
+    cpu_admission_available, host_cpu_cores_used, memory_admission_available, non_tak_cpu_cores,
+    non_tak_memory_bytes,
+};
 use super::status_state_helpers::{active_job_value, aggregate_need_usage, storage_usage};
+use super::tak_container_usage::SharedTakContainerUsage;
 use super::types::RemoteImageCacheRuntimeConfig;
 
-#[derive(Clone)]
-pub(crate) struct ActiveJobMetadata {
-    pub(crate) task_run_id: String,
-    pub(crate) attempt: u32,
-    pub(crate) task_label: String,
-    pub(crate) started_at_ms: i64,
-    pub(crate) needs: Vec<SubmittedNeed>,
-    pub(crate) runtime: Option<String>,
-    pub(crate) origin: Option<String>,
-    pub(crate) runtime_source: Option<String>,
-    pub(crate) command: Option<String>,
-    pub(crate) resource_limits: Option<tak_core::model::ContainerResourceLimitsSpec>,
-    pub(crate) execution_label: Option<String>,
-    pub(crate) execution_root: PathBuf,
-}
-
-pub(crate) struct ActiveJobMetadataInput<'a> {
-    pub(crate) task_run_id: &'a str,
-    pub(crate) attempt: u32,
-    pub(crate) task_label: &'a str,
-    pub(crate) started_at_ms: i64,
-    pub(crate) needs: &'a [SubmittedNeed],
-    pub(crate) runtime: Option<String>,
-    pub(crate) origin: Option<String>,
-    pub(crate) runtime_source: Option<String>,
-    pub(crate) command: Option<String>,
-    pub(crate) resource_limits: Option<tak_core::model::ContainerResourceLimitsSpec>,
-    pub(crate) execution_label: Option<String>,
-    pub(crate) execution_root: PathBuf,
-}
-
-impl ActiveJobMetadata {
-    pub(crate) fn new(input: ActiveJobMetadataInput<'_>) -> Self {
-        Self {
-            task_run_id: input.task_run_id.to_string(),
-            attempt: input.attempt,
-            task_label: input.task_label.to_string(),
-            started_at_ms: input.started_at_ms,
-            needs: input.needs.to_vec(),
-            runtime: input.runtime,
-            origin: input.origin,
-            runtime_source: input.runtime_source,
-            command: input.command,
-            resource_limits: input.resource_limits,
-            execution_label: input.execution_label,
-            execution_root: input.execution_root,
-        }
-    }
-}
+pub(crate) use super::status_job_metadata::{ActiveJobMetadata, ActiveJobMetadataInput};
 
 pub(crate) type SharedNodeStatusState = Arc<Mutex<NodeStatusState>>;
 
@@ -67,10 +23,13 @@ pub(crate) struct NodeStatusState {
     system: System,
     disks: Disks,
     cpu_usage_ready: bool,
+    tak_container_usage: SharedTakContainerUsage,
     active_jobs: BTreeMap<String, ActiveJobMetadata>,
 }
 
-pub(crate) fn new_shared_node_status_state() -> SharedNodeStatusState {
+pub(crate) fn new_shared_node_status_state(
+    tak_container_usage: SharedTakContainerUsage,
+) -> SharedNodeStatusState {
     let mut system = System::new_with_specifics(
         RefreshKind::nothing()
             .with_cpu(CpuRefreshKind::everything())
@@ -82,7 +41,8 @@ pub(crate) fn new_shared_node_status_state() -> SharedNodeStatusState {
     Arc::new(Mutex::new(NodeStatusState {
         system,
         disks: Disks::new_with_refreshed_list(),
-        cpu_usage_ready: false,
+        cpu_usage_ready: true,
+        tak_container_usage,
         active_jobs: BTreeMap::new(),
     }))
 }
@@ -138,15 +98,41 @@ impl NodeStatusState {
         });
 
         let tak_execution_bytes = active_jobs.iter().map(|job| job.execution_root_bytes).sum();
+        let logical_cores = u32::try_from(self.system.cpus().len()).unwrap_or(u32::MAX);
+        let tak_reserved_cores = tak_reserved_cores(&active_jobs);
+        let tak_usage = self.tak_container_usage.latest();
+        let host_cpu_used =
+            host_cpu_cores_used(f64::from(self.system.global_cpu_usage()), logical_cores);
+        let non_tak_cpu_used = non_tak_cpu_cores(host_cpu_used, tak_usage.cpu_cores);
         let cpu = CpuUsage {
             utilization_percent: if self.cpu_usage_ready {
                 Some(f64::from(self.system.global_cpu_usage()))
             } else {
                 None
             },
-            logical_cores: u32::try_from(self.system.cpus().len()).unwrap_or(u32::MAX),
+            logical_cores,
+            non_tak_used_cores: if self.cpu_usage_ready {
+                Some(non_tak_cpu_used)
+            } else {
+                None
+            },
+            tak_reserved_cores: Some(tak_reserved_cores),
+            tak_admission_available_cores: if self.cpu_usage_ready {
+                Some(cpu_admission_available(
+                    logical_cores,
+                    non_tak_cpu_used,
+                    tak_reserved_cores,
+                ))
+            } else {
+                None
+            },
         };
         self.cpu_usage_ready = true;
+        let memory_total_bytes = self.system.total_memory();
+        let memory_available_bytes = self.system.available_memory();
+        let host_used_bytes = memory_total_bytes.saturating_sub(memory_available_bytes);
+        let non_tak_used_bytes = non_tak_memory_bytes(host_used_bytes, tak_usage.memory_bytes);
+        let tak_reserved_bytes = tak_reserved_memory_bytes(&active_jobs);
 
         Ok(NodeStatusResponse {
             node: Some(node.clone()),
@@ -154,7 +140,15 @@ impl NodeStatusState {
             cpu: Some(cpu),
             memory: Some(MemoryUsage {
                 used_bytes: self.system.used_memory(),
-                total_bytes: self.system.total_memory(),
+                total_bytes: memory_total_bytes,
+                available_bytes: Some(memory_available_bytes),
+                non_tak_used_bytes: Some(non_tak_used_bytes),
+                tak_reserved_bytes: Some(tak_reserved_bytes),
+                tak_admission_available_bytes: Some(memory_admission_available(
+                    memory_total_bytes,
+                    non_tak_used_bytes,
+                    tak_reserved_bytes,
+                )),
             }),
             storage: Some(storage_usage(
                 &self.disks,
@@ -179,4 +173,20 @@ impl NodeStatusState {
                 .collect(),
         })
     }
+}
+
+fn tak_reserved_cores(active_jobs: &[tak_proto::ActiveJob]) -> f64 {
+    active_jobs
+        .iter()
+        .filter_map(|job| job.resource_limits.as_ref())
+        .map(|limits| limits.cpu_cores)
+        .sum()
+}
+
+fn tak_reserved_memory_bytes(active_jobs: &[tak_proto::ActiveJob]) -> u64 {
+    active_jobs
+        .iter()
+        .filter_map(|job| job.resource_limits.as_ref())
+        .map(|limits| limits.memory_mb.saturating_mul(1024 * 1024))
+        .sum()
 }

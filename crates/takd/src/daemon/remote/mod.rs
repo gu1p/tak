@@ -44,10 +44,13 @@ mod route_tasks;
 mod router;
 mod runtime;
 mod runtime_state;
+mod status_job_metadata;
+mod status_resources;
 mod status_state;
 mod status_state_helpers;
 mod submit_payload_parse;
 mod submit_store;
+mod tak_container_usage;
 mod tor_server;
 mod types;
 mod worker_output_artifacts;
@@ -86,6 +89,7 @@ use route_result::handle_remote_result_route;
 use route_submit::handle_remote_submit_route;
 use route_tasks::handle_remote_tasks_route;
 use submit_payload_parse::parse_remote_worker_submit_payload;
+pub(crate) use tak_container_usage::spawn_tak_container_usage_sampler;
 pub(crate) use tor_server::{
     remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,
 };
