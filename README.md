@@ -90,10 +90,22 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Pick a camera, preview its feed in the terminal, and add a remote from a scanned QR token.
 - `tak remote list`
   - Show configured remote agents in client priority order.
+- `tak remote remove <node-id>`
+  - Remove one configured remote agent from local client config.
 - `tak remote status`
   - Show running jobs, containers, CPU, RAM, storage, and image-cache usage for configured remote agents.
 - `tak remote status --watch --interval-ms <N>`
   - Refresh remote node status continuously in a dynamic terminal dashboard.
+- `tak remote logs --node <id>`
+  - Print the service log from one configured remote node.
+- `tak remote tasks --node <id>`
+  - List task attempts known by one configured remote node.
+- `tak remote task logs --node <id> <task-run-id>`
+  - Print persisted stdout/stderr for one task run on a configured remote node.
+- `tak task list`
+  - List task runs initiated by this local Tak client.
+- `tak task logs <task-run-id>`
+  - Print captured stdout/stderr for one locally initiated task run.
 - `takd init`
   - Create Tor-first agent identity and hidden-service runtime state.
 - `takd serve`

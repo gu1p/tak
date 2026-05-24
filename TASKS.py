@@ -4,7 +4,7 @@ CARGO_SHARED_ENV_SCRIPT = (
     'TMPDIR="$TAK_TEST_TMPDIR" '
     'CARGO_HOME="$PWD/.tmp/cargo-home" '
     'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" '
-    'CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}" exec "$@"'
+    'CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}" exec "$@"'
 )
 
 CARGO_CHECK_LOCK = "cargo-check-workspace"
@@ -23,7 +23,7 @@ CHECK_CONTEXT = CurrentState(ignored=[gitignore()])
 CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
-    resources=Container.Resources(cpu_cores=4.0, memory_mb=8192),
+    resources=Container.Resources(cpu_cores=4.0, memory_mb=16384),
 )
 
 CHECK_SESSION = session(
@@ -159,6 +159,14 @@ SPEC = module_spec(
             steps=[
                 cargo_cmd("test", "--workspace", "--doc"),
                 cargo_cmd("test", "-p", "tak", "--test", "doctest_contract"),
+                cargo_cmd(
+                    "test",
+                    "-p",
+                    "tak",
+                    "--test",
+                    "suite",
+                    "docs_dump_no_drift_contract",
+                ),
             ],
         ),
         task(

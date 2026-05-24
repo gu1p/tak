@@ -38,12 +38,17 @@ http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 prost.workspace = true
+pulldown-cmark.workspace = true
 qrcode.workspace = true
 ratatui = { workspace = true, features = ["crossterm"] }
 rusqlite.workspace = true
+ruff_python_ast.workspace = true
+ruff_python_parser.workspace = true
+ruff_text_size.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sysinfo.workspace = true
+syn.workspace = true
 tak-core = { path = "../tak-core" }
 tak-exec = { path = "../tak-exec" }
 tak-loader = { path = "../tak-loader" }

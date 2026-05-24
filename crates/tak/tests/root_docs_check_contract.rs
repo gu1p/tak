@@ -14,6 +14,14 @@ fn repo_root_docs_check_runs_cargo_commands_with_workspace_temp() -> Result<()> 
     let expected = expected_cargo_argv(&[
         &["test", "--workspace", "--doc"],
         &["test", "-p", "tak", "--test", "doctest_contract"],
+        &[
+            "test",
+            "-p",
+            "tak",
+            "--test",
+            "suite",
+            "docs_dump_no_drift_contract",
+        ],
     ]);
 
     assert_eq!(actual, expected, "unexpected //:docs-check steps");

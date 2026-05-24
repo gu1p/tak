@@ -28,11 +28,14 @@ pub enum LabelError {
 ///
 /// Relative labels are resolved against `current_package`.
 ///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
+/// <!-- tak-docs:include title="Parse Tak task labels" -->
+/// ```rust
+/// use tak_core::label::parse_label;
+///
+/// let label = parse_label("apps/web:build", "//")?;
+/// assert_eq!(label.package, "//apps/web");
+/// assert_eq!(label.name, "build");
+/// # Ok::<(), tak_core::label::LabelError>(())
 /// ```
 pub fn parse_label(raw: &str, current_package: &str) -> Result<TaskLabel, LabelError> {
     let trimmed = raw.trim();

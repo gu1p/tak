@@ -11,7 +11,7 @@ const CARGO_SHARED_ENV_SCRIPT: &str = "TAK_TEST_TMPDIR=\"${TAK_TEST_TMPDIR:-/var
 && mkdir -p \"$TAK_TEST_TMPDIR\" .tmp/cargo-home .tmp/cargo-target-local \
 && TMPDIR=\"$TAK_TEST_TMPDIR\" CARGO_HOME=\"$PWD/.tmp/cargo-home\" \
 CARGO_TARGET_DIR=\"$PWD/.tmp/cargo-target-local\" \
-CARGO_BUILD_JOBS=\"${CARGO_BUILD_JOBS:-4}\" exec \"$@\"";
+CARGO_BUILD_JOBS=\"${CARGO_BUILD_JOBS:-2}\" exec \"$@\"";
 
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

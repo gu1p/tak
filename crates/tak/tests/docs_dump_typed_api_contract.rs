@@ -18,6 +18,10 @@ const REQUIRED_TYPED_API_TOKENS: [&str; 10] = [
     "#### `Decision.local`",
     "#### `Decision.remote`",
 ];
+const REQUIRED_MULTILINE_FIELD_TOKENS: [&str; 2] = [
+    "- `execution`: `( LocalExecutionSpec | RemoteExecutionSpec | DecideExecutionSpec | ExecutionPolicySpec )`",
+    "- `execution`: `( LocalExecutionSpec | RemoteExecutionSpec | DecideExecutionSpec | ExecutionPolicySpec | None )`",
+];
 
 fn run_docs_dump(cwd: &Path) -> Result<String> {
     let env = BTreeMap::new();
@@ -40,6 +44,16 @@ fn docs_dump_groups_typed_tasks_api_sections() -> Result<()> {
             "missing typed TASKS.py token `{token}`:\n{output}"
         );
     }
+    for token in REQUIRED_MULTILINE_FIELD_TOKENS {
+        assert!(
+            output.contains(token),
+            "missing multiline TASKS.py field token `{token}`:\n{output}"
+        );
+    }
+    assert!(
+        !output.contains(": `(`"),
+        "TASKS.py API field type was truncated to `(`:\n{output}"
+    );
 
     Ok(())
 }

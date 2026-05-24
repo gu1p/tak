@@ -115,5 +115,5 @@ pub(crate) async fn remote_protocol_submit(
 }
 
 pub(super) fn remote_submit_timeout() -> Duration {
-    Duration::from_secs(10)
+    Duration::from_secs(30)
 }

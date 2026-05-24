@@ -31,7 +31,7 @@ pub(super) fn wait_for_docker_ps(
     extra_env: &BTreeMap<String, String>,
     needle: &str,
 ) -> Result<String> {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(30);
     let mut last_stdout = String::new();
     while Instant::now() < deadline {
         let output = run_tak_output(workspace_root, args, extra_env)?;

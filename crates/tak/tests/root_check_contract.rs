@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
-use tak_core::model::{ExecutionPlacementSpec, Hold, LimiterDef, Scope, TaskExecutionSpec};
+use tak_core::model::{
+    ExecutionPlacementSpec, Hold, LimiterDef, RemoteRuntimeSpec, Scope, TaskExecutionSpec,
+};
 
 use crate::support::root_task_contracts::{load_root_spec, parse};
 
@@ -39,6 +41,19 @@ fn repo_root_check_runs_light_checks_then_shared_rust_lane() -> Result<()> {
                 ExecutionPlacementSpec::Remote(remote)
                     if remote.session.as_ref().is_some_and(|session| session.display_name == "check-workspace")
             ));
+            match &placements[0] {
+                ExecutionPlacementSpec::Remote(remote) => {
+                    let Some(RemoteRuntimeSpec::Containerized {
+                        resource_limits: Some(limits),
+                        ..
+                    }) = &remote.runtime
+                    else {
+                        panic!("//:check remote placement should use a sized container");
+                    };
+                    assert_eq!(limits.memory_mb, Some(16_384));
+                }
+                _ => unreachable!("remote placement already asserted"),
+            }
             assert!(matches!(
                 &placements[1],
                 ExecutionPlacementSpec::Local(local) if local.session.is_none()

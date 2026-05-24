@@ -30,6 +30,7 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 hex = "0.4"
 ignore = "0.4"
 predicates = "3.1"
+pulldown-cmark = "0.13.3"
 rusqlite = { version = "0.38", features = ["bundled"] }
 ratatui = { version = "0.30", default-features = false }
 qrcode = { version = "0.14", default-features = false }
@@ -56,6 +57,10 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 webbrowser = "1.0"
 zip = "2.2"
 sysinfo = "0.36.1"
+syn = { version = "2.0", features = ["full", "parsing"] }
 rustls = { version = "0.23", features = ["ring"] }
 monty = { git = "https://github.com/pydantic/monty.git", package = "monty", rev = "fe4a7ebd0f30c6c884721b5bd6271d2bba848f69" }
 monty_type_checking = { git = "https://github.com/pydantic/monty.git", package = "monty_type_checking", rev = "fe4a7ebd0f30c6c884721b5bd6271d2bba848f69" }
+ruff_python_ast = { git = "https://github.com/astral-sh/ruff.git", rev = "6ded4bed1651e30b34dd04cdaa50c763036abb0d" }
+ruff_python_parser = { git = "https://github.com/astral-sh/ruff.git", rev = "6ded4bed1651e30b34dd04cdaa50c763036abb0d" }
+ruff_text_size = { git = "https://github.com/astral-sh/ruff.git", rev = "6ded4bed1651e30b34dd04cdaa50c763036abb0d" }

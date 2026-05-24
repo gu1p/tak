@@ -21,33 +21,16 @@ const HERO_SECTIONS: [&str; 6] = [
     "## Artifacts",
 ];
 
-const ROOT_TOKENS: [&str; 26] = [
-    "`tak list`",
-    "`tak tree`",
-    "`tak explain <label>`",
-    "`tak graph [label] --format dot`",
-    "`tak web [label]`",
-    "`tak run <label...>`",
-    "`tak run //:check`",
-    "`tak run //:coverage`",
-    "`--keep-going`",
-    "`tak status`",
-    "`tak remote add <token>`",
-    "`tak remote list`",
-    "`takd init`",
-    "`takd serve`",
-    "`takd status`",
-    "`takd logs`",
-    "`takd token show`",
-    "`./get-tak.sh`",
-    "`get-takd.sh`",
-    "placement=",
-    "remote_node=",
-    "transport=",
-    "reason=",
-    "context_hash=",
-    "runtime=",
-    "runtime_engine=",
+#[rustfmt::skip]
+const ROOT_TOKENS: [&str; 32] = [
+    "`tak list`", "`tak tree`", "`tak explain <label>`", "`tak graph [label] --format dot`",
+    "`tak web [label]`", "`tak run <label...>`", "`tak run //:check`", "`tak run //:coverage`",
+    "`--keep-going`", "`tak status`", "`tak remote add <token>`", "`tak remote list`",
+    "`tak remote remove <node-id>`", "`tak remote logs --node <id>`", "`tak remote tasks --node <id>`",
+    "`tak remote task logs --node <id> <task-run-id>`", "`tak task list`", "`tak task logs <task-run-id>`",
+    "`takd init`", "`takd serve`", "`takd status`", "`takd logs`", "`takd token show`",
+    "`./get-tak.sh`", "`get-takd.sh`", "placement=", "remote_node=", "transport=", "reason=",
+    "context_hash=", "runtime=", "runtime_engine=",
 ];
 
 #[test]
@@ -56,6 +39,13 @@ fn root_readme_surfaces_full_cli_and_run_metadata() {
     for token in ROOT_TOKENS {
         assert!(readme.contains(token), "README.md missing `{token}`");
     }
+}
+
+#[test]
+fn linked_phased_docs_page_exists() {
+    let path = repo_root().join("docs/ergonomics-and-distribution-phases.md");
+
+    assert!(path.is_file(), "{} should exist", path.display());
 }
 
 #[test]
@@ -85,9 +75,9 @@ fn example_docs_surface_hero_path_and_sections() {
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("repo root should be two levels above tak crate")
+        .ancestors()
+        .nth(2)
+        .unwrap()
         .to_path_buf()
 }
 

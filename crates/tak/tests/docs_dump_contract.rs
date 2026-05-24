@@ -29,6 +29,8 @@ const REQUIRED_EXAMPLE_SOURCE_TOKENS: [&str; 4] = [
     "##### `services/api/TASKS.py`",
     "execution=REMOTE",
 ];
+const REQUIRED_EXAMPLE_SUPPORT_TOKENS: [&str; 2] =
+    ["##### `scripts/matrix_release.sh`", "echo matrix-release"];
 
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -67,6 +69,12 @@ fn docs_dump_embeds_recommended_example_sources() -> Result<()> {
         assert!(
             output.contains(token),
             "missing source token `{token}`:\n{output}"
+        );
+    }
+    for token in REQUIRED_EXAMPLE_SUPPORT_TOKENS {
+        assert!(
+            output.contains(token),
+            "missing support source token `{token}`:\n{output}"
         );
     }
 

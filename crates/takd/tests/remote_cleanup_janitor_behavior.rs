@@ -1,12 +1,13 @@
 #![allow(clippy::await_holding_lock)]
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use takd::{SubmitAttemptStore, build_submit_idempotency_key, run_remote_v1_http_server};
-use tokio::{
-    net::TcpListener,
-    time::{Duration, sleep},
-};
+use tokio::{net::TcpListener, time::sleep};
 
 use crate::support;
 
@@ -14,6 +15,8 @@ use support::env::{EnvGuard, env_lock};
 use support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
 use support::remote_container::configure_fake_docker_env;
 use support::remote_output::{submit_shell_task, test_context_with_runtime};
+
+const REMOTE_WORKER_STATE_TIMEOUT: Duration = Duration::from_secs(45);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
@@ -64,9 +67,9 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
     let active_artifact_root = artifact_root.join(&active_root_name);
     fs::create_dir_all(&active_artifact_root).expect("create active artifact root");
 
-    wait_for_presence(&active_exec_root).await;
-    wait_for_removal(&stale_exec_root).await;
-    wait_for_removal(&stale_artifact_root).await;
+    wait_for_path(&active_exec_root, true, "creation").await;
+    wait_for_path(&stale_exec_root, false, "cleanup").await;
+    wait_for_path(&stale_artifact_root, false, "cleanup").await;
 
     assert!(active_exec_root.exists());
     assert!(active_artifact_root.exists());
@@ -75,24 +78,17 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
     let _ = server.await;
 }
 
-async fn wait_for_removal(path: &Path) {
-    for _ in 0..250 {
-        if !path.exists() {
+async fn wait_for_path(path: &Path, expected_present: bool, action: &str) {
+    let deadline = Instant::now() + REMOTE_WORKER_STATE_TIMEOUT;
+    loop {
+        if path.exists() == expected_present {
             return;
         }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for {action} of {}",
+            path.display()
+        );
         sleep(Duration::from_millis(20)).await;
     }
-
-    panic!("timed out waiting for cleanup of {}", path.display());
-}
-
-async fn wait_for_presence(path: &Path) {
-    for _ in 0..500 {
-        if path.exists() {
-            return;
-        }
-        sleep(Duration::from_millis(20)).await;
-    }
-
-    panic!("timed out waiting for creation of {}", path.display());
 }

@@ -3,6 +3,8 @@ mod daemon_surface_contract;
 mod docker_cli_contract;
 mod docs_catalog_contract;
 mod docs_dump_contract;
+mod docs_dump_no_drift_contract;
+mod docs_dump_parser_contract;
 mod docs_dump_source_contract;
 mod docs_dump_typed_api_contract;
 mod docs_hero_contract;

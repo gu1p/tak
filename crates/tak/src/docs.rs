@@ -1,3 +1,4 @@
+mod authoring_workflow;
 mod cli;
 mod dsl;
 mod dsl_render;
@@ -5,6 +6,7 @@ mod examples;
 mod examples_parse;
 mod model;
 mod rustdoc;
+mod rustdoc_render;
 mod text;
 
 use std::collections::BTreeMap;
@@ -16,8 +18,13 @@ use self::cli::collect_cli_docs;
 use self::dsl::collect_dsl_docs;
 use self::dsl_render::render_dsl_docs;
 use self::examples::extract_example_source_docs;
-use self::model::{documented_example_sources, documented_examples, load_catalog};
-use self::rustdoc::extract_rust_module_docs;
+use self::model::{
+    RUST_DOC_SOURCES, documented_example_sources, documented_examples, load_catalog,
+};
+use self::rustdoc::{
+    collect_verified_rust_examples, extract_rust_module_docs, extract_rust_module_markdown,
+};
+use self::rustdoc_render::render_verified_rust_examples;
 use self::text::with_trailing_newline;
 
 const TAK_LIB: &str = include_str!("lib.rs");
@@ -25,6 +32,7 @@ const TAK_CORE_LIB: &str = include_str!("../../tak-core/src/lib.rs");
 const TAK_EXEC_LIB: &str = include_str!("../../tak-exec/src/lib.rs");
 const TAK_LOADER_LIB: &str = include_str!("../../tak-loader/src/lib.rs");
 const TAKD_LIB: &str = include_str!("../../takd/src/lib.rs");
+const AUTHORING_WORKFLOW_DOCS: &str = include_str!("docs/authoring_workflow.rs");
 
 pub(crate) fn render_docs_dump() -> Result<String> {
     let catalog = load_catalog()?;
@@ -62,6 +70,9 @@ pub(crate) fn render_docs_dump() -> Result<String> {
     let dsl_docs = collect_dsl_docs()?;
     let example_sources = documented_example_sources();
     let project_shapes = collect_project_shapes(&documented_examples);
+    let verified_examples = collect_verified_rust_examples(RUST_DOC_SOURCES)?;
+    let authoring_workflow = extract_rust_module_markdown(AUTHORING_WORKFLOW_DOCS)
+        .context("failed to extract authoring workflow docs from source docs")?;
 
     let mut output = String::new();
     output.push_str("# Tak Agent Docs\n\n");
@@ -89,6 +100,7 @@ pub(crate) fn render_docs_dump() -> Result<String> {
     }
 
     render_dsl_docs(&mut output, &dsl_docs);
+    render_verified_rust_examples(&mut output, &verified_examples);
 
     output.push_str("## Project Patterns\n\n");
     for (shape, examples) in &project_shapes {
@@ -114,9 +126,8 @@ pub(crate) fn render_docs_dump() -> Result<String> {
     }
 
     output.push_str("## Authoring Workflow\n\n");
-    output.push_str("1. Start from the closest example and keep intent next to the source with `task(doc=...)`, crate docs, and command doc comments.\n");
-    output.push_str("2. Use `tak list`, `tak explain`, and `tak graph` to validate labels and graph shape before you run expensive work.\n");
-    output.push_str("3. Add only the execution, retry, coordination, and remote constructs the project actually needs.\n");
+    output.push_str(authoring_workflow.trim());
+    output.push('\n');
 
     Ok(with_trailing_newline(output))
 }
@@ -168,8 +179,18 @@ fn render_example_entry(
     output.push_str("#### Source Files\n\n");
     for source in sources.source_files {
         let _ = writeln!(output, "##### `{}`\n", source.path);
-        output.push_str("```python\n");
+        let _ = writeln!(output, "```{}", source_language(source.path));
         output.push_str(source.body.trim());
         output.push_str("\n```\n\n");
+    }
+}
+
+fn source_language(path: &str) -> &'static str {
+    if path.ends_with(".py") {
+        "python"
+    } else if path.ends_with(".sh") {
+        "sh"
+    } else {
+        "text"
     }
 }

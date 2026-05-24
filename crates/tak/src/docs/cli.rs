@@ -21,23 +21,21 @@ pub(super) fn collect_cli_docs() -> Vec<CliDocEntry> {
 }
 
 fn collect_command_docs(command: &Command, path: String, entries: &mut Vec<CliDocEntry>) {
-    if path != "tak" {
-        let summary = command_doc_summary(command);
-        let args = command
-            .get_arguments()
-            .filter_map(|arg| {
-                let summary = arg_doc_summary(arg)?;
-                let syntax = render_arg_syntax(&path, arg)?;
-                Some(CliArgDoc { syntax, summary })
-            })
-            .collect::<Vec<_>>();
+    let summary = command_doc_summary(command);
+    let args = command
+        .get_arguments()
+        .filter_map(|arg| {
+            let summary = arg_doc_summary(arg)?;
+            let syntax = render_arg_syntax(&path, arg)?;
+            Some(CliArgDoc { syntax, summary })
+        })
+        .collect::<Vec<_>>();
 
-        entries.push(CliDocEntry {
-            path: path.clone(),
-            summary,
-            args,
-        });
-    }
+    entries.push(CliDocEntry {
+        path: path.clone(),
+        summary,
+        args,
+    });
 
     for subcommand in command.get_subcommands() {
         let subcommand_path = format!("{path} {}", subcommand.get_name());

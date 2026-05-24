@@ -11,7 +11,7 @@ use crate::support::remote_output::test_context_with_runtime;
 #[path = "cancel/result.rs"]
 mod result;
 
-use super::status::{full_node_limits, wait_for_status};
+use super::status::{majority_memory_limits, wait_for_status};
 use super::submit::submit;
 use result::wait_for_result;
 
@@ -36,7 +36,7 @@ async fn queued_remote_submit_can_be_cancelled_before_resource_admission() {
         .with_skip_exec_root_probe(true);
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let limits = full_node_limits(&context, &store);
+    let limits = majority_memory_limits(&context, &store);
 
     submit(&context, &store, "task-run-active", "sleep 60", limits);
     submit(&context, &store, "task-run-queued", "printf queued", limits);

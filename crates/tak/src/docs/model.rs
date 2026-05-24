@@ -34,7 +34,15 @@ pub(super) struct EmbeddedSourceFile {
     pub(super) body: &'static str,
 }
 
+pub(super) struct EmbeddedRustSource {
+    pub(super) crate_name: &'static str,
+    pub(super) path: &'static str,
+    pub(super) body: &'static str,
+    pub(super) doctest_enabled: bool,
+}
+
 include!(concat!(env!("OUT_DIR"), "/docs_dump_examples.rs"));
+include!(concat!(env!("OUT_DIR"), "/docs_rust_sources.rs"));
 
 pub(super) fn load_catalog() -> Result<Catalog> {
     toml::from_str(CATALOG_TOML).context("failed to parse embedded examples catalog")

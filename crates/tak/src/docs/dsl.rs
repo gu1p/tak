@@ -1,8 +1,14 @@
-use std::collections::BTreeMap;
+use anyhow::{Result, anyhow};
+use ruff_python_ast::{Stmt, StmtAnnAssign, StmtClassDef};
+use ruff_python_parser::parse_module;
+use ruff_text_size::Ranged;
 
-use anyhow::{Result, anyhow, bail};
+#[path = "dsl_ast.rs"]
+mod dsl_ast;
 
-use super::text::normalize_doc_text;
+use self::dsl_ast::{
+    SourceLines, class_start_range, expr_name, extract_python_docstrings, function_start_range,
+};
 
 const PRELUDE: &str = include_str!("../../../tak-loader/src/loader/prelude.py");
 const DSL_STUBS: &str = include_str!("../../../tak-loader/src/loader/dsl_stubs.pyi");
@@ -54,96 +60,119 @@ pub(super) struct DslMethodEntry {
 
 pub(super) fn collect_dsl_docs() -> Result<DslDocs> {
     let docstrings = extract_python_docstrings(PRELUDE)?;
-    let lines = DSL_STUBS.lines().collect::<Vec<_>>();
+    let parsed = parse_module(DSL_STUBS)
+        .map_err(|err| anyhow!("failed to parse embedded TASKS.py DSL stubs: {err}"))?;
+    let source = SourceLines::new(DSL_STUBS);
     let mut docs = DslDocs::default();
-    let mut pending_comments = Vec::new();
-    let mut index = 0;
 
-    while index < lines.len() {
-        let raw_line = lines[index];
-        let trimmed = raw_line.trim();
-
-        if trimmed.is_empty() {
-            pending_comments.clear();
-            index += 1;
-            continue;
-        }
-
-        if !is_top_level(raw_line) {
-            index += 1;
-            continue;
-        }
-
-        if let Some(comment) = parse_stub_comment(trimmed) {
-            pending_comments.push(comment.to_string());
-            index += 1;
-            continue;
-        }
-
-        if trimmed.starts_with("from ") || trimmed.starts_with("import ") {
-            pending_comments.clear();
-            index += 1;
-            continue;
-        }
-
-        if trimmed.starts_with("class ") {
-            let summary = consume_pending_comments(&mut pending_comments);
-            let (entry, methods, next_index) = parse_typed_dict_class(&lines, index, summary)?;
-            if !entry.signature.contains("TypedDict") {
-                docs.constants
-                    .extend(entry.fields.iter().map(|field| DslConstantEntry {
-                        name: format!("{}.{}", entry.name, field.name),
-                        signature: format!("{}.{}: {}", entry.name, field.name, field.ty),
-                        summary: if field.summary.is_empty() {
-                            format!("Typed constant with value type `{}`.", field.ty)
-                        } else {
-                            field.summary.clone()
-                        },
-                    }));
+    for statement in &parsed.syntax().body {
+        match statement {
+            Stmt::ClassDef(class_def) => {
+                let (entry, methods) = collect_class_docs(class_def, &source);
+                if !entry.signature.contains("TypedDict") {
+                    for field in &entry.fields {
+                        docs.constants
+                            .push(class_field_constant(&entry.name, field));
+                    }
+                }
+                docs.types.push(entry);
+                docs.methods.extend(methods);
             }
-            docs.types.push(entry);
-            docs.methods.extend(methods);
-            index = next_index;
-            continue;
+            Stmt::FunctionDef(function) => {
+                let name = function.name.as_str().to_owned();
+                let stub_summary = source.comments_before(function_start_range(function));
+                let summary = docstrings.get(&name).cloned().unwrap_or(stub_summary);
+                docs.functions.push(DslFunctionEntry {
+                    name,
+                    signature: source.function_signature(function),
+                    summary,
+                });
+            }
+            Stmt::AnnAssign(assign) => {
+                if let Some(entry) = collect_constant_doc(assign, &source) {
+                    docs.constants.push(entry);
+                }
+            }
+            _ => {}
         }
-
-        if let Some(rest) = trimmed.strip_prefix("def ") {
-            let Some(name_end) = rest.find('(') else {
-                bail!("failed to parse Python function name from `{trimmed}`");
-            };
-            let name = rest[..name_end].trim().to_string();
-            let stub_summary = consume_pending_comments(&mut pending_comments);
-            let (signature, next_index) = parse_function_signature(&lines, index);
-            let summary = docstrings.get(&name).cloned().unwrap_or(stub_summary);
-            docs.functions.push(DslFunctionEntry {
-                name,
-                signature,
-                summary,
-            });
-            index = next_index;
-            continue;
-        }
-
-        if let Some((name, ty)) = parse_annotated_name_and_type(trimmed) {
-            let summary = consume_pending_comments(&mut pending_comments);
-            docs.constants.push(DslConstantEntry {
-                name,
-                signature: trimmed.to_string(),
-                summary: if summary.is_empty() {
-                    format!("Typed constant with value type `{ty}`.")
-                } else {
-                    summary
-                },
-            });
-            index += 1;
-            continue;
-        }
-
-        pending_comments.clear();
-        index += 1;
     }
 
     Ok(docs)
 }
 
-include!("dsl_parse.rs");
+fn collect_class_docs(
+    class_def: &StmtClassDef,
+    source: &SourceLines<'_>,
+) -> (DslTypeEntry, Vec<DslMethodEntry>) {
+    let mut fields = Vec::new();
+    let mut methods = Vec::new();
+    let class_name = class_def.name.as_str().to_owned();
+
+    for statement in &class_def.body {
+        match statement {
+            Stmt::AnnAssign(assign) => {
+                if let Some(field) = collect_field_doc(assign, source) {
+                    fields.push(field);
+                }
+            }
+            Stmt::FunctionDef(function) => {
+                methods.push(DslMethodEntry {
+                    owner: class_name.clone(),
+                    name: function.name.as_str().to_owned(),
+                    signature: source.function_signature(function),
+                    summary: source.comments_before(function_start_range(function)),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    (
+        DslTypeEntry {
+            name: class_name,
+            signature: source.class_signature(class_def),
+            summary: source.comments_before(class_start_range(class_def)),
+            fields,
+        },
+        methods,
+    )
+}
+
+fn collect_field_doc(assign: &StmtAnnAssign, source: &SourceLines<'_>) -> Option<DslFieldEntry> {
+    let name = expr_name(assign.target.as_ref())?;
+    Some(DslFieldEntry {
+        name,
+        ty: source.annotation_source(assign.annotation.range()),
+        summary: source.comments_before(assign.range()),
+    })
+}
+
+fn collect_constant_doc(
+    assign: &StmtAnnAssign,
+    source: &SourceLines<'_>,
+) -> Option<DslConstantEntry> {
+    let name = expr_name(assign.target.as_ref())?;
+    let ty = source.annotation_source(assign.annotation.range());
+    let summary = source.comments_before(assign.range());
+    Some(DslConstantEntry {
+        name,
+        signature: source.inline_source(assign.range()),
+        summary: if summary.is_empty() {
+            format!("Typed constant with value type `{ty}`.")
+        } else {
+            summary
+        },
+    })
+}
+
+fn class_field_constant(owner: &str, field: &DslFieldEntry) -> DslConstantEntry {
+    DslConstantEntry {
+        name: format!("{owner}.{}", field.name),
+        signature: format!("{owner}.{}: {}", field.name, field.ty),
+        summary: if field.summary.is_empty() {
+            format!("Typed constant with value type `{}`.", field.ty)
+        } else {
+            field.summary.clone()
+        },
+    }
+}
