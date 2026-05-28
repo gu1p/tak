@@ -28,8 +28,8 @@ pub(crate) use direct_base_url::{
     DirectBaseUrlError, parse_direct_base_url, validate_direct_base_url,
 };
 pub(crate) use helpers::node_info_with_transport;
-pub use image_cache_config::{AgentImageCacheConfig, interactive_image_cache_budget_gb};
 use image_cache_config::resolve_init_image_cache_config;
+pub use image_cache_config::{AgentImageCacheConfig, interactive_image_cache_budget_gb};
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
 pub use token_wait::read_token_wait;
 pub use transport_health::{

@@ -7,8 +7,8 @@ use crate::serve_lock::ServiceStateLock;
 use crate::tor_secret_warning;
 use crate::word_table::render_words_table_view;
 use command_model::{Cli, Commands, TaskCommands, TokenCommands};
-use tak_proto::{decode_tor_invite, encode_tor_invite_words};
 use std::io::IsTerminal;
+use tak_proto::{decode_tor_invite, encode_tor_invite_words};
 use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent,
     interactive_image_cache_budget_gb, read_config, read_token, read_token_wait,
