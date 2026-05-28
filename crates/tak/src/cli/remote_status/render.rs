@@ -25,6 +25,38 @@ pub(in crate::cli) fn render_snapshot_with_prefix(
 ) -> String {
     let mut output = format!("{section_prefix}Nodes\n");
     for result in results {
+        if let Some(peer) = &result.peer {
+            output.push_str(&format!(
+                "{} transport={} state={} jobs={} queue={} resources={} protocol={} heartbeat={} last_heartbeat={} last_success={} reconnects={} status={}{}\n",
+                peer.node_id,
+                peer.transport,
+                peer.state,
+                peer.active_job_count
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "n/a".to_string()),
+                peer.queue_depth
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "n/a".to_string()),
+                peer.resource_summary.as_deref().unwrap_or("n/a"),
+                peer.protocol_version.as_deref().unwrap_or("n/a"),
+                peer.heartbeat_rtt_ms
+                    .map(|value| format!("{value}ms"))
+                    .unwrap_or_else(|| "n/a".to_string()),
+                peer.last_heartbeat_ms
+                    .map(age_since)
+                    .unwrap_or_else(|| "never".to_string()),
+                peer.last_successful_connection_ms
+                    .map(age_since)
+                    .unwrap_or_else(|| "never".to_string()),
+                peer.reconnect_attempts,
+                result.error.as_deref().unwrap_or("ok"),
+                peer.last_error_summary
+                    .as_deref()
+                    .map(|value| format!(" detail={value}"))
+                    .unwrap_or_default(),
+            ));
+            continue;
+        }
         let transport = result
             .status
             .as_ref()

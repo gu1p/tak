@@ -1,12 +1,11 @@
 #![allow(clippy::await_holding_lock)]
 use crate::support;
 
-use std::fs;
-use std::io::ErrorKind;
+use std::{fs, io::ErrorKind};
 
 use support::{
-    EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec_with_outputs,
-    shell_step, workspace_output_path, write_remote_inventory,
+    EnvGuard, LocalTorBroker, RemoteInventoryRecord, env_lock, remote_builder_spec,
+    remote_task_spec_with_outputs, shell_step, workspace_output_path, write_remote_inventory,
 };
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
@@ -66,6 +65,7 @@ async fn tor_transport_reaches_non_onion_ipv6_remotes() {
             "tor",
         )],
     );
+    let _broker = LocalTorBroker::spawn(temp.path(), &bind_addr.to_string(), &mut env).await;
 
     let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,

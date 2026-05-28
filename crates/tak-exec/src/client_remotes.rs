@@ -1,51 +1,21 @@
-use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
-use serde::Deserialize;
-use tak_core::model::RemoteSpec;
+use tak_core::{model::RemoteSpec, remote_inventory::default_remote_inventory_path};
 
 use crate::{
     RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteTargetSelection, StrictRemoteTarget,
     engine::remote_models::StrictRemoteTransportKind,
 };
 
-#[derive(Debug, Deserialize)]
-struct RemoteInventoryFile {
-    remotes: Vec<RemoteRecord>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RemoteRecord {
-    node_id: String,
-    base_url: String,
-    bearer_token: String,
-    #[serde(default)]
-    pools: Vec<String>,
-    #[serde(default)]
-    tags: Vec<String>,
-    #[serde(default)]
-    capabilities: Vec<String>,
-    transport: String,
-    enabled: bool,
-}
-
 pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTargetSelection> {
     let path = inventory_path()?;
-    if !path.exists() {
-        return Ok(RemoteTargetSelection {
-            configured_remote_count: 0,
-            enabled_remote_count: 0,
-            enabled_remotes: Vec::new(),
-            matched_targets: Vec::new(),
-        });
-    }
-    let raw = fs::read_to_string(path)?;
-    let inventory: RemoteInventoryFile = toml::from_str(&raw)?;
+    let inventory = tak_core::remote_inventory::load_remote_inventory_at(&path)?;
     let configured_remote_count = inventory.remotes.len();
     let mut enabled_remote_count = 0;
     let mut enabled_remotes = Vec::new();
     let mut matched_targets = Vec::new();
+    let mut matched_tor_target_count = 0;
 
     for candidate in inventory
         .remotes
@@ -98,6 +68,33 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
 
         let transport_kind =
             StrictRemoteTransportKind::from_inventory_value(candidate.transport.as_str());
+        if transport_kind == Some(StrictRemoteTransportKind::Tor) {
+            if rejection_reasons.is_empty()
+                && matches!(
+                    remote.transport_kind,
+                    tak_core::model::RemoteTransportKind::Any
+                        | tak_core::model::RemoteTransportKind::Tor
+                )
+            {
+                matched_tor_target_count += 1;
+            }
+            if remote.transport_kind == tak_core::model::RemoteTransportKind::Direct {
+                rejection_reasons.push(RemoteCandidateRejection::TransportMismatch {
+                    required: remote.transport_kind,
+                    available: "tor".to_string(),
+                });
+            }
+            enabled_remotes.push(RemoteCandidateDiagnostic {
+                node_id: candidate.node_id,
+                endpoint: candidate.base_url,
+                pools: candidate.pools,
+                tags: candidate.tags,
+                capabilities: candidate.capabilities,
+                transport: candidate.transport,
+                rejection_reasons,
+            });
+            continue;
+        }
         if transport_kind.is_none_or(|kind| !kind.matches_requested(remote.transport_kind)) {
             rejection_reasons.push(RemoteCandidateRejection::TransportMismatch {
                 required: remote.transport_kind,
@@ -112,6 +109,10 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
                 transport_kind: transport_kind.expect("matching candidate transport kind"),
                 bearer_token: candidate.bearer_token.clone(),
                 runtime: remote.runtime.clone(),
+                required_pool: remote.pool.clone(),
+                required_tags: remote.required_tags.clone(),
+                required_capabilities: remote.required_capabilities.clone(),
+                daemon_task_handle: None,
             });
         }
 
@@ -131,6 +132,7 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
         enabled_remote_count,
         enabled_remotes,
         matched_targets,
+        matched_tor_target_count,
     })
 }
 
@@ -148,9 +150,5 @@ fn candidate_matches_capability(
 }
 
 fn inventory_path() -> Result<PathBuf> {
-    let root = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .map_err(|_| anyhow!("failed to resolve config home"))?;
-    Ok(root.join("tak").join("remotes.toml"))
+    default_remote_inventory_path().map_err(|_| anyhow!("failed to resolve config home"))
 }

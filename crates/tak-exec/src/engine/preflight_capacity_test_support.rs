@@ -43,5 +43,9 @@ pub(super) fn target() -> StrictRemoteTarget {
                 memory_mb: Some(512),
             }),
         }),
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     }
 }

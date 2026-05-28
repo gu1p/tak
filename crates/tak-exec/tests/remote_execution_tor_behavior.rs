@@ -8,8 +8,9 @@ use tak_exec::{RunOptions, run_tasks};
 use crate::support;
 
 use support::{
-    EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_builder_spec,
-    remote_task_spec_with_outputs, shell_step, workspace_output_path, write_remote_inventory,
+    EnvGuard, LocalTorBroker, RemoteInventoryRecord, RunningTakdServer, env_lock,
+    remote_builder_spec, remote_task_spec_with_outputs, shell_step, workspace_output_path,
+    write_remote_inventory,
 };
 
 #[tokio::test]
@@ -27,7 +28,6 @@ async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
     );
 
     let server = RunningTakdServer::spawn("builder-tor", "tor", temp.path()).await;
-    env.set("TAK_TEST_TOR_ONION_DIAL_ADDR", server.bind_addr.clone());
     write_remote_inventory(
         &config_root,
         &[RemoteInventoryRecord::builder(
@@ -37,6 +37,7 @@ async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
             "tor",
         )],
     );
+    let broker = LocalTorBroker::spawn(temp.path(), &server.bind_addr, &mut env).await;
 
     let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
@@ -60,4 +61,5 @@ async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
         fs::read_to_string(workspace_root.join("dist/out.txt")).expect("tor output"),
         "tor\n"
     );
+    assert_eq!(broker.bootstrap_count(), 1);
 }

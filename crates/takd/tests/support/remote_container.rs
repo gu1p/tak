@@ -1,17 +1,16 @@
-use std::env;
-use std::path::Path;
-
+use super::remote_output::empty_workspace_zip;
+use crate::support::env::EnvGuard;
+use crate::support::fake_docker::install_fake_docker;
 use prost::Message;
+use std::{env, path::Path};
 use tak_proto::{
-    CmdStep, ContainerResourceLimits, ContainerRuntime, GetTaskResultResponse, RuntimeSpec, Step,
-    SubmitTaskRequest, SubmitTaskResponse, runtime_spec, step,
+    CmdStep, ContainerResourceLimits, ContainerRuntime, RuntimeSpec, Step, SubmitTaskRequest,
+    SubmitTaskResponse, runtime_spec, step,
 };
 use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
-use crate::support::env::EnvGuard;
-use crate::support::fake_docker::install_fake_docker;
-
-use super::remote_output::empty_workspace_zip;
+mod result;
+pub use result::fetch_result;
 
 pub fn configure_fake_docker_env(
     root: &Path,
@@ -39,6 +38,25 @@ pub fn submit_container_task(
     task_run_id: &str,
     command: &str,
 ) -> SubmitTaskResponse {
+    submit_container_task_with_limits(
+        context,
+        store,
+        task_run_id,
+        command,
+        ContainerResourceLimits {
+            cpu_cores: 1.0,
+            memory_mb: 512,
+        },
+    )
+}
+
+pub fn submit_container_task_with_limits(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+    command: &str,
+    resource_limits: ContainerResourceLimits,
+) -> SubmitTaskResponse {
     let submit = SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt: 1,
@@ -56,10 +74,7 @@ pub fn submit_container_task(
                 image: Some("alpine:3.20".to_string()),
                 dockerfile: None,
                 build_context: None,
-                resource_limits: Some(ContainerResourceLimits {
-                    cpu_cores: 1.0,
-                    memory_mb: 512,
-                }),
+                resource_limits: Some(resource_limits),
             })),
         }),
         task_label: "//apps/web:test".to_string(),
@@ -71,6 +86,7 @@ pub fn submit_container_task(
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
         fused_members: Vec::new(),
         execution_label: None,
+        workspace_upload: None,
     };
     let submit = handle_remote_v1_request(
         context,
@@ -81,20 +97,4 @@ pub fn submit_container_task(
     )
     .expect("submit response");
     SubmitTaskResponse::decode(submit.body.as_slice()).expect("decode submit")
-}
-
-pub fn fetch_result(
-    context: &RemoteNodeContext,
-    store: &SubmitAttemptStore,
-    task_run_id: &str,
-) -> GetTaskResultResponse {
-    let response = handle_remote_v1_request(
-        context,
-        store,
-        "GET",
-        &format!("/v1/tasks/{task_run_id}/result"),
-        None,
-    )
-    .expect("result response");
-    GetTaskResultResponse::decode(response.body.as_slice()).expect("decode result")
 }

@@ -17,7 +17,7 @@ REMOTE = Execution.Remote(
   pool="build",
   required_tags=["builder"],
   required_capabilities=["linux"],
-  transport=Transport.TorOnionService(),
+  transport=Transport.DirectHttps(),
   container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)),
 )
 
@@ -32,14 +32,14 @@ SPEC
     write_remote_inventory(
         &config_root,
         &[RemoteRecord {
-            node_id: "builder-direct".into(),
-            display_name: "builder-direct".into(),
-            base_url: "not-a-url".into(),
+            node_id: "builder-tor".into(),
+            display_name: "builder-tor".into(),
+            base_url: "http://builder-tor.onion".into(),
             bearer_token: "secret".into(),
             pools: vec!["build".into()],
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
-            transport: "direct".into(),
+            transport: "tor".into(),
             enabled: true,
         }],
     )?;
@@ -57,12 +57,12 @@ SPEC
     assert!(
         stderr.contains(concat!(
             "Required remote: pool=build ",
-            "tags=builder capabilities=linux transport=tor",
+            "tags=builder capabilities=linux transport=direct",
         )),
         "stderr:\n{stderr}"
     );
     assert!(
-        stderr.contains("transport mismatch: required tor, remote transport=direct"),
+        stderr.contains("transport mismatch: required direct, remote transport=tor"),
         "stderr:\n{stderr}"
     );
     Ok(())

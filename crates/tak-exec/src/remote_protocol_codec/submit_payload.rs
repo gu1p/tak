@@ -1,4 +1,5 @@
 use super::*;
+use tak_proto::WorkspaceUploadRef;
 
 pub(crate) struct RemoteSubmitPayloadInput<'a> {
     pub(crate) target: &'a StrictRemoteTarget,
@@ -10,6 +11,7 @@ pub(crate) struct RemoteSubmitPayloadInput<'a> {
     pub(crate) execution_label: Option<&'a str>,
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
     pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
+    pub(crate) workspace_upload: Option<&'a WorkspaceUploadRef>,
 }
 
 pub(crate) fn build_remote_submit_payload(
@@ -25,15 +27,19 @@ pub(crate) fn build_remote_submit_payload(
         execution_label,
         fused_members,
         fused_member_execution_labels,
+        workspace_upload,
     } = input;
     let _ = &remote_workspace.manifest_hash;
     let metadata = task_run_metadata_for_runtime(task, target.runtime.as_ref());
     Ok(SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt,
-        workspace_zip: base64::engine::general_purpose::STANDARD
-            .decode(&remote_workspace.archive_zip_base64)
-            .context("failed decoding staged workspace archive")?,
+        workspace_zip: match workspace_upload {
+            Some(_) => Vec::new(),
+            None => base64::engine::general_purpose::STANDARD
+                .decode(&remote_workspace.archive_zip_base64)
+                .context("failed decoding staged workspace archive")?,
+        },
         steps: task
             .steps
             .iter()
@@ -60,6 +66,7 @@ pub(crate) fn build_remote_submit_payload(
             })
             .collect::<Result<Vec<_>>>()?,
         execution_label: execution_label.map(str::to_string),
+        workspace_upload: workspace_upload.cloned(),
     })
 }
 

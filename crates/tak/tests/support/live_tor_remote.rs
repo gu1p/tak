@@ -59,13 +59,25 @@ pub fn assert_remote_list(workspace_root: &Path, roots: &LiveTorRoots, node_id: 
 }
 
 pub fn assert_remote_status_ok(workspace_root: &Path, roots: &LiveTorRoots, node_id: &str) {
+    assert_remote_status_ok_with_env(workspace_root, roots, node_id, &BTreeMap::new());
+}
+
+pub fn assert_remote_status_ok_with_env(
+    workspace_root: &Path,
+    roots: &LiveTorRoots,
+    node_id: &str,
+    extra_env: &BTreeMap<String, String>,
+) {
     roots.prepare_poisoned_client_ambient_dirs();
-    let output = tak_command(workspace_root, &roots.client_config_root)
+    let mut command = tak_command(workspace_root, &roots.client_config_root);
+    command
         .env("XDG_DATA_HOME", roots.poisoned_client_data_home())
         .env("XDG_CACHE_HOME", roots.poisoned_client_cache_home())
-        .args(["remote", "status", "--node", node_id])
-        .output()
-        .expect("run tak remote status");
+        .args(["remote", "status", "--node", node_id]);
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
+    let output = command.output().expect("run tak remote status");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         output.status.success(),

@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use tak_proto::NodeStatusResponse;
+use tak_proto::{NodePingResponse, NodeStatusResponse};
 
 use super::RemoteNodeContext;
 use crate::daemon::remote::execution_root::remote_execution_root_base;
@@ -57,7 +57,77 @@ impl RemoteNodeContext {
         )
     }
 
+    pub(crate) fn node_ping(&self) -> Result<NodePingResponse> {
+        let status = self.node_status()?;
+        let node = status
+            .node
+            .as_ref()
+            .ok_or_else(|| anyhow!("node status did not include node metadata"))?;
+        Ok(NodePingResponse {
+            node_id: node.node_id.clone(),
+            protocol_version: "v1".to_string(),
+            health: ping_health(node),
+            active_job_count: bounded_len(status.active_jobs.len()),
+            queue_depth: bounded_len(status.queued_jobs.len()),
+            resource_summary: compact_resource_summary(&status),
+        })
+    }
+
     pub(crate) fn shared_status_state(&self) -> SharedNodeStatusState {
         self.status_state.clone()
     }
+}
+
+fn ping_health(node: &tak_proto::NodeInfo) -> String {
+    if node.healthy {
+        "healthy".to_string()
+    } else if node.transport_state.is_empty() {
+        "unhealthy".to_string()
+    } else {
+        node.transport_state.clone()
+    }
+}
+
+fn bounded_len(len: usize) -> u32 {
+    u32::try_from(len).unwrap_or(u32::MAX)
+}
+
+fn compact_resource_summary(status: &NodeStatusResponse) -> String {
+    let cpu = status
+        .cpu
+        .as_ref()
+        .map(cpu_summary)
+        .unwrap_or_else(|| "cpu=unknown".to_string());
+    let memory = status
+        .memory
+        .as_ref()
+        .map(memory_summary)
+        .unwrap_or_else(|| "memory=unknown".to_string());
+    let storage = status
+        .storage
+        .as_ref()
+        .map(storage_summary)
+        .unwrap_or_else(|| "storage=unknown".to_string());
+    format!("{cpu} {memory} {storage}")
+}
+
+fn cpu_summary(cpu: &tak_proto::CpuUsage) -> String {
+    match cpu.tak_admission_available_cores {
+        Some(available) => format!("cpu_available={available:.2}"),
+        None => format!("cpu_cores={}", cpu.logical_cores),
+    }
+}
+
+fn memory_summary(memory: &tak_proto::MemoryUsage) -> String {
+    match memory.tak_admission_available_bytes {
+        Some(available) => format!("memory_available_mb={}", available / 1024 / 1024),
+        None => format!("memory_total_mb={}", memory.total_bytes / 1024 / 1024),
+    }
+}
+
+fn storage_summary(storage: &tak_proto::StorageUsage) -> String {
+    format!(
+        "storage_available_mb={}",
+        storage.available_bytes / 1024 / 1024
+    )
 }

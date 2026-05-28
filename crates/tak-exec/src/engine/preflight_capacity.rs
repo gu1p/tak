@@ -27,6 +27,9 @@ pub(crate) async fn remote_target_has_capacity(target: &StrictRemoteTarget) -> R
 }
 
 pub(crate) async fn remote_target_load(target: &StrictRemoteTarget) -> Result<RemoteTargetLoad> {
+    if target.is_daemon_tor_placement() {
+        return Ok(RemoteTargetLoad::unknown());
+    }
     let (status, body) = super::protocol_result_http::remote_protocol_http_request(
         target,
         "GET",

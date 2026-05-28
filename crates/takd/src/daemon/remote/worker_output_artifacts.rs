@@ -44,30 +44,6 @@ pub(super) fn stage_remote_worker_outputs(
     Ok(())
 }
 
-pub(super) fn read_staged_remote_output(
-    artifact_root: &Path,
-    relative_path: &str,
-) -> Result<Option<Vec<u8>>> {
-    if !artifact_root.exists() {
-        return Ok(None);
-    }
-
-    let output_path = artifact_root.join(relative_path);
-    let bytes = match fs::read(&output_path) {
-        Ok(bytes) => bytes,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => {
-            return Err(err).with_context(|| {
-                format!(
-                    "failed to read staged remote output {}",
-                    output_path.display()
-                )
-            });
-        }
-    };
-    Ok(Some(bytes))
-}
-
 fn clear_remote_output_artifacts(artifact_root: &Path) -> Result<()> {
     match fs::remove_dir_all(artifact_root) {
         Ok(()) => Ok(()),

@@ -84,6 +84,10 @@ pub(super) fn targets() -> Vec<StrictRemoteTarget> {
             transport_kind: StrictRemoteTransportKind::Direct,
             bearer_token: "secret".into(),
             runtime: None,
+            required_pool: None,
+            required_tags: Vec::new(),
+            required_capabilities: Vec::new(),
+            daemon_task_handle: None,
         })
         .collect()
 }

@@ -47,6 +47,7 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
         command: Some("sh -c 'sleep 1'".into()),
         fused_members: Vec::new(),
         execution_label: Some("check.build".into()),
+        workspace_upload: None,
     };
     let submit = handle_remote_v1_request(
         &context,

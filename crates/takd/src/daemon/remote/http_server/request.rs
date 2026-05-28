@@ -5,6 +5,7 @@ const MAX_REQUEST_HEADER_BYTES: usize = 64 * 1024;
 pub(super) struct ParsedHttpRequest {
     pub(super) method: String,
     pub(super) path: String,
+    pub(super) headers: Vec<(String, String)>,
     pub(super) authorization: Option<String>,
     pub(super) body: Option<Vec<u8>>,
 }
@@ -87,8 +88,9 @@ where
     ))?;
     let header_text = String::from_utf8_lossy(&request_bytes[..header_end]);
     let (method, path) = parse_request_line(&header_text).map_err(ReadHttpRequestError::Parse)?;
+    let headers = parse_headers(&header_text);
     let content_length = parse_content_length(&header_text).map_err(ReadHttpRequestError::Parse)?;
-    let authorization = parse_authorization(&header_text);
+    let authorization = header_value(&headers, "authorization").map(str::to_string);
 
     let mut body = request_bytes[header_end..].to_vec();
     while body.len() < content_length {
@@ -108,6 +110,7 @@ where
     Ok(Some(ParsedHttpRequest {
         method,
         path,
+        headers,
         authorization,
         body: if body.is_empty() { None } else { Some(body) },
     }))
@@ -117,13 +120,6 @@ pub(super) fn request_is_authorized(
     request: &ParsedHttpRequest,
     context: &RemoteNodeContext,
 ) -> bool {
-    if context
-        .node_info()
-        .ok()
-        .is_some_and(|node| node.transport == "tor")
-    {
-        return true;
-    }
     if context.bearer_token.trim().is_empty() {
         return false;
     }
@@ -145,28 +141,30 @@ fn parse_request_line(
 }
 
 fn parse_content_length(header_text: &str) -> std::result::Result<usize, RequestParseError> {
-    for line in header_text.lines() {
-        let Some((name, value)) = line.split_once(':') else {
-            continue;
-        };
-        if !name.trim().eq_ignore_ascii_case("content-length") {
-            continue;
-        }
-        return value
-            .trim()
-            .parse::<usize>()
-            .map_err(|_| RequestParseError::InvalidContentLength);
-    }
-    Ok(0)
+    let headers = parse_headers(header_text);
+    let Some(value) = header_value(&headers, "content-length") else {
+        return Ok(0);
+    };
+    value
+        .parse::<usize>()
+        .map_err(|_| RequestParseError::InvalidContentLength)
 }
 
-fn parse_authorization(header_text: &str) -> Option<String> {
-    header_text.lines().find_map(|line| {
-        let (name, value) = line.split_once(':')?;
-        if name.trim().eq_ignore_ascii_case("authorization") {
-            Some(value.trim().to_string())
-        } else {
-            None
-        }
+fn parse_headers(header_text: &str) -> Vec<(String, String)> {
+    header_text
+        .lines()
+        .skip(1)
+        .filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            Some((name.trim().to_string(), value.trim().to_string()))
+        })
+        .collect()
+}
+
+fn header_value<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    headers.iter().find_map(|(candidate, value)| {
+        candidate
+            .eq_ignore_ascii_case(name)
+            .then_some(value.as_str())
     })
 }

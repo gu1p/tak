@@ -1,6 +1,6 @@
 use tak_proto::{
-    TOR_INVITE_WORD_COUNT, decode_tor_invite_words, encode_tor_invite, encode_tor_invite_words,
-    normalize_tor_invite_word,
+    TOR_INVITE_WORD_COUNT, decode_tor_invite_words, encode_tor_invite,
+    encode_tor_invite_with_bearer, encode_tor_invite_words, normalize_tor_invite_word,
 };
 
 const V3_BASE_URL: &str = "http://pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion";
@@ -66,4 +66,13 @@ fn tor_invite_word_encoder_rejects_non_v3_onion_hosts() {
 
     let error = encode_tor_invite_words(&invite).expect_err("non-v3 onion should fail");
     assert!(error.to_string().contains("v3"));
+}
+
+#[test]
+fn tor_invite_word_encoder_rejects_bearer_protected_invites() {
+    let invite =
+        encode_tor_invite_with_bearer(V3_BASE_URL, "secret").expect("encode authenticated invite");
+
+    let error = encode_tor_invite_words(&invite).expect_err("words would drop bearer auth");
+    assert!(error.to_string().contains("bearer"));
 }

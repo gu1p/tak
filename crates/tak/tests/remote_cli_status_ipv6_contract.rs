@@ -41,6 +41,7 @@ fn remote_status_reaches_direct_ipv6_nodes() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-ipv6"])
         .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak remote status");
     assert!(

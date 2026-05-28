@@ -63,6 +63,21 @@ pub(super) fn binary_response(
     RemoteV1Response {
         status_code,
         content_type: content_type.to_string(),
+        headers: Vec::new(),
+        body: body.into(),
+    }
+}
+
+pub(super) fn binary_response_with_headers(
+    status_code: u16,
+    content_type: &str,
+    headers: Vec<(String, String)>,
+    body: impl Into<Vec<u8>>,
+) -> RemoteV1Response {
+    RemoteV1Response {
+        status_code,
+        content_type: content_type.to_string(),
+        headers,
         body: body.into(),
     }
 }

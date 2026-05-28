@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow, bail};
 
-use crate::token::{crc32c, decode_tor_invite, encode_tor_invite};
+use crate::token::{crc32c, decode_tor_invite_payload, encode_tor_invite};
 
 mod base_conversion;
 mod dictionary;
@@ -11,8 +11,12 @@ pub const TOR_INVITE_WORD_COUNT: usize = DATA_WORD_COUNT + 1;
 const CHECKSUM_PREFIX: &[u8] = b"takd-onion-words-v1";
 
 pub fn encode_tor_invite_words(invite: &str) -> Result<String> {
-    let base_url = decode_tor_invite(invite)
+    let invite = decode_tor_invite_payload(invite)
         .map_err(|_| anyhow!("tor invite words require a takd:tor: invite"))?;
+    if !invite.bearer_token.is_empty() {
+        bail!("tor invite words do not support bearer-protected invites");
+    }
+    let base_url = invite.base_url;
     let onion_bytes = onion_v3::onion_bytes_from_base_url(&base_url)?;
     let data_indices = base_conversion::encode_word_indices(&onion_bytes, DATA_WORD_COUNT)?;
     let checksum = checksum_word_index(&onion_bytes)?;

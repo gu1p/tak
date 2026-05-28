@@ -11,9 +11,10 @@ where
 {
     let status = http_status_line(response.status_code);
     let head = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {}\r\nContent-Length: {}\r\n{}Connection: close\r\n\r\n",
         response.content_type,
         response.body.len(),
+        rendered_headers(&response.headers),
     );
     stream
         .write_all(head.as_bytes())
@@ -60,11 +61,21 @@ fn http_status_line(status_code: u16) -> &'static str {
     match status_code {
         200 => "200 OK",
         202 => "202 Accepted",
+        206 => "206 Partial Content",
         400 => "400 Bad Request",
         401 => "401 Unauthorized",
         403 => "403 Forbidden",
         404 => "404 Not Found",
+        409 => "409 Conflict",
+        416 => "416 Range Not Satisfiable",
         500 => "500 Internal Server Error",
         _ => "500 Internal Server Error",
     }
+}
+
+fn rendered_headers(headers: &[(String, String)]) -> String {
+    headers
+        .iter()
+        .map(|(name, value)| format!("{name}: {value}\r\n"))
+        .collect()
 }

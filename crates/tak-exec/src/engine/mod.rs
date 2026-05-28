@@ -14,6 +14,8 @@ mod lease_context;
 mod output_observer;
 mod placement;
 mod placement_remote;
+#[cfg(test)]
+mod placement_remote_tests;
 mod placement_session;
 mod preflight_capacity;
 pub(crate) mod preflight_failure;
@@ -58,6 +60,19 @@ mod workspace_collect;
 mod workspace_outputs;
 mod workspace_stage;
 mod workspace_sync;
+#[path = "workspace_sync_test_support.rs"]
+mod workspace_sync_test_support;
+#[path = "workspace_sync_tests.rs"]
+mod workspace_sync_tests;
+mod workspace_upload;
+#[path = "workspace_upload_auth_tests.rs"]
+mod workspace_upload_auth_tests;
+#[path = "workspace_upload_raw_http_test_support.rs"]
+mod workspace_upload_raw_http_test_support;
+#[path = "workspace_upload_test_support.rs"]
+mod workspace_upload_test_support;
+#[path = "workspace_upload_tests.rs"]
+mod workspace_upload_tests;
 
 pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
 pub use public_types::{

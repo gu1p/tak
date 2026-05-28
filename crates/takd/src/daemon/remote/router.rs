@@ -15,6 +15,17 @@ pub fn handle_remote_v1_request(
     path: &str,
     body: Option<&[u8]>,
 ) -> Result<RemoteV1Response> {
+    handle_remote_v1_request_with_headers(context, store, method, path, &[], body)
+}
+
+pub(super) fn handle_remote_v1_request_with_headers(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    method: &str,
+    path: &str,
+    headers: &[(String, String)],
+    body: Option<&[u8]>,
+) -> Result<RemoteV1Response> {
     let method = method.trim().to_ascii_uppercase();
     let (path_only, query) = split_path_and_query(path);
 
@@ -31,11 +42,16 @@ pub fn handle_remote_v1_request(
     if method == "POST" && path_only == "/v1/tasks/submit" {
         return handle_remote_submit_route(context, store, body);
     }
+    if let Some(response) = handle_workspace_upload_route(context, &method, path_only, query, body)?
+    {
+        return Ok(response);
+    }
 
     if let Some(response) = handle_remote_events_route(context, store, &method, path_only, query)? {
         return Ok(response);
     }
-    if let Some(response) = handle_remote_outputs_route(context, store, &method, path_only, query)?
+    if let Some(response) =
+        handle_remote_outputs_route(context, store, &method, path_only, query, headers)?
     {
         return Ok(response);
     }

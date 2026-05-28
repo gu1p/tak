@@ -1,4 +1,4 @@
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -51,9 +51,10 @@ pub(super) fn resolve_init_image_cache_config(
             state_root,
             positive_decimal(value, "--image-cache-budget-percent")?,
         )?
-    } else if io::stdin().is_terminal() {
-        interactive_image_cache_budget_gb(state_root)?
     } else {
+        // Library callers must never block on stdin. The takd binary's CLI
+        // separately prompts the user (when stdin is a TTY) before calling
+        // init_agent and passes an explicit budget through.
         budget_gb_from_percent(state_root, 20.0)?
     };
 
@@ -66,7 +67,7 @@ pub(super) fn resolve_init_image_cache_config(
     })
 }
 
-fn interactive_image_cache_budget_gb(state_root: &Path) -> Result<f64> {
+pub fn interactive_image_cache_budget_gb(state_root: &Path) -> Result<f64> {
     let available_gb = available_bytes_for_path(state_root)? as f64 / 1_000_000_000.0;
     println!("Choose Tak image cache budget for this node.");
     println!("Current available storage near state root: {available_gb:.1}GB");

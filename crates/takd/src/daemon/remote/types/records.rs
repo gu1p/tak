@@ -8,6 +8,7 @@ pub struct SubmitEventRecord {
 pub struct RemoteV1Response {
     pub status_code: u16,
     pub content_type: String,
+    pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
 }
 

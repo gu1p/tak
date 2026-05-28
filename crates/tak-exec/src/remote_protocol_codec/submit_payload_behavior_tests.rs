@@ -29,6 +29,7 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
         execution_label: Some("check.build"),
         fused_members: None,
         fused_member_execution_labels: None,
+        workspace_upload: None,
     })
     .expect("submit payload");
 

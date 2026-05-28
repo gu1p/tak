@@ -61,9 +61,9 @@ pub async fn run_remote_v1_tor_hidden_service(
 
         while let Some(stream_request) = stream_requests.next().await {
             match stream_request.accept(Connected::new_empty()).await {
-                Ok(mut stream) => {
+                Ok(stream) => {
                     if let Err(err) =
-                        handle_remote_v1_http_stream(&mut stream, &store, &context).await
+                        handle_remote_v1_stream(stream, store.clone(), context.clone()).await
                     {
                         tracing::error!("takd onion service stream handling failed: {err}");
                     }

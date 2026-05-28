@@ -1,4 +1,6 @@
-use tak_proto::{decode_tor_invite, encode_tor_invite};
+use tak_proto::{
+    decode_tor_invite, decode_tor_invite_payload, encode_tor_invite, encode_tor_invite_with_bearer,
+};
 
 #[test]
 fn tor_invites_round_trip_base_url_with_checksum() {
@@ -11,6 +13,29 @@ fn tor_invites_round_trip_base_url_with_checksum() {
         decode_tor_invite(&invite).expect("decode tor invite"),
         "http://builder-a.onion"
     );
+}
+
+#[test]
+fn tor_invites_can_carry_bearer_token_for_authenticated_peers() {
+    let invite = encode_tor_invite_with_bearer("http://builder-a.onion", "secret-token")
+        .expect("encode tor invite");
+    let payload = decode_tor_invite_payload(&invite).expect("decode tor invite payload");
+
+    assert_eq!(payload.base_url, "http://builder-a.onion");
+    assert_eq!(payload.bearer_token, "secret-token");
+    assert_eq!(
+        decode_tor_invite(&invite).expect("decode tor invite"),
+        "http://builder-a.onion"
+    );
+}
+
+#[test]
+fn legacy_tor_invites_decode_with_empty_bearer_token() {
+    let invite = encode_tor_invite("http://builder-a.onion").expect("encode tor invite");
+    let payload = decode_tor_invite_payload(&invite).expect("decode tor invite payload");
+
+    assert_eq!(payload.base_url, "http://builder-a.onion");
+    assert_eq!(payload.bearer_token, "");
 }
 
 #[test]

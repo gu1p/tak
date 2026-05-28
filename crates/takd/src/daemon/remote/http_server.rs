@@ -1,8 +1,12 @@
 use super::*;
 
+mod http2;
+mod prefixed_io;
 mod request;
 mod response;
 
+use http2::handle_remote_v1_http2_stream;
+use prefixed_io::{PrefixedIo, read_protocol_prefix};
 use request::{ReadHttpRequestError, read_http_request, request_is_authorized};
 use response::write_http_response;
 
@@ -19,19 +23,28 @@ pub async fn run_remote_v1_http_server(
         let store = store.clone();
         let context = context.clone();
         tokio::spawn(async move {
-            if let Err(err) = handle_remote_v1_http_client(stream, store, context).await {
+            if let Err(err) = handle_remote_v1_stream(stream, store, context).await {
                 tracing::error!("remote v1 http client handling error: {err}");
             }
         });
     }
 }
 
-async fn handle_remote_v1_http_client(
-    mut stream: TcpStream,
+pub(crate) async fn handle_remote_v1_stream<S>(
+    mut stream: S,
     store: SubmitAttemptStore,
     context: RemoteNodeContext,
-) -> Result<()> {
-    handle_remote_v1_http_stream(&mut stream, &store, &context).await
+) -> Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let prefix = read_protocol_prefix(&mut stream).await?;
+    let prefixed = PrefixedIo::new(prefix.bytes, stream);
+    if prefix.is_http2 {
+        return handle_remote_v1_http2_stream(prefixed, store, context).await;
+    }
+    let mut prefixed = prefixed;
+    handle_remote_v1_http_stream(&mut prefixed, &store, &context).await
 }
 
 pub(crate) async fn handle_remote_v1_http_stream<S>(
@@ -56,11 +69,12 @@ where
         write_http_response(stream, &error_response(401, "auth_failed")).await?;
         return Ok(());
     }
-    let response = handle_remote_v1_request(
+    let response = handle_remote_v1_request_with_headers(
         context,
         store,
         &request.method,
         &request.path,
+        &request.headers,
         request.body.as_deref(),
     )?;
     write_http_response(stream, &response).await?;

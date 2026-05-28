@@ -30,26 +30,25 @@ async fn remote_preflight_reports_live_recovering_state_before_submit() {
         .expect("bind listener");
     let bind_addr = listener.local_addr().expect("listener addr");
     env.set("XDG_CONFIG_HOME", config_root.display().to_string());
-    env.set("TAK_TEST_TOR_ONION_DIAL_ADDR", bind_addr.to_string());
     write_remote_inventory(
         &config_root,
         &[RemoteInventoryRecord::builder(
             "builder-a",
-            "http://builder-a.onion",
+            &format!("http://{bind_addr}"),
             "secret",
-            "tor",
+            "direct",
         )],
     );
     let context = RemoteNodeContext::new(
         NodeInfo {
             node_id: "builder-a".into(),
             display_name: "builder-a".into(),
-            base_url: "http://builder-a.onion".into(),
+            base_url: format!("http://{bind_addr}"),
             healthy: false,
             pools: vec!["build".into()],
             tags: vec!["builder".into()],
             capabilities: vec!["linux".into()],
-            transport: "tor".into(),
+            transport: "direct".into(),
             transport_state: "recovering".into(),
             transport_detail: "self-probe failed".into(),
         },
@@ -64,7 +63,7 @@ async fn remote_preflight_reports_live_recovering_state_before_submit() {
         &workspace_root,
         "check",
         vec![shell_step("echo nope")],
-        remote_builder_spec(RemoteTransportKind::Tor),
+        remote_builder_spec(RemoteTransportKind::Direct),
     );
     let err = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

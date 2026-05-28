@@ -35,6 +35,7 @@ struct ResourceAdmissionLock {
 struct ResourceAdmissionState {
     capacity: ResourceCapacity,
     usage_source: ResourceUsageSource,
+    protect_external_usage: bool,
     reservations: BTreeMap<String, ResourceRequest>,
     queue: VecDeque<ResourceRequest>,
 }
@@ -67,6 +68,7 @@ impl SharedResourceAdmission {
                         cpu_sample_ready: true,
                         tak_container_usage,
                     },
+                    protect_external_usage: std::env::var("TAK_TEST_IGNORE_HOST_USAGE").is_err(),
                     reservations: BTreeMap::new(),
                     queue: VecDeque::new(),
                 }),
@@ -159,10 +161,18 @@ fn can_fit(state: &mut ResourceAdmissionState, request: &ResourceRequest) -> boo
     let usage = state.usage_source.snapshot(state.capacity);
     let requested_cpu = request.resource_limits.cpu_cores.unwrap_or(0.0);
     let requested_memory = request.resource_limits.memory_mb.unwrap_or(0);
-    let protected_cpu =
-        protected_cpu_usage(usage.tak_cpu_cores, usage.host_cpu_cores_used) + used.cpu_cores;
-    let protected_memory = protected_memory_usage(usage.tak_memory_mb, usage.host_memory_mb_used)
-        .saturating_add(used.memory_mb);
+    let external_cpu = if state.protect_external_usage {
+        protected_cpu_usage(usage.tak_cpu_cores, usage.host_cpu_cores_used)
+    } else {
+        0.0
+    };
+    let external_memory = if state.protect_external_usage {
+        protected_memory_usage(usage.tak_memory_mb, usage.host_memory_mb_used)
+    } else {
+        0
+    };
+    let protected_cpu = external_cpu + used.cpu_cores;
+    let protected_memory = external_memory.saturating_add(used.memory_mb);
     protected_cpu + requested_cpu <= state.capacity.cpu_cores
         && protected_memory.saturating_add(requested_memory) <= state.capacity.memory_mb
 }

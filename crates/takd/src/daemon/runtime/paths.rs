@@ -1,11 +1,7 @@
 use super::*;
 
 pub fn default_socket_path() -> PathBuf {
-    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
-        return Path::new(&runtime).join("tak/takd.sock");
-    }
-    let pid = std::process::id();
-    PathBuf::from(format!("/tmp/tak-{pid}.sock"))
+    tak_core::runtime_paths::default_daemon_socket_path()
 }
 
 /// Resolves the default SQLite state path for daemon persistence.

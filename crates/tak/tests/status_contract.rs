@@ -13,6 +13,7 @@ fn status_reports_local_and_remote_sections_without_configured_remotes() {
         .arg("status")
         .env("XDG_CONFIG_HOME", &config_root)
         .env("XDG_STATE_HOME", &state_root)
+        .env("TAKD_SOCKET", temp.path().join("missing-takd.sock"))
         .output()
         .expect("run tak status");
 
@@ -46,6 +47,7 @@ fn status_prefixes_all_remote_sections_when_remotes_are_configured() {
         .args(["status", "--node", "builder-a"])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("XDG_STATE_HOME", &state_root)
+        .env("TAKD_SOCKET", temp.path().join("missing-takd.sock"))
         .output()
         .expect("run tak status");
 

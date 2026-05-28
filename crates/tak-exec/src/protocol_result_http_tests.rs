@@ -38,6 +38,10 @@ async fn remote_protocol_http_request_reads_a_complete_http_body_without_waiting
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     };
 
     let (_, body) = remote_protocol_http_request(
@@ -62,6 +66,10 @@ fn parse_remote_protocol_result_preserves_failure_stderr_tail() {
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     };
     let response = GetTaskResultResponse {
         success: false,

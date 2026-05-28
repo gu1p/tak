@@ -49,6 +49,10 @@ impl SharedActiveExecutions {
         Ok(())
     }
 
+    pub(super) fn keys(&self) -> Result<Vec<String>> {
+        Ok(self.lock()?.by_key.keys().cloned().collect())
+    }
+
     pub(super) fn refresh_client(&self, task_run_id: &str, attempt: Option<u32>) -> Result<()> {
         let now = unix_epoch_ms();
         let mut guard = self.lock()?;

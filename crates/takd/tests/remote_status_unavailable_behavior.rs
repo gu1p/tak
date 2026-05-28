@@ -1,8 +1,7 @@
-use std::fs;
-use std::os::unix::fs::symlink;
-
 use crate::support;
 use prost::Message;
+use std::fs;
+use std::os::unix::fs::symlink;
 use tak_proto::{
     CmdStep, ContainerResourceLimits, ContainerRuntime, ErrorResponse, NodeInfo, RuntimeSpec, Step,
     SubmitTaskRequest, runtime_spec, step,
@@ -61,6 +60,7 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
         command: Some("sh -c 'sleep 1'".into()),
         fused_members: Vec::new(),
         execution_label: None,
+        workspace_upload: None,
     };
     let _ = handle_remote_v1_request(
         &context,

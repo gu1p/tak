@@ -3,7 +3,7 @@
 use std::net::TcpListener as StdTcpListener;
 
 use tak_proto::decode_tor_invite;
-use takd::agent::{InitAgentOptions, init_agent, read_token_wait};
+use takd::agent::{InitAgentOptions, init_agent, read_config, read_token_wait};
 use takd::serve_agent;
 
 use crate::support;
@@ -46,6 +46,7 @@ async fn serve_agent_simulated_tor_retries_initial_startup_failures_until_token_
         },
     )
     .expect("init tor agent");
+    let bearer_token = read_config(&config_root).expect("read config").bearer_token;
 
     let config_for_task = config_root.clone();
     let state_for_task = state_root.clone();
@@ -59,7 +60,7 @@ async fn serve_agent_simulated_tor_retries_initial_startup_failures_until_token_
         .expect("join wait token")
         .expect("wait token");
     let base_url = decode_tor_invite(&token).expect("decode tor invite");
-    let node = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
+    let node = fetch_node_info(&bind_addr, "builder-tor.onion", &bearer_token).await;
 
     assert_eq!(node.node_id, "builder-tor");
     assert_eq!(node.base_url, base_url);

@@ -1,6 +1,12 @@
 use super::*;
 
-pub(super) async fn handle_client(stream: UnixStream, manager: SharedLeaseManager) -> Result<()> {
+pub(super) async fn handle_client(
+    stream: UnixStream,
+    manager: SharedLeaseManager,
+    broker: TorBroker,
+    peers: crate::daemon::peer_manager::PeerManager,
+    tasks: DaemonTaskHandles,
+) -> Result<()> {
     let (reader_half, mut writer_half) = stream.into_split();
     let mut reader = BufReader::new(reader_half);
     let mut line = String::new();
@@ -11,24 +17,35 @@ pub(super) async fn handle_client(stream: UnixStream, manager: SharedLeaseManage
         if bytes == 0 {
             break;
         }
+        if broker::is_http_request_line(&line) {
+            handle_broker_http_request(&broker, line.clone(), &mut reader, &mut writer_half)
+                .await?;
+            break;
+        }
 
-        let response = match decode_and_dispatch_request(line.trim_end(), &manager) {
-            Ok(response) => response,
-            Err(err) => protocol_error_response(line.trim_end(), err),
-        };
+        let response =
+            match decode_and_dispatch_request(line.trim_end(), &manager, &peers, &broker, &tasks)
+                .await
+            {
+                Ok(response) => response,
+                Err(err) => protocol_error_response(line.trim_end(), err),
+            };
         write_protocol_response(&mut writer_half, &response).await?;
     }
 
     Ok(())
 }
 
-fn decode_and_dispatch_request(
+async fn decode_and_dispatch_request(
     raw_request: &str,
     manager: &SharedLeaseManager,
+    peers: &crate::daemon::peer_manager::PeerManager,
+    broker: &TorBroker,
+    tasks: &DaemonTaskHandles,
 ) -> Result<Response> {
     let request: Request = serde_json::from_str(raw_request)
         .with_context(|| format!("invalid request line: {raw_request}"))?;
-    dispatch_request(request, manager)
+    dispatch_request(request, manager, peers, broker, tasks).await
 }
 
 fn protocol_error_response(raw_request: &str, err: anyhow::Error) -> Response {

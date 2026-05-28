@@ -1,29 +1,49 @@
-use super::transport_tor::{shared_tor_client, tor_connect_retry_delay, tor_connect_timeout};
+use super::transport_tor::tor_connect_timeout;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, UnixStream};
 
 use super::{StrictRemoteTarget, remote_models::StrictRemoteTransportKind};
 use crate::endpoint_host_port;
 use crate::endpoint_socket_addr;
-use crate::remote_endpoint::test_tor_onion_dial_addr;
 use crate::socket_addr_from_host_port;
 
-// Tor transport uses an embedded arti_client::TorClient via `shared_tor_client`.
+// Tor onion transport goes through the local takd broker over TAKD_SOCKET.
 pub(crate) trait RemoteIo: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
 impl<T> RemoteIo for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + ?Sized {}
 pub(crate) type RemoteIoStream = Box<dyn RemoteIo + Unpin + Send>;
+
+pub(crate) struct RemoteConnection {
+    pub(crate) stream: RemoteIoStream,
+}
+
+impl RemoteConnection {
+    fn direct(stream: RemoteIoStream) -> Self {
+        Self { stream }
+    }
+
+    fn broker(stream: RemoteIoStream) -> Self {
+        Self { stream }
+    }
+}
 
 pub(crate) fn socket_addr(target: &StrictRemoteTarget) -> Result<String> {
     endpoint_socket_addr(&target.endpoint)
 }
 
-pub(crate) async fn connect(target: &StrictRemoteTarget) -> Result<RemoteIoStream> {
-    match target.transport_kind {
+pub(crate) async fn connect(target: &StrictRemoteTarget) -> Result<RemoteConnection> {
+    if uses_tor_broker(target)? {
+        return connect_tor_broker(target)
+            .await
+            .map(RemoteConnection::broker);
+    }
+    let stream = match target.transport_kind {
         StrictRemoteTransportKind::Direct => connect_direct(target).await,
         StrictRemoteTransportKind::Tor => connect_tor(target).await,
-    }
+    }?;
+    Ok(RemoteConnection::direct(stream))
 }
 
 pub(crate) fn preflight_timeout(target: &StrictRemoteTarget) -> Duration {
@@ -46,42 +66,21 @@ async fn connect_direct(target: &StrictRemoteTarget) -> Result<RemoteIoStream> {
 
 async fn connect_tor(target: &StrictRemoteTarget) -> Result<RemoteIoStream> {
     let (host, port) = endpoint_host_port(&target.endpoint)?;
-    if !host.ends_with(".onion") {
-        let socket_addr = socket_addr_from_host_port(&host, port);
-        let stream = TcpStream::connect(&socket_addr).await?;
-        let stream: RemoteIoStream = Box::new(stream);
-        return Ok(stream);
-    }
+    let socket_addr = socket_addr_from_host_port(&host, port);
+    let stream = TcpStream::connect(&socket_addr).await?;
+    Ok(Box::new(stream))
+}
 
-    if let Some(test_dial_addr) = test_tor_onion_dial_addr() {
-        loop {
-            match TcpStream::connect(&test_dial_addr).await.with_context(|| {
-                format!(
-                    "infra error: remote node {} unavailable at {}",
-                    target.node_id, target.endpoint
-                )
-            }) {
-                Ok(stream) => return Ok(Box::new(stream)),
-                Err(_) => tokio::time::sleep(tor_connect_retry_delay()).await,
-            }
-        }
-    }
-
-    let tor_client = shared_tor_client(target).await?;
-    loop {
-        match tor_client
-            .connect((host.as_str(), port))
-            .await
-            .with_context(|| {
-                format!(
-                    "infra error: remote node {} unavailable at {}",
-                    target.node_id, target.endpoint
-                )
-            }) {
-            Ok(stream) => return Ok(Box::new(stream)),
-            Err(_) => tokio::time::sleep(tor_connect_retry_delay()).await,
-        }
-    }
+async fn connect_tor_broker(target: &StrictRemoteTarget) -> Result<RemoteIoStream> {
+    let socket_path = broker_socket_path();
+    let stream = UnixStream::connect(&socket_path).await.with_context(|| {
+        format!(
+            "infra error: Tor remote execution requires local takd serve; local takd Tor broker unavailable at {} while contacting remote node {}",
+            socket_path.display(),
+            target.node_id
+        )
+    })?;
+    Ok(Box::new(stream))
 }
 
 fn min_phase_timeout(transport_kind: StrictRemoteTransportKind) -> Duration {
@@ -89,4 +88,25 @@ fn min_phase_timeout(transport_kind: StrictRemoteTransportKind) -> Duration {
         StrictRemoteTransportKind::Direct => Duration::ZERO,
         StrictRemoteTransportKind::Tor => tor_connect_timeout(),
     }
+}
+
+pub(crate) fn uses_tor_broker(target: &StrictRemoteTarget) -> Result<bool> {
+    if target.transport_kind != StrictRemoteTransportKind::Tor {
+        return Ok(false);
+    }
+    if target.daemon_task_handle.is_some() || target.is_daemon_tor_placement() {
+        return Ok(true);
+    }
+    let (host, _) = endpoint_host_port(&target.endpoint)?;
+    Ok(host.ends_with(".onion"))
+}
+
+pub(crate) fn broker_socket_path() -> PathBuf {
+    std::env::var_os("TAKD_SOCKET")
+        .map(PathBuf::from)
+        .unwrap_or_else(default_broker_socket_path)
+}
+
+fn default_broker_socket_path() -> PathBuf {
+    tak_core::runtime_paths::default_daemon_socket_path()
 }

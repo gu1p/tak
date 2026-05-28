@@ -40,6 +40,7 @@ fn remote_status_lists_running_jobs_and_resources() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-a"])
         .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak remote status");
     assert!(output.status.success(), "tak remote status should succeed");

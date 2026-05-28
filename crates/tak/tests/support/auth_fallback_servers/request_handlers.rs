@@ -28,15 +28,38 @@ fn respond_with_optional_status_then_submit_auth_failure(
         )
         .expect("write status head");
         stream.write_all(status_body).expect("write status body");
-        return respond_with_submit_auth_failure(listener);
+        return respond_with_upload_negotiation_then_submit_auth_failure(listener);
     }
-    respond_with_submit_auth_failure_request(stream, request);
+    respond_with_upload_negotiation_or_submit_auth_failure(listener, stream, request);
 }
 
 fn respond_with_submit_auth_failure(listener: &TcpListener) {
     let (stream, _) = listener.accept().expect("accept submit");
     let mut stream = stream;
     let request = read_request_head(&mut stream);
+    respond_with_submit_auth_failure_request(stream, request);
+}
+
+fn respond_with_upload_negotiation_then_submit_auth_failure(listener: &TcpListener) {
+    let (stream, _) = listener.accept().expect("accept upload negotiation");
+    let mut stream = stream;
+    let request = read_request_head(&mut stream);
+    respond_with_upload_negotiation_or_submit_auth_failure(listener, stream, request);
+}
+
+fn respond_with_upload_negotiation_or_submit_auth_failure(
+    listener: &TcpListener,
+    mut stream: impl Write,
+    request: String,
+) {
+    if request.starts_with("POST /v2/workspaces/uploads/begin HTTP/1.1\r\n") {
+        write!(
+            stream,
+            "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        )
+        .expect("write upload negotiation response");
+        return respond_with_submit_auth_failure(listener);
+    }
     respond_with_submit_auth_failure_request(stream, request);
 }
 

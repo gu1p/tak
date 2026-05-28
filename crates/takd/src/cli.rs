@@ -8,13 +8,15 @@ use crate::tor_secret_warning;
 use crate::word_table::render_words_table_view;
 use command_model::{Cli, Commands, TaskCommands, TokenCommands};
 use tak_proto::{decode_tor_invite, encode_tor_invite_words};
+use std::io::IsTerminal;
 use takd::agent::{
-    InitAgentOptions, default_config_root, default_state_root, init_agent, read_config, read_token,
-    read_token_wait,
+    InitAgentOptions, default_config_root, default_state_root, init_agent,
+    interactive_image_cache_budget_gb, read_config, read_token, read_token_wait,
 };
 use takd::serve_agent;
 
 mod command_model;
+mod peers_output;
 mod status_output;
 mod task_logs;
 mod tasks_output;
@@ -37,6 +39,14 @@ pub async fn run_cli() -> Result<()> {
         } => {
             let config_root = config_root.unwrap_or(default_config_root()?);
             let state_root = state_root.unwrap_or(default_state_root()?);
+            let image_cache_budget_gb = if image_cache_budget_percent.is_none()
+                && image_cache_budget_gb.is_none()
+                && std::io::stdin().is_terminal()
+            {
+                Some(interactive_image_cache_budget_gb(&state_root)?)
+            } else {
+                image_cache_budget_gb
+            };
             init_agent(
                 &config_root,
                 &state_root,
@@ -66,6 +76,7 @@ pub async fn run_cli() -> Result<()> {
                 return Err(err);
             }
         }
+        Commands::Peers => peers_output::print_peers().await?,
         Commands::Status {
             config_root,
             state_root,

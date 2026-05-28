@@ -2,9 +2,13 @@
 
 use tak_core::model::RemoteSelectionSpec;
 
-use super::remote_models::StrictRemoteTransportKind;
+use self::support::{node_ids, sorted_node_ids, targets};
 use super::remote_selection::{RemoteSelectionState, ordered_remote_targets_for_attempt};
-use crate::engine::StrictRemoteTarget;
+
+#[path = "remote_selection_tests/tests/daemon_fallback.rs"]
+mod daemon_fallback;
+#[path = "remote_selection_tests/support.rs"]
+mod support;
 
 #[test]
 fn sequential_selection_preserves_inventory_order() {
@@ -56,29 +60,4 @@ fn shuffle_selection_is_deterministic_for_task_run_and_attempt() {
     assert_eq!(node_ids(&first), node_ids(&repeated));
     assert_ne!(node_ids(&first), node_ids(&next_attempt));
     assert_eq!(sorted_node_ids(&first), ["a", "b", "c", "d", "e"]);
-}
-
-fn targets(ids: &[&str]) -> Vec<StrictRemoteTarget> {
-    ids.iter()
-        .map(|id| StrictRemoteTarget {
-            node_id: (*id).to_string(),
-            endpoint: "http://127.0.0.1:1".to_string(),
-            transport_kind: StrictRemoteTransportKind::Direct,
-            bearer_token: "secret".to_string(),
-            runtime: None,
-        })
-        .collect()
-}
-
-fn node_ids(targets: &[StrictRemoteTarget]) -> Vec<&str> {
-    targets
-        .iter()
-        .map(|target| target.node_id.as_str())
-        .collect()
-}
-
-fn sorted_node_ids(targets: &[StrictRemoteTarget]) -> Vec<&str> {
-    let mut ids = node_ids(targets);
-    ids.sort_unstable();
-    ids
 }

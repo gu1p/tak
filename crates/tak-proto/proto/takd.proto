@@ -121,6 +121,37 @@ message SubmitTaskRequest {
   optional string command = 13;
   repeated FusedTaskMember fused_members = 14;
   optional string execution_label = 15;
+  optional WorkspaceUploadRef workspace_upload = 16;
+}
+
+message WorkspaceUploadRef {
+  string upload_id = 1;
+  string sha256 = 2;
+  uint64 size_bytes = 3;
+}
+
+message BeginWorkspaceUploadRequest {
+  string task_run_id = 1;
+  uint32 attempt = 2;
+  string sha256 = 3;
+  uint64 size_bytes = 4;
+}
+
+message BeginWorkspaceUploadResponse {
+  string upload_id = 1;
+  uint64 offset = 2;
+  bool complete = 3;
+}
+
+message AppendWorkspaceUploadResponse {
+  uint64 offset = 1;
+  bool complete = 2;
+}
+
+message FinishWorkspaceUploadResponse {
+  string upload_id = 1;
+  uint64 size_bytes = 2;
+  bool complete = 3;
 }
 
 message ExecutionSession {
@@ -276,6 +307,15 @@ message NodeStatusResponse {
   repeated ActiveJob active_jobs = 7;
   ImageCacheStatus image_cache = 8;
   repeated QueuedJob queued_jobs = 9;
+}
+
+message NodePingResponse {
+  string node_id = 1;
+  string protocol_version = 2;
+  string health = 3;
+  uint32 active_job_count = 4;
+  uint32 queue_depth = 5;
+  string resource_summary = 6;
 }
 
 message ErrorResponse {

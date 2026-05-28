@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`tak-exec` is the runtime engine. It executes selected targets plus transitive dependencies in valid order, applying retries, step timeouts, and optional daemon lease coordination.
+`tak-exec` is the runtime engine. It executes selected targets plus transitive dependencies in valid order, applying retries, step timeouts, optional daemon lease coordination, and daemon-owned Tor remote placement.
 
 ## Execution Model
 
@@ -14,7 +14,8 @@
 6. For each normal task attempt:
    - acquire the task lease when the task has `needs` and a lease socket is configured
    - for local host or local container placement, run steps after the lease is granted
-   - for remote placement, submit to the remote node only after the lease is granted
+   - for direct remote placement, submit to the remote node only after the lease is granted
+   - for Tor remote placement, require local `takd serve` and send daemon placement/submission requests
    - release the lease after the attempt, including failure paths
    - evaluate retry policy/backoff
 7. For each fused container cascade attempt:
@@ -35,6 +36,7 @@
 - retry policy evaluation (`on_exit`, attempts, backoff)
 - timeout enforcement per step
 - daemon request/response handling for lease operations
+- daemon request/response handling for Tor peer placement and task lifecycle operations
 
 ## Input/Output Contracts
 
@@ -51,10 +53,16 @@
 - If a normal task attempt has `needs` and a socket is configured:
   - send acquire request until granted or terminal error
   - release the lease after each attempt, success or failure path
-- Remote task attempts use the same client-side lease path:
+- Direct remote task attempts use the same client-side lease path:
   - acquire before remote submit
   - release after the remote attempt returns or the submit path fails
   - submitted `needs` are still sent to remote `takd` for status/reporting metadata
+- Tor remote task attempts are daemon-owned:
+  - local `takd serve` selects from warm PeerManager state
+  - daemon protocol requests include `PeersEligible`, `PlaceRemote`, `StreamTaskEvents`,
+    `CancelTask`, `GetTaskResult`, and `GetOutputRange`
+  - the client sends requirements and payloads, not arbitrary Tor endpoint forwarding headers
+  - missing local `takd serve` is a terminal error, not a client-side Tor fallback
 - Fused cascade attempts merge member `needs` into the synthetic fused task:
   - duplicate limiter references use the maximum slot request among fused members
   - acquire one lease before dispatching to local fused execution or remote fused submit
@@ -79,6 +87,8 @@
 - timeout cancellation
 - daemon transport/protocol errors
 - lease release failures
+- no local daemon for Tor remote execution
+- no configured Tor peers, no eligible peer, all peers unreachable, or all peers `auth_failed`
 
 ## Main Functions
 

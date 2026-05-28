@@ -58,6 +58,7 @@ pub fn submit_request(task_run_id: &str, outputs: Vec<OutputSelector>) -> Submit
         command: Some("sh -c 'sleep 2'".into()),
         fused_members: Vec::new(),
         execution_label: None,
+        workspace_upload: None,
     }
 }
 

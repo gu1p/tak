@@ -116,6 +116,10 @@ impl RemoteNodeContext {
         self.active_executions.unregister(idempotency_key)
     }
 
+    pub(crate) fn active_execution_keys(&self) -> Result<Vec<String>> {
+        self.active_executions.keys()
+    }
+
     pub(crate) fn cancel_active_task(
         &self,
         task_run_id: &str,

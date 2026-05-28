@@ -5,7 +5,7 @@ use prost::Message;
 use tak_proto::{ContainerResourceLimits, NodeStatusResponse, PollTaskEventsResponse};
 use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
 
-const REMOTE_ADMISSION_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+const REMOTE_ADMISSION_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub(super) fn majority_memory_limits(
     context: &RemoteNodeContext,

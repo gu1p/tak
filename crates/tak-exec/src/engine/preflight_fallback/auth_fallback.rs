@@ -67,14 +67,14 @@ pub(crate) async fn fallback_after_auth_submit_failure(
         })
         .await
         {
-            Ok(()) => {
+            Ok(selected_target) => {
                 emit_remote_accepted(
                     output_observer,
                     &task.label,
                     submit.attempt,
-                    &candidate.node_id,
+                    &selected_target.node_id,
                 )?;
-                return Ok(candidate.clone());
+                return Ok(selected_target);
             }
             Err(err) => {
                 failures.push(err.to_string());

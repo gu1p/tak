@@ -38,6 +38,7 @@ pub fn submit_session_task(
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
         fused_members: Vec::new(),
         execution_label: None,
+        workspace_upload: None,
     };
     let response = handle_remote_v1_request(
         context,

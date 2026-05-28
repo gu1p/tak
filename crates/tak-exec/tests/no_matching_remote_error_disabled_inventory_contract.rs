@@ -21,7 +21,7 @@ async fn no_matching_remote_error_reports_when_inventory_has_no_enabled_remotes(
         &workspace_root,
         "remote_requires_enabled_node",
         vec![shell_step("echo should-not-run")],
-        remote_builder_spec(RemoteTransportKind::Tor),
+        remote_builder_spec(RemoteTransportKind::Direct),
     );
     let err = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await

@@ -144,7 +144,19 @@ fn shuffled_targets(
     attempt: u32,
     state: &RemoteSelectionState,
 ) -> Vec<StrictRemoteTarget> {
-    let mut ranked = targets
+    let mut daemon_fallbacks = Vec::new();
+    let concrete_targets = targets
+        .iter()
+        .filter(|target| {
+            if target.is_daemon_tor_placement() {
+                daemon_fallbacks.push((*target).clone());
+                false
+            } else {
+                true
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut ranked = concrete_targets
         .iter()
         .enumerate()
         .map(|(index, target)| {
@@ -152,7 +164,7 @@ fn shuffled_targets(
                 state.assignment_count(&target.node_id),
                 shuffle_rank(task_label, task_run_id, attempt, &target.node_id),
                 index,
-                target.clone(),
+                (*target).clone(),
             )
         })
         .collect::<Vec<_>>();
@@ -162,7 +174,12 @@ fn shuffled_targets(
             .then_with(|| left.1.cmp(&right.1))
             .then_with(|| left.2.cmp(&right.2))
     });
-    ranked.into_iter().map(|(_, _, _, target)| target).collect()
+    let mut ordered = ranked
+        .into_iter()
+        .map(|(_, _, _, target)| target)
+        .collect::<Vec<_>>();
+    ordered.extend(daemon_fallbacks);
+    ordered
 }
 
 fn shuffle_rank(task_label: &str, task_run_id: &str, attempt: u32, node_id: &str) -> [u8; 32] {

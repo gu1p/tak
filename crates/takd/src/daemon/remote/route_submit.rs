@@ -20,7 +20,7 @@ pub(super) fn handle_remote_submit_route(
         return Ok(error_response(400, "invalid_submit_fields"));
     }
 
-    let worker_payload = match parse_remote_worker_submit_payload(&payload) {
+    let worker_payload = match parse_remote_worker_submit_payload(context, &payload) {
         Ok(worker_payload) => worker_payload,
         Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
     };

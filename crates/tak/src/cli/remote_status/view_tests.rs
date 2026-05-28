@@ -47,5 +47,6 @@ fn error_result(node_id: &str) -> RemoteStatusResult {
         remote: remote(node_id),
         status: None,
         error: Some("node status failed with HTTP 401".to_string()),
+        peer: None,
     }
 }

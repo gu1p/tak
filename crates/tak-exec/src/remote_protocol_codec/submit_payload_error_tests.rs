@@ -16,6 +16,7 @@ fn build_remote_submit_payload_rejects_invalid_workspace_archive() {
         execution_label: None,
         fused_members: None,
         fused_member_execution_labels: None,
+        workspace_upload: None,
     })
     .expect_err("invalid archive should fail");
 

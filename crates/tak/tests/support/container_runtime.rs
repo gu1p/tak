@@ -11,6 +11,7 @@ pub fn simulated_container_runtime_env(root: &Path) -> BTreeMap<String, String> 
 
     let mut env = BTreeMap::new();
     env.insert("TAK_TEST_HOST_PLATFORM".into(), "other".into());
+    env.insert("TAK_TEST_IGNORE_HOST_USAGE".into(), "1".into());
     env.insert(
         "PATH".into(),
         format!(

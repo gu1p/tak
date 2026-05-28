@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
-use tak_proto::{RemoteTokenPayload, encode_remote_token, encode_tor_invite};
+use tak_proto::{RemoteTokenPayload, encode_remote_token, encode_tor_invite_with_bearer};
 use uuid::Uuid;
 
 use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
@@ -28,7 +28,7 @@ pub(crate) use direct_base_url::{
     DirectBaseUrlError, parse_direct_base_url, validate_direct_base_url,
 };
 pub(crate) use helpers::node_info_with_transport;
-pub use image_cache_config::AgentImageCacheConfig;
+pub use image_cache_config::{AgentImageCacheConfig, interactive_image_cache_budget_gb};
 use image_cache_config::resolve_init_image_cache_config;
 pub use paths::{arti_cache_dir, arti_state_dir, default_config_root, default_state_root};
 pub use token_wait::read_token_wait;
@@ -135,7 +135,7 @@ pub fn persist_ready_base_url(
     let config = read_config(config_root)?;
     let base_url = base_url.trim();
     let token = if config.transport == "tor" {
-        encode_tor_invite(base_url)?
+        encode_tor_invite_with_bearer(base_url, &config.bearer_token)?
     } else {
         encode_remote_token(&RemoteTokenPayload {
             version: "v1".to_string(),

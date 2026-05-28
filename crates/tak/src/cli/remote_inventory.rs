@@ -1,36 +1,16 @@
-use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow, bail};
-use serde::{Deserialize, Serialize};
+use tak_core::remote_inventory::{
+    RemoteInventory, default_remote_inventory_path, load_remote_inventory_at,
+    save_remote_inventory_at,
+};
 use tak_exec::record_remote_observation;
-use tak_proto::{NodeInfo, decode_remote_token, decode_tor_invite};
+use tak_proto::{NodeInfo, decode_remote_token, decode_tor_invite_payload};
 
 use super::remote_probe::probe_node;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct RemoteRecord {
-    pub(super) node_id: String,
-    pub(super) display_name: String,
-    pub(super) base_url: String,
-    pub(super) bearer_token: String,
-    pub(super) pools: Vec<String>,
-    pub(super) tags: Vec<String>,
-    pub(super) capabilities: Vec<String>,
-    pub(super) transport: String,
-    pub(super) enabled: bool,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-struct RemoteInventoryFile {
-    #[serde(default = "default_inventory_version")]
-    version: u32,
-    remotes: Vec<RemoteRecord>,
-}
-
-fn default_inventory_version() -> u32 {
-    1
-}
+pub(in crate::cli) use tak_core::remote_inventory::RemoteRecord;
 
 pub(super) async fn add_remote(token: &str) -> Result<RemoteRecord> {
     let record = resolve_remote_record(token).await?;
@@ -75,17 +55,19 @@ pub(super) async fn resolve_remote_record(token: &str) -> Result<RemoteRecord> {
             enabled: true,
         })
     } else if token.trim().starts_with("takd:tor:") {
-        let base_url = decode_tor_invite(token)?;
-        let probed = probe_node(&base_url, "tor", "")
+        let invite = decode_tor_invite_payload(token)?;
+        let probed = probe_node(&invite.base_url, "tor", &invite.bearer_token)
             .await
-            .with_context(|| format!("failed to probe remote node at {base_url} via tor"))?;
-        ensure_tor_invite_matches_probe(&base_url, &probed)?;
+            .with_context(|| {
+                format!("failed to probe remote node at {} via tor", invite.base_url)
+            })?;
+        ensure_tor_invite_matches_probe(&invite.base_url, &probed)?;
         let _ = record_remote_observation(&probed);
         Ok(RemoteRecord {
             node_id: probed.node_id,
             display_name: probed.display_name,
-            base_url,
-            bearer_token: String::new(),
+            base_url: invite.base_url,
+            bearer_token: invite.bearer_token,
             pools: probed.pools,
             tags: probed.tags,
             capabilities: probed.capabilities,
@@ -132,34 +114,17 @@ pub(super) fn remove_remote(node_id: &str) -> Result<bool> {
 }
 
 fn inventory_path() -> Result<PathBuf> {
-    let root = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .map_err(|_| anyhow!("failed to resolve config home"))?;
-    Ok(root.join("tak").join("remotes.toml"))
+    default_remote_inventory_path().map_err(|_| anyhow!("failed to resolve config home"))
 }
 
-fn load_inventory() -> Result<RemoteInventoryFile> {
+fn load_inventory() -> Result<RemoteInventory> {
     let path = inventory_path()?;
-    if !path.exists() {
-        return Ok(RemoteInventoryFile {
-            version: 1,
-            remotes: Vec::new(),
-        });
-    }
-    let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-    toml::from_str(&raw).with_context(|| format!("decode {}", path.display()))
+    load_remote_inventory_at(&path).with_context(|| format!("decode {}", path.display()))
 }
 
-fn save_inventory(inventory: &RemoteInventoryFile) -> Result<()> {
+fn save_inventory(inventory: &RemoteInventory) -> Result<()> {
     let path = inventory_path()?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(
-        &path,
-        toml::to_string(inventory).context("encode remote inventory")?,
-    )
-    .with_context(|| format!("write {}", path.display()))?;
+    save_remote_inventory_at(&path, inventory)
+        .with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }

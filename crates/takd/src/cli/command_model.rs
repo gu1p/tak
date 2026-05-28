@@ -43,6 +43,7 @@ pub(super) enum Commands {
         #[arg(long)]
         state_root: Option<PathBuf>,
     },
+    Peers,
     Status {
         #[arg(long)]
         config_root: Option<PathBuf>,

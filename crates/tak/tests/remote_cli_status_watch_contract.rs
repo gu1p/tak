@@ -39,6 +39,7 @@ fn remote_status_watch_refreshes_until_test_limit() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--watch", "--interval-ms", "1"])
         .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .env("TAK_TEST_REMOTE_STATUS_MAX_POLLS", "2")
         .output()
         .expect("run tak remote status --watch");

@@ -16,6 +16,10 @@ pub(super) fn direct_target(runtime: Option<RemoteRuntimeSpec>) -> StrictRemoteT
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     }
 }
 

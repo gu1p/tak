@@ -36,6 +36,7 @@ fn status_with_selected_remote_http_failure_exits_non_zero() {
         .args(["status", "--node", "builder-z"])
         .env("XDG_CONFIG_HOME", &config_root)
         .env("XDG_STATE_HOME", &state_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak status");
     server.join().expect("status server should exit");

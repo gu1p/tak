@@ -1,11 +1,15 @@
 #![allow(dead_code)]
 
-use prost::Message;
 use tak_proto::{
-    CmdStep, ContainerResourceLimits, ContainerRuntime, OutputSelector, RuntimeSpec, Step,
-    SubmitTaskRequest, SubmitTaskResponse, runtime_spec, step,
+    ContainerResourceLimits, ContainerRuntime, OutputSelector, RuntimeSpec, SubmitTaskResponse,
+    runtime_spec,
 };
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore};
+
+#[path = "remote_output/submit.rs"]
+mod submit;
+
+use submit::submit_shell_task_with_outputs_and_runtime;
 
 pub fn test_context() -> RemoteNodeContext {
     test_context_with_runtime(RemoteRuntimeConfig::for_tests())
@@ -46,38 +50,31 @@ pub fn submit_shell_task_with_outputs(
     command: &str,
     outputs: Vec<OutputSelector>,
 ) -> SubmitTaskResponse {
-    let submit = SubmitTaskRequest {
-        task_run_id: task_run_id.to_string(),
-        attempt: 1,
-        workspace_zip: empty_workspace_zip(),
-        steps: vec![Step {
-            kind: Some(step::Kind::Cmd(CmdStep {
-                argv: vec!["sh".to_string(), "-c".to_string(), command.to_string()],
-                cwd: None,
-                env: Default::default(),
-            })),
-        }],
-        timeout_s: None,
-        runtime: Some(test_container_runtime()),
-        task_label: "//apps/web:test".to_string(),
-        needs: Vec::new(),
-        outputs,
-        session: None,
-        origin: Some("task".into()),
-        runtime_source: Some("image:alpine:3.20".into()),
-        command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
-        fused_members: Vec::new(),
-        execution_label: None,
-    };
-    let submit = handle_remote_v1_request(
+    submit_shell_task_with_outputs_and_runtime(
         context,
         store,
-        "POST",
-        "/v1/tasks/submit",
-        Some(&submit.encode_to_vec()),
+        task_run_id,
+        command,
+        outputs,
+        test_container_runtime(),
     )
-    .expect("submit response");
-    SubmitTaskResponse::decode(submit.body.as_slice()).expect("decode submit")
+}
+
+pub fn submit_shell_task_with_limits(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+    command: &str,
+    resource_limits: ContainerResourceLimits,
+) -> SubmitTaskResponse {
+    submit_shell_task_with_outputs_and_runtime(
+        context,
+        store,
+        task_run_id,
+        command,
+        Vec::new(),
+        test_container_runtime_with_limits(resource_limits),
+    )
 }
 
 pub fn empty_workspace_zip() -> Vec<u8> {

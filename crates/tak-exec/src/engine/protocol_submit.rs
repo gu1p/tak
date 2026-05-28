@@ -9,7 +9,9 @@ use super::{RemoteWorkspaceStage, StrictRemoteTarget};
 
 use crate::remote_protocol_codec::{RemoteSubmitPayloadInput, build_remote_submit_payload};
 
-use super::protocol_result_http::remote_protocol_http_request;
+use super::protocol_result_http::{
+    RemoteHttpResponse, remote_protocol_http_request_with_extra_headers,
+};
 use super::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
 
 /// Submits one remote attempt after successful preflight.
@@ -34,7 +36,14 @@ pub(crate) struct RemoteProtocolSubmit<'a> {
 
 pub(crate) async fn remote_protocol_submit(
     submit: RemoteProtocolSubmit<'_>,
-) -> std::result::Result<(), RemoteSubmitFailure> {
+) -> std::result::Result<StrictRemoteTarget, RemoteSubmitFailure> {
+    let workspace_upload = super::workspace_upload::upload_workspace_for_submit(
+        submit.target,
+        submit.task_run_id,
+        submit.attempt,
+        submit.remote_workspace,
+    )
+    .await?;
     let body = build_remote_submit_payload(RemoteSubmitPayloadInput {
         target: submit.target,
         task_run_id: submit.task_run_id,
@@ -45,25 +54,29 @@ pub(crate) async fn remote_protocol_submit(
         execution_label: submit.execution_label,
         fused_members: submit.fused_members,
         fused_member_execution_labels: submit.fused_member_execution_labels,
+        workspace_upload: workspace_upload.as_ref(),
     })
     .map_err(|err| RemoteSubmitFailure {
         kind: RemoteSubmitFailureKind::Other,
         message: format!("{err:#}"),
     })?
     .encode_to_vec();
-    let (status, response_body) = remote_protocol_http_request(
+    let response = remote_protocol_http_request_with_extra_headers(
         submit.target,
         "POST",
         "/v1/tasks/submit",
         Some(&body),
         "submit",
         remote_submit_timeout(),
+        &[],
     )
     .await
     .map_err(|err| RemoteSubmitFailure {
         kind: RemoteSubmitFailureKind::Other,
         message: err.to_string(),
     })?;
+    let status = response.status;
+    let response_body = &response.body;
 
     if status == 401 || status == 403 {
         return Err(RemoteSubmitFailure {
@@ -111,9 +124,26 @@ pub(crate) async fn remote_protocol_submit(
         });
     }
 
-    Ok(())
+    Ok(target_after_submit(submit.target, &response))
 }
 
 pub(super) fn remote_submit_timeout() -> Duration {
     Duration::from_secs(30)
+}
+
+fn target_after_submit(
+    target: &StrictRemoteTarget,
+    response: &RemoteHttpResponse,
+) -> StrictRemoteTarget {
+    let mut selected = target.clone();
+    if let Some(task_handle) = response.daemon_task_handle.clone() {
+        selected.daemon_task_handle = Some(task_handle);
+    }
+    if let Some(node_id) = response.daemon_peer_node_id.clone() {
+        selected.node_id = node_id;
+    }
+    if let Some(endpoint) = response.daemon_peer_endpoint.clone() {
+        selected.endpoint = endpoint;
+    }
+    selected
 }

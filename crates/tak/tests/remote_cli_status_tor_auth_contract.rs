@@ -15,7 +15,8 @@ fn remote_status_allows_empty_bearer_token_for_tor_transport() {
     let config_root = temp.path().join("config");
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind tor status server");
     let port = listener.local_addr().expect("listener addr").port();
-    let base_url = "http://builder-status.onion";
+    let base_url = format!("http://127.0.0.1:{port}");
+    let server_base_url = base_url.clone();
     let inventory_path = config_root.join("tak/remotes.toml");
     fs::create_dir_all(inventory_path.parent().expect("inventory parent")).expect("config root");
     fs::write(
@@ -39,10 +40,10 @@ fn remote_status_allows_empty_bearer_token_for_tor_transport() {
         );
         let body = status_payload_with_detail_for(
             "builder-status",
-            base_url,
+            &server_base_url,
             "tor",
             false,
-            "Tor onion service at http://builder-status.onion did not become reachable within 1000ms during takd startup",
+            "tor status detail is preserved",
         );
         write!(
             stream,
@@ -56,7 +57,7 @@ fn remote_status_allows_empty_bearer_token_for_tor_transport() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-status"])
         .env("XDG_CONFIG_HOME", &config_root)
-        .env("TAK_TEST_TOR_ONION_DIAL_ADDR", format!("127.0.0.1:{port}"))
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak remote status for onion transport");
     assert!(
@@ -67,14 +68,8 @@ fn remote_status_allows_empty_bearer_token_for_tor_transport() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains(
-            "detail=Tor onion service at http://builder-status.onion did not become reachable within 1000ms during takd startup"
-        ),
+        stdout.contains("detail=tor status detail is preserved"),
         "missing full detail:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("http://[redacted].onion"),
-        "status output should not redact onion detail:\n{stdout}"
     );
 
     server.join().expect("status server should exit");

@@ -1,7 +1,7 @@
 use prost::Message;
 use tak_proto::{
-    FusedTaskMember, NodeInfo, RemoteTokenPayload, Step, SubmitTaskRequest, SubmittedNeed,
-    decode_remote_token, encode_remote_token,
+    FusedTaskMember, NodeInfo, NodePingResponse, RemoteTokenPayload, Step, SubmitTaskRequest,
+    SubmittedNeed, decode_remote_token, encode_remote_token,
 };
 
 #[test]
@@ -33,6 +33,7 @@ fn protobuf_messages_and_tokens_round_trip_as_binary() {
             execution_label: Some("build.lint".to_string()),
         }],
         execution_label: Some("build".to_string()),
+        workspace_upload: None,
     };
     let encoded = request.encode_to_vec();
     let decoded = SubmitTaskRequest::decode(encoded.as_slice()).expect("decode request");
@@ -68,4 +69,26 @@ fn protobuf_messages_and_tokens_round_trip_as_binary() {
     assert_eq!(node.node_id, "builder-a");
     assert_eq!(node.transport_state, "ready");
     assert!(node.transport_detail.is_empty());
+}
+
+#[test]
+fn node_ping_response_round_trips_as_binary() {
+    let response = NodePingResponse {
+        node_id: "builder-a".to_string(),
+        protocol_version: "v1".to_string(),
+        health: "healthy".to_string(),
+        active_job_count: 2,
+        queue_depth: 1,
+        resource_summary: "cpu=4 memory=8192MiB".to_string(),
+    };
+
+    let encoded = response.encode_to_vec();
+    let decoded = NodePingResponse::decode(encoded.as_slice()).expect("decode ping");
+
+    assert_eq!(decoded.node_id, "builder-a");
+    assert_eq!(decoded.protocol_version, "v1");
+    assert_eq!(decoded.health, "healthy");
+    assert_eq!(decoded.active_job_count, 2);
+    assert_eq!(decoded.queue_depth, 1);
+    assert_eq!(decoded.resource_summary, "cpu=4 memory=8192MiB");
 }

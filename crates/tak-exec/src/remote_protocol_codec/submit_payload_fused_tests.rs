@@ -43,6 +43,7 @@ fn build_remote_submit_payload_includes_fused_member_policies() {
         execution_label: Some("check"),
         fused_members: Some(&[member]),
         fused_member_execution_labels: Some(&member_labels),
+        workspace_upload: None,
     })
     .expect("submit payload");
 

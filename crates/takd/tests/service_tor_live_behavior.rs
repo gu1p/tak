@@ -9,6 +9,7 @@ use tak_proto::decode_tor_invite;
 use support::env::env_lock;
 use support::live_tor_cli::{LiveTorRoots, init_tor_agent, spawn_tor_agent, wait_for_token};
 use support::live_tor_http::wait_for_onion_node_info;
+use takd::agent::read_config;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_agent_real_tor_publishes_reachable_onion_url() {
@@ -17,11 +18,14 @@ async fn serve_agent_real_tor_publishes_reachable_onion_url() {
     let roots = LiveTorRoots::new(temp.path());
 
     init_tor_agent(&roots, "builder-tor-live");
+    let bearer_token = read_config(&roots.config_root)
+        .expect("read config")
+        .bearer_token;
     let _child = spawn_tor_agent(&roots);
 
     let token = wait_for_token(&roots);
     let base_url = decode_tor_invite(&token).expect("decode tor invite");
-    let fetched = wait_for_onion_node_info(temp.path(), &base_url, "").await;
+    let fetched = wait_for_onion_node_info(temp.path(), &base_url, &bearer_token).await;
 
     assert_eq!(fetched.node_id, "builder-tor-live");
     assert_eq!(fetched.base_url, base_url);

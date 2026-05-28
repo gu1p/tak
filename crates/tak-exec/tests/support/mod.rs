@@ -8,6 +8,7 @@ pub mod inventory;
 pub mod lease_order_case;
 pub mod lease_order_fused;
 pub mod lease_order_need;
+pub mod local_tor_broker;
 pub mod output_spec;
 pub mod remote_mismatch;
 pub mod remote_progress_wait;
@@ -26,6 +27,7 @@ pub use lease_order_case::{
 };
 pub use lease_order_fused::fused_remote_cascade_spec;
 pub use lease_order_need::add_ui_lock_need;
+pub use local_tor_broker::LocalTorBroker;
 pub use output_spec::{workspace_output_glob, workspace_output_path};
 pub use remote_mismatch::{
     prepare_workspace, write_disabled_remote, write_enabled_remote_mismatches,
@@ -36,7 +38,7 @@ pub use remote_worker_runtime::{
 pub use servers::{
     AuthRejectingSubmitServer, DelayedEventsServer, EventPollPlan, NonTerminalEventsServer,
     RecordingEvents, RecordingLeaseServer, RecordingRemoteServer, RunningTakdServer,
-    ScriptedEventsServer,
+    ScriptedEventsServer, UploadBeginAuthRejectingServer,
 };
 pub use status_observer::CollectingStatusObserver;
 pub use task_spec::{

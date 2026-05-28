@@ -6,7 +6,10 @@ use tokio::net::TcpListener;
 use crate::agent::{
     DirectBaseUrlError, parse_direct_base_url, persist_ready_base_url, read_config,
 };
+use crate::daemon::peer_manager::PeerManager;
+use crate::daemon::protocol::TorBroker;
 use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
+use crate::daemon::runtime::{default_socket_path, run_local_daemon_with_broker_and_peers};
 
 mod control;
 mod tor;
@@ -14,7 +17,16 @@ mod tor;
 use control::{AgentControlState, spawn_agent_control_socket};
 
 pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
-    let config = read_config(config_root)?;
+    spawn_local_daemon_socket(state_root);
+    let config = match read_config(config_root) {
+        Ok(config) => config,
+        Err(_err) if !config_root.join("agent.toml").exists() => {
+            tracing::info!("starting takd serve as local daemon only; agent.toml not found");
+            std::future::pending::<()>().await;
+            unreachable!("pending future returned");
+        }
+        Err(err) => return Err(err),
+    };
     tracing::info!("starting takd serve for transport {}", config.transport);
     let db_path = state_root.join("agent.sqlite");
     if let Some(parent) = db_path.parent() {
@@ -32,6 +44,38 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
         }
         other => bail!("unsupported takd transport `{other}`"),
     }
+}
+
+fn spawn_local_daemon_socket(state_root: &Path) {
+    let socket_path = default_socket_path();
+    let db_path = state_root.join("takd.sqlite");
+    if let Some(parent) = db_path.parent()
+        && let Err(err) = std::fs::create_dir_all(parent)
+    {
+        tracing::error!("failed to create local daemon state directory: {err:#}");
+        return;
+    }
+    let broker = TorBroker::for_state_root(state_root.to_path_buf());
+    let peers = if let Ok(path) = tak_core::remote_inventory::default_remote_inventory_path() {
+        let peers = tak_core::remote_inventory::load_remote_inventory_at(&path)
+            .map(PeerManager::from_inventory)
+            .unwrap_or_else(|err| {
+                tracing::warn!("starting local daemon with empty remote inventory: {err:#}");
+                PeerManager::default()
+            });
+        peers.spawn_inventory_reloader_with_broker(path, broker.clone());
+        peers
+    } else {
+        PeerManager::default()
+    };
+    peers.spawn_heartbeat_loop(broker.clone());
+    tokio::spawn(async move {
+        if let Err(err) =
+            run_local_daemon_with_broker_and_peers(&socket_path, &db_path, broker, peers).await
+        {
+            tracing::error!("takd local daemon socket failed: {err:#}");
+        }
+    });
 }
 
 fn abandon_unfinished_submits(store: &SubmitAttemptStore) -> Result<()> {

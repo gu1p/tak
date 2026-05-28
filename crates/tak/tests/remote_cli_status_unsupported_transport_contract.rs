@@ -16,6 +16,7 @@ fn remote_status_reports_unsupported_transport_errors() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-weird"])
         .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak remote status");
     assert!(

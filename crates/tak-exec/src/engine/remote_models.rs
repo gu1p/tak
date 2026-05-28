@@ -10,6 +10,9 @@ use crate::container_engine::ContainerEngine;
 
 use super::{PlacementMode, RemoteCandidateDiagnostic, RemoteLogChunk, SyncedOutput};
 
+const DAEMON_TOR_PLACEMENT_NODE_ID: &str = "__takd_daemon_tor__";
+const DAEMON_TOR_PLACEMENT_ENDPOINT: &str = "http://takd-daemon-placement.onion";
+
 #[derive(Debug, Clone)]
 pub(crate) struct StrictRemoteTarget {
     pub(crate) node_id: String,
@@ -17,6 +20,31 @@ pub(crate) struct StrictRemoteTarget {
     pub(crate) transport_kind: StrictRemoteTransportKind,
     pub(crate) bearer_token: String,
     pub(crate) runtime: Option<RemoteRuntimeSpec>,
+    pub(crate) required_pool: Option<String>,
+    pub(crate) required_tags: Vec<String>,
+    pub(crate) required_capabilities: Vec<String>,
+    pub(crate) daemon_task_handle: Option<String>,
+}
+
+impl StrictRemoteTarget {
+    pub(crate) fn daemon_tor_placement(remote: &RemoteSpec) -> Self {
+        Self {
+            node_id: DAEMON_TOR_PLACEMENT_NODE_ID.to_string(),
+            endpoint: DAEMON_TOR_PLACEMENT_ENDPOINT.to_string(),
+            transport_kind: StrictRemoteTransportKind::Tor,
+            bearer_token: String::new(),
+            runtime: remote.runtime.clone(),
+            required_pool: remote.pool.clone(),
+            required_tags: remote.required_tags.clone(),
+            required_capabilities: remote.required_capabilities.clone(),
+            daemon_task_handle: None,
+        }
+    }
+
+    pub(crate) fn is_daemon_tor_placement(&self) -> bool {
+        self.transport_kind == StrictRemoteTransportKind::Tor
+            && self.node_id == DAEMON_TOR_PLACEMENT_NODE_ID
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +87,7 @@ pub(crate) struct RemoteTargetSelection {
     pub(crate) enabled_remote_count: usize,
     pub(crate) enabled_remotes: Vec<RemoteCandidateDiagnostic>,
     pub(crate) matched_targets: Vec<StrictRemoteTarget>,
+    pub(crate) matched_tor_target_count: usize,
 }
 
 #[derive(Debug, Clone)]

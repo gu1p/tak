@@ -4,8 +4,8 @@ use prost::Message;
 use std::thread;
 use std::time::Duration;
 use tak_proto::{
-    CmdStep, GetTaskResultResponse, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest,
-    SubmitTaskResponse, SubmittedNeed, step,
+    CmdStep, GetTaskResultResponse, NodeInfo, NodePingResponse, PollTaskEventsResponse, Step,
+    SubmitTaskRequest, SubmitTaskResponse, SubmittedNeed, step,
 };
 use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
 
@@ -27,6 +27,13 @@ fn remote_routes_serve_binary_protobuf_contracts() {
     assert_eq!(node.content_type, "application/x-protobuf");
     let node_info = NodeInfo::decode(node.body.as_slice()).expect("decode node info");
     assert_eq!(node_info.node_id, "builder-a");
+    let ping = handle_remote_v1_request(&context, &store, "GET", "/v1/node/ping", None)
+        .expect("node ping response");
+    assert_eq!(ping.content_type, "application/x-protobuf");
+    let ping = NodePingResponse::decode(ping.body.as_slice()).expect("decode node ping");
+    assert_eq!(ping.node_id, "builder-a");
+    assert_eq!(ping.protocol_version, "v1");
+    assert_eq!(ping.health, "healthy");
     let submit = SubmitTaskRequest {
         task_run_id: "task-run-1".to_string(),
         attempt: 1,
@@ -54,6 +61,7 @@ fn remote_routes_serve_binary_protobuf_contracts() {
         command: Some("sh -c true".into()),
         fused_members: Vec::new(),
         execution_label: None,
+        workspace_upload: None,
     };
     let submit = handle_remote_v1_request(
         &context,

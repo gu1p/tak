@@ -57,6 +57,10 @@ async fn remote_protocol_http_request_timeout_closes_the_connection() {
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     };
 
     remote_protocol_http_request(

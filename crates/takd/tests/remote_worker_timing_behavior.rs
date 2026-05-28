@@ -1,12 +1,15 @@
 use std::fs;
 use std::time::Duration;
 
+use tak_proto::ContainerResourceLimits;
 use takd::SubmitAttemptStore;
 
 use crate::support;
 use support::env::{EnvGuard, env_lock};
 use support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
-use support::remote_container::{configure_fake_docker_env, fetch_result, submit_container_task};
+use support::remote_container::{
+    configure_fake_docker_env, fetch_result, submit_container_task_with_limits,
+};
 use support::remote_output::test_context_with_runtime;
 use support::wait_for_terminal_events::wait_for_terminal_events;
 
@@ -32,7 +35,16 @@ async fn remote_worker_result_duration_covers_actual_execution_time() {
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 
-    let ack = submit_container_task(&context, &store, "task-run-duration", "true");
+    let ack = submit_container_task_with_limits(
+        &context,
+        &store,
+        "task-run-duration",
+        "true",
+        ContainerResourceLimits {
+            cpu_cores: 0.001,
+            memory_mb: 1,
+        },
+    );
     assert!(ack.accepted);
     wait_for_terminal_events(&context, &store, "task-run-duration");
 

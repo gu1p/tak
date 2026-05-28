@@ -61,6 +61,7 @@ pub(super) fn ok_result(node_id: &str, with_job: bool) -> RemoteStatusResult {
         remote: remote(node_id),
         status: Some(status(node_id, "ready", with_job)),
         error: None,
+        peer: None,
     }
 }
 
@@ -69,6 +70,7 @@ pub(super) fn warning_result(node_id: &str) -> RemoteStatusResult {
         remote: remote(node_id),
         status: Some(status(node_id, "recovering", false)),
         error: None,
+        peer: None,
     }
 }
 
@@ -77,6 +79,7 @@ pub(super) fn error_result(node_id: &str) -> RemoteStatusResult {
         remote: remote(node_id),
         status: None,
         error: Some("node status failed with HTTP 401".to_string()),
+        peer: None,
     }
 }
 

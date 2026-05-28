@@ -39,6 +39,7 @@ fn remote_status_uses_direct_http_for_tor_transport_without_onion_host() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status", "--node", "builder-tor"])
         .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak remote status with tor transport");
     assert!(

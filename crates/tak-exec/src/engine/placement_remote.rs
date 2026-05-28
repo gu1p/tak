@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
-use tak_core::model::{RemoteSpec, ResolvedTask};
+use tak_core::model::{RemoteSpec, RemoteTransportKind, ResolvedTask};
 
 use super::placement::PlacementCandidate;
-use super::remote_models::TaskPlacement;
+use super::remote_models::{StrictRemoteTarget, TaskPlacement};
 use super::{NoMatchingRemoteError, PlacementMode};
 use crate::client_remotes::configured_remote_targets;
 
@@ -12,8 +12,24 @@ pub(crate) fn remote_task_candidate(
     reason: Option<String>,
 ) -> Result<PlacementCandidate> {
     let remote = materialize_effective_remote_spec(task, remote)?;
-    let selection = configured_remote_targets(&remote)?;
-    if selection.matched_targets.is_empty() {
+    if remote.transport_kind == RemoteTransportKind::Tor {
+        return Ok(PlacementCandidate::Ready(Box::new(daemon_tor_placement(
+            &remote, reason,
+        ))));
+    }
+    let selection = match configured_remote_targets(&remote) {
+        Ok(selection) => selection,
+        Err(_err) if remote.transport_kind == RemoteTransportKind::Any => {
+            return Ok(PlacementCandidate::Ready(Box::new(daemon_tor_placement(
+                &remote, reason,
+            ))));
+        }
+        Err(err) => return Err(err),
+    };
+    if selection.matched_targets.is_empty()
+        && (remote.transport_kind != RemoteTransportKind::Any
+            || selection.matched_tor_target_count == 0)
+    {
         return Ok(PlacementCandidate::Unavailable(
             NoMatchingRemoteError::new(
                 canonical_task_label(&task.label),
@@ -25,17 +41,51 @@ pub(crate) fn remote_task_candidate(
             .into(),
         ));
     }
+    let matched_targets = if remote.transport_kind == RemoteTransportKind::Any {
+        direct_targets_with_daemon_tor_fallback(
+            selection.matched_targets,
+            &remote,
+            selection.matched_tor_target_count,
+        )
+    } else {
+        selection.matched_targets
+    };
     Ok(PlacementCandidate::Ready(Box::new(TaskPlacement {
         placement_mode: PlacementMode::Remote,
         remote_node_id: None,
         strict_remote_target: None,
-        ordered_remote_targets: selection.matched_targets,
+        ordered_remote_targets: matched_targets,
         remote_selection: remote.selection,
         decision_reason: reason,
         session: remote.session.clone(),
         local: None,
         remote: Some(remote.clone()),
     })))
+}
+
+fn daemon_tor_placement(remote: &RemoteSpec, reason: Option<String>) -> TaskPlacement {
+    TaskPlacement {
+        placement_mode: PlacementMode::Remote,
+        remote_node_id: Some(StrictRemoteTarget::daemon_tor_placement(remote).node_id),
+        strict_remote_target: Some(StrictRemoteTarget::daemon_tor_placement(remote)),
+        ordered_remote_targets: Vec::new(),
+        remote_selection: remote.selection,
+        decision_reason: reason,
+        session: remote.session.clone(),
+        local: None,
+        remote: Some(remote.clone()),
+    }
+}
+
+fn direct_targets_with_daemon_tor_fallback(
+    mut targets: Vec<StrictRemoteTarget>,
+    remote: &RemoteSpec,
+    matched_tor_target_count: usize,
+) -> Vec<StrictRemoteTarget> {
+    if matched_tor_target_count > 0 {
+        targets.push(StrictRemoteTarget::daemon_tor_placement(remote));
+    }
+    targets
 }
 
 fn materialize_effective_remote_spec(

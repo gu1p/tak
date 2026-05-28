@@ -1,17 +1,18 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
-use bollard::container::{ListContainersOptions, RemoveContainerOptions};
-use bollard::errors::Error as BollardError;
-use bollard::{API_DEFAULT_VERSION, Docker};
 
 use super::*;
 
 #[cfg(test)]
 mod cleanup_janitor_permission_tests;
+#[path = "cleanup_janitor/containers.rs"]
+mod containers;
+#[path = "cleanup_janitor/image_cache.rs"]
+mod image_cache;
 
 pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
     spawn_remote_execution_cleanup_janitor(context.clone(), store);
@@ -43,7 +44,7 @@ fn spawn_remote_image_cache_janitor(context: RemoteNodeContext) {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(interval).await;
-            if let Err(err) = run_remote_image_cache_cleanup_once(&context).await {
+            if let Err(err) = image_cache::run_remote_image_cache_cleanup_once(&context).await {
                 tracing::warn!("image cache janitor sweep failed: {err:#}");
             }
         }
@@ -54,126 +55,21 @@ pub(crate) async fn run_remote_cleanup_once(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
 ) -> Result<()> {
-    let active_jobs = active_job_keys(&context.shared_status_state())?;
+    let active_jobs = cleanup_protected_job_keys(context)?;
     let ttl = context.runtime_config().remote_cleanup_ttl();
     for root in cleanup_roots(context, store)? {
         cleanup_stale_remote_entries(&root, &active_jobs, ttl)?;
     }
-    cleanup_inactive_takd_containers(context, &active_jobs).await?;
+    containers::cleanup_inactive_takd_containers(context, &active_jobs).await?;
     Ok(())
 }
 
-async fn cleanup_inactive_takd_containers(
-    context: &RemoteNodeContext,
-    active_jobs: &BTreeSet<String>,
-) -> Result<()> {
-    let docker = connect_cleanup_docker_client(&context.runtime_config())
-        .await
-        .context("connect container engine for remote container cleanup")?;
-    let containers = list_takd_containers(&docker).await?;
-    for container in containers {
-        let labels = container.labels.unwrap_or_default();
-        if labels.get("tak.owner").map(String::as_str) != Some("takd") {
-            continue;
-        }
-        if container_belongs_to_active_job(&labels, active_jobs) {
-            continue;
-        }
-        let Some(container_id) = container.id else {
-            continue;
-        };
-        remove_takd_container(&docker, &container_id).await?;
+fn cleanup_protected_job_keys(context: &RemoteNodeContext) -> Result<BTreeSet<String>> {
+    let mut keys = active_job_keys(&context.shared_status_state())?;
+    for key in context.active_execution_keys()? {
+        keys.insert(sanitize_submit_idempotency_key(&key));
     }
-    Ok(())
-}
-
-async fn connect_cleanup_docker_client(runtime_config: &RemoteRuntimeConfig) -> Result<Docker> {
-    let docker = if let Some(host) = runtime_config.docker_host() {
-        if host.starts_with("unix://") || host.starts_with('/') {
-            Docker::connect_with_unix(host, 120, API_DEFAULT_VERSION)?
-        } else if host.starts_with("tcp://") || host.starts_with("http://") {
-            Docker::connect_with_http(host, 120, API_DEFAULT_VERSION)?
-        } else {
-            Docker::connect_with_local_defaults()?
-        }
-    } else {
-        Docker::connect_with_local_defaults()?
-    };
-    docker.ping().await?;
-    Ok(docker)
-}
-
-async fn list_takd_containers(docker: &Docker) -> Result<Vec<bollard::models::ContainerSummary>> {
-    let mut filters = HashMap::new();
-    filters.insert("label".to_string(), vec!["tak.owner=takd".to_string()]);
-    docker
-        .list_containers(Some(ListContainersOptions {
-            all: true,
-            filters,
-            ..Default::default()
-        }))
-        .await
-        .context("list takd-owned containers")
-}
-
-fn container_belongs_to_active_job(
-    labels: &HashMap<String, String>,
-    active_jobs: &BTreeSet<String>,
-) -> bool {
-    labels
-        .get("tak.submit_key")
-        .map(|submit_key| active_jobs.contains(&sanitize_submit_idempotency_key(submit_key)))
-        .unwrap_or(false)
-}
-
-async fn remove_takd_container(docker: &Docker, container_id: &str) -> Result<()> {
-    match docker
-        .remove_container(
-            container_id,
-            Some(RemoveContainerOptions {
-                force: true,
-                ..Default::default()
-            }),
-        )
-        .await
-    {
-        Ok(()) => Ok(()),
-        Err(err) if container_was_already_removed(&err) => Ok(()),
-        Err(err) => {
-            Err(err).with_context(|| format!("remove inactive takd container {container_id}"))
-        }
-    }
-}
-
-fn container_was_already_removed(error: &BollardError) -> bool {
-    matches!(
-        error,
-        BollardError::DockerResponseServerError {
-            status_code: 404,
-            ..
-        }
-    )
-}
-
-async fn run_remote_image_cache_cleanup_once(context: &RemoteNodeContext) -> Result<()> {
-    let Some(image_cache) = context.image_cache_config() else {
-        return Ok(());
-    };
-    if !active_job_keys(&context.shared_status_state())?.is_empty() {
-        return Ok(());
-    }
-    tak_runner::run_image_cache_janitor_once(&image_cache_options(image_cache)).await
-}
-
-fn image_cache_options(config: RemoteImageCacheRuntimeConfig) -> tak_runner::ImageCacheOptions {
-    tak_runner::ImageCacheOptions {
-        db_path: config.db_path,
-        budget_bytes: config.budget_bytes,
-        mutable_tag_ttl_secs: config.mutable_tag_ttl_secs,
-        sweep_interval_secs: config.sweep_interval_secs,
-        low_disk_min_free_percent: config.low_disk_min_free_percent,
-        low_disk_min_free_bytes: config.low_disk_min_free_bytes,
-    }
+    Ok(keys)
 }
 
 fn active_job_keys(status_state: &status_state::SharedNodeStatusState) -> Result<BTreeSet<String>> {

@@ -5,9 +5,7 @@ use tak_exec::{endpoint_host_port, endpoint_socket_addr, write_remote_observatio
 use tak_proto::NodeStatusResponse;
 
 use crate::cli::remote_probe_support::ProbeAttemptError;
-use crate::cli::remote_probe_support::transport::{
-    TorOnionRetryTexts, connect_remote, retry_tor_onion,
-};
+use crate::cli::remote_probe_support::transport::connect_remote;
 
 use super::http::fetch_status_once;
 use super::{RemoteRecord, RemoteStatusResult};
@@ -28,12 +26,14 @@ pub(super) async fn fetch_remote_status_result(remote: RemoteRecord) -> RemoteSt
                 remote,
                 status: Some(status),
                 error: None,
+                peer: None,
             }
         }
         Err(err) => RemoteStatusResult {
             remote,
             status: None,
             error: Some(err.to_string()),
+            peer: None,
         },
     }
 }
@@ -57,18 +57,5 @@ async fn fetch_node_status(
             .map_err(ProbeAttemptError::into_anyhow);
     }
 
-    retry_tor_onion(
-        base_url,
-        &host,
-        port,
-        TorOnionRetryTexts {
-            build_config: "build tor node status client config",
-            bootstrap: "bootstrap tor node status client",
-            connect: "connect node status",
-            timeout_tail: " while requesting node status",
-            no_retryable_error: "node status failed without a retryable error",
-        },
-        |stream| fetch_status_once(stream, &authority, bearer_token, base_url),
-    )
-    .await
+    bail!("Tor remote status requires local takd serve")
 }

@@ -1,4 +1,9 @@
 use super::*;
+use crate::daemon::peer_manager::{PeerEligibility, PeerSnapshot};
+
+#[path = "types/response.rs"]
+mod response;
+pub use response::{LeaseInfo, LimiterUsage, PendingInfo, Response, StatusSnapshot};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientInfo {
@@ -49,15 +54,72 @@ pub struct StatusRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LeaseInfo {
-    pub lease_id: String,
-    pub ttl_ms: u64,
-    pub renew_after_ms: u64,
+pub struct PeersListRequest {
+    pub request_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PendingInfo {
-    pub queue_position: usize,
+pub struct PeersEligibleRequest {
+    pub request_id: String,
+    #[serde(default)]
+    pub requirements: PeerEligibility,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaceRemoteRequest {
+    pub request_id: String,
+    #[serde(default)]
+    pub requirements: PeerEligibility,
+    pub task_run_id: String,
+    #[serde(default)]
+    pub submit_body: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoteResponseHeader {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForwardRemoteHttpRequest {
+    pub request_id: String,
+    pub node_id: String,
+    pub method: String,
+    pub path: String,
+    #[serde(default)]
+    pub headers: Vec<RemoteResponseHeader>,
+    #[serde(default)]
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamTaskEventsRequest {
+    pub request_id: String,
+    pub task_handle: String,
+    pub after_seq: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CancelTaskRequest {
+    pub request_id: String,
+    pub task_handle: String,
+    pub attempt: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetTaskResultRequest {
+    pub request_id: String,
+    pub task_handle: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetOutputRangeRequest {
+    pub request_id: String,
+    pub task_handle: String,
+    pub attempt: u32,
+    pub path: String,
+    pub range: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,48 +132,12 @@ pub enum Request {
     RenewLease(RenewLeaseRequest),
     ReleaseLease(ReleaseLeaseRequest),
     Status(StatusRequest),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum Response {
-    LeaseGranted {
-        request_id: String,
-        lease: LeaseInfo,
-    },
-    LeasePending {
-        request_id: String,
-        pending: PendingInfo,
-    },
-    LeaseRenewed {
-        request_id: String,
-        ttl_ms: u64,
-    },
-    LeaseReleased {
-        request_id: String,
-    },
-    StatusSnapshot {
-        request_id: String,
-        status: StatusSnapshot,
-    },
-    Error {
-        request_id: String,
-        message: String,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatusSnapshot {
-    pub active_leases: usize,
-    pub pending_requests: usize,
-    pub usage: Vec<LimiterUsage>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LimiterUsage {
-    pub name: String,
-    pub scope: Scope,
-    pub scope_key: Option<String>,
-    pub used: f64,
-    pub capacity: f64,
+    PeersList(PeersListRequest),
+    PeersEligible(PeersEligibleRequest),
+    PlaceRemote(PlaceRemoteRequest),
+    ForwardRemoteHttp(ForwardRemoteHttpRequest),
+    StreamTaskEvents(StreamTaskEventsRequest),
+    CancelTask(CancelTaskRequest),
+    GetTaskResult(GetTaskResultRequest),
+    GetOutputRange(GetOutputRangeRequest),
 }

@@ -8,8 +8,8 @@ use tak_exec::{RunOptions, run_tasks};
 use crate::support;
 
 use support::{
-    EnvGuard, RemoteInventoryRecord, RunningTakdServer, env_lock, remote_task_spec_with_outputs,
-    shell_step, workspace_output_path, write_remote_inventory,
+    EnvGuard, LocalTorBroker, RemoteInventoryRecord, RunningTakdServer, env_lock,
+    remote_task_spec_with_outputs, shell_step, workspace_output_path, write_remote_inventory,
 };
 
 fn any_transport_remote_spec() -> RemoteSpec {
@@ -39,7 +39,6 @@ async fn remote_execution_with_any_transport_falls_through_unreachable_direct_to
     );
 
     let tor_server = RunningTakdServer::spawn("builder-tor", "tor", temp.path()).await;
-    env.set("TAK_TEST_TOR_ONION_DIAL_ADDR", tor_server.bind_addr.clone());
     write_remote_inventory(
         &config_root,
         &[
@@ -57,6 +56,7 @@ async fn remote_execution_with_any_transport_falls_through_unreachable_direct_to
             ),
         ],
     );
+    let _broker = LocalTorBroker::spawn(temp.path(), &tor_server.bind_addr, &mut env).await;
 
     let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,

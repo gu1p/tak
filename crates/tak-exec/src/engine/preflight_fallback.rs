@@ -109,6 +109,9 @@ fn load_fit_rank(load: &RemoteTargetLoad) -> u8 {
 pub(crate) async fn preflight_strict_remote_target(
     target: &StrictRemoteTarget,
 ) -> std::result::Result<(), RemotePreflightFailure> {
+    if target.is_daemon_tor_placement() {
+        return Ok(());
+    }
     if let Err(err) = transport::socket_addr(target).with_context(|| {
         format!(
             "infra error: remote node {} has invalid endpoint {}",

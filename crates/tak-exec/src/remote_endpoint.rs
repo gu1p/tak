@@ -1,5 +1,3 @@
-use std::env;
-
 use anyhow::{Result, bail};
 
 use crate::engine::remote_models::StrictRemoteTransportKind;
@@ -40,11 +38,4 @@ pub fn socket_addr_from_host_port(host: &str, port: u16) -> String {
     } else {
         format!("{host}:{port}")
     }
-}
-
-pub(crate) fn test_tor_onion_dial_addr() -> Option<String> {
-    env::var("TAK_TEST_TOR_ONION_DIAL_ADDR")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
 }

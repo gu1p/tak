@@ -5,15 +5,17 @@ use tak_core::model::{
 use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 
 mod fused_members;
+mod output_glob;
 mod resources;
-
+use output_glob::normalize_workspace_submit_glob;
 use resources::parse_required_container_resource_limits;
 
 pub(super) fn parse_remote_worker_submit_payload(
+    context: &RemoteNodeContext,
     request: &tak_proto::SubmitTaskRequest,
 ) -> Result<RemoteWorkerSubmitPayload> {
     Ok(RemoteWorkerSubmitPayload {
-        workspace_zip: request.workspace_zip.clone(),
+        workspace_zip: workspace_zip_from_request(context, request)?,
         task_run_id: request.task_run_id.clone(),
         task_label: request.task_label.clone(),
         attempt: request.attempt,
@@ -27,7 +29,7 @@ pub(super) fn parse_remote_worker_submit_payload(
             request
                 .runtime
                 .as_ref()
-                .ok_or_else(|| anyhow!("invalid_submit_fields: execution.runtime is required")) // fail closed against host-level remote execution
+                .ok_or_else(|| anyhow!("invalid_submit_fields: execution.runtime is required"))
                 .and_then(parse_remote_worker_runtime_spec)?,
         ),
         needs: request.needs.clone(),
@@ -51,6 +53,16 @@ pub(super) fn parse_remote_worker_submit_payload(
         command: request.command.clone(),
         execution_label: request.execution_label.clone(),
     })
+}
+
+fn workspace_zip_from_request(
+    context: &RemoteNodeContext,
+    request: &tak_proto::SubmitTaskRequest,
+) -> Result<Vec<u8>> {
+    if let Some(upload) = request.workspace_upload.as_ref() {
+        return resolve_workspace_upload_zip(context, upload);
+    }
+    Ok(request.workspace_zip.clone())
 }
 
 fn parse_remote_worker_session(
@@ -100,50 +112,48 @@ pub(super) fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {
 
 fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntimeSpec> {
     match value.kind.as_ref() {
-        Some(runtime_spec::Kind::Container(container)) => {
-            match (
-                container
-                    .image
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty()),
-                container
-                    .dockerfile
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty()),
-            ) {
-                (Some(_), Some(_)) => bail!(
-                    "invalid_submit_fields: execution.runtime.container must specify exactly one source"
-                ),
-                (None, None) => bail!(
-                    "invalid_submit_fields: execution.runtime.container must specify exactly one source"
-                ),
-                (Some(image), None) => Ok(RemoteRuntimeSpec::Containerized {
-                    source: ContainerRuntimeSourceSpec::Image {
-                        image: image.to_string(),
+        Some(runtime_spec::Kind::Container(container)) => match (
+            container
+                .image
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+            container
+                .dockerfile
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+        ) {
+            (Some(_), Some(_)) => bail!(
+                "invalid_submit_fields: execution.runtime.container must specify exactly one source"
+            ),
+            (None, None) => bail!(
+                "invalid_submit_fields: execution.runtime.container must specify exactly one source"
+            ),
+            (Some(image), None) => Ok(RemoteRuntimeSpec::Containerized {
+                source: ContainerRuntimeSourceSpec::Image {
+                    image: image.to_string(),
+                },
+                resource_limits: Some(parse_required_container_resource_limits(container)?),
+            }),
+            (None, Some(dockerfile)) => {
+                let dockerfile = normalize_workspace_submit_path(
+                    dockerfile,
+                    "execution.runtime.container.dockerfile",
+                )?;
+                let build_context = normalize_workspace_submit_path(
+                    container.build_context.as_deref().unwrap_or("."),
+                    "execution.runtime.container.build_context",
+                )?;
+                Ok(RemoteRuntimeSpec::Containerized {
+                    source: ContainerRuntimeSourceSpec::Dockerfile {
+                        dockerfile,
+                        build_context,
                     },
                     resource_limits: Some(parse_required_container_resource_limits(container)?),
-                }),
-                (None, Some(dockerfile)) => {
-                    let dockerfile = normalize_workspace_submit_path(
-                        dockerfile,
-                        "execution.runtime.container.dockerfile",
-                    )?;
-                    let build_context = normalize_workspace_submit_path(
-                        container.build_context.as_deref().unwrap_or("."),
-                        "execution.runtime.container.build_context",
-                    )?;
-                    Ok(RemoteRuntimeSpec::Containerized {
-                        source: ContainerRuntimeSourceSpec::Dockerfile {
-                            dockerfile,
-                            build_context,
-                        },
-                        resource_limits: Some(parse_required_container_resource_limits(container)?),
-                    })
-                }
+                })
             }
-        }
+        },
         None => bail!("invalid_submit_fields: execution.runtime.kind is required"),
     }
 }
@@ -169,26 +179,4 @@ fn parse_remote_worker_output_selector(
         }),
         None => bail!("invalid_submit_fields: outputs.kind is required"),
     }
-}
-
-fn normalize_workspace_submit_glob(value: &str) -> Result<String> {
-    let normalized = value.trim();
-    if normalized.is_empty() {
-        bail!("invalid_submit_fields: outputs.glob cannot be empty");
-    }
-    if normalized.starts_with('@') {
-        bail!("invalid_submit_fields: outputs repo anchors are not supported in V1");
-    }
-    if normalized.starts_with("//") || normalized.starts_with('/') {
-        bail!("invalid_submit_fields: outputs glob must be workspace-relative");
-    }
-    if normalized.split('/').any(|segment| segment == "..") {
-        bail!("invalid_submit_fields: outputs glob cannot escape workspace");
-    }
-    let normalized = normalized.replace('\\', "/");
-    let mut builder = GitignoreBuilder::new(".");
-    builder
-        .add_line(None, &normalized)
-        .map_err(|err| anyhow!("invalid_submit_fields: outputs.glob {err}"))?;
-    Ok(normalized)
 }

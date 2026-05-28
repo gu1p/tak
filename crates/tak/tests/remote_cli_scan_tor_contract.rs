@@ -9,17 +9,18 @@ use std::thread;
 use prost::Message;
 use support::remote_cli::{node_info, read_request};
 use support::remote_scan::{run_scan_with_env, write_single_camera_qr_fixture};
-use tak_proto::encode_tor_invite;
+use tak_proto::encode_tor_invite_with_bearer;
 
 #[test]
-fn remote_scan_accepts_tor_invite_qr_and_persists_remote_without_bearer_token() {
+fn remote_scan_accepts_tor_invite_qr_and_persists_remote_bearer_token() {
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let fixture_path = temp.path().join("scan.toml");
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind node info server");
     let port = listener.local_addr().expect("listener addr").port();
     let base_url = "http://builder-scan.onion";
-    let invite = encode_tor_invite(base_url).expect("encode tor invite");
+    let invite = encode_tor_invite_with_bearer(base_url, "scan-secret")
+        .expect("encode tor invite with bearer");
     write_single_camera_qr_fixture(&fixture_path, &invite).expect("write scan fixture");
 
     let server = thread::spawn(move || {
@@ -30,8 +31,10 @@ fn remote_scan_accepts_tor_invite_qr_and_persists_remote_without_bearer_token() 
             "unexpected request: {request}"
         );
         assert!(
-            !request.contains("Authorization:"),
-            "tor invite probe should not send auth header:\n{request}"
+            request
+                .to_ascii_lowercase()
+                .contains("authorization: bearer scan-secret\r\n"),
+            "tor invite probe should send auth header:\n{request}"
         );
         let body = node_info("builder-scan", base_url, "tor").encode_to_vec();
         write!(
@@ -81,8 +84,8 @@ fn remote_scan_accepts_tor_invite_qr_and_persists_remote_without_bearer_token() 
         "missing persisted remote:\n{inventory}"
     );
     assert!(
-        inventory.contains("bearer_token = \"\""),
-        "tor invite scan should persist an empty bearer token:\n{inventory}"
+        inventory.contains("bearer_token = \"scan-secret\""),
+        "tor invite scan should persist the bearer token:\n{inventory}"
     );
 
     server.join().expect("probe server should exit");

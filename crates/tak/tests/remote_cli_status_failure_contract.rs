@@ -61,6 +61,7 @@ fn remote_status_renders_partial_http_failures_and_exits_non_zero() {
     let output = StdCommand::new(support::tak_bin())
         .args(["remote", "status"])
         .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", temp.path().join(".missing-takd.sock"))
         .output()
         .expect("run tak remote status");
     assert!(

@@ -16,20 +16,20 @@ Tak is organized around five runtime boundaries:
 2. Loader boundary (`tak-loader`)
    - resolves the current directory workspace and builds one validated `WorkspaceSpec`
 3. Core boundary (`tak-core`)
-   - shared label/model/planner logic with no IO
+   - shared label/model/planner logic plus shared runtime path and remote inventory helpers
 4. Execution boundary (`tak-exec`)
-   - runs tasks, enforces retries/timeouts, chooses local vs remote placement, and stages remote context
+   - runs local tasks, enforces retries/timeouts, and sends Tor remote execution to the local daemon
 5. Agent/runtime boundary (`takd`)
-   - hosts the standalone execution agent plus the reusable lease and remote-server runtimes
+   - hosts the unified local daemon, Tor peer manager, broker, and remote execution agent
 
-The `takd` crate contains two related server-side capabilities:
+The `takd` crate contains one service command with related server-side capabilities:
 
-- standalone agent service used by `takd init`, `takd serve`, `takd status`, `takd logs`, and
+- unified `takd serve` used by `takd init`, `takd status`, `takd peers`, `takd logs`, and
   `takd token show`
-- reusable lease and remote server internals used by tests and integrated runtimes
+- reusable local daemon, Tor broker, PeerManager, and remote server internals
 
-`tak` itself does not currently manage local daemon lifecycle. `tak status` remains an unsupported
-placeholder in the current client-only build.
+`tak` itself does not start or supervise daemon lifecycle. Local-only execution stays daemon
+optional, but Tor remote execution requires a reachable local `takd serve` socket.
 
 For remote onboarding, `tak` accepts either the raw secret `takd` invite/token string or the Tor-v3
 word phrase emitted by `takd token show --words`. The phrase encodes the onion host directly and
@@ -48,11 +48,13 @@ flowchart LR
     CLI[tak CLI] --> Loader[tak-loader]
     Loader --> Core[tak-core]
     CLI --> Exec[tak-exec]
-    Exec -->|optional needs coordination via TAKD_SOCKET| Lease[takd lease server]
-    Exec -->|remote v1 HTTP or Tor| Agent[standalone takd agent]
-    CLI -->|tak remote add/status| Agent
-    Agent --> AgentDb[(agent.sqlite)]
-    Lease --> LeaseDb[(lease SQLite state)]
+    Exec -->|local tasks| Local[local host/container runtime]
+    Exec -->|Tor remote placement request| LocalTakd[local takd serve]
+    CLI -->|tak status / tak remote status / takd peers| LocalTakd
+    LocalTakd -->|warm Tor peer session| RemoteTakd[remote takd serve]
+    RemoteTakd --> AgentDb[(agent.sqlite)]
+    LocalTakd --> LeaseDb[(takd.sqlite)]
+    LocalTakd --> Inventory[`remotes.toml`]
 ```
 
 ## Workspace Load and Graph Construction
@@ -100,13 +102,16 @@ socket using request/response messages such as `AcquireLease`, `RenewLease`, `Re
 
 Remote execution behavior:
 
-1. choose a remote node from client inventory
-2. probe node identity and protocol compatibility through `/v1/node/info`
-3. stage the normalized workspace context and task payload
-4. submit work over remote v1 HTTP, either directly or through Tor
-5. stream stdout/stderr events, fetch terminal result payloads, and materialize returned outputs/artifacts
+1. for Tor remotes, connect to the local `takd serve` socket instead of opening client-side Tor
+2. send placement requirements and the task payload to daemon-owned placement APIs
+3. let the local daemon resolve node id, endpoint, transport, and auth from `remotes.toml`
+4. submit over a warm Tor peer session to the remote `takd serve` agent
+5. stream stdout/stderr events, fetch terminal result payloads, and materialize returned outputs/artifacts through the daemon
 6. print run summary metadata such as `placement`, `remote_node`, `transport`, `reason`,
    `context_hash`, `runtime`, and `runtime_engine`
+
+Direct daemon-owned remote execution is future work. Direct remotes continue to use the legacy
+direct HTTP path while Tor remote execution is daemon-owned.
 
 ## Agent and Remote Model
 
@@ -115,13 +120,14 @@ The standalone remote worker flow is centered on the `takd` binary:
 1. `takd init`
    - writes agent config/state roots and initial transport settings
 2. `takd serve`
-   - starts the standalone agent service
+   - starts the local daemon socket, PeerManager, Tor broker, and standalone agent service
    - serves remote v1 HTTP endpoints
    - advertises a direct base URL or Tor onion endpoint when ready
+   - loads enabled Tor peers from `remotes.toml` and reloads the file with last-good semantics
 3. `tak remote add <token>`
-   - imports a secret onboarding invite/token into the local client inventory after probing the node
+   - imports a secret onboarding invite/token into `remotes.toml` after probing the node
 4. `tak remote status`
-   - fetches `/v1/node/status` from configured agents and renders active jobs plus resource usage
+   - uses daemon peer snapshots when local `takd serve` is reachable
 
 The current user-facing remote agent commands are:
 
@@ -131,6 +137,7 @@ The current user-facing remote agent commands are:
 - `tak remote status`
 - `takd init`
 - `takd serve`
+- `takd peers`
 - `takd status`
 - `takd logs`
 - `takd token show`
@@ -142,13 +149,15 @@ Tak uses two distinct protocol families.
 | Surface | Transport | Used By | Primary Shape |
 |---|---|---|---|
 | Lease coordination | unix socket | `tak-exec` when `TAKD_SOCKET` is set | line-delimited request/response messages for lease acquire, renew, release, and status |
+| Local daemon peer/task control | unix socket | `tak`, `tak-exec`, `takd peers` | `PeersList`, `PeersEligible`, `PlaceRemote`, `StreamTaskEvents`, `CancelTask`, `GetTaskResult`, `GetOutputRange` |
 | Remote agent control/status | remote v1 HTTP | `tak remote add <token>`, `tak remote status`, `takd serve` | authenticated `/v1/node/info` and `/v1/node/status` requests |
 | Remote task execution | remote v1 HTTP | `tak-exec` remote placement path | submit, events, result, and cancel flows for task runs and artifact roundtrip |
 
 The remote agent surface is transport-agnostic at the CLI level:
 
 - direct transport uses ordinary HTTP listeners
-- Tor transport uses an onion endpoint but keeps the same remote v1 HTTP contract
+- Tor transport uses a daemon-owned onion endpoint session but keeps the same remote v1 HTTP contract
+- `/v1/node/ping` returns `NodePingResponse` for app-level PeerManager heartbeats
 
 ## Persistence and Runtime State
 
@@ -165,6 +174,10 @@ Remote agent persistence:
 - `<state_root>/agent-control.sock` for local live `takd tasks` inspection
 - config/state roots created by `takd init`
 - ready base URL or onion advertisement persisted for later `takd status` and token reads
+
+Tor peer state is in-memory for v1 and is never written back to `remotes.toml`. The local daemon
+polls that inventory file, preserves the last-good peer set on malformed reloads, and clears sticky
+`auth_failed` state only when the bearer token changes.
 
 ## Invariants and Failure Surfaces
 
@@ -186,6 +199,8 @@ Common failure classes:
 - lease transport/protocol failures on the unix socket path
 - remote probe/auth/connectivity failures on the remote v1 HTTP path
 - remote result or artifact materialization failures
+- missing local `takd serve` when Tor remote execution is requested
+- no configured Tor peers, no eligible peer match, unreachable peers, or `auth_failed` peers
 
 ## Navigation
 

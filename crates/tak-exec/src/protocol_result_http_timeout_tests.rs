@@ -29,6 +29,10 @@ async fn remote_protocol_http_request_timeout_mentions_endpoint_and_transport() 
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     };
 
     let err = remote_protocol_http_request(
@@ -79,6 +83,10 @@ async fn remote_protocol_result_allows_busy_direct_daemons_more_than_one_second(
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
     };
 
     let result = try_remote_protocol_result(&target, "task-run", 1)

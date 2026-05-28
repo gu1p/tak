@@ -6,7 +6,10 @@ use anyhow::{Context, Result, bail};
 use tokio::time::sleep;
 
 use super::remote_inventory::{RemoteRecord, list_remotes};
-use super::remote_status::{RemoteStatusResult, fetch_remote_status_snapshot};
+use super::remote_status::{
+    RemoteStatusResult, fetch_daemon_peer_status_snapshot, fetch_mixed_remote_status_snapshot,
+    fetch_remote_status_snapshot,
+};
 
 mod daemon;
 mod local;
@@ -38,14 +41,21 @@ pub(super) async fn run_status(
     watch: bool,
     interval_ms: u64,
 ) -> Result<()> {
-    let remotes = selected_status_remotes(node_filters)?;
     let poll_interval = Duration::from_millis(interval_ms.max(1));
     let max_polls = test_max_polls();
     let mut polls = 0_usize;
 
     loop {
         let local = local_status_snapshot().await?;
-        let remote = fetch_remote_status_snapshot(&remotes).await;
+        let daemon_snapshot = fetch_daemon_peer_status_snapshot(node_filters).await?;
+        let remotes = selected_status_remotes_or_empty_when_daemon_available(
+            node_filters,
+            daemon_snapshot.is_some(),
+        )?;
+        let remote = match daemon_snapshot {
+            Some(snapshot) => fetch_mixed_remote_status_snapshot(&remotes, snapshot).await,
+            None => fetch_remote_status_snapshot(&remotes).await,
+        };
         print!("{}", render_status_snapshot(&local, &remote));
         stdout().flush().context("flush status output")?;
 
@@ -66,6 +76,17 @@ fn fail_on_remote_errors(remote: &[RemoteStatusResult]) -> Result<()> {
         bail!("failed to query one or more remote nodes");
     }
     Ok(())
+}
+
+fn selected_status_remotes_or_empty_when_daemon_available(
+    node_filters: &[String],
+    daemon_available: bool,
+) -> Result<Vec<RemoteRecord>> {
+    match selected_status_remotes(node_filters) {
+        Ok(remotes) => Ok(remotes),
+        Err(_) if daemon_available => Ok(Vec::new()),
+        Err(err) => Err(err),
+    }
 }
 
 fn selected_status_remotes(node_filters: &[String]) -> Result<Vec<RemoteRecord>> {

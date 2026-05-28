@@ -15,8 +15,8 @@ use tokio::net::TcpListener;
 use crate::support;
 
 use support::{
-    EnvGuard, RemoteInventoryRecord, env_lock, remote_builder_spec, remote_task_spec_with_outputs,
-    shell_step, workspace_output_path, write_remote_inventory,
+    EnvGuard, LocalTorBroker, RemoteInventoryRecord, env_lock, remote_builder_spec,
+    remote_task_spec_with_outputs, shell_step, workspace_output_path, write_remote_inventory,
 };
 
 #[tokio::test]
@@ -34,7 +34,6 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
         drop(listener);
         addr
     };
-    env.set("TAK_TEST_TOR_ONION_DIAL_ADDR", bind_addr.clone());
     write_remote_inventory(
         &config_root,
         &[RemoteInventoryRecord::builder(
@@ -44,6 +43,7 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
             "tor",
         )],
     );
+    let _broker = LocalTorBroker::spawn(temp.path(), &bind_addr, &mut env).await;
     let delayed_server = tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(250)).await;
         let listener = TcpListener::bind(&bind_addr)

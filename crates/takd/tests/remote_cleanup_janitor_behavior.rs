@@ -1,20 +1,17 @@
 #![allow(clippy::await_holding_lock)]
-
+use crate::support;
 use std::{
     fs,
     path::Path,
     time::{Duration, Instant},
 };
-
-use takd::{SubmitAttemptStore, build_submit_idempotency_key, run_remote_v1_http_server};
-use tokio::{net::TcpListener, time::sleep};
-
-use crate::support;
-
 use support::env::{EnvGuard, env_lock};
 use support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
 use support::remote_container::configure_fake_docker_env;
-use support::remote_output::{submit_shell_task, test_context_with_runtime};
+use support::remote_output::{submit_shell_task_with_limits, test_context_with_runtime};
+use tak_proto::ContainerResourceLimits;
+use takd::{SubmitAttemptStore, build_submit_idempotency_key, run_remote_v1_http_server};
+use tokio::{net::TcpListener, time::sleep};
 
 const REMOTE_WORKER_STATE_TIMEOUT: Duration = Duration::from_secs(45);
 
@@ -58,7 +55,16 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         context.clone(),
     ));
 
-    let submit_ack = submit_shell_task(&context, &store, "active-job", "sleep 30");
+    let submit_ack = submit_shell_task_with_limits(
+        &context,
+        &store,
+        "active-job",
+        "sleep 30",
+        ContainerResourceLimits {
+            cpu_cores: 0.001,
+            memory_mb: 1,
+        },
+    );
     assert!(submit_ack.accepted);
 
     let active_key = build_submit_idempotency_key("active-job", Some(1)).expect("active key");

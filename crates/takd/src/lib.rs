@@ -3,6 +3,8 @@
 //! `takd` owns the standalone remote worker HTTP service plus the reusable
 //! limiter/submit-store machinery used by agent-facing tests.
 
+#![recursion_limit = "256"]
+
 extern crate self as takd;
 
 #[allow(dead_code)]
@@ -18,10 +20,14 @@ pub use daemon::lease::{
     AcquireLeaseResponse, LeaseManager, SharedLeaseManager, new_shared_manager,
     new_shared_manager_with_db,
 };
+pub use daemon::peer_manager::{PeerEligibility, PeerManager, PeerSnapshot, PeerState};
 pub use daemon::protocol::{
-    AcquireLeaseRequest, ClientInfo, LeaseInfo, LimiterUsage, NeedRequest, PendingInfo,
-    ReleaseLeaseRequest, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
-    TaskInfo, ensure_valid_request, run_server,
+    AcquireLeaseRequest, CancelTaskRequest, ClientInfo, ForwardRemoteHttpRequest,
+    GetOutputRangeRequest, GetTaskResultRequest, LeaseInfo, LimiterUsage, NeedRequest,
+    PeersEligibleRequest, PeersListRequest, PendingInfo, PlaceRemoteRequest, ReleaseLeaseRequest,
+    RemoteResponseHeader, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
+    StreamTaskEventsRequest, TaskInfo, TorBroker, ensure_valid_request, run_server,
+    run_server_with_broker, run_server_with_broker_and_peers,
 };
 pub use daemon::remote::{
     ActiveSubmitAttempt, RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteRuntimeConfig,

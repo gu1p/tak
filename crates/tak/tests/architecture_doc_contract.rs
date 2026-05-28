@@ -1,31 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const REQUIRED_TOKENS: [&str; 9] = [
-    "current directory",
-    "`TASKS.py`",
-    "`module_spec(includes=[...])`",
-    "`takd init`",
-    "`takd serve`",
-    "`tak remote add <token>`",
-    "`tak remote status`",
-    "unix socket",
-    "remote v1 HTTP",
-];
+mod tokens;
 
-const REMOVED_TOKENS: [&str; 3] = [
-    "recursive module discovery",
-    "discovers all `TASKS.py`",
-    "`tak daemon start`",
-];
-
-const TOR_CAPABILITY_TOKENS: [&str; 5] = [
-    "The Tor invite/address is a secret, not just a location.",
-    "Anyone with it can submit jobs and read outputs/logs.",
-    "Do not paste it into shared chats, issue trackers, screenshots, or logs.",
-    "Rotate the onion address if exposed.",
-    "Tak remote does not provide multi-user isolation.",
-];
+use tokens::{
+    REMOVED_TOKENS, REQUIRED_TOKENS, TOR_CAPABILITY_TOKENS, TOR_FIRST_REMOVED_TOKENS,
+    TOR_FIRST_TOKENS,
+};
 
 #[test]
 fn root_architecture_matches_current_workspace_and_agent_model() {
@@ -41,10 +22,33 @@ fn root_architecture_matches_current_workspace_and_agent_model() {
 #[test]
 fn root_architecture_drops_removed_workspace_and_daemon_wording() {
     let architecture = load_text(&repo_root().join("ARCHITECTURE.md"));
-    for token in REMOVED_TOKENS {
+    for token in REMOVED_TOKENS.into_iter().chain(TOR_FIRST_REMOVED_TOKENS) {
         assert!(
             !architecture.contains(token),
             "ARCHITECTURE.md still contains removed wording `{token}`"
+        );
+    }
+}
+
+#[test]
+fn architecture_docs_cover_tor_first_peer_network_contract() {
+    let root = repo_root();
+    let combined = [
+        "ARCHITECTURE.md",
+        "crates/tak/ARCHITECTURE.md",
+        "crates/tak-core/ARCHITECTURE.md",
+        "crates/tak-exec/ARCHITECTURE.md",
+        "crates/takd/ARCHITECTURE.md",
+    ]
+    .into_iter()
+    .map(|relative_path| load_text(&root.join(relative_path)))
+    .collect::<Vec<_>>()
+    .join("\n");
+
+    for token in TOR_FIRST_TOKENS {
+        assert!(
+            combined.contains(token),
+            "architecture docs missing Tor-first token `{token}`"
         );
     }
 }

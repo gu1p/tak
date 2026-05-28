@@ -57,6 +57,7 @@ pub fn streaming_submit_request_with_command(
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
         fused_members: Vec::new(),
         execution_label: None,
+        workspace_upload: None,
     }
 }
 pub fn wait_for_streaming_events(

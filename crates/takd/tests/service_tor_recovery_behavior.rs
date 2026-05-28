@@ -4,7 +4,7 @@ use std::fs;
 use std::net::TcpListener as StdTcpListener;
 
 use tak_proto::decode_tor_invite;
-use takd::agent::{InitAgentOptions, TransportState, init_agent, read_token_wait};
+use takd::agent::{InitAgentOptions, TransportState, init_agent, read_config, read_token_wait};
 use takd::serve_agent;
 
 use crate::support;
@@ -48,6 +48,7 @@ async fn serve_agent_simulated_tor_relaunches_in_process_and_keeps_the_same_onio
         },
     )
     .expect("init tor agent");
+    let bearer_token = read_config(&config_root).expect("read config").bearer_token;
 
     let config_for_task = config_root.clone();
     let state_for_task = state_root.clone();
@@ -61,7 +62,7 @@ async fn serve_agent_simulated_tor_relaunches_in_process_and_keeps_the_same_onio
         .expect("join wait token")
         .expect("wait token");
     let base_url = decode_tor_invite(&token).expect("decode tor invite");
-    let first = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
+    let first = fetch_node_info(&bind_addr, "builder-tor.onion", &bearer_token).await;
 
     let recovering = wait_for_transport_state(&state_root, TransportState::Recovering).await;
     assert_eq!(recovering.base_url.as_deref(), Some(base_url.as_str()));
@@ -69,7 +70,7 @@ async fn serve_agent_simulated_tor_relaunches_in_process_and_keeps_the_same_onio
     let ready = wait_for_transport_state(&state_root, TransportState::Ready).await;
     assert_eq!(ready.base_url.as_deref(), Some(base_url.as_str()));
 
-    let second = fetch_node_info(&bind_addr, "builder-tor.onion", "").await;
+    let second = fetch_node_info(&bind_addr, "builder-tor.onion", &bearer_token).await;
 
     assert_eq!(first.node_id, "builder-tor");
     assert_eq!(first.base_url, base_url);

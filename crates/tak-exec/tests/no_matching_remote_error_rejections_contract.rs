@@ -21,7 +21,7 @@ async fn no_matching_remote_error_reports_each_enabled_remote_rejection() {
         &workspace_root,
         "remote_requires_build_pool",
         vec![shell_step("echo should-not-run")],
-        remote_builder_spec(RemoteTransportKind::Tor),
+        remote_builder_spec(RemoteTransportKind::Direct),
     );
     let err = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
         .await
@@ -37,7 +37,10 @@ async fn no_matching_remote_error_reports_each_enabled_remote_rejection() {
     assert_eq!(diagnostic.required.pool.as_deref(), Some("build"));
     assert_eq!(diagnostic.required.required_tags, vec!["builder"]);
     assert_eq!(diagnostic.required.required_capabilities, vec!["linux"]);
-    assert_eq!(diagnostic.required.transport_kind, RemoteTransportKind::Tor);
+    assert_eq!(
+        diagnostic.required.transport_kind,
+        RemoteTransportKind::Direct
+    );
     assert_eq!(diagnostic.enabled_remotes.len(), 3);
 
     let default_remote = diagnostic
@@ -53,16 +56,16 @@ async fn no_matching_remote_error_reports_each_enabled_remote_rejection() {
         }]
     );
 
-    let direct_remote = diagnostic
+    let tor_remote = diagnostic
         .enabled_remotes
         .iter()
-        .find(|remote| remote.node_id == "builder-direct")
-        .expect("builder-direct should be listed");
+        .find(|remote| remote.node_id == "builder-tor")
+        .expect("builder-tor should be listed");
     assert_eq!(
-        direct_remote.rejection_reasons,
+        tor_remote.rejection_reasons,
         vec![RemoteCandidateRejection::TransportMismatch {
-            required: RemoteTransportKind::Tor,
-            available: "direct".into(),
+            required: RemoteTransportKind::Direct,
+            available: "tor".into(),
         }]
     );
 

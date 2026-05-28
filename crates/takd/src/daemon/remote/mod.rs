@@ -15,7 +15,7 @@ use tak_runner::{
     execute_remote_worker_steps_with_output_and_cancellation,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tor_cell::relaycell::msg::Connected;
 use zip::read::ZipArchive;
 
@@ -41,6 +41,7 @@ mod route_outputs;
 mod route_result;
 mod route_submit;
 mod route_tasks;
+mod route_uploads;
 mod router;
 mod runtime;
 mod runtime_state;
@@ -74,12 +75,13 @@ use execution_root::{
     ensure_remote_execution_root_base, execution_root_for_submit_key_at_base,
     remote_execution_root_base,
 };
-pub(crate) use http_server::handle_remote_v1_http_stream;
+pub(crate) use http_server::{handle_remote_v1_http_stream, handle_remote_v1_stream};
 pub(crate) use orphan_watchdog::spawn_remote_orphan_watchdog;
 use query_helpers::{
-    binary_response, error_response, protobuf_response, query_param_string, query_param_u64,
-    remote_task_path_arg, resolve_submit_idempotency_key_for_task_run,
-    sanitize_submit_idempotency_key, split_path_and_query, text_response, unix_epoch_ms,
+    binary_response, binary_response_with_headers, error_response, protobuf_response,
+    query_param_string, query_param_u64, remote_task_path_arg,
+    resolve_submit_idempotency_key_for_task_run, sanitize_submit_idempotency_key,
+    split_path_and_query, text_response, unix_epoch_ms,
 };
 use route_events::handle_remote_events_route;
 use route_logs::handle_node_logs_route;
@@ -88,6 +90,8 @@ use route_outputs::handle_remote_outputs_route;
 use route_result::handle_remote_result_route;
 use route_submit::handle_remote_submit_route;
 use route_tasks::handle_remote_tasks_route;
+use route_uploads::{handle_workspace_upload_route, resolve_workspace_upload_zip};
+use router::handle_remote_v1_request_with_headers;
 use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tak_container_usage::spawn_tak_container_usage_sampler;
 pub(crate) use tor_server::{
@@ -97,7 +101,7 @@ use types::{
     RemoteWorkerFusedMember, RemoteWorkerOutputRecord, RemoteWorkerSession,
     RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
 };
-use worker_output_artifacts::{read_staged_remote_output, stage_remote_worker_outputs};
+use worker_output_artifacts::stage_remote_worker_outputs;
 use worker_submit_execution::{
     PreparedResourceAdmission, RemoteWorkerSubmitExecution, register_active_job,
     spawn_remote_worker_submit_execution,

@@ -4,18 +4,53 @@ pub async fn run_daemon(socket_path: &Path) -> Result<()> {
     let db_path = std::env::var("TAKD_DB_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| default_state_db_path());
-    let manager = new_shared_manager_with_db(db_path.clone())?;
-
-    {
-        let mut guard = manager
-            .lock()
-            .map_err(|_| anyhow!("lease manager lock poisoned"))?;
-        guard.set_capacity("cpu", Scope::Machine, None, 8.0);
-        guard.set_capacity("ram_gib", Scope::Machine, None, 32.0);
-    }
-
     spawn_optional_remote_v1_services(&db_path).await?;
-    run_server(socket_path, manager).await
+    run_local_daemon(socket_path, &db_path).await
+}
+
+pub(crate) async fn run_local_daemon(socket_path: &Path, db_path: &Path) -> Result<()> {
+    run_local_daemon_with_peers(
+        socket_path,
+        db_path,
+        crate::daemon::peer_manager::PeerManager::default(),
+    )
+    .await
+}
+
+pub(crate) async fn run_local_daemon_with_peers(
+    socket_path: &Path,
+    db_path: &Path,
+    peers: crate::daemon::peer_manager::PeerManager,
+) -> Result<()> {
+    run_local_daemon_with_broker_and_peers(
+        socket_path,
+        db_path,
+        crate::daemon::protocol::TorBroker::new(),
+        peers,
+    )
+    .await
+}
+
+pub(crate) async fn run_local_daemon_with_broker_and_peers(
+    socket_path: &Path,
+    db_path: &Path,
+    broker: crate::daemon::protocol::TorBroker,
+    peers: crate::daemon::peer_manager::PeerManager,
+) -> Result<()> {
+    let manager = local_daemon_manager(db_path)?;
+    crate::daemon::protocol::run_server_with_broker_and_peers(socket_path, manager, broker, peers)
+        .await
+}
+
+fn local_daemon_manager(db_path: &Path) -> Result<crate::daemon::lease::SharedLeaseManager> {
+    let manager = new_shared_manager_with_db(db_path.to_path_buf())?;
+    let mut guard = manager
+        .lock()
+        .map_err(|_| anyhow!("lease manager lock poisoned"))?;
+    guard.set_capacity("cpu", Scope::Machine, None, 8.0);
+    guard.set_capacity("ram_gib", Scope::Machine, None, 32.0);
+    drop(guard);
+    Ok(manager)
 }
 
 async fn spawn_optional_remote_v1_services(db_path: &Path) -> Result<()> {

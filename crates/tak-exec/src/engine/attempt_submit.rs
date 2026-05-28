@@ -99,14 +99,16 @@ pub(crate) async fn resolve_attempt_submit_state(
     })
     .await
     {
-        Ok(()) => {
+        Ok(selected_target) => {
+            placement.remote_node_id = Some(selected_target.node_id.clone());
+            placement.strict_remote_target = Some(selected_target.clone());
             emit_task_status_message(
                 output_observer,
                 &task.label,
                 submit.attempt,
                 TaskStatusPhase::RemoteSubmit,
-                Some(target.node_id.as_str()),
-                format!("remote task accepted by {}", target.node_id),
+                Some(selected_target.node_id.as_str()),
+                format!("remote task accepted by {}", selected_target.node_id),
             )?;
         }
         Err(submit_error) => {

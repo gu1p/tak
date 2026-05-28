@@ -60,6 +60,10 @@ fn targets(ids: &[&str]) -> Vec<StrictRemoteTarget> {
             transport_kind: StrictRemoteTransportKind::Direct,
             bearer_token: "secret".to_string(),
             runtime: None,
+            required_pool: None,
+            required_tags: Vec::new(),
+            required_capabilities: Vec::new(),
+            daemon_task_handle: None,
         })
         .collect()
 }

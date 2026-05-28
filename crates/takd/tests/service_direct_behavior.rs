@@ -11,6 +11,9 @@ use crate::support;
 use support::env::env_lock;
 use support::http::{fetch_node_info, fetch_node_status};
 
+#[path = "service_direct_behavior/daemon_socket.rs"]
+mod daemon_socket;
+
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
     let _env_lock = env_lock();
@@ -39,14 +42,14 @@ async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
 
     let config_for_task = config_root.clone();
     let state_for_task = state_root.clone();
-    let server = tokio::spawn(async move {
-        let _ = serve_agent(&config_for_task, &state_for_task).await;
-    });
+    let mut server =
+        tokio::spawn(async move { serve_agent(&config_for_task, &state_for_task).await });
     let token_state_root = state_root.clone();
-    let token = tokio::task::spawn_blocking(move || read_token_wait(&token_state_root, 5))
-        .await
-        .expect("join wait token")
-        .expect("wait token");
+    let token_task = tokio::task::spawn_blocking(move || read_token_wait(&token_state_root, 5));
+    let token = tokio::select! {
+        token = token_task => token.expect("join wait token").expect("wait token"),
+        result = &mut server => panic!("serve_agent stopped before token was ready: {result:?}"),
+    };
     let payload = decode_remote_token(&token).expect("decode direct token");
     let node = payload.node.expect("node info");
     let socket_addr = node

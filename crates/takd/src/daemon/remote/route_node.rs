@@ -15,6 +15,15 @@ pub(super) fn handle_node_metadata_route(
             }
         });
     }
+    if method == "GET" && path_only == "/v1/node/ping" {
+        return Some(match context.node_ping() {
+            Ok(ping) => protobuf_response(200, &ping),
+            Err(err) => {
+                tracing::error!("failed to build node ping response: {err:#}");
+                error_response(500, "status_unavailable")
+            }
+        });
+    }
     if method == "GET" && path_only == "/v1/node/status" {
         return Some(match context.node_status() {
             Ok(status) => protobuf_response(200, &status),

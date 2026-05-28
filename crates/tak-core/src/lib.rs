@@ -8,5 +8,7 @@ pub mod endpoint;
 pub mod label;
 pub mod model;
 pub mod planner;
+pub mod remote_inventory;
+pub mod runtime_paths;
 
 extern crate self as tak_core;

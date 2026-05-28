@@ -41,6 +41,11 @@ impl DelayedEventsServer {
                     "/v1/tasks/submit" => {
                         write_protobuf_response(&mut stream, "200 OK", &submit_response())
                     }
+                    "/v2/workspaces/uploads/begin" => {
+                        let _ = stream.write_all(
+                            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                        );
+                    }
                     _ if path.contains("/events") => write_protobuf_response(
                         &mut stream,
                         "200 OK",

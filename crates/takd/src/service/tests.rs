@@ -100,37 +100,43 @@ fn test_bind_addr_helper_trims_and_ignores_empty_values() {
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn tor_test_bind_override_keeps_token_pending_until_listener_binds() {
-    let _env_lock = env_lock();
-    let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
     let occupied_listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind occupied");
     let bind_addr = occupied_listener
         .local_addr()
         .expect("occupied addr")
         .to_string();
-    env.set("TAKD_TEST_TOR_HS_BIND_ADDR", &bind_addr);
-
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
-    let empty = Vec::<String>::new();
-    init_agent(
-        &config_root,
-        &state_root,
-        InitAgentOptions {
-            node_id: Some("builder-tor"),
-            display_name: None,
-            transport: Some("tor"),
-            base_url: None,
-            pools: &empty,
-            tags: &empty,
-            capabilities: &empty,
-            image_cache_budget_percent: None,
-            image_cache_budget_gb: None,
-        },
-    )
-    .expect("init tor agent");
+
+    // env_lock is held only across env mutation + sync init; dropping it before
+    // the long-running serve_agent().await avoids starving every other
+    // env-lock-using test in this crate's test binary.
+    let env = {
+        let _env_lock = env_lock();
+        let mut env = EnvGuard::default();
+        env.set("TAKD_TEST_TOR_HS_BIND_ADDR", &bind_addr);
+
+        let empty = Vec::<String>::new();
+        init_agent(
+            &config_root,
+            &state_root,
+            InitAgentOptions {
+                node_id: Some("builder-tor"),
+                display_name: None,
+                transport: Some("tor"),
+                base_url: None,
+                pools: &empty,
+                tags: &empty,
+                capabilities: &empty,
+                image_cache_budget_percent: None,
+                image_cache_budget_gb: None,
+            },
+        )
+        .expect("init tor agent");
+        env
+    };
 
     let err = serve_agent(&config_root, &state_root)
         .await
@@ -148,6 +154,11 @@ async fn tor_test_bind_override_keeps_token_pending_until_listener_binds() {
         None,
         "base_url should stay pending after bind failure"
     );
+
+    // EnvGuard::drop mutates the process environment; serialize that with
+    // any other env_lock holders by re-acquiring the lock for the restore.
+    let _env_lock = env_lock();
+    drop(env);
 }
 
 fn agent_config(base_url: Option<&str>) -> AgentConfig {

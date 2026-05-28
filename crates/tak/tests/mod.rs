@@ -74,6 +74,7 @@ mod run_session;
 mod run_streaming_contract;
 mod staged_workspace_script_contract;
 mod status_contract;
+mod status_daemon_peer_contract;
 mod status_failure_contract;
 pub mod support;
 mod tak_bin_explicit_contract;
