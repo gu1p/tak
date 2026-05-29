@@ -23,17 +23,7 @@ async fn remote_protocol_http_request_timeout_mentions_endpoint_and_transport() 
         tokio::time::sleep(Duration::from_millis(200)).await;
     });
     let endpoint = format!("http://{addr}");
-    let target = StrictRemoteTarget {
-        node_id: "builder-a".into(),
-        endpoint: endpoint.clone(),
-        transport_kind: StrictRemoteTransportKind::Direct,
-        bearer_token: "secret".into(),
-        runtime: None,
-        required_pool: None,
-        required_tags: Vec::new(),
-        required_capabilities: Vec::new(),
-        daemon_task_handle: None,
-    };
+    let target = direct_target(endpoint.clone());
 
     let err = remote_protocol_http_request(
         &target,
@@ -77,17 +67,7 @@ async fn remote_protocol_result_allows_busy_direct_daemons_more_than_one_second(
         stream.write_all(head.as_bytes()).await.expect("write head");
         stream.write_all(&body).await.expect("write body");
     });
-    let target = StrictRemoteTarget {
-        node_id: "builder-a".into(),
-        endpoint: format!("http://{addr}"),
-        transport_kind: StrictRemoteTransportKind::Direct,
-        bearer_token: "secret".into(),
-        runtime: None,
-        required_pool: None,
-        required_tags: Vec::new(),
-        required_capabilities: Vec::new(),
-        daemon_task_handle: None,
-    };
+    let target = direct_target(format!("http://{addr}"));
 
     let result = try_remote_protocol_result(&target, "task-run", 1)
         .await
@@ -96,4 +76,19 @@ async fn remote_protocol_result_allows_busy_direct_daemons_more_than_one_second(
 
     assert!(result.success);
     server.await.expect("server task");
+}
+
+fn direct_target(endpoint: String) -> StrictRemoteTarget {
+    StrictRemoteTarget {
+        node_id: "builder-a".into(),
+        endpoint,
+        transport_kind: StrictRemoteTransportKind::Direct,
+        bearer_token: "secret".into(),
+        runtime: None,
+        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
+    }
 }

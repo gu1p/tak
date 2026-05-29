@@ -133,7 +133,7 @@ def RemoteSelection_Sequential():
     }
 
 def RemoteSelection_Shuffle():
-    """Spread attempts across matching remotes with deterministic per-attempt ordering."""
+    """Prefer less-loaded matching remotes, then spread ties deterministically."""
     return {
         "kind": "shuffle",
     }
@@ -157,7 +157,7 @@ def Transport_TorOnionService():
     }
 
 def Container_Resources(cpu_cores, memory_mb):
-    """Declare CPU and memory limits for containerized remote execution."""
+    """Declare CPU and memory reservations for containerized remote execution."""
     return {
         "__tak_kind": "container_resources",
         "cpu_cores": float(cpu_cores),

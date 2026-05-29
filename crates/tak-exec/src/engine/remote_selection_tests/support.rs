@@ -10,6 +10,7 @@ pub(super) fn targets(ids: &[&str]) -> Vec<StrictRemoteTarget> {
             transport_kind: StrictRemoteTransportKind::Direct,
             bearer_token: "secret".to_string(),
             runtime: None,
+            remote_selection: tak_core::model::RemoteSelectionSpec::Shuffle,
             required_pool: None,
             required_tags: Vec::new(),
             required_capabilities: Vec::new(),

@@ -30,14 +30,6 @@ pub(super) async fn run_step_in_container(
         tty: Some(false),
         host_config: Some(HostConfig {
             binds: Some(vec![bind_mount]),
-            nano_cpus: executor
-                .resource_limits
-                .and_then(|limits| limits.cpu_cores)
-                .map(cpu_cores_to_nano_cpus),
-            memory: executor
-                .resource_limits
-                .and_then(|limits| limits.memory_mb)
-                .map(memory_mb_to_bytes),
             ..Default::default()
         }),
         ..Default::default()
@@ -106,6 +98,9 @@ async fn start_and_wait_for_container_step(
             exit_code: None,
         });
     };
+    if status == 137 {
+        emit_exit_137_diagnostic(executor, run_context, container_id).await?;
+    }
 
     Ok(StepRunResult {
         success: status == 0,
@@ -127,6 +122,43 @@ fn container_labels(run_context: &ContainerStepRunContext<'_>) -> Option<HashMap
     ]))
 }
 
+async fn emit_exit_137_diagnostic(
+    executor: &ContainerStepExecutor<'_>,
+    run_context: &ContainerStepRunContext<'_>,
+    container_id: &str,
+) -> Result<()> {
+    let Some(observer) = run_context.output_observer else {
+        return Ok(());
+    };
+    let oom_state = container_oom_killed(executor.docker, container_id).await;
+    observer.observe_status(TaskStatusEvent {
+        task_label: run_context.task_label.clone(),
+        attempt: run_context.attempt,
+        phase: TaskStatusPhase::RemoteWait,
+        remote_node_id: None,
+        message: exit_137_diagnostic_message(oom_state),
+    })
+}
+
+async fn container_oom_killed(docker: &Docker, container_id: &str) -> Option<bool> {
+    docker
+        .inspect_container(container_id, None::<InspectContainerOptions>)
+        .await
+        .ok()
+        .and_then(|container| container.state)
+        .and_then(|state| state.oom_killed)
+}
+
+fn exit_137_diagnostic_message(oom_killed: Option<bool>) -> String {
+    let oom_state = match oom_killed {
+        Some(value) => format!("OOMKilled={value}"),
+        None => "OOMKilled=unknown".to_string(),
+    };
+    format!(
+        "container exited with exit code 137 ({oom_state}); Tak resources are reservations only and are not applied as container memory limits"
+    )
+}
+
 fn finish_container_step(
     step_result: Result<StepRunResult>,
     cleanup_result: Result<()>,
@@ -139,13 +171,4 @@ fn finish_container_step(
         (Ok(_), Err(cleanup_err), _) => Err(cleanup_err),
         (Ok(_), Ok(()), Err(log_err)) => Err(log_err),
     }
-}
-
-fn cpu_cores_to_nano_cpus(cpu_cores: f64) -> i64 {
-    (cpu_cores * 1_000_000_000.0).round() as i64
-}
-
-fn memory_mb_to_bytes(memory_mb: u64) -> i64 {
-    let bytes = memory_mb.saturating_mul(1024 * 1024);
-    i64::try_from(bytes).unwrap_or(i64::MAX)
 }

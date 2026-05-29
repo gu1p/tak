@@ -22,7 +22,9 @@ pub(super) enum DaemonRequest {
     PlaceRemote {
         request_id: String,
         requirements: PeerEligibility,
+        selection: String,
         task_run_id: String,
+        attempt: u32,
         submit_body: Vec<u8>,
     },
     ForwardRemoteHttp {

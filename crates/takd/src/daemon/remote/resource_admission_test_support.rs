@@ -2,28 +2,17 @@
 
 use tak_core::model::ContainerResourceLimitsSpec;
 
-use super::usage::ResourceUsageSnapshot;
 use super::{
     ResourceAdmissionLock, ResourceAdmissionState, ResourceCapacity, ResourceRequest,
     SharedResourceAdmission,
 };
 
 impl SharedResourceAdmission {
-    pub(super) fn new_for_tests(capacity: ResourceCapacity, usage: ResourceUsageSnapshot) -> Self {
-        Self::new_for_tests_with_host_protection(capacity, usage, true)
-    }
-
-    pub(super) fn new_for_tests_with_host_protection(
-        capacity: ResourceCapacity,
-        usage: ResourceUsageSnapshot,
-        protect_external_usage: bool,
-    ) -> Self {
+    pub(super) fn new_for_tests(capacity: ResourceCapacity) -> Self {
         Self {
             inner: std::sync::Arc::new(ResourceAdmissionLock {
                 state: std::sync::Mutex::new(ResourceAdmissionState {
                     capacity,
-                    usage_source: super::ResourceUsageSource::Fixed(usage),
-                    protect_external_usage,
                     reservations: Default::default(),
                     queue: Default::default(),
                 }),

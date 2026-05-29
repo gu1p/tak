@@ -65,10 +65,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
     workspace_root: Option<&Path>,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
     match runtime {
-        RemoteRuntimeSpec::Containerized {
-            source,
-            resource_limits,
-        } => {
+        RemoteRuntimeSpec::Containerized { source, .. } => {
             maybe_fail_injected_container_lifecycle_stage(
                 task,
                 node_id,
@@ -146,7 +143,6 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
                     engine,
                     source: source.clone(),
                     image: image.clone(),
-                    resource_limits: resource_limits.clone(),
                     container_user: None,
                     image_cache: None,
                 })

@@ -3,6 +3,8 @@ use std::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
+use super::CONTAINER_ID;
+
 #[rustfmt::skip]
 pub(super) async fn read_request(stream: &mut UnixStream) -> io::Result<(String, String)> {
     let mut buffer = Vec::new();
@@ -58,4 +60,22 @@ pub(super) async fn write_logs_response(
     stream.write_all(&frame).await?;
     stream.write_all(b"\r\n0\r\n\r\n").await?;
     stream.flush().await
+}
+
+#[rustfmt::skip]
+pub(super) fn wait_response_body(wait_status: i64, wait_error: Option<&str>) -> String {
+    match wait_error {
+        Some(message) => format!(
+            r#"{{"StatusCode":{wait_status},"Error":{{"Message":"{message}"}}}}"#
+        ),
+        None => format!(r#"{{"Error":null,"StatusCode":{wait_status}}}"#),
+    }
+}
+
+#[rustfmt::skip]
+pub(super) fn inspect_response_body(oom_killed: Option<bool>) -> String {
+    match oom_killed {
+        Some(value) => format!(r#"{{"Id":"{CONTAINER_ID}","State":{{"OOMKilled":{value}}}}}"#),
+        None => format!(r#"{{"Id":"{CONTAINER_ID}","State":{{}}}}"#),
+    }
 }

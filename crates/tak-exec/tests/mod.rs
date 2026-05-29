@@ -48,6 +48,7 @@ mod remote_worker_container_user_behavior;
 mod remote_worker_runtime_behavior;
 mod remote_worker_runtime_failure_behavior;
 mod remote_worker_runtime_nonzero_exit_behavior;
+mod remote_worker_runtime_oom_behavior;
 mod remote_worker_runtime_streaming_behavior;
 mod run_jobs_parallel_behavior;
 mod tor_broker_fallback_behavior;

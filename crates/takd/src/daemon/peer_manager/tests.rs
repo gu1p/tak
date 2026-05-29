@@ -8,5 +8,7 @@ mod heartbeat_io;
 mod heartbeat_timeout;
 #[path = "tests/inventory.rs"]
 mod inventory;
+#[path = "tests/placement.rs"]
+mod placement;
 #[path = "tests/support.rs"]
 mod support;

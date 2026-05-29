@@ -82,11 +82,12 @@ pub(super) async fn dispatch_request(
             peers: peers.eligible(&payload.requirements),
         }),
         Request::PlaceRemote(payload) => {
-            let eligible = peers.snapshots();
-            match crate::daemon::peer_manager::first_placeable_or_error(
-                &eligible,
-                &payload.requirements,
-            ) {
+            match peers.select_placeable(crate::daemon::peer_manager::PeerPlacementRequest {
+                requirements: &payload.requirements,
+                selection: payload.selection,
+                task_run_id: &payload.task_run_id,
+                attempt: payload.attempt,
+            }) {
                 Ok(peer) => remote::place_remote_task(payload, peer, peers, broker, tasks).await,
                 Err(err) => Ok(Response::Error {
                     request_id: payload.request_id,

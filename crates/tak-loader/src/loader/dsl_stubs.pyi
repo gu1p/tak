@@ -26,7 +26,7 @@ class ContainerMountSpec(TypedDict):
     read_only: bool
 
 
-# CPU and memory limits for containerized remote execution.
+# CPU and memory reservations for containerized remote execution.
 class ContainerResourceLimitsSpec:
     cpu_cores: float
     memory_mb: int
@@ -76,7 +76,7 @@ class SequentialRemoteSelectionSpec(TypedDict):
     kind: Literal["sequential"]
 
 
-# Deterministically spread attempts across matching remotes.
+# Prefer less-loaded matching remotes, then spread ties deterministically.
 class ShuffleRemoteSelectionSpec(TypedDict):
     kind: Literal["shuffle"]
 
@@ -455,7 +455,7 @@ class Execution:
 
 # Container namespace.
 class Container:
-    # Declare CPU and memory limits for containerized remote execution.
+    # Declare CPU and memory reservations for containerized remote execution.
     @staticmethod
     def Resources(cpu_cores: float, memory_mb: int) -> ContainerResourceLimitsSpec: ...
 
@@ -502,7 +502,7 @@ class RemoteSelection:
     @staticmethod
     def Sequential() -> SequentialRemoteSelectionSpec: ...
 
-    # Spread attempts across matching remotes deterministically.
+    # Prefer less-loaded matching remotes, then spread ties deterministically.
     @staticmethod
     def Shuffle() -> ShuffleRemoteSelectionSpec: ...
 

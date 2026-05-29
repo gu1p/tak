@@ -38,7 +38,7 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         temp.path(),
         FakeDockerConfig {
             visible_roots: vec![exec_root.clone()],
-            wait_response_delay: Duration::from_secs(30),
+            wait_response_delay: Duration::from_secs(600),
             ..Default::default()
         },
     );

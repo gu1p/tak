@@ -9,9 +9,11 @@ pub mod lease_order_case;
 pub mod lease_order_fused;
 pub mod lease_order_need;
 pub mod local_tor_broker;
+pub mod nonzero_wait_docker_daemon;
 pub mod output_spec;
 pub mod remote_mismatch;
 pub mod remote_progress_wait;
+pub mod remote_runtime_spec;
 pub mod remote_worker_runtime;
 pub mod servers;
 pub mod status_observer;
@@ -28,10 +30,12 @@ pub use lease_order_case::{
 pub use lease_order_fused::fused_remote_cascade_spec;
 pub use lease_order_need::add_ui_lock_need;
 pub use local_tor_broker::LocalTorBroker;
+pub use nonzero_wait_docker_daemon::NonzeroWaitDockerDaemon;
 pub use output_spec::{workspace_output_glob, workspace_output_path};
 pub use remote_mismatch::{
     prepare_workspace, write_disabled_remote, write_enabled_remote_mismatches,
 };
+pub use remote_runtime_spec::alpine_spec;
 pub use remote_worker_runtime::{
     CollectingObserver, configure_fake_docker_env, configure_real_docker_env, worker_spec,
 };

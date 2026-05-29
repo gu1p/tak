@@ -26,7 +26,7 @@ async fn remote_worker_container_runtime_omits_user_for_image_default() {
 }
 
 #[tokio::test]
-async fn remote_worker_container_runtime_passes_resource_limits_to_docker() {
+async fn remote_worker_container_runtime_uses_resources_as_reservations_only() {
     let create = run_container_task(
         None,
         Some(ContainerResourceLimitsSpec {
@@ -36,8 +36,8 @@ async fn remote_worker_container_runtime_passes_resource_limits_to_docker() {
     )
     .await;
 
-    assert_eq!(create.nano_cpus, Some(1_500_000_000));
-    assert_eq!(create.memory, Some(805_306_368));
+    assert_eq!(create.nano_cpus, None);
+    assert_eq!(create.memory, None);
 }
 
 async fn run_container_task_with_user(

@@ -20,7 +20,9 @@ pub use daemon::lease::{
     AcquireLeaseResponse, LeaseManager, SharedLeaseManager, new_shared_manager,
     new_shared_manager_with_db,
 };
-pub use daemon::peer_manager::{PeerEligibility, PeerManager, PeerSnapshot, PeerState};
+pub use daemon::peer_manager::{
+    PeerEligibility, PeerManager, PeerPlacementSelection, PeerSnapshot, PeerState,
+};
 pub use daemon::protocol::{
     AcquireLeaseRequest, CancelTaskRequest, ClientInfo, ForwardRemoteHttpRequest,
     GetOutputRangeRequest, GetTaskResultRequest, LeaseInfo, LimiterUsage, NeedRequest,

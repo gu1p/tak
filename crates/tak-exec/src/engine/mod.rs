@@ -7,6 +7,8 @@ mod attempt_execution;
 mod attempt_placement;
 mod attempt_submit;
 mod cancellation;
+#[cfg(test)]
+mod env_test_lock;
 mod execution_labels;
 mod fused_cascade;
 mod fused_cascade_run;

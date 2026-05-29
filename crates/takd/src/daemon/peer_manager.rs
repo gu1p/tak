@@ -10,12 +10,14 @@ mod eligibility;
 mod heartbeat;
 mod inventory;
 mod marks;
+mod placement;
 mod reconcile;
 mod state;
 
 pub use eligibility::{PeerEligibility, first_eligible_or_error, first_placeable_or_error};
 use eligibility::{peer_is_eligible, peer_is_placeable};
 use heartbeat::{HeartbeatTarget, ping_peer, should_ping, unix_epoch_ms};
+pub use placement::{PeerPlacementRequest, PeerPlacementSelection};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 const HEARTBEAT_POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -70,6 +72,7 @@ pub struct PeerManager {
 #[derive(Default)]
 struct PeerManagerState {
     peers: BTreeMap<String, PeerEntry>,
+    placement_assignments: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, Clone)]

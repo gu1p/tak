@@ -21,7 +21,9 @@ async fn place_remote_marks_peer_auth_failed_on_submit_401() {
         &Request::PlaceRemote(PlaceRemoteRequest {
             request_id: "place".into(),
             requirements: Default::default(),
+            selection: Default::default(),
             task_run_id: "task-1".into(),
+            attempt: 1,
             submit_body: SubmitTaskRequest {
                 task_run_id: "task-1".into(),
                 ..SubmitTaskRequest::default()

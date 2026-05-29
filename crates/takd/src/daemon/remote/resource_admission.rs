@@ -12,15 +12,18 @@ mod reservation_tests;
 mod test_support;
 #[path = "resource_admission_tests.rs"]
 mod tests;
-mod usage;
 
 pub(crate) use request::{ResourceRequest, ResourceRequestInput, proto_resource_limits};
-use usage::{ResourceCapacity, ResourceUsageSource, protected_cpu_usage, protected_memory_usage};
 
 use super::tak_container_usage::SharedTakContainerUsage;
 
 const ADMISSION_CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(20);
-const EXTERNAL_USAGE_BUFFER_RATIO: f64 = 1.10;
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ResourceCapacity {
+    pub(super) cpu_cores: f64,
+    pub(super) memory_mb: u64,
+}
 
 #[derive(Clone)]
 pub(crate) struct SharedResourceAdmission {
@@ -34,8 +37,6 @@ struct ResourceAdmissionLock {
 
 struct ResourceAdmissionState {
     capacity: ResourceCapacity,
-    usage_source: ResourceUsageSource,
-    protect_external_usage: bool,
     reservations: BTreeMap<String, ResourceRequest>,
     queue: VecDeque<ResourceRequest>,
 }
@@ -47,7 +48,7 @@ pub(crate) enum ResourceAdmissionDecision {
 }
 
 impl SharedResourceAdmission {
-    pub(crate) fn new_detected(tak_container_usage: SharedTakContainerUsage) -> Self {
+    pub(crate) fn new_detected(_tak_container_usage: SharedTakContainerUsage) -> Self {
         let mut system = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_cpu(CpuRefreshKind::everything())
@@ -63,12 +64,6 @@ impl SharedResourceAdmission {
             inner: Arc::new(ResourceAdmissionLock {
                 state: Mutex::new(ResourceAdmissionState {
                     capacity,
-                    usage_source: ResourceUsageSource::Detected {
-                        system: Box::new(system),
-                        cpu_sample_ready: true,
-                        tak_container_usage,
-                    },
-                    protect_external_usage: std::env::var("TAK_TEST_IGNORE_HOST_USAGE").is_err(),
                     reservations: BTreeMap::new(),
                     queue: VecDeque::new(),
                 }),
@@ -158,23 +153,10 @@ fn promote_queued(state: &mut ResourceAdmissionState) {
 
 fn can_fit(state: &mut ResourceAdmissionState, request: &ResourceRequest) -> bool {
     let used = reserved_totals(state);
-    let usage = state.usage_source.snapshot(state.capacity);
     let requested_cpu = request.resource_limits.cpu_cores.unwrap_or(0.0);
     let requested_memory = request.resource_limits.memory_mb.unwrap_or(0);
-    let external_cpu = if state.protect_external_usage {
-        protected_cpu_usage(usage.tak_cpu_cores, usage.host_cpu_cores_used)
-    } else {
-        0.0
-    };
-    let external_memory = if state.protect_external_usage {
-        protected_memory_usage(usage.tak_memory_mb, usage.host_memory_mb_used)
-    } else {
-        0
-    };
-    let protected_cpu = external_cpu + used.cpu_cores;
-    let protected_memory = external_memory.saturating_add(used.memory_mb);
-    protected_cpu + requested_cpu <= state.capacity.cpu_cores
-        && protected_memory.saturating_add(requested_memory) <= state.capacity.memory_mb
+    used.cpu_cores + requested_cpu <= state.capacity.cpu_cores
+        && used.memory_mb.saturating_add(requested_memory) <= state.capacity.memory_mb
 }
 
 fn reserved_totals(state: &ResourceAdmissionState) -> ResourceCapacity {

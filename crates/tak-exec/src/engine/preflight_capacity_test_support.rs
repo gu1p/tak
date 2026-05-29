@@ -43,6 +43,7 @@ pub(super) fn target() -> StrictRemoteTarget {
                 memory_mb: Some(512),
             }),
         }),
+        remote_selection: tak_core::model::RemoteSelectionSpec::Shuffle,
         required_pool: None,
         required_tags: Vec::new(),
         required_capabilities: Vec::new(),

@@ -2,15 +2,12 @@
 
 use std::fs;
 
-use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_exec::execute_remote_worker_steps;
 
-#[path = "support/nonzero_wait_docker_daemon.rs"]
-mod nonzero_wait_docker_daemon;
 use crate::support;
-
-use nonzero_wait_docker_daemon::NonzeroWaitDockerDaemon;
-use support::{EnvGuard, configure_real_docker_env, env_lock, shell_step, worker_spec};
+use support::{
+    EnvGuard, NonzeroWaitDockerDaemon, alpine_spec, configure_real_docker_env, env_lock,
+};
 
 #[tokio::test]
 async fn remote_worker_reports_nonzero_docker_wait_as_task_failure() {
@@ -26,17 +23,9 @@ async fn remote_worker_reports_nonzero_docker_wait_as_task_failure() {
 
     let workspace_root = temp.path().join("workspace");
     fs::create_dir_all(&workspace_root).expect("create workspace");
-    let spec = worker_spec(
+    let spec = alpine_spec(
         "remote_runtime_nonzero_exit",
-        vec![shell_step("printf 'lint failed\\n' >&2; exit 1")],
-        None,
-        Some(RemoteRuntimeSpec::Containerized {
-            source: ContainerRuntimeSourceSpec::Image {
-                image: "alpine:3.20".to_string(),
-            },
-            resource_limits: None,
-        }),
-        "builder-a",
+        "printf 'lint failed\\n' >&2; exit 1",
     );
 
     let result = execute_remote_worker_steps(&workspace_root, &spec)
@@ -64,17 +53,9 @@ async fn remote_worker_preserves_docker_wait_error_as_infra_failure() {
 
     let workspace_root = temp.path().join("workspace");
     fs::create_dir_all(&workspace_root).expect("create workspace");
-    let spec = worker_spec(
+    let spec = alpine_spec(
         "remote_runtime_wait_error",
-        vec![shell_step("printf 'lint failed\\n' >&2; exit 1")],
-        None,
-        Some(RemoteRuntimeSpec::Containerized {
-            source: ContainerRuntimeSourceSpec::Image {
-                image: "alpine:3.20".to_string(),
-            },
-            resource_limits: None,
-        }),
-        "builder-a",
+        "printf 'lint failed\\n' >&2; exit 1",
     );
 
     let err = execute_remote_worker_steps(&workspace_root, &spec)

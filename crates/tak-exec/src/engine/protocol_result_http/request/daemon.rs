@@ -18,6 +18,10 @@ use types::{DaemonRequest, DaemonResponse, PeerEligibility, RemoteHeader};
 mod lifecycle;
 
 use lifecycle::{lifecycle_request, request_id};
+#[path = "daemon/errors.rs"]
+mod errors;
+
+use errors::{daemon_error, daemon_timeout};
 
 pub(super) async fn request_via_daemon(
     target: &StrictRemoteTarget,
@@ -53,7 +57,9 @@ fn daemon_request_for(
         return Ok(DaemonRequest::PlaceRemote {
             request_id: request_id("place", target, path),
             requirements: node_requirements(target),
+            selection: selection_value(target.remote_selection).to_string(),
             task_run_id: submit.task_run_id,
+            attempt: submit.attempt,
             submit_body: body.to_vec(),
         });
     }
@@ -68,6 +74,13 @@ fn daemon_request_for(
         headers: request_headers(extra_headers),
         body: body.to_vec(),
     })
+}
+
+fn selection_value(selection: tak_core::model::RemoteSelectionSpec) -> &'static str {
+    match selection {
+        tak_core::model::RemoteSelectionSpec::Sequential => "sequential",
+        tak_core::model::RemoteSelectionSpec::Shuffle => "shuffle",
+    }
 }
 
 async fn send_daemon_request(socket_path: &Path, request: DaemonRequest) -> Result<DaemonResponse> {
@@ -171,27 +184,4 @@ fn request_headers(headers: &[(&str, String)]) -> Vec<RemoteHeader> {
             value: value.clone(),
         })
         .collect()
-}
-
-fn daemon_timeout(target: &StrictRemoteTarget, phase: &str) -> RemoteHttpExchangeError {
-    RemoteHttpExchangeError::timeout(format!(
-        "infra error: local takd daemon timed out while contacting remote node {} for {}",
-        target.node_id, phase
-    ))
-}
-
-fn daemon_error(target: &StrictRemoteTarget, err: anyhow::Error) -> RemoteHttpExchangeError {
-    let message = format!("{err:#}");
-    if message.contains("connect_failed") || message.contains("unavailable") {
-        return RemoteHttpExchangeError::connect(format!(
-            "infra error: remote node {} unavailable via local takd daemon at {}: {message}",
-            target.node_id,
-            transport::broker_socket_path().display()
-        ));
-    }
-    RemoteHttpExchangeError::other(format!(
-        "infra error: local takd daemon rejected request at {} while contacting remote node {}: {message}",
-        transport::broker_socket_path().display(),
-        target.node_id
-    ))
 }

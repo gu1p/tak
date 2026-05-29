@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use tak_core::model::{
-    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec,
-    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, SessionUseSpec, TaskLabel,
+    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
+    RemoteTransportKind, ResolvedTask, SessionUseSpec, TaskLabel,
 };
 
 use crate::ImageCacheOptions;
@@ -20,6 +20,7 @@ pub(crate) struct StrictRemoteTarget {
     pub(crate) transport_kind: StrictRemoteTransportKind,
     pub(crate) bearer_token: String,
     pub(crate) runtime: Option<RemoteRuntimeSpec>,
+    pub(crate) remote_selection: RemoteSelectionSpec,
     pub(crate) required_pool: Option<String>,
     pub(crate) required_tags: Vec<String>,
     pub(crate) required_capabilities: Vec<String>,
@@ -34,6 +35,7 @@ impl StrictRemoteTarget {
             transport_kind: StrictRemoteTransportKind::Tor,
             bearer_token: String::new(),
             runtime: remote.runtime.clone(),
+            remote_selection: remote.selection,
             required_pool: remote.pool.clone(),
             required_tags: remote.required_tags.clone(),
             required_capabilities: remote.required_capabilities.clone(),
@@ -155,7 +157,6 @@ pub(crate) struct ContainerExecutionPlan {
     pub(crate) engine: ContainerEngine,
     pub(crate) source: ContainerRuntimeSourceSpec,
     pub(crate) image: String,
-    pub(crate) resource_limits: Option<ContainerResourceLimitsSpec>,
     pub(crate) container_user: Option<String>,
     pub(crate) image_cache: Option<ImageCachePlan>,
 }

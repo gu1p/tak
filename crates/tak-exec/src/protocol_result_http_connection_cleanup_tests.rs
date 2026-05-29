@@ -57,6 +57,7 @@ async fn remote_protocol_http_request_timeout_closes_the_connection() {
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
         required_pool: None,
         required_tags: Vec::new(),
         required_capabilities: Vec::new(),

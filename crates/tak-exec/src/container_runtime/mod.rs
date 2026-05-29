@@ -7,19 +7,21 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use bollard::Docker;
 use bollard::container::{
-    Config as ContainerConfig, CreateContainerOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StartContainerOptions, WaitContainerOptions,
+    Config as ContainerConfig, CreateContainerOptions, InspectContainerOptions, LogOutput,
+    LogsOptions, RemoveContainerOptions, StartContainerOptions, WaitContainerOptions,
 };
 use bollard::errors::Error as BollardError;
 use bollard::models::HostConfig;
 use futures::StreamExt;
-use tak_core::model::{ContainerResourceLimitsSpec, ResolvedTask, StepDef, TaskLabel};
+use tak_core::model::{ResolvedTask, StepDef, TaskLabel};
 use uuid::Uuid;
 
 use crate::container_engine::ContainerEngine;
 use crate::engine::RunCancellation;
 use crate::step_runner::{StepRunContext, StepRunResult, resolve_cwd};
-use crate::{ContainerExecutionPlan, OutputStream, TaskOutputObserver};
+use crate::{
+    ContainerExecutionPlan, OutputStream, TaskOutputObserver, TaskStatusEvent, TaskStatusPhase,
+};
 
 mod build_context;
 mod execution;
@@ -61,7 +63,6 @@ struct ContainerStepExecutor<'a> {
     engine: ContainerEngine,
     podman_wait_socket: Option<&'a str>,
     image: &'a str,
-    resource_limits: Option<&'a ContainerResourceLimitsSpec>,
 }
 
 pub(crate) async fn run_task_steps_in_container(
@@ -85,7 +86,6 @@ pub(crate) async fn run_task_steps_in_container(
         engine: plan.engine,
         podman_wait_socket: client.podman_wait_socket.as_deref(),
         image: &plan.image,
-        resource_limits: plan.resource_limits.as_ref(),
     };
     tokio::select! {
         result = ensure_container_runtime_source(executor.docker, context.workspace_root, plan, &run_context) => result?,

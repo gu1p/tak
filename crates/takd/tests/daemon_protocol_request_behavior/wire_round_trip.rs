@@ -1,6 +1,6 @@
 use takd::{
-    CancelTaskRequest, GetOutputRangeRequest, GetTaskResultRequest, PlaceRemoteRequest, Request,
-    StreamTaskEventsRequest,
+    CancelTaskRequest, GetOutputRangeRequest, GetTaskResultRequest, PeerPlacementSelection,
+    PlaceRemoteRequest, Request, StreamTaskEventsRequest,
 };
 
 #[test]
@@ -9,7 +9,9 @@ fn daemon_lifecycle_requests_round_trip_through_wire_contract() {
         Request::PlaceRemote(PlaceRemoteRequest {
             request_id: "place".into(),
             requirements: Default::default(),
+            selection: PeerPlacementSelection::Shuffle,
             task_run_id: "task-1".into(),
+            attempt: 1,
             submit_body: vec![1, 2, 3],
         }),
         Request::StreamTaskEvents(StreamTaskEventsRequest {

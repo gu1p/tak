@@ -18,6 +18,8 @@ pub(in crate::daemon::protocol) struct RequestEnvelope {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) requirements: Option<PeerEligibility>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) selection: Option<PeerPlacementSelection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) task_run_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) submit_body: Option<Vec<u8>>,

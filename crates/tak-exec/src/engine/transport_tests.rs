@@ -1,21 +1,12 @@
 #![cfg(test)]
 
-use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
 use super::StrictRemoteTarget;
+use super::env_test_lock::env_lock;
 use super::remote_models::StrictRemoteTransportKind;
 use super::transport::{broker_socket_path, phase_timeout, preflight_timeout};
 use super::transport_tor::tor_connect_timeout;
-
-static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-fn env_lock() -> MutexGuard<'static, ()> {
-    match ENV_LOCK.get_or_init(|| Mutex::new(())).lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-    }
-}
 
 #[derive(Default)]
 struct EnvGuard {
@@ -92,6 +83,7 @@ fn target(transport_kind: StrictRemoteTransportKind) -> StrictRemoteTarget {
         transport_kind,
         bearer_token: "secret".into(),
         runtime: None,
+        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
         required_pool: None,
         required_tags: Vec::new(),
         required_capabilities: Vec::new(),

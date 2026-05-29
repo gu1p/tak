@@ -37,6 +37,9 @@ impl PeerManager {
             .map(|remote| (remote.node_id.clone(), remote))
             .collect::<BTreeMap<_, _>>();
         let mut evicted = evicted_peers(&mut state.peers, &next);
+        state
+            .placement_assignments
+            .retain(|node_id, _| next.contains_key(node_id));
         for remote in next.values() {
             if let Some(entry) = state.peers.get(&remote.node_id)
                 && super::reconcile::peer_identity_changed(entry, remote)

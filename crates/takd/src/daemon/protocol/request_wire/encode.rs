@@ -33,7 +33,9 @@ impl From<Request> for RequestEnvelope {
             Request::PlaceRemote(payload) => {
                 let mut envelope = base(RequestType::PlaceRemote, payload.request_id);
                 envelope.requirements = Some(payload.requirements);
+                envelope.selection = Some(payload.selection);
                 envelope.task_run_id = Some(payload.task_run_id);
+                envelope.attempt = Some(payload.attempt);
                 envelope.submit_body = Some(payload.submit_body);
                 envelope
             }
@@ -70,6 +72,7 @@ fn base(request_type: RequestType, request_id: String) -> RequestEnvelope {
         ttl_ms: None,
         lease_id: None,
         requirements: None,
+        selection: None,
         task_run_id: None,
         submit_body: None,
         node_id: None,

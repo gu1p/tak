@@ -1,5 +1,5 @@
 use super::*;
-use crate::daemon::peer_manager::{PeerEligibility, PeerSnapshot};
+use crate::daemon::peer_manager::{PeerEligibility, PeerPlacementSelection, PeerSnapshot};
 
 #[path = "types/response.rs"]
 mod response;
@@ -70,9 +70,17 @@ pub struct PlaceRemoteRequest {
     pub request_id: String,
     #[serde(default)]
     pub requirements: PeerEligibility,
+    #[serde(default)]
+    pub selection: PeerPlacementSelection,
     pub task_run_id: String,
+    #[serde(default = "default_place_remote_attempt")]
+    pub attempt: u32,
     #[serde(default)]
     pub submit_body: Vec<u8>,
+}
+
+fn default_place_remote_attempt() -> u32 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

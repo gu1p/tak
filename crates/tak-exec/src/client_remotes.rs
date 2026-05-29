@@ -109,6 +109,7 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
                 transport_kind: transport_kind.expect("matching candidate transport kind"),
                 bearer_token: candidate.bearer_token.clone(),
                 runtime: remote.runtime.clone(),
+                remote_selection: remote.selection,
                 required_pool: remote.pool.clone(),
                 required_tags: remote.required_tags.clone(),
                 required_capabilities: remote.required_capabilities.clone(),

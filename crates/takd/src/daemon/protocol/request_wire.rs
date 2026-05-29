@@ -4,7 +4,7 @@ use super::types::{
     PeersListRequest, PlaceRemoteRequest, ReleaseLeaseRequest, RemoteResponseHeader,
     RenewLeaseRequest, Request, StatusRequest, StreamTaskEventsRequest, TaskInfo,
 };
-use crate::daemon::peer_manager::PeerEligibility;
+use crate::daemon::peer_manager::{PeerEligibility, PeerPlacementSelection};
 use serde::{Deserialize, Serialize};
 
 #[path = "request_wire/decode.rs"]

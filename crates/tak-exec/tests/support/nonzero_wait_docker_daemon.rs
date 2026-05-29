@@ -1,3 +1,5 @@
+#![allow(dead_code)] // included via #[path] by several test binaries; each uses a subset
+
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,7 +11,10 @@ mod wire;
 
 const CONTAINER_ID: &str = "container-123";
 
-use wire::{read_request, write_empty_response, write_logs_response, write_response};
+use wire::{
+    inspect_response_body, read_request, wait_response_body, write_empty_response,
+    write_logs_response, write_response,
+};
 
 #[rustfmt::skip]
 pub struct NonzeroWaitDockerDaemon { socket_path: PathBuf, accept_task: JoinHandle<()> }
@@ -17,13 +22,32 @@ pub struct NonzeroWaitDockerDaemon { socket_path: PathBuf, accept_task: JoinHand
 #[rustfmt::skip]
 impl NonzeroWaitDockerDaemon {
     pub fn spawn(root: &Path, wait_status: i64, stderr_line: &str) -> Self {
-        Self::spawn_with_wait_error(root, wait_status, None, stderr_line)
+        Self::spawn_with_wait_error_and_inspect(root, wait_status, None, None, stderr_line)
     }
 
     pub fn spawn_with_wait_error(
         root: &Path,
         wait_status: i64,
         wait_error: Option<&str>,
+        stderr_line: &str,
+    ) -> Self {
+        Self::spawn_with_wait_error_and_inspect(root, wait_status, wait_error, None, stderr_line)
+    }
+
+    pub fn spawn_with_inspect_oom(
+        root: &Path,
+        wait_status: i64,
+        inspect_oom_killed: Option<bool>,
+        stderr_line: &str,
+    ) -> Self {
+        Self::spawn_with_wait_error_and_inspect(root, wait_status, None, inspect_oom_killed, stderr_line)
+    }
+
+    fn spawn_with_wait_error_and_inspect(
+        root: &Path,
+        wait_status: i64,
+        wait_error: Option<&str>,
+        inspect_oom_killed: Option<bool>,
         stderr_line: &str,
     ) -> Self {
         let socket_path = root.join("docker.sock");
@@ -37,7 +61,7 @@ impl NonzeroWaitDockerDaemon {
                 let wait_error = wait_error.clone();
                 let stderr_line = Arc::clone(&stderr_line);
                 tokio::spawn(async move {
-                    let _ = handle(stream, wait_status, wait_error.as_deref(), &stderr_line).await;
+                    let _ = handle(stream, wait_status, wait_error.as_deref(), inspect_oom_killed, &stderr_line).await;
                 });
             }
         });
@@ -56,6 +80,7 @@ async fn handle(
     mut stream: UnixStream,
     wait_status: i64,
     wait_error: Option<&str>,
+    inspect_oom_killed: Option<bool>,
     stderr_line: &[u8],
 ) -> io::Result<()> {
     let (method, path) = read_request(&mut stream).await?;
@@ -66,18 +91,9 @@ async fn handle(
         ("POST", p) if p.ends_with("/containers/create") => write_response(&mut stream, "201 Created", format!(r#"{{"Id":"{CONTAINER_ID}","Warnings":[]}}"#).as_bytes()).await,
         ("POST", p) if p.ends_with("/start") => write_empty_response(&mut stream, "204 No Content").await,
         ("DELETE", p) if p.contains("/containers/") => write_empty_response(&mut stream, "204 No Content").await,
+        ("GET", p) if p.contains("/containers/") && p.ends_with("/json") => write_response(&mut stream, "200 OK", inspect_response_body(inspect_oom_killed).as_bytes()).await,
         ("GET", p) if p.ends_with("/logs") => write_logs_response(&mut stream, stderr_line).await,
         ("POST", p) if p.ends_with("/wait") => write_response(&mut stream, "200 OK", wait_response_body(wait_status, wait_error).as_bytes()).await,
         _ => write_response(&mut stream, "404 Not Found", b"not found").await,
-    }
-}
-
-#[rustfmt::skip]
-fn wait_response_body(wait_status: i64, wait_error: Option<&str>) -> String {
-    match wait_error {
-        Some(message) => format!(
-            r#"{{"StatusCode":{wait_status},"Error":{{"Message":"{message}"}}}}"#
-        ),
-        None => format!(r#"{{"Error":null,"StatusCode":{wait_status}}}"#),
     }
 }

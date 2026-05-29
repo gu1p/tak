@@ -57,6 +57,7 @@ pub(super) fn direct_target(addr: &str) -> StrictRemoteTarget {
         transport_kind: StrictRemoteTransportKind::Direct,
         bearer_token: "secret".into(),
         runtime: None,
+        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
         required_pool: None,
         required_tags: Vec::new(),
         required_capabilities: Vec::new(),

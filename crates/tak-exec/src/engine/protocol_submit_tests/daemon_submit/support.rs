@@ -89,6 +89,7 @@ pub(super) fn tor_target() -> StrictRemoteTarget {
         transport_kind: StrictRemoteTransportKind::Tor,
         bearer_token: "secret".into(),
         runtime: Some(runtime()),
+        remote_selection: tak_core::model::RemoteSelectionSpec::Shuffle,
         required_pool: Some("build".into()),
         required_tags: vec!["linux".into()],
         required_capabilities: vec!["docker".into()],
