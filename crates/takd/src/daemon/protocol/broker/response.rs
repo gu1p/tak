@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Clone)]
 pub(super) struct BrokerHttpError {
     status: &'static str,
     code: &'static str,

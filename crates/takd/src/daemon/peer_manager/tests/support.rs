@@ -3,6 +3,32 @@ use tak_core::remote_inventory::{RemoteInventory, RemoteRecord};
 use tak_proto::NodePingResponse;
 use tokio::io::AsyncReadExt;
 
+use super::super::PeerManager;
+use super::super::heartbeat::{HeartbeatTarget, should_ping};
+
+impl PeerManager {
+    // Read-only view of which peers are currently due for a heartbeat. The
+    // production loop uses the claiming variant; tests use this to assert
+    // due/backoff timing without mutating state.
+    pub(in crate::daemon::peer_manager) fn heartbeat_targets_due(
+        &self,
+        now_ms: i64,
+    ) -> Vec<HeartbeatTarget> {
+        let state = self.lock_state();
+        state
+            .peers
+            .values()
+            .filter(|entry| should_ping(entry.snapshot.state))
+            .filter(|entry| entry.next_heartbeat_due_ms <= now_ms)
+            .map(|entry| HeartbeatTarget {
+                node_id: entry.snapshot.node_id.clone(),
+                endpoint: entry.snapshot.endpoint.clone(),
+                bearer_token: entry.bearer_token.clone(),
+            })
+            .collect()
+    }
+}
+
 pub(super) fn inventory(remotes: Vec<RemoteRecord>) -> RemoteInventory {
     RemoteInventory {
         version: 1,

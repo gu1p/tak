@@ -112,27 +112,42 @@ impl PeerManager {
         state.peers.get(node_id).map(PeerEntry::connection_target)
     }
 
-    fn heartbeat_targets_due(&self, now_ms: i64) -> Vec<HeartbeatTarget> {
-        let state = self.lock_state();
-        state
-            .peers
-            .values()
-            .filter(|entry| should_ping(entry.snapshot.state))
-            .filter(|entry| entry.next_heartbeat_due_ms <= now_ms)
-            .map(|entry| HeartbeatTarget {
-                node_id: entry.snapshot.node_id.clone(),
-                endpoint: entry.snapshot.endpoint.clone(),
-                bearer_token: entry.bearer_token.clone(),
-            })
-            .collect()
+    // Selects the peers whose heartbeat is due and immediately reserves them by
+    // pushing their next-due time past the claim window. This lets the loop
+    // dispatch pings concurrently without a slow or hung peer being re-selected
+    // (and re-pinged) on the next 1s poll while its ping is still in flight.
+    // Each ping rewrites the real next-due time when it finishes.
+    fn claim_heartbeat_targets(&self, now_ms: i64, claim_ms: i64) -> Vec<HeartbeatTarget> {
+        let claim_until = now_ms.saturating_add(claim_ms);
+        let mut state = self.lock_state();
+        let mut targets = Vec::new();
+        for entry in state.peers.values_mut() {
+            if should_ping(entry.snapshot.state) && entry.next_heartbeat_due_ms <= now_ms {
+                entry.next_heartbeat_due_ms = claim_until;
+                targets.push(HeartbeatTarget {
+                    node_id: entry.snapshot.node_id.clone(),
+                    endpoint: entry.snapshot.endpoint.clone(),
+                    bearer_token: entry.bearer_token.clone(),
+                });
+            }
+        }
+        targets
     }
 
     pub fn spawn_heartbeat_loop(&self, broker: TorBroker) {
         let manager = self.clone();
         tokio::spawn(async move {
+            let claim_ms = duration_ms(heartbeat::heartbeat_claim_window());
             loop {
-                for target in manager.heartbeat_targets_due(unix_epoch_ms()) {
-                    ping_peer(&manager, &broker, &target).await;
+                for target in manager.claim_heartbeat_targets(unix_epoch_ms(), claim_ms) {
+                    // Ping peers concurrently so one slow onion dial cannot stall
+                    // heartbeats for every other peer. The claim above prevents a
+                    // duplicate ping for this peer until the spawned task finishes.
+                    let manager = manager.clone();
+                    let broker = broker.clone();
+                    tokio::spawn(async move {
+                        ping_peer(&manager, &broker, &target).await;
+                    });
                 }
                 tokio::time::sleep(HEARTBEAT_POLL_INTERVAL).await;
             }

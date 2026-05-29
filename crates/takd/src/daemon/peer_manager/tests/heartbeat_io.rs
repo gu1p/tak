@@ -89,9 +89,9 @@ async fn heartbeat_marks_protocol_mismatch_for_unsupported_ping() {
 }
 
 async fn accept_and_close_http2_probes(listener: &TcpListener) {
-    for _ in 0..2 {
-        let (mut stream, _) = listener.accept().await.expect("accept h2 probe");
-        let mut buffer = [0_u8; 64];
-        let _ = stream.read(&mut buffer).await;
-    }
+    // The broker now makes a single HTTP/2 attempt against a cold peer and, on
+    // failure, falls straight through to HTTP/1.1 (no second doomed dial).
+    let (mut stream, _) = listener.accept().await.expect("accept h2 probe");
+    let mut buffer = [0_u8; 64];
+    let _ = stream.read(&mut buffer).await;
 }

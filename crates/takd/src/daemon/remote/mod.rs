@@ -24,6 +24,10 @@ use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 mod active_executions;
 mod cleanup_janitor;
 mod execution_root;
+#[cfg(test)]
+mod http2_roundtrip_support;
+#[cfg(test)]
+mod http2_roundtrip_tests;
 mod http_server;
 #[cfg(test)]
 mod http_server_request_validation_unit_tests;

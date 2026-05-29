@@ -9,26 +9,43 @@ pub(super) async fn remote_http_exchange(
         remote_request.bearer_token,
         remote_request.headers,
     );
-    let http2_request = BrokerHttp2Request::from_parts(
-        remote_request.method,
-        remote_request.path,
-        request_headers.clone(),
-        remote_request.body,
-        remote_request.endpoint,
-        remote_request.node_id,
-    )
-    .map_err(anyhow::Error::from)?;
-    match broker
-        .http2_exchange(remote_request.endpoint, http2_request)
+    // Skip the HTTP/2 attempt entirely for peers we already know only answer
+    // HTTP/1.1, so heartbeats don't waste a doomed onion dial on every cycle.
+    let prefer_http2 = broker
+        .remote_protocol(remote_request.endpoint, remote_request.node_id)
         .await
-    {
-        Ok(response) => return Ok(response.into_forward_response()),
-        Err(err) if !can_fallback_method(remote_request.method, err.code()) => {
-            return Err(anyhow::Error::from(err));
+        != Some(RemoteProtocol::Http1);
+    if prefer_http2 {
+        let http2_request = BrokerHttp2Request::from_parts(
+            remote_request.method,
+            remote_request.path,
+            request_headers.clone(),
+            remote_request.body,
+            remote_request.endpoint,
+            remote_request.node_id,
+        )
+        .map_err(anyhow::Error::from)?;
+        match broker
+            .http2_exchange(remote_request.endpoint, http2_request)
+            .await
+        {
+            Ok(response) => {
+                broker
+                    .set_remote_protocol(
+                        remote_request.endpoint,
+                        remote_request.node_id,
+                        RemoteProtocol::Http2,
+                    )
+                    .await;
+                return Ok(response.into_forward_response());
+            }
+            Err(err) if !can_fallback_method(remote_request.method, err.code()) => {
+                return Err(anyhow::Error::from(err));
+            }
+            Err(_) => {}
         }
-        Err(_) => {}
     }
-    legacy_http_exchange(
+    let response = legacy_http_exchange(
         broker,
         remote_request.endpoint,
         remote_request.method,
@@ -37,7 +54,20 @@ pub(super) async fn remote_http_exchange(
         remote_request.body,
     )
     .await
-    .map_err(anyhow::Error::from)
+    .map_err(anyhow::Error::from)?;
+    // HTTP/1.1 carried the request. If we had attempted HTTP/2 first and it
+    // failed, remember this peer as HTTP/1.1-only so future requests go
+    // straight to the working protocol.
+    if prefer_http2 {
+        broker
+            .set_remote_protocol(
+                remote_request.endpoint,
+                remote_request.node_id,
+                RemoteProtocol::Http1,
+            )
+            .await;
+    }
+    Ok(response)
 }
 
 pub(super) fn authorization_value(bearer_token: &str) -> Option<String> {

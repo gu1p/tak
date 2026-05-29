@@ -14,6 +14,7 @@ mod connect;
 mod default;
 mod http2_session;
 mod protobuf;
+mod protocol_memory;
 mod remote_exchange;
 mod types;
 
@@ -23,6 +24,7 @@ use config::{
 };
 use connect::{connect_tcp, retry_connect};
 use http2_session::Http2Session;
+use protocol_memory::RemoteProtocol;
 pub use types::BrokerForwardResponse;
 pub(in crate::daemon::protocol) use types::BrokerRemoteHttpRequest;
 pub(super) use types::BrokerRemoteStream;
@@ -38,6 +40,7 @@ pub struct TorBroker {
 struct TorBrokerInner {
     client: tokio::sync::OnceCell<BrokerClient>,
     http2_sessions: tokio::sync::Mutex<HashMap<String, Arc<Http2Session>>>,
+    remote_protocols: tokio::sync::Mutex<HashMap<String, RemoteProtocol>>,
     test_dial_addr: Option<String>,
     state_root: Option<PathBuf>,
     bootstrap_count: AtomicUsize,
@@ -66,6 +69,7 @@ impl TorBroker {
             inner: Arc::new(TorBrokerInner {
                 client: tokio::sync::OnceCell::const_new(),
                 http2_sessions: tokio::sync::Mutex::new(HashMap::new()),
+                remote_protocols: tokio::sync::Mutex::new(HashMap::new()),
                 test_dial_addr,
                 state_root,
                 bootstrap_count: AtomicUsize::new(0),
@@ -114,19 +118,23 @@ impl TorBroker {
         request: BrokerHttp2Request,
     ) -> std::result::Result<BrokerHttp2Response, BrokerHttpError> {
         let session_key = request.session_key(endpoint);
-        match self
-            .try_http2_exchange(endpoint, &session_key, request.clone())
-            .await
-        {
+        let (session, reused) = self.http2_session(endpoint, &session_key).await?;
+        match session.send(request.clone()).await {
             Ok(response) => Ok(response),
             Err(first) => {
                 self.evict_http2_session(&session_key).await;
-                if !request.can_retry_after_failure() {
-                    return Err(first);
+                // Reconnect+retry only a *reused* pooled session (its keep-alive
+                // may have dropped); a freshly dialed session that already failed
+                // surfaces the error to the caller — no second doomed onion dial.
+                if reused && request.can_retry_after_failure() {
+                    let (session, _) = self
+                        .http2_session(endpoint, &session_key)
+                        .await
+                        .map_err(|_| first.clone())?;
+                    session.send(request).await.map_err(|_| first)
+                } else {
+                    Err(first)
                 }
-                self.try_http2_exchange(endpoint, &session_key, request)
-                    .await
-                    .map_err(|_| first)
             }
         }
     }
@@ -148,21 +156,13 @@ impl TorBroker {
             .await
     }
 
-    async fn try_http2_exchange(
-        &self,
-        endpoint: &str,
-        session_key: &str,
-        request: BrokerHttp2Request,
-    ) -> std::result::Result<BrokerHttp2Response, BrokerHttpError> {
-        let session = self.http2_session(endpoint, session_key).await?;
-        session.send(request).await
-    }
-
+    // Returns a pooled HTTP/2 session, reconnecting if none is cached; the bool
+    // reports whether it came from the pool, so callers can decide to retry.
     async fn http2_session(
         &self,
         endpoint: &str,
         session_key: &str,
-    ) -> std::result::Result<Arc<Http2Session>, BrokerHttpError> {
+    ) -> std::result::Result<(Arc<Http2Session>, bool), BrokerHttpError> {
         if let Some(session) = self
             .inner
             .http2_sessions
@@ -171,7 +171,7 @@ impl TorBroker {
             .get(session_key)
             .cloned()
         {
-            return Ok(session);
+            return Ok((session, true));
         }
         let session = Arc::new(Http2Session::connect(self, endpoint).await?);
         self.inner
@@ -179,7 +179,7 @@ impl TorBroker {
             .lock()
             .await
             .insert(session_key.to_string(), Arc::clone(&session));
-        Ok(session)
+        Ok((session, false))
     }
 
     async fn evict_http2_session(&self, session_key: &str) {
@@ -195,5 +195,6 @@ impl TorBroker {
         let auth = remote_exchange::authorization_value(bearer_token).unwrap_or_default();
         let session_key = format!("{endpoint}\n{node_id}\n{auth}");
         self.evict_http2_session(&session_key).await;
+        self.clear_remote_protocol(endpoint, node_id).await;
     }
 }

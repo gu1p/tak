@@ -4,7 +4,12 @@ use super::{PeerManager, PeerState};
 use crate::daemon::protocol::TorBroker;
 use tak_proto::NodePingResponse;
 
-const DEFAULT_HEARTBEAT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+// Generous enough to cover a cold onion dial plus the HTTP/2 handshake for a
+// peer we have not connected to yet. Steady-state heartbeats reuse a warm,
+// pooled connection and complete in well under a second, so this only bites on
+// the first probe or a reconnect — and pings now run concurrently, so a slow
+// peer never blocks the others.
+const DEFAULT_HEARTBEAT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 #[derive(Clone, Debug)]
 pub(super) struct HeartbeatTarget {
@@ -64,13 +69,20 @@ fn handle_ping_result(
     }
 }
 
-fn heartbeat_timeout() -> std::time::Duration {
+pub(super) fn heartbeat_timeout() -> std::time::Duration {
     std::env::var("TAKD_PEER_HEARTBEAT_TIMEOUT_MS")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|value| *value > 0)
         .map(std::time::Duration::from_millis)
         .unwrap_or(DEFAULT_HEARTBEAT_TIMEOUT)
+}
+
+// How long a peer is reserved while an in-flight ping runs, so the concurrent
+// heartbeat loop does not dispatch a second ping for the same peer before the
+// first completes. Comfortably longer than a single ping's timeout.
+pub(super) fn heartbeat_claim_window() -> std::time::Duration {
+    heartbeat_timeout().saturating_add(std::time::Duration::from_secs(5))
 }
 
 pub(super) fn unix_epoch_ms() -> i64 {
