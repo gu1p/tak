@@ -26,6 +26,13 @@ pub(super) async fn cleanup_inactive_takd_containers(
         let Some(container_id) = container.id else {
             continue;
         };
+        // `active_jobs` was snapshotted at the start of the sweep; listing the
+        // containers can race a job that registered just afterward, whose
+        // freshly created container would then look orphaned. Re-read the active
+        // set immediately before removing so an in-flight job is never reaped.
+        if container_belongs_to_active_job(&labels, &cleanup_protected_job_keys(context)?) {
+            continue;
+        }
         remove_takd_container(&docker, &container_id).await?;
     }
     Ok(())
