@@ -35,3 +35,49 @@ fn queued_submit_admission_wait_failure_persists_terminal_failure_and_unregister
         "task-run-wait-error",
     );
 }
+
+// Regression for the orphan-watchdog flake: when the run is cancelled (the
+// shared latch is tripped, e.g. by the watchdog) but the container still raced
+// to a non-zero exit in the same window, the terminal status must be cancelled,
+// not failure.
+#[test]
+fn cancelled_run_records_cancelled_even_when_container_exited_nonzero() {
+    let case = TestQueuedSubmit::new("task-run-cancel-race");
+    let execution = case.execution();
+    case.cancellation.cancel();
+    let observer = std::sync::Arc::new(RemoteWorkerEventObserver::new_with_next_seq(
+        case.store.clone(),
+        case.idempotency_key.clone(),
+        2,
+    ));
+
+    persist_worker_execution_result(
+        WorkerExecutionResultPersistence {
+            execution: &execution,
+            output_observer: observer,
+            idempotency_key: &case.idempotency_key,
+            started_at: 1,
+            finished_at: 2,
+            duration_ms: 1,
+        },
+        Ok((
+            tak_runner::RemoteWorkerExecutionResult {
+                success: false,
+                exit_code: Some(1),
+                runtime_kind: None,
+                runtime_engine: None,
+            },
+            Vec::new(),
+        )),
+    );
+
+    let result = case
+        .store
+        .result_payload(&case.idempotency_key)
+        .expect("result query")
+        .expect("terminal result");
+    assert!(
+        result.contains(r#""status":"cancelled""#),
+        "cancelled run must record cancelled, got: {result}"
+    );
+}

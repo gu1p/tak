@@ -12,35 +12,42 @@ fn persist_worker_execution_result(
     execution_result: Result<(tak_runner::RemoteWorkerExecutionResult, Vec<RemoteWorkerOutputRecord>)>,
 ) {
     let execution = input.execution;
-    let store = &execution.store;
     let stdout_tail = input.output_observer.stdout_tail();
     let stderr_tail = input.output_observer.stderr_tail();
 
+    // A cancelled run is authoritative even if the container still produced a
+    // result in the same window. The orphan watchdog (and explicit cancel) can
+    // trip the shared cancellation latch while the container is racing to an
+    // exit; that must be recorded as cancelled, not as a spurious
+    // success/failure. The latch stays set once tripped, so checking it here
+    // covers both the `Ok` and `Err` outcomes.
+    if execution.cancellation.is_cancelled() {
+        persist_cancelled_worker_result(&input, &stdout_tail);
+        return;
+    }
+
     match execution_result {
-        Ok((result, outputs)) => persist_successful_worker_result(
-            &input,
-            &stdout_tail,
-            &stderr_tail,
-            result,
-            outputs,
-        ),
-        Err(error)
-            if tak_runner::is_run_cancelled_error(&error)
-                || execution.cancellation.is_cancelled() =>
-        {
-            persist_cancelled_result(CancelledSubmitResult {
-                store,
-                idempotency_key: input.idempotency_key,
-                transport_kind: &execution.transport_kind,
-                started_at: input.started_at,
-                finished_at: input.finished_at,
-                duration_ms: input.duration_ms,
-                stdout_tail: &stdout_tail,
-                seq: input.output_observer.claim_next_seq(),
-            });
+        Ok((result, outputs)) => {
+            persist_successful_worker_result(&input, &stdout_tail, &stderr_tail, result, outputs)
+        }
+        Err(error) if tak_runner::is_run_cancelled_error(&error) => {
+            persist_cancelled_worker_result(&input, &stdout_tail)
         }
         Err(error) => persist_failed_worker_result(&input, &stdout_tail, &stderr_tail, error),
     }
+}
+
+fn persist_cancelled_worker_result(input: &WorkerExecutionResultPersistence<'_>, stdout_tail: &str) {
+    persist_cancelled_result(CancelledSubmitResult {
+        store: &input.execution.store,
+        idempotency_key: input.idempotency_key,
+        transport_kind: &input.execution.transport_kind,
+        started_at: input.started_at,
+        finished_at: input.finished_at,
+        duration_ms: input.duration_ms,
+        stdout_tail,
+        seq: input.output_observer.claim_next_seq(),
+    });
 }
 
 fn persist_successful_worker_result(
