@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
-use takd::{SubmitAttemptStore, handle_remote_v1_request, run_remote_v1_http_server};
+use takd::{
+    RemoteNodeContext, RemoteV1Response, SubmitAttemptStore, handle_remote_v1_request,
+    run_remote_v1_http_server,
+};
 
 use crate::support::{
     env::{EnvGuard, env_lock},
@@ -31,7 +34,7 @@ fn watchdog_cancels_active_worker_without_client_heartbeat() {
         let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
             .with_explicit_remote_exec_root(temp.path().join("remote-exec"))
             .with_skip_exec_root_probe(true)
-            .with_remote_client_stale_ttl(Duration::from_millis(50))
+            .with_remote_client_stale_ttl(Duration::from_millis(200))
             .with_remote_client_watchdog_interval(Duration::from_millis(10));
         let context = test_context_with_runtime(runtime_config);
         let store =
@@ -47,6 +50,17 @@ fn watchdog_cancels_active_worker_without_client_heartbeat() {
 
         let submit = submit_container_task(&context, &store, "task-run-orphan", "sleep 60");
         assert!(submit.accepted);
+
+        // Refresh the client heartbeat (the events poll a live client does) until
+        // the worker starts its container, then let it fall stale: the staleness
+        // clock starts at submit, so otherwise the watchdog races worker startup.
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while daemon.create_records().is_empty() && std::time::Instant::now() < deadline {
+            get(&context, &store, "task-run-orphan", "events");
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(!daemon.create_records().is_empty(), "no container started");
+
         let result = wait_for_result(&context, &store, "task-run-orphan").await;
         assert!(!result.success);
         assert_eq!(result.status, "cancelled");
@@ -55,28 +69,28 @@ fn watchdog_cancels_active_worker_without_client_heartbeat() {
     });
 }
 
+fn get(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task: &str,
+    endpoint: &str,
+) -> RemoteV1Response {
+    let path = format!("/v1/tasks/{task}/{endpoint}?attempt=1");
+    handle_remote_v1_request(context, store, "GET", &path, None).expect("remote request")
+}
+
 async fn wait_for_result(
-    context: &takd::RemoteNodeContext,
+    context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
     task_run_id: &str,
 ) -> GetTaskResultResponse {
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
     loop {
-        let response = handle_remote_v1_request(
-            context,
-            store,
-            "GET",
-            &format!("/v1/tasks/{task_run_id}/result?attempt=1"),
-            None,
-        )
-        .expect("result response");
+        let response = get(context, store, task_run_id, "result");
         if response.status_code == 200 {
             return GetTaskResultResponse::decode(response.body.as_slice()).expect("decode result");
         }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "timed out waiting for result"
-        );
+        assert!(std::time::Instant::now() < deadline, "result timed out");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
