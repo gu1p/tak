@@ -10,19 +10,32 @@ pub(super) async fn wait_for_container_step(
 ) -> Result<Option<i32>> {
     let wait = wait_for_container_exit_code(docker, engine, podman_wait_socket, container_id);
     tokio::pin!(wait);
+    // Cancellation is authoritative: poll it first (`biased`) and, even if the
+    // wait future also became ready in the same tick (e.g. the container's wait
+    // stream resolved because cancellation tore the container down), still report
+    // the run as cancelled rather than as a spurious exit/failure.
     if let Some(seconds) = timeout_s {
         let timeout = tokio::time::sleep(Duration::from_secs(seconds));
         tokio::pin!(timeout);
         return tokio::select! {
-            result = &mut wait => Ok(Some(result?)),
-            _ = &mut timeout => Ok(None),
+            biased;
             _ = cancellation.cancelled() => Err(crate::engine::cancelled_error()),
+            result = &mut wait => wait_outcome(cancellation, result),
+            _ = &mut timeout => Ok(None),
         };
     }
     tokio::select! {
-        result = &mut wait => Ok(Some(result?)),
+        biased;
         _ = cancellation.cancelled() => Err(crate::engine::cancelled_error()),
+        result = &mut wait => wait_outcome(cancellation, result),
     }
+}
+
+fn wait_outcome(cancellation: &RunCancellation, result: Result<i32>) -> Result<Option<i32>> {
+    if cancellation.is_cancelled() {
+        return Err(crate::engine::cancelled_error());
+    }
+    Ok(Some(result?))
 }
 
 async fn wait_for_container_exit_code(
