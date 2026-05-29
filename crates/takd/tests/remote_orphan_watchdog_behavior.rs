@@ -61,14 +61,9 @@ fn watchdog_cancels_active_worker_without_client_heartbeat() {
         assert!(!daemon.create_records().is_empty(), "no container started");
 
         let result = wait_for_result(&context, &store, "task-run-orphan").await;
-        let removed = daemon.removed_containers();
-        let detail = format!(
-            "exit={:?} removed={removed:?} stderr={:?}",
-            result.exit_code, result.stderr_tail
-        );
-        assert!(!result.success, "{detail}");
-        assert_eq!(result.status, "cancelled", "{detail}");
-        assert!(!removed.is_empty(), "{detail}");
+        assert!(!result.success);
+        assert_eq!(result.status, "cancelled");
+        assert!(!daemon.removed_containers().is_empty());
         server.abort();
     });
 }
