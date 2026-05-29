@@ -51,9 +51,8 @@ fn watchdog_cancels_active_worker_without_client_heartbeat() {
         let submit = submit_container_task(&context, &store, "task-run-orphan", "sleep 60");
         assert!(submit.accepted);
 
-        // Refresh the client heartbeat (the events poll a live client does) until
-        // the worker starts its container, then let it fall stale: the staleness
-        // clock starts at submit, so otherwise the watchdog races worker startup.
+        // Heartbeat (the events poll a live client does) until the worker starts its
+        // container, then let it fall stale — the staleness clock starts at submit.
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while daemon.create_records().is_empty() && std::time::Instant::now() < deadline {
             get(&context, &store, "task-run-orphan", "events");
@@ -62,9 +61,14 @@ fn watchdog_cancels_active_worker_without_client_heartbeat() {
         assert!(!daemon.create_records().is_empty(), "no container started");
 
         let result = wait_for_result(&context, &store, "task-run-orphan").await;
-        assert!(!result.success);
-        assert_eq!(result.status, "cancelled");
-        assert!(!daemon.removed_containers().is_empty());
+        let removed = daemon.removed_containers();
+        let detail = format!(
+            "exit={:?} removed={removed:?} stderr={:?}",
+            result.exit_code, result.stderr_tail
+        );
+        assert!(!result.success, "{detail}");
+        assert_eq!(result.status, "cancelled", "{detail}");
+        assert!(!removed.is_empty(), "{detail}");
         server.abort();
     });
 }
