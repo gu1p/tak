@@ -59,7 +59,17 @@ impl RemoteRuntimeConfig {
         Self {
             explicit_remote_exec_root: None,
             temp_dir: std::env::temp_dir(),
-            docker_host: None,
+            // Default tests to an isolated, non-existent docker host. Tests that
+            // need a real (fake) daemon override this via `with_docker_host`
+            // (see `configure_fake_docker_env`). Without an explicit host the
+            // cleanup janitor / usage sampler would fall back to
+            // `connect_with_local_defaults()`, which reads the process-global
+            // `DOCKER_HOST` env. Under parallel tests that env is shared, so a
+            // janitor from one test could connect to another test's fake daemon
+            // and reap its still-active containers — the root cause of the
+            // CI-only orphan-watchdog flake. Pointing the default at a dead
+            // socket keeps every test's docker traffic on its own daemon.
+            docker_host: Some("unix:///nonexistent/takd-tests-isolated-docker.sock".to_string()),
             podman_socket: None,
             runtime_dir: None,
             uid: None,

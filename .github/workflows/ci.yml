@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Opt JavaScript actions into Node.js 24 ahead of the Node 20 removal
+# (GitHub is forcing this by 2026-06-16 and removing Node 20 by 2026-09-16).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   checks:
     name: Lint, Test, and Coverage
