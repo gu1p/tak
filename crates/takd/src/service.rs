@@ -17,8 +17,10 @@ mod tor;
 use control::{AgentControlState, spawn_agent_control_socket};
 
 pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
-    spawn_local_daemon_socket(state_root);
-    let config = match read_config(config_root) {
+    let config_result = read_config(config_root);
+    let broker = broker_for_transport(state_root, config_result.as_ref().ok());
+    spawn_local_daemon_socket(state_root, broker.clone());
+    let config = match config_result {
         Ok(config) => config,
         Err(_err) if !config_root.join("agent.toml").exists() => {
             tracing::info!("starting takd serve as local daemon only; agent.toml not found");
@@ -38,7 +40,7 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     let control_state = AgentControlState::default();
     spawn_agent_control_socket(state_root, store.clone(), control_state.clone())?;
     match config.transport.as_str() {
-        "tor" => tor::serve_tor_agent(config_root, state_root, store, control_state).await,
+        "tor" => tor::serve_tor_agent(config_root, state_root, store, control_state, broker).await,
         "direct" => {
             serve_direct_agent(config_root, state_root, &config, store, control_state).await
         }
@@ -46,7 +48,20 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     }
 }
 
-fn spawn_local_daemon_socket(state_root: &Path) {
+// On `tor` transport the broker borrows the hidden-service Tor client (one Arti
+// client serves the onion and dials peers); otherwise it bootstraps its own.
+fn broker_for_transport(
+    state_root: &Path,
+    config: Option<&crate::agent::AgentConfig>,
+) -> TorBroker {
+    if config.is_some_and(|config| config.transport == "tor") {
+        TorBroker::for_shared_tor_client(state_root.to_path_buf())
+    } else {
+        TorBroker::for_state_root(state_root.to_path_buf())
+    }
+}
+
+fn spawn_local_daemon_socket(state_root: &Path, broker: TorBroker) {
     let socket_path = default_socket_path();
     let db_path = state_root.join("takd.sqlite");
     if let Some(parent) = db_path.parent()
@@ -55,7 +70,6 @@ fn spawn_local_daemon_socket(state_root: &Path) {
         tracing::error!("failed to create local daemon state directory: {err:#}");
         return;
     }
-    let broker = TorBroker::for_state_root(state_root.to_path_buf());
     let peers = if let Ok(path) = tak_core::remote_inventory::default_remote_inventory_path() {
         let peers = tak_core::remote_inventory::load_remote_inventory_at(&path)
             .map(PeerManager::from_inventory)

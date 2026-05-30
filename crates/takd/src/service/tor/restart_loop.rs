@@ -18,6 +18,7 @@ pub(super) struct TorLoopContext<'a> {
     pub(super) runtime: &'a TorHiddenServiceRuntimeConfig,
     pub(super) store: SubmitAttemptStore,
     pub(super) control_state: AgentControlState,
+    pub(super) broker: &'a crate::daemon::protocol::TorBroker,
 }
 
 pub(super) async fn run_test_bind_loop(
@@ -85,17 +86,7 @@ pub(super) async fn run_live_loop(
     mut last_base_url: Option<String>,
 ) -> Result<()> {
     loop {
-        match serve_live_tor_session(
-            context.config_root,
-            context.state_root,
-            context.config,
-            context.runtime,
-            context.store.clone(),
-            recovery,
-            context.control_state.clone(),
-        )
-        .await
-        {
+        match serve_live_tor_session(&context, recovery).await {
             Ok(exit) => {
                 last_base_url = Some(exit.base_url.clone());
                 write_transport_health(

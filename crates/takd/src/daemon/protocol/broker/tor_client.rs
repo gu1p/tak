@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -16,13 +16,14 @@ mod http2_session;
 mod protobuf;
 mod protocol_memory;
 mod remote_exchange;
+mod session_pool;
+mod shared_client;
 mod types;
 
 use config::{
     create_bootstrapped, default_client_tor_config, socket_addr_from_host_port,
     test_tor_onion_dial_addr, tor_connect_retry_delay, tor_connect_timeout,
 };
-use connect::{connect_tcp, retry_connect};
 use http2_session::Http2Session;
 use protocol_memory::RemoteProtocol;
 pub use types::BrokerForwardResponse;
@@ -44,6 +45,11 @@ struct TorBrokerInner {
     test_dial_addr: Option<String>,
     state_root: Option<PathBuf>,
     bootstrap_count: AtomicUsize,
+    // When set, the broker dials peers through the hidden service's Tor client
+    // instead of bootstrapping its own. `requires_shared_client` marks the
+    // `tor` transport, where that client is mandatory (we never spin up a rival).
+    shared_tor_client: Mutex<Option<TorClient<tor_rtcompat::PreferredRuntime>>>,
+    requires_shared_client: bool,
 }
 
 enum BrokerClient {
@@ -53,18 +59,22 @@ enum BrokerClient {
 
 impl TorBroker {
     pub fn new() -> Self {
-        Self::with_options(test_tor_onion_dial_addr(), None)
+        Self::with_options(test_tor_onion_dial_addr(), None, false)
     }
 
     pub fn for_test_dial_addr(dial_addr: String) -> Self {
-        Self::with_options(Some(dial_addr), None)
+        Self::with_options(Some(dial_addr), None, false)
     }
 
     pub fn for_state_root(state_root: PathBuf) -> Self {
-        Self::with_options(test_tor_onion_dial_addr(), Some(state_root))
+        Self::with_options(test_tor_onion_dial_addr(), Some(state_root), false)
     }
 
-    fn with_options(test_dial_addr: Option<String>, state_root: Option<PathBuf>) -> Self {
+    pub(in crate::daemon) fn with_options(
+        test_dial_addr: Option<String>,
+        state_root: Option<PathBuf>,
+        requires_shared_client: bool,
+    ) -> Self {
         Self {
             inner: Arc::new(TorBrokerInner {
                 client: tokio::sync::OnceCell::const_new(),
@@ -73,6 +83,8 @@ impl TorBroker {
                 test_dial_addr,
                 state_root,
                 bootstrap_count: AtomicUsize::new(0),
+                shared_tor_client: Mutex::new(None),
+                requires_shared_client,
             }),
         }
     }
@@ -82,6 +94,12 @@ impl TorBroker {
     }
 
     pub async fn warm(&self) -> Result<()> {
+        // In shared mode the hidden-service client owns Tor and is bootstrapped
+        // by the onion-serving path; the broker borrows it rather than warming
+        // (and locking) a second Arti client of its own.
+        if self.inner.requires_shared_client {
+            return Ok(());
+        }
         let _ = self.client().await?;
         Ok(())
     }
@@ -104,12 +122,7 @@ impl TorBroker {
     }
 
     pub(super) async fn connect(&self, endpoint: &str) -> Result<BrokerRemoteStream> {
-        let (host, port) = tak_core::endpoint::endpoint_host_port(endpoint)?;
-        if !host.ends_with(".onion") {
-            return connect_tcp(&socket_addr_from_host_port(&host, port)).await;
-        }
-        let client = self.client().await?;
-        retry_connect(client, &host, port).await
+        connect::broker_connect(self, endpoint).await
     }
 
     pub(super) async fn http2_exchange(
@@ -180,21 +193,5 @@ impl TorBroker {
             .await
             .insert(session_key.to_string(), Arc::clone(&session));
         Ok((session, false))
-    }
-
-    async fn evict_http2_session(&self, session_key: &str) {
-        self.inner.http2_sessions.lock().await.remove(session_key);
-    }
-
-    pub async fn evict_http2_session_for_peer(
-        &self,
-        endpoint: &str,
-        node_id: &str,
-        bearer_token: &str,
-    ) {
-        let auth = remote_exchange::authorization_value(bearer_token).unwrap_or_default();
-        let session_key = format!("{endpoint}\n{node_id}\n{auth}");
-        self.evict_http2_session(&session_key).await;
-        self.clear_remote_protocol(endpoint, node_id).await;
     }
 }

@@ -5,9 +5,6 @@ use futures::StreamExt;
 use safelog::DisplayRedacted;
 
 use crate::agent::{TorRecoveryBackoff, TorRecoveryTracker, persist_ready_base_url};
-use crate::daemon::remote::SubmitAttemptStore;
-use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
-use crate::service::control::AgentControlState;
 
 use super::TorSessionExit;
 use super::health::{TorRecoveryConfig, startup_session_timeout};
@@ -17,24 +14,32 @@ use super::live_startup::{bootstrap_tor_client, launch_live_onion_service, recor
 use super::live_state::{mark_transport_ready, mark_transport_recovering, pending_context};
 use super::monitor::{TorHealthTransition, handle_health_event, run_periodic_self_probe};
 use super::rend::spawn_rend_request;
+use super::restart_loop::TorLoopContext;
 use super::startup_policy::startup_probe_retry_policy;
 use super::status_detail::{format_arti_transport_detail, hidden_service_probe_gate};
 
 pub(super) async fn serve_live_tor_session(
-    config_root: &std::path::Path,
-    state_root: &std::path::Path,
-    config: &crate::agent::AgentConfig,
-    runtime: &TorHiddenServiceRuntimeConfig,
-    store: SubmitAttemptStore,
+    context: &TorLoopContext<'_>,
     recovery: &TorRecoveryConfig,
-    control_state: AgentControlState,
 ) -> Result<TorSessionExit> {
+    let config_root = context.config_root;
+    let state_root = context.state_root;
+    let config = context.config;
+    let runtime = context.runtime;
+    let store = context.store.clone();
+    let control_state = context.control_state.clone();
+    let broker = context.broker;
     tracing::info!(
         "bootstrapping embedded Arti for takd hidden service nickname {}",
         runtime.nickname
     );
     let tor_client = bootstrap_tor_client(config, runtime).await?;
     log_tor_client_bootstrap_status(&tor_client);
+    // Lend this bootstrapped client to the outbound broker so peer dials reuse it
+    // instead of spinning up (and double-bootstrapping) a second Arti client. On a
+    // restart this publish-then-swap replaces the prior lent client, so the broker
+    // keeps dialing peers through the old client until the new one is ready.
+    broker.set_shared_tor_client(tor_client.isolated_client());
     let startup_probe_retry_policy = startup_probe_retry_policy();
     let startup_timeout = startup_session_timeout(startup_probe_retry_policy.timeout);
     let mut startup_backoff =

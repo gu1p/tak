@@ -32,6 +32,7 @@ pub(super) async fn serve_tor_agent(
     state_root: &Path,
     store: SubmitAttemptStore,
     control_state: AgentControlState,
+    broker: crate::daemon::protocol::TorBroker,
 ) -> Result<()> {
     let config = read_config(config_root)?;
     let runtime = TorHiddenServiceRuntimeConfig {
@@ -63,6 +64,7 @@ pub(super) async fn serve_tor_agent(
         runtime: &runtime,
         store,
         control_state,
+        broker: &broker,
     };
 
     if let Some(bind_addr) = test_tor_hidden_service_bind_addr() {
