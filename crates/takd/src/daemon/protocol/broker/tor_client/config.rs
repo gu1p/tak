@@ -1,19 +1,31 @@
 use super::*;
 use anyhow::anyhow;
 use arti_client::TorClientConfig;
+use std::path::Path;
 
 pub(super) fn default_client_tor_config(state_root: Option<PathBuf>) -> Result<TorClientConfig> {
     let state_root = match state_root {
         Some(path) => path,
         None => client_state_root()?,
     };
+    let arti_root = broker_arti_root(&state_root);
     Ok(
         arti_client::config::TorClientConfigBuilder::from_directories(
-            state_root.join("arti").join("state"),
-            state_root.join("arti").join("cache"),
+            arti_root.join("state"),
+            arti_root.join("cache"),
         )
         .build()?,
     )
+}
+
+// The outbound broker keeps its own Arti state/cache, deliberately separate from
+// the hidden-service client's `<root>/arti` directory (see `agent::arti_state_dir`).
+// Two TorClients cannot share one state directory: the second loses the on-disk
+// lock and drops to read-only mode, where it never finishes bootstrap. That left
+// the broker unable to dial any onion, so every heartbeat timed out before a dial
+// even started and peers stayed permanently `unreachable`.
+fn broker_arti_root(state_root: &Path) -> PathBuf {
+    state_root.join("arti-client")
 }
 
 pub(super) async fn create_bootstrapped(
@@ -68,3 +80,6 @@ fn env_duration_ms(test_name: &str, live_name: &str) -> Option<Duration> {
         .and_then(|value| value.trim().parse::<u64>().ok())
         .map(Duration::from_millis)
 }
+
+#[cfg(test)]
+mod config_tests;
