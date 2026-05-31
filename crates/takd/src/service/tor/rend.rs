@@ -2,7 +2,7 @@ use futures::StreamExt;
 use tokio::sync::mpsc;
 use tor_cell::relaycell::msg::Connected;
 
-use crate::daemon::remote::{SubmitAttemptStore, handle_remote_v1_http_stream};
+use crate::daemon::remote::{SubmitAttemptStore, handle_remote_v1_stream};
 
 use super::monitor::TorHealthEvent;
 
@@ -25,14 +25,17 @@ pub(super) fn spawn_rend_request(
         };
         while let Some(stream_request) = stream_requests.next().await {
             match stream_request.accept(Connected::new_empty()).await {
-                Ok(mut stream) => {
+                Ok(stream) => {
                     handle_accepted_stream_side_effects(&context);
                     let store = store.clone();
                     let context = context.clone();
                     std::mem::drop(tokio::spawn(async move {
-                        if let Err(err) =
-                            handle_remote_v1_http_stream(&mut stream, &store, &context).await
-                        {
+                        // Route through the prefix-sniffing handler so the onion
+                        // server speaks BOTH HTTP/2 (the broker's preferred peer
+                        // protocol) and HTTP/1.1, matching the TCP path. Calling
+                        // the HTTP/1.1-only reader here made the broker's HTTP/2
+                        // preface unreadable, timing out every heartbeat.
+                        if let Err(err) = handle_remote_v1_stream(stream, store, context).await {
                             tracing::error!("takd onion service stream handling failed: {err}");
                         }
                     }));

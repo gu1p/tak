@@ -6,6 +6,7 @@
 pub mod crypto_provider;
 pub mod endpoint;
 pub mod label;
+pub mod mock;
 pub mod model;
 pub mod planner;
 pub mod remote_inventory;

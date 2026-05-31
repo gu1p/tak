@@ -41,6 +41,9 @@ pub(crate) fn spawn_tak_container_usage_sampler(
     runtime_config: RemoteRuntimeConfig,
     usage: SharedTakContainerUsage,
 ) {
+    if tak_core::mock::mock_container_enabled() {
+        return;
+    }
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(SAMPLE_INTERVAL);
         loop {

@@ -41,8 +41,10 @@ where
     let prefix = read_protocol_prefix(&mut stream).await?;
     let prefixed = PrefixedIo::new(prefix.bytes, stream);
     if prefix.is_http2 {
+        tracing::debug!("serving remote v1 stream over HTTP/2");
         return handle_remote_v1_http2_stream(prefixed, store, context).await;
     }
+    tracing::debug!("serving remote v1 stream over HTTP/1.1");
     let mut prefixed = prefixed;
     handle_remote_v1_http_stream(&mut prefixed, &store, &context).await
 }

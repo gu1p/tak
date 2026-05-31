@@ -159,6 +159,10 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
 }
 
 pub(super) fn should_use_simulated_container_runtime() -> bool {
-    env::var("TAK_TEST_HOST_PLATFORM").is_ok()
+    // MOCK_CONTAINER simulates container execution so a takd node can run
+    // inside a container with no nested Docker/Podman: skip the engine probe
+    // and run steps directly on the host (container_plan stays None below).
+    tak_core::mock::mock_container_enabled()
+        || env::var("TAK_TEST_HOST_PLATFORM").is_ok()
         || env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok()
 }

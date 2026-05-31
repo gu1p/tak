@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use anyhow::{Context, Result, anyhow};
 use tracing_subscriber::EnvFilter;
-use tracing_subscriber::fmt::writer::MakeWriter;
+use tracing_subscriber::fmt::writer::{MakeWriter, MakeWriterExt};
 
 const SERVICE_LOG_FILE: &str = "service.log";
 
@@ -30,7 +30,7 @@ pub fn init_service_logging(state_root: &Path) -> Result<()> {
         .with_thread_ids(true)
         .with_file(true)
         .with_line_number(true)
-        .with_writer(SharedFileWriter::new(file))
+        .with_writer(SharedFileWriter::new(file).and(std::io::stderr))
         .try_init()
         .map_err(|err| anyhow!("initialize takd service logger: {err}"))?;
     Ok(())

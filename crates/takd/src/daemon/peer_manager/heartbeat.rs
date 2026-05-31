@@ -38,7 +38,15 @@ pub(super) async fn ping_peer(manager: &PeerManager, broker: &TorBroker, target:
         &target.bearer_token,
     );
     match tokio::time::timeout(heartbeat_timeout(), ping).await {
-        Err(_) => manager.mark_ping_failure(&target.node_id, "ping timed out"),
+        Err(_) => {
+            tracing::warn!(
+                node_id = %target.node_id,
+                endpoint = %target.endpoint,
+                timeout_ms = heartbeat_timeout().as_millis(),
+                "peer heartbeat ping timed out"
+            );
+            manager.mark_ping_failure(&target.node_id, "ping timed out")
+        }
         Ok(result) => handle_ping_result(manager, target, started, result),
     }
 }
@@ -52,11 +60,9 @@ fn handle_ping_result(
     match result {
         Ok((200, body)) => match NodePingResponse::decode(body.as_slice()) {
             Ok(ping) => {
-                manager.mark_ping_success(
-                    &target.node_id,
-                    ping,
-                    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
-                );
+                let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+                tracing::debug!(node_id = %target.node_id, elapsed_ms, "peer heartbeat ping ok");
+                manager.mark_ping_success(&target.node_id, ping, elapsed_ms);
             }
             Err(err) => {
                 manager.mark_protocol_mismatch(&target.node_id, format!("invalid ping: {err:#}"));
@@ -65,7 +71,10 @@ fn handle_ping_result(
         Ok((401 | 403, _)) => manager.mark_auth_failed(&target.node_id, "auth rejected"),
         Ok((404 | 501, _)) => manager.mark_protocol_mismatch(&target.node_id, "unsupported ping"),
         Ok((status, _)) => manager.mark_ping_failure(&target.node_id, format!("http {status}")),
-        Err(err) => manager.mark_ping_failure(&target.node_id, format!("{err:#}")),
+        Err(err) => {
+            tracing::warn!(node_id = %target.node_id, error = %format!("{err:#}"), "peer heartbeat ping failed");
+            manager.mark_ping_failure(&target.node_id, format!("{err:#}"))
+        }
     }
 }
 

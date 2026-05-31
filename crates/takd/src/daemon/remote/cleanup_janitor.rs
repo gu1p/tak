@@ -60,7 +60,9 @@ pub(crate) async fn run_remote_cleanup_once(
     for root in cleanup_roots(context, store)? {
         cleanup_stale_remote_entries(&root, &active_jobs, ttl)?;
     }
-    containers::cleanup_inactive_takd_containers(context, &active_jobs).await?;
+    if !tak_core::mock::mock_container_enabled() {
+        containers::cleanup_inactive_takd_containers(context, &active_jobs).await?;
+    }
     Ok(())
 }
 

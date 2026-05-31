@@ -35,7 +35,8 @@ impl RemoteRuntimeConfig {
             uid: optional_trimmed_env("UID"),
             use_temp_dir_default_exec_root: false,
             skip_exec_root_probe: std::env::var("TAK_TEST_HOST_PLATFORM").is_ok()
-                || std::env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok(),
+                || std::env::var("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_ok()
+                || tak_core::mock::mock_container_enabled(),
             remote_cleanup_ttl: Duration::from_millis(duration_from_env(
                 "TAKD_REMOTE_CLEANUP_TTL_MS",
                 DEFAULT_REMOTE_CLEANUP_TTL_MS,

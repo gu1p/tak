@@ -66,7 +66,7 @@ where
         service_status.state(),
         current_problem(service_status).as_deref(),
     );
-    tracing::info!("{detail}");
+    tracing::debug!("{detail}");
     mark_transport_pending(params.context, params.state_root, params.base_url, detail)
 }
 

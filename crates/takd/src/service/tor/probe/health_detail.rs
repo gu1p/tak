@@ -11,7 +11,7 @@ pub(crate) fn log_probe_progress(
     timeout: Duration,
     detail: impl AsRef<str>,
 ) {
-    tracing::info!(
+    tracing::debug!(
         "{}",
         startup_detail(base_url, stage, attempt, started_at, timeout, detail)
     );

@@ -33,11 +33,24 @@ async fn retry_connect_arti(
     port: u16,
 ) -> Result<BrokerRemoteStream> {
     let deadline = tokio::time::Instant::now() + tor_connect_timeout();
+    let mut attempt = 0u32;
     loop {
+        attempt += 1;
+        tracing::info!(onion = %host, port, attempt, "broker onion dial starting");
+        let dial_started = tokio::time::Instant::now();
         match client.connect((host, port)).await {
-            Ok(stream) => return Ok(Box::new(stream) as BrokerRemoteStream),
-            Err(err) if tokio::time::Instant::now() >= deadline => return Err(err.into()),
-            Err(_) => tokio::time::sleep(tor_connect_retry_delay()).await,
+            Ok(stream) => {
+                tracing::info!(onion = %host, port, attempt, elapsed_ms = dial_started.elapsed().as_millis(), "broker onion dial succeeded");
+                return Ok(Box::new(stream) as BrokerRemoteStream);
+            }
+            Err(err) if tokio::time::Instant::now() >= deadline => {
+                tracing::warn!(onion = %host, port, attempt, error = %err, "broker onion dial failed: deadline reached");
+                return Err(err.into());
+            }
+            Err(err) => {
+                tracing::warn!(onion = %host, port, attempt, elapsed_ms = dial_started.elapsed().as_millis(), error = %err, "broker onion dial attempt failed; retrying");
+                tokio::time::sleep(tor_connect_retry_delay()).await;
+            }
         }
     }
 }
