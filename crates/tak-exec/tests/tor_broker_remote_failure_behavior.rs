@@ -47,7 +47,11 @@ async fn tor_remote_execution_reports_remote_failure_when_broker_is_reachable() 
         rendered.contains("timed out while contacting remote node builder-remote-down")
             || rendered.contains("remote node builder-remote-down unavailable")
             || rendered.contains("remote node builder-remote-down")
-                && rendered.contains("node info request timed out"),
+                && rendered.contains("node info request timed out")
+            // A down peer never warms to Connected, so placement now fails fast
+            // with a remote-reachability diagnostic instead of attempting (and
+            // failing) a doomed forward to the unreachable node.
+            || rendered.contains("all Tor peers are unreachable"),
         "missing remote failure diagnostic:\n{rendered}"
     );
     assert!(

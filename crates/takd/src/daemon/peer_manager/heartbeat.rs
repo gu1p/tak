@@ -101,3 +101,7 @@ pub(super) fn unix_epoch_ms() -> i64 {
         .as_millis();
     i64::try_from(millis).unwrap_or(i64::MAX)
 }
+
+pub(super) fn duration_ms(duration: std::time::Duration) -> i64 {
+    i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
+}

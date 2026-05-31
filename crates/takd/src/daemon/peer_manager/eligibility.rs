@@ -18,9 +18,20 @@ pub(super) fn peer_is_eligible(snapshot: &PeerSnapshot, requirements: &PeerEligi
     snapshot.state == PeerState::Connected && peer_matches_requirements(snapshot, requirements)
 }
 
+// A peer is placeable while Connected OR still Connecting: dispatch prefers a
+// warm (Connected) peer and waits for one (see `wait_for_placeable_peer`), but a
+// Connecting peer remains a valid cold-dial fallback so a first submit is never
+// rejected just because warm-up has not finished.
 pub(super) fn peer_is_placeable(snapshot: &PeerSnapshot, requirements: &PeerEligibility) -> bool {
     matches!(snapshot.state, PeerState::Connected | PeerState::Connecting)
         && peer_matches_requirements(snapshot, requirements)
+}
+
+// A matching peer that is still warming up (Connecting) and so could yet become
+// eligible. Used to bound the placement wait: once no matching peer is warming,
+// waiting longer for a warm connection is pointless.
+pub(super) fn peer_is_warming(snapshot: &PeerSnapshot, requirements: &PeerEligibility) -> bool {
+    snapshot.state == PeerState::Connecting && peer_matches_requirements(snapshot, requirements)
 }
 
 fn peer_matches_requirements(snapshot: &PeerSnapshot, requirements: &PeerEligibility) -> bool {

@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 use crate::agent::{
     DirectBaseUrlError, parse_direct_base_url, persist_ready_base_url, read_config,
 };
-use crate::daemon::peer_manager::PeerManager;
+use crate::daemon::peer_manager::{LocalNodeIdentity, PeerManager};
 use crate::daemon::protocol::TorBroker;
 use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
 use crate::daemon::runtime::{default_socket_path, run_local_daemon_with_broker_and_peers};
@@ -19,7 +19,11 @@ use control::{AgentControlState, spawn_agent_control_socket};
 pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     let config_result = read_config(config_root);
     let broker = broker_for_transport(state_root, config_result.as_ref().ok());
-    spawn_local_daemon_socket(state_root, broker.clone());
+    let local_identity = config_result
+        .as_ref()
+        .ok()
+        .map(|config| LocalNodeIdentity::new(config.node_id.clone(), config.base_url.clone()));
+    spawn_local_daemon_socket(state_root, broker.clone(), local_identity);
     let config = match config_result {
         Ok(config) => config,
         Err(_err) if !config_root.join("agent.toml").exists() => {
@@ -61,7 +65,11 @@ fn broker_for_transport(
     }
 }
 
-fn spawn_local_daemon_socket(state_root: &Path, broker: TorBroker) {
+fn spawn_local_daemon_socket(
+    state_root: &Path,
+    broker: TorBroker,
+    local_identity: Option<LocalNodeIdentity>,
+) {
     let socket_path = default_socket_path();
     let db_path = state_root.join("takd.sqlite");
     if let Some(parent) = db_path.parent()
@@ -70,18 +78,21 @@ fn spawn_local_daemon_socket(state_root: &Path, broker: TorBroker) {
         tracing::error!("failed to create local daemon state directory: {err:#}");
         return;
     }
-    let peers = if let Ok(path) = tak_core::remote_inventory::default_remote_inventory_path() {
-        let peers = tak_core::remote_inventory::load_remote_inventory_at(&path)
-            .map(PeerManager::from_inventory)
-            .unwrap_or_else(|err| {
+    let peers = PeerManager::default();
+    if let Some(identity) = local_identity {
+        peers.set_local_identity(identity);
+    }
+    if let Ok(path) = tak_core::remote_inventory::default_remote_inventory_path() {
+        match tak_core::remote_inventory::load_remote_inventory_at(&path) {
+            Ok(inventory) => {
+                peers.apply_inventory(inventory);
+            }
+            Err(err) => {
                 tracing::warn!("starting local daemon with empty remote inventory: {err:#}");
-                PeerManager::default()
-            });
+            }
+        }
         peers.spawn_inventory_reloader_with_broker(path, broker.clone());
-        peers
-    } else {
-        PeerManager::default()
-    };
+    }
     peers.spawn_heartbeat_loop(broker.clone());
     tokio::spawn(async move {
         if let Err(err) =

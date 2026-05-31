@@ -3,6 +3,20 @@ use super::*;
 #[path = "dispatch/remote.rs"]
 mod remote;
 
+// How long `PlaceRemote` waits for a matching peer to become connected before
+// giving up. Steady-state peers are already warm so this is usually a no-op;
+// it only bites the first submit after startup or a reconnect. Generous enough
+// to cover a cold onion dial completing in the heartbeat loop.
+const DEFAULT_PLACE_REMOTE_WAIT_MS: u64 = 20_000;
+
+fn place_remote_wait_timeout() -> std::time::Duration {
+    std::env::var("TAKD_PLACE_REMOTE_WAIT_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(std::time::Duration::from_millis)
+        .unwrap_or_else(|| std::time::Duration::from_millis(DEFAULT_PLACE_REMOTE_WAIT_MS))
+}
+
 pub(super) async fn dispatch_request(
     request: Request,
     manager: &SharedLeaseManager,
@@ -82,6 +96,12 @@ pub(super) async fn dispatch_request(
             peers: peers.eligible(&payload.requirements),
         }),
         Request::PlaceRemote(payload) => {
+            // Give a just-configured or reconnecting peer a brief moment to warm
+            // up so the submit lands on an already-open connection rather than
+            // forcing a cold onion dial — the bridge should already be connected.
+            peers
+                .wait_for_placeable_peer(&payload.requirements, place_remote_wait_timeout())
+                .await;
             match peers.select_placeable(crate::daemon::peer_manager::PeerPlacementRequest {
                 requirements: &payload.requirements,
                 selection: payload.selection,

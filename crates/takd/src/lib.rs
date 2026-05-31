@@ -21,7 +21,8 @@ pub use daemon::lease::{
     new_shared_manager_with_db,
 };
 pub use daemon::peer_manager::{
-    PeerEligibility, PeerManager, PeerPlacementSelection, PeerSnapshot, PeerState,
+    LocalNodeIdentity, PeerEligibility, PeerManager, PeerPlacementSelection, PeerSnapshot,
+    PeerState,
 };
 pub use daemon::protocol::{
     AcquireLeaseRequest, CancelTaskRequest, ClientInfo, ForwardRemoteHttpRequest,

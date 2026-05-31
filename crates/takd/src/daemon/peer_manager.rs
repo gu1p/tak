@@ -6,23 +6,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::daemon::protocol::TorBroker;
 
+mod backoff;
 mod eligibility;
 mod heartbeat;
 mod inventory;
+mod local_identity;
 mod marks;
 mod placement;
 mod reconcile;
 mod state;
 
+use backoff::next_retry_due_ms;
 pub use eligibility::{PeerEligibility, first_eligible_or_error, first_placeable_or_error};
 use eligibility::{peer_is_eligible, peer_is_placeable};
-use heartbeat::{HeartbeatTarget, ping_peer, should_ping, unix_epoch_ms};
+use heartbeat::{HeartbeatTarget, duration_ms, ping_peer, should_ping, unix_epoch_ms};
+pub use local_identity::LocalNodeIdentity;
 pub use placement::{PeerPlacementRequest, PeerPlacementSelection};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 const HEARTBEAT_POLL_INTERVAL: Duration = Duration::from_secs(1);
-const RECONNECT_BACKOFF_INITIAL_MS: i64 = 1_000;
-const RECONNECT_BACKOFF_MAX_MS: i64 = 60_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -73,6 +75,10 @@ pub struct PeerManager {
 struct PeerManagerState {
     peers: BTreeMap<String, PeerEntry>,
     placement_assignments: BTreeMap<String, usize>,
+    // Identity of the node hosting this broker, if it is also an agent. Kept so
+    // the local node is never inserted into its own peer set nor selected as a
+    // placement target — the local takd is a bridge, never its own executor.
+    local_identity: Option<LocalNodeIdentity>,
 }
 
 #[derive(Debug, Clone)]
@@ -167,33 +173,6 @@ impl PeerEntry {
             bearer_token: self.bearer_token.clone(),
         }
     }
-}
-
-fn next_retry_due_ms(node_id: &str, attempts: u32, now_ms: i64) -> i64 {
-    now_ms.saturating_add(backoff_delay_ms(node_id, attempts))
-}
-
-fn backoff_delay_ms(node_id: &str, attempts: u32) -> i64 {
-    let exponent = attempts.saturating_sub(1).min(16);
-    let base = RECONNECT_BACKOFF_INITIAL_MS
-        .saturating_mul(1_i64 << exponent)
-        .min(RECONNECT_BACKOFF_MAX_MS);
-    apply_jitter(base, node_id, attempts)
-}
-
-fn apply_jitter(base_ms: i64, node_id: &str, attempts: u32) -> i64 {
-    let mut hash = u64::from(attempts);
-    for byte in node_id.as_bytes() {
-        hash = hash
-            .wrapping_mul(1099511628211)
-            .wrapping_add(u64::from(*byte));
-    }
-    let jitter_percent = i64::try_from(hash % 41).unwrap_or(0) - 20;
-    base_ms.saturating_mul(100 + jitter_percent) / 100
-}
-
-fn duration_ms(duration: Duration) -> i64 {
-    i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
 }
 
 #[cfg(test)]

@@ -19,14 +19,61 @@ pub struct PeerPlacementRequest<'a> {
 }
 
 impl PeerManager {
+    /// Waits briefly for a matching peer to become *connected* (warm) so a submit
+    /// reuses an already-open connection instead of cold-dialing. Returns as soon
+    /// as a warm peer exists, when no matching peer is still warming up (nothing
+    /// to wait for), or once the timeout elapses — after which a still-Connecting
+    /// peer remains a valid cold-dial fallback for placement.
+    ///
+    /// ```no_run
+    /// // Reason: needs a running tokio runtime and a populated peer manager.
+    /// # async fn demo(peers: &takd::PeerManager, reqs: &takd::PeerEligibility) {
+    /// peers
+    ///     .wait_for_placeable_peer(reqs, std::time::Duration::from_secs(5))
+    ///     .await;
+    /// # }
+    /// ```
+    pub async fn wait_for_placeable_peer(
+        &self,
+        requirements: &PeerEligibility,
+        timeout: std::time::Duration,
+    ) {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            if !self.eligible(requirements).is_empty()
+                || !self.has_warming_peer(requirements)
+                || tokio::time::Instant::now() >= deadline
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    fn has_warming_peer(&self, requirements: &PeerEligibility) -> bool {
+        let state = self.lock_state();
+        state
+            .peers
+            .values()
+            .any(|entry| super::eligibility::peer_is_warming(&entry.snapshot, requirements))
+    }
+
     pub fn select_placeable(
         &self,
         request: PeerPlacementRequest<'_>,
     ) -> anyhow::Result<PeerSnapshot> {
         let mut state = self.lock_state();
+        let local_identity = state.local_identity.clone();
         let peers = state
             .peers
             .values()
+            // Defensive: even if the local node somehow reached the peer set, it
+            // must never be chosen as a placement target.
+            .filter(|entry| {
+                local_identity.as_ref().is_none_or(|identity| {
+                    !identity.matches_peer(&entry.snapshot.node_id, &entry.snapshot.endpoint)
+                })
+            })
             .map(|entry| entry.snapshot.clone())
             .collect::<Vec<_>>();
         let selected = match request.selection {

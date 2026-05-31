@@ -32,8 +32,16 @@ impl PeerManager {
 
     pub fn apply_inventory(&self, inventory: RemoteInventory) -> Vec<PeerConnectionTarget> {
         let mut state = self.lock_state();
+        let local_identity = state.local_identity.clone();
         let next = inventory
             .enabled_tor_remotes()
+            // Never adopt the local node as a peer: the local takd is a bridge,
+            // and a submit must reach a remote, never loop back to itself.
+            .filter(|remote| {
+                local_identity.as_ref().is_none_or(|identity| {
+                    !identity.matches_peer(&remote.node_id, &remote.base_url)
+                })
+            })
             .map(|remote| (remote.node_id.clone(), remote))
             .collect::<BTreeMap<_, _>>();
         let mut evicted = evicted_peers(&mut state.peers, &next);

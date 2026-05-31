@@ -25,6 +25,9 @@ impl LocalTorBroker {
         env.set("TAKD_SOCKET", socket_path.display().to_string());
         let broker = TorBroker::for_test_dial_addr(dial_addr.to_string());
         let peers = peer_manager_from_current_inventory(broker.clone());
+        // Mirror production: warm peer connections via heartbeats so placement
+        // sees a Connected (not merely Connecting) peer.
+        peers.spawn_heartbeat_loop(broker.clone());
         let broker_for_task = broker.clone();
         let socket_for_task = socket_path.clone();
         let handle = tokio::spawn(async move {

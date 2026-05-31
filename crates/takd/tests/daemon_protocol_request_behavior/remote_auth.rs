@@ -11,10 +11,15 @@ use crate::support::protocol::send_request;
 mod support;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn place_remote_marks_peer_auth_failed_on_submit_401() {
+async fn place_remote_refuses_an_auth_failed_peer() {
     let temp = tempfile::tempdir().expect("tempdir");
     let socket_path = temp.path().join("run/takd.sock");
     let auth = support::spawn_auth_server(&socket_path, 401).await;
+
+    // The peer rejects the heartbeat with 401, so it is marked auth-failed and is
+    // never warm enough to place a task on: the submit is refused rather than
+    // forwarded to a peer the bridge cannot authenticate with.
+    support::wait_for_peer_state(&auth.peers, PeerState::AuthFailed).await;
 
     let response = send_request(
         &socket_path,
@@ -34,8 +39,13 @@ async fn place_remote_marks_peer_auth_failed_on_submit_401() {
     .await;
 
     match response {
-        Response::RemotePlaced { status, .. } => assert_eq!(status, 401),
-        other => panic!("expected remote placed response, got {other:?}"),
+        Response::Error { message, .. } => {
+            assert!(
+                message.contains("auth failed"),
+                "unexpected error: {message}"
+            )
+        }
+        other => panic!("expected placement error for auth-failed peer, got {other:?}"),
     }
     assert_eq!(auth.peers.snapshots()[0].state, PeerState::AuthFailed);
     auth.abort();
