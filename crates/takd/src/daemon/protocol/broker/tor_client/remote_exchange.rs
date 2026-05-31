@@ -10,11 +10,17 @@ pub(super) async fn remote_http_exchange(
         remote_request.headers,
     );
     // Skip the HTTP/2 attempt entirely for peers we already know only answer
-    // HTTP/1.1, so heartbeats don't waste a doomed onion dial on every cycle.
+    // HTTP/1.1 (a fresh, time-boxed pin), so heartbeats don't waste a doomed
+    // onion dial on every cycle.
     let prefer_http2 = broker
         .remote_protocol(remote_request.endpoint, remote_request.node_id)
         .await
         != Some(RemoteProtocol::Http1);
+    // Failure code from the HTTP/2 attempt, if one was made and fell through to
+    // the HTTP/1.1 fallback. Only `http2_request_failed` distinguishes a peer
+    // that genuinely cannot speak HTTP/2 (it reset/refused the request after the
+    // local handshake flush) from a transient hiccup, so it alone may pin h1.
+    let mut http2_failure_code: Option<String> = None;
     if prefer_http2 {
         let http2_request = BrokerHttp2Request::from_parts(
             remote_request.method,
@@ -42,7 +48,10 @@ pub(super) async fn remote_http_exchange(
             Err(err) if !can_fallback_method(remote_request.method, err.code()) => {
                 return Err(anyhow::Error::from(err));
             }
-            Err(_) => {}
+            Err(err) => {
+                tracing::debug!(code = err.code(), "h2 failed; falling back to HTTP/1.1");
+                http2_failure_code = Some(err.code().to_string());
+            }
         }
     }
     let response = legacy_http_exchange(
@@ -55,10 +64,11 @@ pub(super) async fn remote_http_exchange(
     )
     .await
     .map_err(anyhow::Error::from)?;
-    // HTTP/1.1 carried the request. If we had attempted HTTP/2 first and it
-    // failed, remember this peer as HTTP/1.1-only so future requests go
-    // straight to the working protocol.
-    if prefer_http2 {
+    // HTTP/1.1 carried the request after HTTP/2 was refused at request time.
+    // Pin this peer to HTTP/1.1 — but only as a *time-boxed* compatibility cache
+    // (see `remote_protocol`): a transient onion hiccup (a timeout/dial-class
+    // failure, which never sets this code) must not poison an h2-capable peer.
+    if http2_failure_code.as_deref() == Some("http2_request_failed") {
         broker
             .set_remote_protocol(
                 remote_request.endpoint,

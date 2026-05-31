@@ -174,3 +174,85 @@ itself isn't logged. First add a log at `http2_session.rs:25-28` distinguishing
 "h2 handshake timed out" from other handshake errors, reproduce with
 `proto_check.sh`, and confirm the timeout is what's firing before changing
 constants. Don't assume; measure, then fix, then re-measure the h2/h1 split.
+
+---
+
+## RESOLUTION (2026-05-31) — the prime hypothesis was REFUTED by measurement
+
+Following the caveat above, I instrumented `http2_session.rs` (handshake
+timeout/error/ok with `dial_ms`/`handshake_ms`), the `http2_exchange` retry path,
+and the fallback/pin decision, then re-ran the two-container repro
+(`docker/tor-test/proto_diag.sh`, which captures **both** node A's server split and
+node B's broker-side cause markers). The evidence overturned #1 and #2:
+
+- **The h2 handshake never times out.** `handshake_ms=0` every time — the hyper
+  client h2 handshake is a local preface+SETTINGS flush; it does **not** wait for
+  the peer's SETTINGS, so a cold onion adds 0ms to it (the onion *dial* is separate,
+  with its own 120s budget). The flat 2s cap was never on the critical path.
+- **h2 is already the reliable peer transport.** One pooled h2 connection is dialed
+  once (`reused=false`) and then **multiplexes every later request** (heartbeat
+  pings + the 2.87 MB submit + result GETs are all `reused=true`). Zero handshake
+  timeouts, zero send failures, zero fallbacks, **zero pins**. The session survives
+  the 15s idle heartbeat gaps for 90+s **without** any keep-alive.
+- **The "1 h2 / 4 h1" metric was a misread.** node A's per-stream log fires **once
+  per connection** (the prefix sniff), not per request — so the single multiplexed
+  h2 peer connection counts as "1". The "h1" count is node A's **own internal
+  HTTP/1.1 self-probe** (`service/tor/probe/http_client.rs`, every ~15s,
+  `Connection: close`) — health-check traffic to itself, **not** peer traffic. So
+  "h1 = 0 on node A" in the original DoD is unattainable by design and was never the
+  right signal. The **honest metric is node B's broker-side markers** (peer protocol
+  is unambiguous there); `proto_diag.sh` reports them.
+
+### What was actually wrong, and what changed
+
+The one real residual issue was the **slow / flaky multi-MB submit**. The remote-v1
+HTTP/2 **server** used a default hyper builder → a 64 KiB receive window, so an
+*upload* (the submit request body) can only have one window in flight per onion
+round trip: ~`2.87MB / 64KB ≈ 45` stalls. At ~0.45s RTT that's the observed ~20s;
+on a slower circuit it scales to 45–90s and flirts with the 120s phase-timeout
+floor — exactly the original "big submit timed out" flake.
+
+Changes (all on branch `tor-onion-http2-fix`, reviewed twice by Codex/gpt-5.5):
+
+1. **Server h2 receive windows → 4 MiB stream / 8 MiB connection**
+   (`daemon/remote/http_server/http2.rs`) — the real fix: the whole submit fits one
+   window, so the upload is bandwidth- not RTT-bound. Client receive windows raised
+   likewise (`broker/tor_client/http2_session.rs`) for large result responses.
+2. **h2 handshake timeout: env-configurable, default 5s** (was a hardcoded 2s) via
+   `TAK_TOR_HTTP2_HANDSHAKE_MS` (`broker/tor_client/config.rs`). Defensive only —
+   the handshake is ~0ms; a timeout now means a wedged write path, not "peer is h1".
+3. **h1 pin is time-boxed (60s TTL, `TAK_TOR_HTTP1_PIN_TTL_MS`) and only set on
+   `http2_request_failed`** (`protocol_memory.rs`, `remote_exchange.rs`). A transient
+   onion hiccup (timeout/dial-class) can no longer permanently poison an h2-capable
+   peer; a genuinely h1-only legacy peer still re-pins (one doomed h2 dial per TTL,
+   not per heartbeat). POST still cannot fall back on `http2_request_failed` (replay
+   safety) — preserved.
+4. **No keep-alive added** — the pooled session demonstrably survives idle without
+   it; idle PINGs would be needless Tor traffic.
+5. **Hardening flagged in review** (`http_server/http2.rs`): the h2 server now
+   authorizes from the bearer header **before** buffering the request body (an
+   unauthenticated peer can't make it allocate one), rejects an oversized declared
+   `Content-Length` (413), and streams the body under a 512 MiB cap.
+6. **Retry classification fix**: a reused-session retry now surfaces the *fresh*
+   attempt's error code instead of the stale pooled-session `http2_request_failed`,
+   so a transient reconnect failure can't masquerade as h1-incapability and pin.
+
+Regression tests: `protocol_memory_tests.rs` (time-boxed pin), `http2/http2_tests.rs`
+(request-size cap decision); the existing `heartbeat_protocol_memory` and h2 server
+contracts still pass. Full `cargo test -p takd` is green (304 tests).
+
+### Measurements (real Tor, MOCK_CONTAINER)
+
+- Submit **reliability**: 6/6 successful 2.87 MB submits across runs, **no phase
+  timeouts**, every request over h2.
+- Wall-clock per submit: ~20s before vs ~23s after — **inconclusive on its own**
+  because each repro builds a *fresh circuit* and Tor bandwidth varies ~5–10× per
+  circuit. The window fix is retained on first principles (it removes the 64KB/RTT
+  ceiling, which bites hardest on the high-RTT circuits behind the original flake)
+  and was endorsed by Codex; it cannot reduce throughput.
+
+### Reading the metric correctly (for the next person)
+
+Don't count node A's per-connection h1 lines — those are its self-probe. Use
+`proto_diag.sh` and read **node B's** markers: `h2 handshake ok` ≥ 1, `fallback->h1`
+= 0, `h2 send_request failed` = 0. That is the real "h2 is the transport" signal.

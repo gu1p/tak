@@ -58,6 +58,30 @@ pub(super) fn tor_connect_retry_delay() -> Duration {
         .unwrap_or(DEFAULT_TOR_CONNECT_RETRY_DELAY)
 }
 
+// The hyper HTTP/2 client handshake is a local preface+SETTINGS flush (it does
+// not wait for the peer's SETTINGS), so it completes in ~0ms even over a cold
+// onion circuit — the onion *dial* has its own `tor_connect_timeout` budget. A
+// handshake timeout therefore means a wedged write path, not "peer prefers h1".
+const DEFAULT_HTTP2_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+// How long an HTTP/1.1 "pin" (learned when an h2 attempt fell back to a working
+// h1) is honored before we re-probe h2: long enough to spare a genuinely h1-only
+// legacy peer a doomed h2 dial every 15s heartbeat, short enough that a transient
+// h2 miss cannot permanently poison an h2-capable peer.
+const DEFAULT_HTTP1_PIN_TTL: Duration = Duration::from_secs(60);
+
+pub(super) fn http2_handshake_timeout() -> Duration {
+    env_duration_ms(
+        "TAK_TEST_TOR_HTTP2_HANDSHAKE_MS",
+        "TAK_TOR_HTTP2_HANDSHAKE_MS",
+    )
+    .unwrap_or(DEFAULT_HTTP2_HANDSHAKE_TIMEOUT)
+}
+
+pub(super) fn http1_pin_ttl() -> Duration {
+    env_duration_ms("TAK_TEST_TOR_HTTP1_PIN_TTL_MS", "TAK_TOR_HTTP1_PIN_TTL_MS")
+        .unwrap_or(DEFAULT_HTTP1_PIN_TTL)
+}
+
 pub(super) fn socket_addr_from_host_port(host: &str, port: u16) -> String {
     if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
         format!("[{host}]:{port}")

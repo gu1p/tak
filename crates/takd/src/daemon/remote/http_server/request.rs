@@ -120,10 +120,19 @@ pub(super) fn request_is_authorized(
     request: &ParsedHttpRequest,
     context: &RemoteNodeContext,
 ) -> bool {
+    authorization_is_valid(request.authorization.as_deref(), context)
+}
+
+// Authorize from the bearer header alone, so the HTTP/2 path can reject an
+// unauthenticated peer before buffering its (possibly large) request body.
+pub(super) fn authorization_is_valid(
+    authorization: Option<&str>,
+    context: &RemoteNodeContext,
+) -> bool {
     if context.bearer_token.trim().is_empty() {
         return false;
     }
-    request.authorization.as_deref() == Some(&format!("Bearer {}", context.bearer_token))
+    authorization == Some(format!("Bearer {}", context.bearer_token).as_str())
 }
 
 fn parse_request_line(

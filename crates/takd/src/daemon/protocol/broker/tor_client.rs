@@ -21,8 +21,9 @@ mod shared_client;
 mod types;
 
 use config::{
-    create_bootstrapped, default_client_tor_config, socket_addr_from_host_port,
-    test_tor_onion_dial_addr, tor_connect_retry_delay, tor_connect_timeout,
+    create_bootstrapped, default_client_tor_config, http1_pin_ttl, http2_handshake_timeout,
+    socket_addr_from_host_port, test_tor_onion_dial_addr, tor_connect_retry_delay,
+    tor_connect_timeout,
 };
 use http2_session::Http2Session;
 use protocol_memory::RemoteProtocol;
@@ -41,7 +42,7 @@ pub struct TorBroker {
 struct TorBrokerInner {
     client: tokio::sync::OnceCell<BrokerClient>,
     http2_sessions: tokio::sync::Mutex<HashMap<String, Arc<Http2Session>>>,
-    remote_protocols: tokio::sync::Mutex<HashMap<String, RemoteProtocol>>,
+    remote_protocols: tokio::sync::Mutex<HashMap<String, (RemoteProtocol, std::time::Instant)>>,
     test_dial_addr: Option<String>,
     state_root: Option<PathBuf>,
     bootstrap_count: AtomicUsize,
@@ -136,15 +137,17 @@ impl TorBroker {
             Ok(response) => Ok(response),
             Err(first) => {
                 self.evict_http2_session(&session_key).await;
-                // Reconnect+retry only a *reused* pooled session (its keep-alive
-                // may have dropped); a freshly dialed session that already failed
-                // surfaces the error to the caller — no second doomed onion dial.
+                // Reconnect+retry only a *reused* pooled session (its underlying
+                // onion stream may have dropped while idle); a freshly dialed
+                // session that already failed surfaces the error to the caller —
+                // no second doomed onion dial.
                 if reused && request.can_retry_after_failure() {
-                    let (session, _) = self
-                        .http2_session(endpoint, &session_key)
-                        .await
-                        .map_err(|_| first.clone())?;
-                    session.send(request).await.map_err(|_| first)
+                    // Surface the *fresh* attempt's failure code, not the stale
+                    // pooled-session error: the caller pins HTTP/1.1 only on
+                    // `http2_request_failed`, so a transient reconnect/handshake
+                    // failure here must not masquerade as that and poison the peer.
+                    let (session, _) = self.http2_session(endpoint, &session_key).await?;
+                    session.send(request).await
                 } else {
                     Err(first)
                 }
