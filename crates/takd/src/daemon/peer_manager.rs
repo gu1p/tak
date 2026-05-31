@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::daemon::protocol::TorBroker;
 
 mod backoff;
+mod connection_keeper;
 mod eligibility;
 mod heartbeat;
 mod inventory;

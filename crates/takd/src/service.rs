@@ -93,6 +93,8 @@ fn spawn_local_daemon_socket(
         }
         peers.spawn_inventory_reloader_with_broker(path, broker.clone());
     }
+    // Hold a permanently warm connection to every peer, and ping over it.
+    peers.spawn_connection_keeper(broker.clone());
     peers.spawn_heartbeat_loop(broker.clone());
     tokio::spawn(async move {
         if let Err(err) =

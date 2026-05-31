@@ -1,3 +1,5 @@
+#[path = "tests/connection_keeper_tests.rs"]
+mod connection_keeper_tests;
 #[path = "tests/eligibility.rs"]
 mod eligibility;
 #[path = "tests/heartbeat.rs"]

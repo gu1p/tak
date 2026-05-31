@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -42,6 +42,10 @@ pub struct TorBroker {
 struct TorBrokerInner {
     client: tokio::sync::OnceCell<BrokerClient>,
     http2_sessions: tokio::sync::Mutex<HashMap<String, Arc<Http2Session>>>,
+    // Session keys with a keeper dial in flight, so a down peer never piles up
+    // one (up to 120s) dial loop per 1s tick — only one at a time. A std Mutex so
+    // the RAII dial guard can release it on drop (panic/cancel safe).
+    http2_dials: Mutex<HashSet<String>>,
     remote_protocols: tokio::sync::Mutex<HashMap<String, (RemoteProtocol, std::time::Instant)>>,
     test_dial_addr: Option<String>,
     state_root: Option<PathBuf>,
@@ -80,6 +84,7 @@ impl TorBroker {
             inner: Arc::new(TorBrokerInner {
                 client: tokio::sync::OnceCell::const_new(),
                 http2_sessions: tokio::sync::Mutex::new(HashMap::new()),
+                http2_dials: Mutex::new(HashSet::new()),
                 remote_protocols: tokio::sync::Mutex::new(HashMap::new()),
                 test_dial_addr,
                 state_root,
@@ -136,7 +141,10 @@ impl TorBroker {
         match session.send(request.clone()).await {
             Ok(response) => Ok(response),
             Err(first) => {
-                self.evict_http2_session(&session_key).await;
+                // Identity-aware: only drop the session that actually failed, not
+                // a fresh one a concurrent keeper/request dial may have inserted.
+                self.evict_session_if_unchanged(&session_key, &session)
+                    .await;
                 // Reconnect+retry only a *reused* pooled session (its underlying
                 // onion stream may have dropped while idle); a freshly dialed
                 // session that already failed surfaces the error to the caller —
@@ -170,31 +178,5 @@ impl TorBroker {
                 )))
             })
             .await
-    }
-
-    // Returns a pooled HTTP/2 session, reconnecting if none is cached; the bool
-    // reports whether it came from the pool, so callers can decide to retry.
-    async fn http2_session(
-        &self,
-        endpoint: &str,
-        session_key: &str,
-    ) -> std::result::Result<(Arc<Http2Session>, bool), BrokerHttpError> {
-        if let Some(session) = self
-            .inner
-            .http2_sessions
-            .lock()
-            .await
-            .get(session_key)
-            .cloned()
-        {
-            return Ok((session, true));
-        }
-        let session = Arc::new(Http2Session::connect(self, endpoint).await?);
-        self.inner
-            .http2_sessions
-            .lock()
-            .await
-            .insert(session_key.to_string(), Arc::clone(&session));
-        Ok((session, false))
     }
 }
