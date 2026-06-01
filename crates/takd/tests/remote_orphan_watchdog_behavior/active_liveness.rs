@@ -14,8 +14,10 @@ use crate::support::{
     remote_output::test_context_with_runtime,
 };
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread")]
 async fn result_polling_keeps_active_execution_live() {
+    // The guard serializes process-env mutation for the whole async test body.
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");

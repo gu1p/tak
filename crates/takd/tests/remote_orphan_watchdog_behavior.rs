@@ -15,8 +15,10 @@ use crate::support::{
 
 mod active_liveness;
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread")]
 async fn watchdog_cancels_active_worker_without_client_heartbeat() {
+    // The guard serializes process-env mutation for the whole async test body.
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
