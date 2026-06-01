@@ -36,9 +36,12 @@ pub(crate) fn build_remote_submit_payload(
         attempt,
         workspace_zip: match workspace_upload {
             Some(_) => Vec::new(),
-            None => base64::engine::general_purpose::STANDARD
-                .decode(&remote_workspace.archive_zip_base64)
-                .context("failed decoding staged workspace archive")?,
+            None => std::fs::read(&remote_workspace.archive_path).with_context(|| {
+                format!(
+                    "failed reading staged workspace archive {}",
+                    remote_workspace.archive_path.display()
+                )
+            })?,
         },
         steps: task
             .steps

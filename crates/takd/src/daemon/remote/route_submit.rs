@@ -24,6 +24,14 @@ pub(super) fn handle_remote_submit_route(
         Ok(worker_payload) => worker_payload,
         Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
     };
+    tracing::info!(
+        task_run_id,
+        attempt = payload.attempt,
+        task_label = %payload.task_label,
+        body_bytes = body.len(),
+        workspace_bytes = worker_payload.workspace_zip.len(),
+        "remote submit received"
+    );
     let execution_root_base =
         ensure_remote_execution_root_base(context, worker_payload.runtime.as_ref());
     let node = context.node_info()?;
@@ -40,6 +48,14 @@ pub(super) fn handle_remote_submit_route(
         SubmitRegistration::Created { idempotency_key } => (false, idempotency_key),
         SubmitRegistration::Attached { idempotency_key } => (true, idempotency_key),
     };
+    tracing::info!(
+        task_run_id,
+        attempt = payload.attempt,
+        task_label = %payload.task_label,
+        attached,
+        idempotency_key,
+        "remote submit accepted"
+    );
 
     if !attached {
         let cancellation = context.register_active_execution(

@@ -1,58 +1,87 @@
 use std::time::Duration;
 
-use base64::Engine;
 use prost::Message;
-use sha2::{Digest, Sha256};
-use tak_proto::{
-    AppendWorkspaceUploadResponse, BeginWorkspaceUploadRequest, BeginWorkspaceUploadResponse,
-    FinishWorkspaceUploadResponse, WorkspaceUploadRef,
-};
+use std::sync::Arc;
+use tak_core::model::TaskLabel;
+use tak_proto::{BeginWorkspaceUploadRequest, BeginWorkspaceUploadResponse, WorkspaceUploadRef};
 
+use super::TaskOutputObserver;
 use super::protocol_result_http::remote_protocol_http_request;
 use super::remote_models::{RemoteWorkspaceStage, StrictRemoteTarget};
 use super::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
 
 mod failures;
+mod legacy;
 mod requests;
+mod stream;
 
 use failures::{submit_decode_error, submit_protocol_error, submit_transport_error};
-use requests::{append_chunk_request, begin_upload_request, finish_upload_request};
-
-const WORKSPACE_UPLOAD_CHUNK_BYTES: usize = 1024 * 1024;
+use legacy::upload_and_finish_chunks;
+use requests::begin_upload_request;
+use stream::stream_upload_for_submit;
 
 pub(crate) async fn upload_workspace_for_submit(
     target: &StrictRemoteTarget,
     task_run_id: &str,
     attempt: u32,
     workspace: &RemoteWorkspaceStage,
-) -> Result<Option<WorkspaceUploadRef>, RemoteSubmitFailure> {
+    task_label: Option<&TaskLabel>,
+    output_observer: Option<&Arc<dyn TaskOutputObserver>>,
+) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
     if super::transport::uses_tor_broker(target).unwrap_or(false) {
-        return Ok(None);
+        return stream_upload_for_submit(
+            target,
+            task_run_id,
+            attempt,
+            workspace,
+            task_label,
+            output_observer,
+        )
+        .await;
     }
-    let archive = decode_workspace_archive(workspace)?;
-    let sha256 = format!("{:x}", Sha256::digest(&archive));
-    let size_bytes = archive.len() as u64;
+    let archive = read_workspace_archive(workspace)?;
+    let sha256 = workspace.sha256.clone();
+    let size_bytes = workspace.archive_byte_len;
     let mut begin = begin_upload(target, task_run_id, attempt, &sha256, size_bytes).await?;
     let Some(begin) = begin.take() else {
-        return Ok(None);
+        return Ok(WorkspaceUploadOutcome::inline());
     };
     upload_and_finish_chunks(target, &begin.upload_id, &archive, begin.offset).await?;
-    Ok(Some(WorkspaceUploadRef {
-        upload_id: begin.upload_id,
-        sha256,
-        size_bytes,
-    }))
+    Ok(WorkspaceUploadOutcome {
+        upload: Some(WorkspaceUploadRef {
+            upload_id: begin.upload_id,
+            sha256,
+            size_bytes,
+        }),
+        preferred_node_id: None,
+    })
 }
 
-fn decode_workspace_archive(
+#[derive(Debug)]
+pub(crate) struct WorkspaceUploadOutcome {
+    pub(crate) upload: Option<WorkspaceUploadRef>,
+    pub(crate) preferred_node_id: Option<String>,
+}
+
+impl WorkspaceUploadOutcome {
+    fn inline() -> Self {
+        Self {
+            upload: None,
+            preferred_node_id: None,
+        }
+    }
+}
+
+fn read_workspace_archive(
     workspace: &RemoteWorkspaceStage,
 ) -> Result<Vec<u8>, RemoteSubmitFailure> {
-    base64::engine::general_purpose::STANDARD
-        .decode(&workspace.archive_zip_base64)
-        .map_err(|err| RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!("failed decoding staged workspace archive: {err}"),
-        })
+    std::fs::read(&workspace.archive_path).map_err(|err| RemoteSubmitFailure {
+        kind: RemoteSubmitFailureKind::Other,
+        message: format!(
+            "failed reading staged workspace archive {}: {err}",
+            workspace.archive_path.display()
+        ),
+    })
 }
 
 async fn begin_upload(
@@ -83,93 +112,6 @@ async fn begin_upload(
     BeginWorkspaceUploadResponse::decode(response.as_slice())
         .map(Some)
         .map_err(|_| submit_decode_error(target, "workspace upload begin"))
-}
-
-async fn upload_chunks(
-    target: &StrictRemoteTarget,
-    upload_id: &str,
-    archive: &[u8],
-    offset: u64,
-) -> Result<(), RemoteSubmitFailure> {
-    let mut offset = offset as usize;
-    while offset < archive.len() {
-        let end = archive.len().min(offset + WORKSPACE_UPLOAD_CHUNK_BYTES);
-        offset = append_chunk(target, upload_id, offset as u64, &archive[offset..end]).await?;
-    }
-    Ok(())
-}
-
-async fn upload_and_finish_chunks(
-    target: &StrictRemoteTarget,
-    upload_id: &str,
-    archive: &[u8],
-    offset: u64,
-) -> Result<(), RemoteSubmitFailure> {
-    let mut offset = offset as usize;
-    for _ in 0..2 {
-        upload_chunks(target, upload_id, archive, offset as u64).await?;
-        match finish_upload(target, upload_id).await? {
-            FinishUpload::Complete => return Ok(()),
-            FinishUpload::Incomplete { next_offset } => offset = next_offset,
-        }
-    }
-    Err(RemoteSubmitFailure {
-        kind: RemoteSubmitFailureKind::Other,
-        message: format!(
-            "infra error: remote node {} workspace upload finish did not complete",
-            target.node_id
-        ),
-    })
-}
-
-async fn append_chunk(
-    target: &StrictRemoteTarget,
-    upload_id: &str,
-    offset: u64,
-    chunk: &[u8],
-) -> Result<usize, RemoteSubmitFailure> {
-    let path = format!("/v2/workspaces/uploads/{upload_id}?offset={offset}");
-    let (status, response) = append_chunk_request(target, &path, chunk).await?;
-    if status != 200 && status != 409 {
-        return Err(submit_protocol_error(
-            target,
-            "workspace upload chunk",
-            status,
-        ));
-    }
-    let parsed = AppendWorkspaceUploadResponse::decode(response.as_slice())
-        .map_err(|_| submit_decode_error(target, "workspace upload chunk"))?;
-    Ok(parsed.offset as usize)
-}
-
-async fn finish_upload(
-    target: &StrictRemoteTarget,
-    upload_id: &str,
-) -> Result<FinishUpload, RemoteSubmitFailure> {
-    let path = format!("/v2/workspaces/uploads/{upload_id}/finish");
-    let (status, response) = finish_upload_request(target, &path).await?;
-    if status == 409 {
-        let parsed = AppendWorkspaceUploadResponse::decode(response.as_slice())
-            .map_err(|_| submit_decode_error(target, "workspace upload finish"))?;
-        return Ok(FinishUpload::Incomplete {
-            next_offset: parsed.offset as usize,
-        });
-    }
-    if status != 200 {
-        return Err(submit_protocol_error(
-            target,
-            "workspace upload finish",
-            status,
-        ));
-    }
-    FinishWorkspaceUploadResponse::decode(response.as_slice())
-        .map(|_| FinishUpload::Complete)
-        .map_err(|_| submit_decode_error(target, "workspace upload finish"))
-}
-
-enum FinishUpload {
-    Complete,
-    Incomplete { next_offset: usize },
 }
 
 fn upload_timeout() -> Duration {

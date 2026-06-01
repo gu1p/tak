@@ -1,6 +1,12 @@
 use super::*;
 use tak_proto::WorkspaceUploadRef;
 
+#[path = "storage/stream.rs"]
+mod stream;
+pub(super) use stream::{
+    commit_partial_upload, ensure_metadata, hash_partial_prefix, truncate_partial_upload,
+};
+
 pub(super) struct UploadStatus {
     pub(super) offset: u64,
     pub(super) complete: bool,

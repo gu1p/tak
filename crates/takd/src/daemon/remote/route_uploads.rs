@@ -6,13 +6,17 @@ use tak_proto::{
 };
 
 mod storage;
+mod stream;
 
 pub(super) use storage::resolve_workspace_upload_zip;
 use storage::{
-    UploadMetadata, append_chunk, completed_upload_path, current_upload_offset,
-    ensure_upload_matches, ensure_upload_root, ensure_valid_upload_id, partial_upload_path,
-    read_metadata, upload_status, write_metadata,
+    UploadMetadata, append_chunk, commit_partial_upload, completed_upload_path,
+    current_upload_offset, ensure_metadata, ensure_upload_matches, ensure_upload_root,
+    ensure_valid_upload_id, hash_partial_prefix, partial_upload_path, read_metadata,
+    truncate_partial_upload, upload_status, write_metadata,
 };
+pub(super) use stream::stream_workspace_upload;
+use stream::workspace_upload_status;
 
 pub(super) fn handle_workspace_upload_route(
     context: &RemoteNodeContext,
@@ -23,6 +27,11 @@ pub(super) fn handle_workspace_upload_route(
 ) -> Result<Option<RemoteV1Response>> {
     if method == "POST" && path_only == "/v2/workspaces/uploads/begin" {
         return Ok(Some(begin_workspace_upload(context, body)?));
+    }
+    if method == "GET"
+        && let Some(upload_id) = upload_path_arg(path_only, "")
+    {
+        return Ok(Some(workspace_upload_status(context, upload_id)?));
     }
     let Some(upload_id) = upload_path_arg(path_only, "") else {
         let Some(upload_id) = upload_path_arg(path_only, "/finish") else {

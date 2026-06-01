@@ -61,6 +61,8 @@ mod transport_tor;
 mod workspace_collect;
 mod workspace_outputs;
 mod workspace_stage;
+#[path = "workspace_stage_tests.rs"]
+mod workspace_stage_tests;
 mod workspace_sync;
 #[path = "workspace_sync_test_support.rs"]
 mod workspace_sync_test_support;

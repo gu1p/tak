@@ -27,6 +27,7 @@ async fn place_remote_refuses_an_auth_failed_peer() {
             request_id: "place".into(),
             requirements: Default::default(),
             selection: Default::default(),
+            preferred_node_id: None,
             task_run_id: "task-1".into(),
             attempt: 1,
             submit_body: SubmitTaskRequest {

@@ -72,6 +72,8 @@ pub struct PlaceRemoteRequest {
     pub requirements: PeerEligibility,
     #[serde(default)]
     pub selection: PeerPlacementSelection,
+    #[serde(default)]
+    pub preferred_node_id: Option<String>,
     pub task_run_id: String,
     #[serde(default = "default_place_remote_attempt")]
     pub attempt: u32,

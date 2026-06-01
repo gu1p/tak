@@ -1,4 +1,5 @@
 use std::io;
+use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll};
 
@@ -69,6 +70,15 @@ impl AsyncWrite for ScriptedHttpStream {
 }
 
 pub(super) fn node_context() -> RemoteNodeContext {
+    node_context_with_runtime(RemoteRuntimeConfig::for_tests())
+}
+
+pub(super) fn node_context_with_temp(path: &Path) -> RemoteNodeContext {
+    node_context_with_runtime(RemoteRuntimeConfig::for_tests().with_temp_dir(path))
+        .with_state_root(path)
+}
+
+fn node_context_with_runtime(runtime: RemoteRuntimeConfig) -> RemoteNodeContext {
     RemoteNodeContext::new(
         tak_proto::NodeInfo {
             node_id: "builder-a".into(),
@@ -83,7 +93,7 @@ pub(super) fn node_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        runtime,
     )
 }
 

@@ -1,11 +1,13 @@
-use super::submit_payload_test_support::{direct_target, task_with_steps_and_needs, workspace};
+use super::submit_payload_test_support::{
+    direct_target, missing_archive_workspace, task_with_steps_and_needs,
+};
 use super::*;
 
 #[test]
-fn build_remote_submit_payload_rejects_invalid_workspace_archive() {
+fn build_remote_submit_payload_rejects_missing_workspace_archive() {
     let target = direct_target(None);
     let task = task_with_steps_and_needs();
-    let remote_workspace = workspace("%%%not-base64%%%");
+    let remote_workspace = missing_archive_workspace();
     let err = build_remote_submit_payload(RemoteSubmitPayloadInput {
         target: &target,
         task_run_id: "task-run-1",
@@ -18,11 +20,11 @@ fn build_remote_submit_payload_rejects_invalid_workspace_archive() {
         fused_member_execution_labels: None,
         workspace_upload: None,
     })
-    .expect_err("invalid archive should fail");
+    .expect_err("missing archive should fail");
 
     assert!(
         err.to_string()
-            .contains("failed decoding staged workspace archive"),
+            .contains("failed reading staged workspace archive"),
         "unexpected error: {err:#}"
     );
 }

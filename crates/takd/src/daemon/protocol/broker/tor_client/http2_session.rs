@@ -1,9 +1,11 @@
 use super::*;
 
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::combinators::BoxBody;
 use hyper::client::conn::http2::SendRequest;
 use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
+
+pub(in crate::daemon::protocol::broker) type BrokerBody = BoxBody<Bytes, std::io::Error>;
 
 // Client-side HTTP/2 receive windows. These govern how much *response* body a
 // peer may stream to us before waiting on our WINDOW_UPDATE; the default 64 KiB
@@ -22,7 +24,7 @@ const HTTP2_KEEP_ALIVE_INTERVAL: std::time::Duration = std::time::Duration::from
 const HTTP2_KEEP_ALIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 pub(super) struct Http2Session {
-    sender: SendRequest<Full<Bytes>>,
+    sender: SendRequest<BrokerBody>,
 }
 
 impl Http2Session {
@@ -96,6 +98,19 @@ impl Http2Session {
         let mut sender = self.sender.clone();
         let response = sender.send_request(request).await.map_err(|err| {
             tracing::debug!(error = %err, is_closed = sender.is_closed(), "h2 send_request failed");
+            BrokerHttpError::bad_gateway("http2_request_failed", err)
+        })?;
+        BrokerHttp2Response::from_hyper(response).await
+    }
+
+    pub(super) async fn send_stream(
+        &self,
+        request: BrokerHttp2StreamRequest,
+    ) -> std::result::Result<BrokerHttp2Response, BrokerHttpError> {
+        let request = request.into_hyper_request()?;
+        let mut sender = self.sender.clone();
+        let response = sender.send_request(request).await.map_err(|err| {
+            tracing::debug!(error = %err, is_closed = sender.is_closed(), "h2 stream send_request failed");
             BrokerHttpError::bad_gateway("http2_request_failed", err)
         })?;
         BrokerHttp2Response::from_hyper(response).await

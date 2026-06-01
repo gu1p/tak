@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use base64::Engine;
+use sha2::Digest;
 use tak_core::model::{
     CurrentStateSpec, Hold, LimiterRef, NeedDef, OutputSelectorSpec, PathAnchor, PathRef,
     RemoteRuntimeSpec, ResolvedTask, RetryDef, Scope, StepDef, TaskExecutionSpec, TaskLabel,
@@ -25,13 +26,30 @@ pub(super) fn direct_target(runtime: Option<RemoteRuntimeSpec>) -> StrictRemoteT
 }
 
 pub(super) fn workspace(base64_zip: &str) -> RemoteWorkspaceStage {
+    let archive = base64::engine::general_purpose::STANDARD
+        .decode(base64_zip)
+        .unwrap_or_default();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let archive_path = temp_dir.path().join("workspace.zip");
+    std::fs::write(&archive_path, &archive).expect("archive");
     RemoteWorkspaceStage {
-        temp_dir: tempfile::tempdir().expect("tempdir"),
+        temp_dir,
         manifest_hash: "manifest".into(),
-        archive_zip_base64: base64_zip.into(),
-        archive_byte_len: base64::engine::general_purpose::STANDARD
-            .decode(base64_zip)
-            .map_or(0, |archive| archive.len()),
+        archive_path,
+        archive_byte_len: archive.len() as u64,
+        sha256: format!("{:x}", sha2::Sha256::digest(&archive)),
+    }
+}
+
+pub(super) fn missing_archive_workspace() -> RemoteWorkspaceStage {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let archive_path = temp_dir.path().join("missing-workspace.zip");
+    RemoteWorkspaceStage {
+        temp_dir,
+        manifest_hash: "manifest".into(),
+        archive_path,
+        archive_byte_len: 0,
+        sha256: format!("{:x}", sha2::Sha256::digest([])),
     }
 }
 

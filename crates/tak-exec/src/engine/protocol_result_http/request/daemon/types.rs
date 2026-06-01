@@ -23,9 +23,14 @@ pub(super) enum DaemonRequest {
         request_id: String,
         requirements: PeerEligibility,
         selection: String,
+        preferred_node_id: Option<String>,
         task_run_id: String,
         attempt: u32,
         submit_body: Vec<u8>,
+    },
+    PeersEligible {
+        request_id: String,
+        requirements: PeerEligibility,
     },
     ForwardRemoteHttp {
         request_id: String,
@@ -72,6 +77,9 @@ pub(super) enum DaemonResponse {
         status: u16,
         headers: Vec<RemoteHeader>,
         body: Vec<u8>,
+    },
+    PeersSnapshot {
+        peers: Vec<DaemonPeerSnapshot>,
     },
     Error {
         message: String,

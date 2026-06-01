@@ -34,6 +34,7 @@ impl From<Request> for RequestEnvelope {
                 let mut envelope = base(RequestType::PlaceRemote, payload.request_id);
                 envelope.requirements = Some(payload.requirements);
                 envelope.selection = Some(payload.selection);
+                envelope.preferred_node_id = payload.preferred_node_id;
                 envelope.task_run_id = Some(payload.task_run_id);
                 envelope.attempt = Some(payload.attempt);
                 envelope.submit_body = Some(payload.submit_body);
@@ -76,6 +77,7 @@ fn base(request_type: RequestType, request_id: String) -> RequestEnvelope {
         task_run_id: None,
         submit_body: None,
         node_id: None,
+        preferred_node_id: None,
         method: None,
         path: None,
         headers: None,

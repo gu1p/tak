@@ -68,7 +68,7 @@ async fn remote_status_reports_staged_upload_size_in_megabytes() {
     }));
     assert!(statuses.iter().any(|event| {
         event.phase == TaskStatusPhase::RemoteSubmit
-            && event.message.starts_with("submitting ")
-            && event.message.ends_with(" MB to remote node builder-upload")
+            && event.message.starts_with("upload [")
+            && event.message.contains(" MB to remote node builder-upload")
     }));
 }

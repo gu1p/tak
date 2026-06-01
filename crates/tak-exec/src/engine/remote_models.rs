@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use tak_core::model::{
     ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
@@ -129,8 +130,9 @@ pub(crate) struct ParsedRemoteEvents {
 pub(crate) struct RemoteWorkspaceStage {
     pub(crate) temp_dir: tempfile::TempDir,
     pub(crate) manifest_hash: String,
-    pub(crate) archive_zip_base64: String,
-    pub(crate) archive_byte_len: usize,
+    pub(crate) archive_path: PathBuf,
+    pub(crate) archive_byte_len: u64,
+    pub(crate) sha256: String,
 }
 
 impl RemoteWorkspaceStage {
@@ -139,7 +141,7 @@ impl RemoteWorkspaceStage {
     }
 }
 
-pub(crate) fn format_upload_size_mb(byte_len: usize) -> String {
+pub(crate) fn format_upload_size_mb(byte_len: u64) -> String {
     format!("{:.2} MB", byte_len as f64 / 1_000_000.0)
 }
 

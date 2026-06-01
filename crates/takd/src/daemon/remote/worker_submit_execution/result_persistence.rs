@@ -38,6 +38,14 @@ fn persist_worker_execution_result(
 }
 
 fn persist_cancelled_worker_result(input: &WorkerExecutionResultPersistence<'_>, stdout_tail: &str) {
+    tracing::warn!(
+        idempotency_key = input.idempotency_key,
+        task_run_id = %input.execution.payload.task_run_id,
+        attempt = input.execution.payload.attempt,
+        task_label = %input.execution.payload.task_label,
+        duration_ms = input.duration_ms,
+        "remote worker task cancelled"
+    );
     persist_cancelled_result(CancelledSubmitResult {
         store: &input.execution.store,
         idempotency_key: input.idempotency_key,
@@ -65,6 +73,17 @@ fn persist_successful_worker_result(
         "TASK_FAILED"
     };
     let exit_code = result.exit_code.unwrap_or(if result.success { 0 } else { 1 });
+    tracing::info!(
+        idempotency_key = input.idempotency_key,
+        task_run_id = %execution.payload.task_run_id,
+        attempt = execution.payload.attempt,
+        task_label = %execution.payload.task_label,
+        success = result.success,
+        exit_code,
+        output_count = outputs.len(),
+        duration_ms = input.duration_ms,
+        "remote worker task finished"
+    );
     if let Err(error) = store.set_result_payload(
         input.idempotency_key,
         &serde_json::json!({
@@ -112,6 +131,15 @@ fn persist_failed_worker_result(
     let stderr_tail = failure_stderr_tail(&error, stderr_tail);
     let execution = input.execution;
     let store = &execution.store;
+    tracing::warn!(
+        idempotency_key = input.idempotency_key,
+        task_run_id = %execution.payload.task_run_id,
+        attempt = execution.payload.attempt,
+        task_label = %execution.payload.task_label,
+        duration_ms = input.duration_ms,
+        error = %format!("{error:#}"),
+        "remote worker task failed"
+    );
     if let Err(persist_error) = store.set_result_payload(
         input.idempotency_key,
         &serde_json::json!({

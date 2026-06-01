@@ -35,6 +35,7 @@ impl TryFrom<RequestEnvelope> for Request {
                 request_id: value.request_id,
                 requirements: value.requirements.unwrap_or_default(),
                 selection: value.selection.unwrap_or_default(),
+                preferred_node_id: value.preferred_node_id,
                 task_run_id: required(value.task_run_id, "PlaceRemote requires task_run_id")?,
                 attempt: value.attempt.unwrap_or(1),
                 submit_body: value.submit_body.unwrap_or_default(),

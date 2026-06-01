@@ -32,6 +32,7 @@ pub(crate) struct RemoteProtocolSubmit<'a> {
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
     pub(crate) execution_label: Option<&'a str>,
     pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
+    pub(crate) output_observer: Option<&'a std::sync::Arc<dyn super::TaskOutputObserver>>,
 }
 
 pub(crate) async fn remote_protocol_submit(
@@ -42,8 +43,16 @@ pub(crate) async fn remote_protocol_submit(
         submit.task_run_id,
         submit.attempt,
         submit.remote_workspace,
+        Some(&submit.task.label),
+        submit.output_observer,
     )
     .await?;
+    let preferred_node_header = workspace_upload
+        .preferred_node_id
+        .as_ref()
+        .map(|node_id| ("x-tak-preferred-node", node_id.clone()))
+        .into_iter()
+        .collect::<Vec<_>>();
     let body = build_remote_submit_payload(RemoteSubmitPayloadInput {
         target: submit.target,
         task_run_id: submit.task_run_id,
@@ -54,7 +63,7 @@ pub(crate) async fn remote_protocol_submit(
         execution_label: submit.execution_label,
         fused_members: submit.fused_members,
         fused_member_execution_labels: submit.fused_member_execution_labels,
-        workspace_upload: workspace_upload.as_ref(),
+        workspace_upload: workspace_upload.upload.as_ref(),
     })
     .map_err(|err| RemoteSubmitFailure {
         kind: RemoteSubmitFailureKind::Other,
@@ -68,7 +77,7 @@ pub(crate) async fn remote_protocol_submit(
         Some(&body),
         "submit",
         remote_submit_timeout(),
-        &[],
+        &preferred_node_header,
     )
     .await
     .map_err(|err| RemoteSubmitFailure {

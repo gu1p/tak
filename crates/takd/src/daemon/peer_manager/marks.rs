@@ -31,6 +31,7 @@ impl PeerManager {
         let Some(entry) = state.peers.get_mut(node_id) else {
             return;
         };
+        let previous_state = entry.snapshot.state;
         let now = unix_epoch_ms();
         entry.consecutive_failures = 0;
         entry.next_heartbeat_due_ms = now.saturating_add(duration_ms(HEARTBEAT_INTERVAL));
@@ -44,6 +45,7 @@ impl PeerManager {
         entry.snapshot.protocol_version = Some(ping.protocol_version);
         entry.snapshot.heartbeat_rtt_ms = Some(rtt_ms);
         entry.snapshot.reconnect_attempts = 0;
+        log_peer_state_transition(entry, previous_state);
     }
 
     fn mark_ping_unhealthy(&self, node_id: &str, ping: NodePingResponse, rtt_ms: u64) {
@@ -51,6 +53,7 @@ impl PeerManager {
         let Some(entry) = state.peers.get_mut(node_id) else {
             return;
         };
+        let previous_state = entry.snapshot.state;
         let now = unix_epoch_ms();
         entry.consecutive_failures = entry.consecutive_failures.saturating_add(1);
         entry.next_heartbeat_due_ms = next_retry_due_ms(
@@ -67,6 +70,7 @@ impl PeerManager {
         entry.snapshot.protocol_version = Some(ping.protocol_version);
         entry.snapshot.heartbeat_rtt_ms = Some(rtt_ms);
         entry.snapshot.reconnect_attempts = entry.snapshot.reconnect_attempts.saturating_add(1);
+        log_peer_state_transition(entry, previous_state);
     }
 
     pub fn mark_ping_failure(&self, node_id: &str, error: impl Into<String>) {
@@ -77,6 +81,7 @@ impl PeerManager {
         if entry.snapshot.state == PeerState::AuthFailed {
             return;
         }
+        let previous_state = entry.snapshot.state;
         entry.consecutive_failures = entry.consecutive_failures.saturating_add(1);
         entry.snapshot.last_error_summary = Some(error.into());
         entry.snapshot.reconnect_attempts = entry.snapshot.reconnect_attempts.saturating_add(1);
@@ -91,6 +96,7 @@ impl PeerManager {
             PeerState::Connecting if entry.consecutive_failures >= 2 => PeerState::Unreachable,
             current => current,
         };
+        log_peer_state_transition(entry, previous_state);
     }
 
     pub fn mark_auth_failed(&self, node_id: &str, error: impl Into<String>) {
@@ -98,9 +104,11 @@ impl PeerManager {
         let Some(entry) = state.peers.get_mut(node_id) else {
             return;
         };
+        let previous_state = entry.snapshot.state;
         entry.snapshot.state = PeerState::AuthFailed;
         entry.snapshot.last_error_summary = Some(error.into());
         entry.next_heartbeat_due_ms = i64::MAX;
+        log_peer_state_transition(entry, previous_state);
     }
 
     pub fn mark_protocol_mismatch(&self, node_id: &str, error: impl Into<String>) {
@@ -108,6 +116,7 @@ impl PeerManager {
         let Some(entry) = state.peers.get_mut(node_id) else {
             return;
         };
+        let previous_state = entry.snapshot.state;
         entry.snapshot.state = PeerState::ProtocolMismatch;
         entry.snapshot.last_error_summary = Some(error.into());
         entry.snapshot.reconnect_attempts = entry.snapshot.reconnect_attempts.saturating_add(1);
@@ -116,5 +125,45 @@ impl PeerManager {
             entry.snapshot.reconnect_attempts,
             unix_epoch_ms(),
         );
+        log_peer_state_transition(entry, previous_state);
+    }
+}
+
+fn log_peer_state_transition(entry: &super::PeerEntry, previous_state: PeerState) {
+    let next_state = entry.snapshot.state;
+    if previous_state == next_state {
+        return;
+    }
+    let node_id = entry.snapshot.node_id.as_str();
+    let endpoint = entry.snapshot.endpoint.as_str();
+    let detail = entry.snapshot.last_error_summary.as_deref().unwrap_or("");
+    match next_state {
+        PeerState::Connected => tracing::info!(
+            node_id,
+            endpoint,
+            previous = previous_state.as_str(),
+            current = next_state.as_str(),
+            rtt_ms = entry.snapshot.heartbeat_rtt_ms,
+            "peer state changed"
+        ),
+        PeerState::Degraded
+        | PeerState::Unreachable
+        | PeerState::AuthFailed
+        | PeerState::ProtocolMismatch => tracing::warn!(
+            node_id,
+            endpoint,
+            previous = previous_state.as_str(),
+            current = next_state.as_str(),
+            reconnect_attempts = entry.snapshot.reconnect_attempts,
+            detail,
+            "peer state changed"
+        ),
+        PeerState::Connecting | PeerState::Disconnected => tracing::debug!(
+            node_id,
+            endpoint,
+            previous = previous_state.as_str(),
+            current = next_state.as_str(),
+            "peer state changed"
+        ),
     }
 }

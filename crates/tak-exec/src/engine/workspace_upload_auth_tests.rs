@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use base64::Engine;
+use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 
@@ -15,7 +15,7 @@ async fn workspace_upload_begin_auth_failure_is_submit_auth_failure() {
     let target = direct_target(&addr);
     let workspace = workspace_stage(b"auth rejected archive");
 
-    let result = upload_workspace_for_submit(&target, "run-auth", 1, &workspace).await;
+    let result = upload_workspace_for_submit(&target, "run-auth", 1, &workspace, None, None).await;
 
     let err = result.expect_err("upload begin auth should fail");
     assert_eq!(err.kind, RemoteSubmitFailureKind::Auth);
@@ -55,10 +55,14 @@ fn direct_target(addr: &str) -> StrictRemoteTarget {
 }
 
 fn workspace_stage(archive: &[u8]) -> RemoteWorkspaceStage {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let archive_path = temp_dir.path().join("workspace.zip");
+    std::fs::write(&archive_path, archive).expect("archive");
     RemoteWorkspaceStage {
-        temp_dir: tempfile::tempdir().expect("tempdir"),
+        temp_dir,
         manifest_hash: "manifest".into(),
-        archive_zip_base64: base64::engine::general_purpose::STANDARD.encode(archive),
-        archive_byte_len: archive.len(),
+        archive_path,
+        archive_byte_len: archive.len() as u64,
+        sha256: format!("{:x}", Sha256::digest(archive)),
     }
 }

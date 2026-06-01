@@ -64,6 +64,15 @@ pub(super) async fn forward_peer_request(
         .iter()
         .map(|header| (header.name.clone(), header.value.clone()))
         .collect::<Vec<_>>();
+    let started = std::time::Instant::now();
+    tracing::debug!(
+        node_id = %target.node_id,
+        endpoint = %target.endpoint,
+        method,
+        path,
+        body_bytes = body.len(),
+        "forwarding remote HTTP request over Tor"
+    );
     let response = broker
         .remote_http_exchange(BrokerRemoteHttpRequest {
             endpoint: &target.endpoint,
@@ -75,6 +84,16 @@ pub(super) async fn forward_peer_request(
             body,
         })
         .await?;
+    tracing::debug!(
+        node_id = %target.node_id,
+        endpoint = %target.endpoint,
+        method,
+        path,
+        status = response.status,
+        response_bytes = response.body.len(),
+        elapsed_ms = started.elapsed().as_millis(),
+        "forwarded remote HTTP response over Tor"
+    );
     mark_auth_rejection(peers, node_id, response.status);
     Ok(response)
 }

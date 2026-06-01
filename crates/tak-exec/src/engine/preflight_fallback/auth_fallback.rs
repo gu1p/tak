@@ -64,6 +64,7 @@ pub(crate) async fn fallback_after_auth_submit_failure(
             fused_members: submit.fused_members,
             execution_label: submit.execution_label,
             fused_member_execution_labels: submit.fused_member_execution_labels,
+            output_observer,
         })
         .await
         {

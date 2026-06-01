@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use base64::Engine;
+use sha2::{Digest, Sha256};
 
 use super::remote_models::{RemoteWorkspaceStage, StrictRemoteTarget, StrictRemoteTransportKind};
 use super::workspace_upload::upload_workspace_for_submit;
@@ -13,9 +13,10 @@ async fn workspace_upload_retries_chunk_after_dropped_response() {
     let target = direct_target(&server.addr);
     let workspace = workspace_stage(&archive);
 
-    let upload = upload_workspace_for_submit(&target, "run-1", 1, &workspace)
+    let upload = upload_workspace_for_submit(&target, "run-1", 1, &workspace, None, None)
         .await
         .expect("upload")
+        .upload
         .expect("upload route");
 
     assert_eq!(upload.upload_id, "upload-1");
@@ -30,9 +31,10 @@ async fn workspace_upload_resumes_when_finish_reports_incomplete_offset() {
     let target = direct_target(&server.addr);
     let workspace = workspace_stage(&archive);
 
-    let upload = upload_workspace_for_submit(&target, "run-1", 1, &workspace)
+    let upload = upload_workspace_for_submit(&target, "run-1", 1, &workspace, None, None)
         .await
         .expect("upload")
+        .upload
         .expect("upload route");
 
     assert_eq!(upload.upload_id, "upload-1");
@@ -55,10 +57,14 @@ fn direct_target(addr: &str) -> StrictRemoteTarget {
 }
 
 fn workspace_stage(archive: &[u8]) -> RemoteWorkspaceStage {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let archive_path = temp_dir.path().join("workspace.zip");
+    std::fs::write(&archive_path, archive).expect("archive");
     RemoteWorkspaceStage {
-        temp_dir: tempfile::tempdir().expect("tempdir"),
+        temp_dir,
         manifest_hash: "manifest".into(),
-        archive_zip_base64: base64::engine::general_purpose::STANDARD.encode(archive),
-        archive_byte_len: archive.len(),
+        archive_path,
+        archive_byte_len: archive.len() as u64,
+        sha256: format!("{:x}", Sha256::digest(archive)),
     }
 }

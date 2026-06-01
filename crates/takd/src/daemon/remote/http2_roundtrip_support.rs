@@ -15,6 +15,10 @@ use prost::Message;
 use tak_proto::NodeInfo;
 use tokio::io::{AsyncRead, AsyncWrite, DuplexStream, ReadBuf};
 
+#[path = "http2_roundtrip_support/upload.rs"]
+mod upload;
+pub(super) use upload::drive_h2_workspace_stream;
+
 /// Wraps a `DuplexStream` and caps how many bytes flow through each
 /// `poll_read` / `poll_write`, approximating arti's cell-sized chunking.
 pub(super) struct ThrottledStream {

@@ -18,7 +18,7 @@ pub(super) async fn handle_client(
             break;
         }
         if broker::is_http_request_line(&line) {
-            handle_broker_http_request(&broker, line.clone(), &mut reader, &mut writer_half)
+            handle_broker_http_request(&broker, &peers, line.clone(), reader, &mut writer_half)
                 .await?;
             break;
         }

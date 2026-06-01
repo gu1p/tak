@@ -1,0 +1,26 @@
+# Remote-node image for the real-Tor takd relay test.
+#
+# This image intentionally contains only `takd`. Container execution is
+# simulated with MOCK_CONTAINER=true; Tor, HTTP/2, relay, upload, and streaming
+# paths remain real.
+FROM debian:trixie-slim
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        coreutils \
+        findutils \
+        grep \
+        sed \
+        tar \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY takd /usr/local/bin/takd
+
+ENV MOCK_CONTAINER=true
+ENV RUST_LOG=warn,takd=info,takd::daemon::peer_manager=debug,takd::daemon::protocol::broker=debug
+ENV HOME=/root
+
+WORKDIR /work
+CMD ["takd", "--help"]

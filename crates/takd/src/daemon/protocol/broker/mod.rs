@@ -7,13 +7,19 @@ mod response;
 mod target;
 mod tor_client;
 
-use http2::{BrokerHttp2Request, BrokerHttp2Response};
+use http2::{BrokerHttp2Request, BrokerHttp2Response, BrokerHttp2StreamRequest};
 use legacy_http::read_remote_http_response;
-use request::{LocalBrokerRequest, parse_broker_request};
+use request::{LocalBrokerRequest, LocalBrokerRequestHead, parse_broker_request};
 use response::{BrokerHttpError, write_broker_error};
-use target::{prefers_http2, validate_target};
+use target::{prefers_http2, prefers_http2_head, validate_target, validate_target_head};
+use tor_client::BrokerBody;
 pub(in crate::daemon::protocol) use tor_client::BrokerRemoteHttpRequest;
 pub use tor_client::{BrokerForwardResponse, TorBroker};
+
+use futures::TryStreamExt;
+use http_body_util::{BodyExt, StreamBody};
+use hyper::body::Frame;
+use tokio_util::io::ReaderStream;
 
 const BROKER_VERSION_HEADER: &str = "X-Tak-Broker-Version";
 const REMOTE_NODE_HEADER: &str = "X-Tak-Remote-Node";
@@ -41,25 +47,96 @@ fn is_http_method(method: &str) -> bool {
 
 pub(super) async fn handle_broker_http_request<R, W>(
     broker: &TorBroker,
+    peers: &crate::daemon::peer_manager::PeerManager,
     first_line: String,
-    reader: &mut R,
+    mut reader: R,
     writer: &mut W,
 ) -> Result<()>
 where
-    R: AsyncBufRead + Unpin,
+    R: AsyncBufRead + Unpin + Send + Sync + 'static,
     W: AsyncWrite + Unpin,
 {
-    match parse_broker_request(first_line, reader).await {
-        Ok(request) => match forward_request(broker, request).await {
-            Ok(response) => {
-                writer.write_all(&response).await?;
-                writer.flush().await?;
-                Ok(())
-            }
+    if first_line_has_streaming_upload_path(&first_line) {
+        match request::parse_broker_request_head(first_line, &mut reader).await {
+            Ok(request) => match forward_request_streaming(broker, peers, request, reader).await {
+                Ok(response) => {
+                    writer.write_all(&response).await?;
+                    writer.flush().await?;
+                    Ok(())
+                }
+                Err(err) => write_broker_error(writer, err).await,
+            },
             Err(err) => write_broker_error(writer, err).await,
-        },
-        Err(err) => write_broker_error(writer, err).await,
+        }
+    } else {
+        match parse_broker_request(first_line, &mut reader).await {
+            Ok(request) => match forward_request(broker, request).await {
+                Ok(response) => {
+                    writer.write_all(&response).await?;
+                    writer.flush().await?;
+                    Ok(())
+                }
+                Err(err) => write_broker_error(writer, err).await,
+            },
+            Err(err) => write_broker_error(writer, err).await,
+        }
     }
+}
+
+fn first_line_has_streaming_upload_path(first_line: &str) -> bool {
+    let mut parts = first_line.split_whitespace();
+    matches!(parts.next(), Some("POST"))
+        && parts.next().is_some_and(|path| {
+            path.starts_with("/v2/workspaces/uploads/") && path.contains("/stream")
+        })
+}
+
+async fn forward_request_streaming<R>(
+    broker: &TorBroker,
+    peers: &crate::daemon::peer_manager::PeerManager,
+    request: LocalBrokerRequestHead,
+    reader: R,
+) -> std::result::Result<Vec<u8>, BrokerHttpError>
+where
+    R: AsyncBufRead + Unpin + Send + Sync + 'static,
+{
+    let target = validate_target_head(&request)?;
+    if !prefers_http2_head(&request) {
+        return Err(BrokerHttpError::bad_request("stream_upload_requires_http2"));
+    }
+    let mut headers = request.headers().to_vec();
+    if !headers
+        .iter()
+        .any(|(name, _)| name.eq_ignore_ascii_case(hyper::header::AUTHORIZATION.as_str()))
+        && let Some(peer_target) = peers.connection_target(&target.node_id)
+    {
+        headers.push((
+            hyper::header::AUTHORIZATION.as_str().to_string(),
+            format!("Bearer {}", peer_target.bearer_token),
+        ));
+    }
+    let stream =
+        ReaderStream::new(reader.take(request.content_length() as u64)).map_ok(Frame::data);
+    let body: BrokerBody = StreamBody::new(stream).boxed();
+    tracing::info!(
+        node_id = %target.node_id,
+        endpoint = %target.endpoint,
+        path = request.path(),
+        body_bytes = request.content_length(),
+        "forwarding workspace upload stream over Tor"
+    );
+    let request = BrokerHttp2StreamRequest::from_parts(
+        request.method(),
+        request.path(),
+        headers,
+        body,
+        &target.endpoint,
+        &target.node_id,
+    )?;
+    broker
+        .http2_exchange_stream(&target.endpoint, request)
+        .await?
+        .to_http1_bytes()
 }
 
 async fn forward_request(
@@ -70,7 +147,9 @@ async fn forward_request(
     if prefers_http2(&request) {
         let http2_request = BrokerHttp2Request::new(&request, &target.endpoint)?;
         match broker.http2_exchange(&target.endpoint, http2_request).await {
-            Ok(response) => return response.to_http1_bytes(),
+            Ok(response) => {
+                return response.to_http1_bytes();
+            }
             Err(err) if !can_fallback_after_http2_failure(request.method(), &err) => {
                 return Err(err);
             }

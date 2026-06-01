@@ -5,8 +5,10 @@
 //! on, which previously had no end-to-end coverage.
 
 use super::handle_remote_v1_stream;
-use super::http_server_test_support::{node_context, store};
-use super::http2_roundtrip_support::{FlushGatedStream, ThrottledStream, drive_h2_node_info};
+use super::http_server_test_support::{node_context, node_context_with_temp, store};
+use super::http2_roundtrip_support::{
+    FlushGatedStream, ThrottledStream, drive_h2_node_info, drive_h2_workspace_stream,
+};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http2_round_trip_over_plain_duplex() {
@@ -46,5 +48,25 @@ async fn http2_round_trip_over_byte_chunked_duplex() {
         .await
         .expect("h2 round trip over byte-chunked stream");
     assert_eq!(node.node_id, "builder-a");
+    let _ = server_task.await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http2_workspace_upload_stream_commits_and_reports_status() {
+    let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+    let (temp, store) = store();
+    let context = node_context_with_temp(temp.path());
+    let server_task = tokio::spawn(handle_remote_v1_stream(server_io, store, context));
+
+    let archive = b"streamed workspace archive".repeat(4096);
+    let (uploaded, status) =
+        drive_h2_workspace_stream(client_io, "run-1-1-streamed", archive.clone())
+            .await
+            .expect("stream upload");
+
+    assert!(uploaded.complete);
+    assert_eq!(uploaded.offset, archive.len() as u64);
+    assert!(status.complete);
+    assert_eq!(status.offset, archive.len() as u64);
     let _ = server_task.await;
 }

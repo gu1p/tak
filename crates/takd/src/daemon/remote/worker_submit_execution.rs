@@ -47,6 +47,14 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
             queue_position,
             queued_at_ms,
         } => {
+            tracing::info!(
+                idempotency_key,
+                task_run_id = %execution.payload.task_run_id,
+                attempt = execution.payload.attempt,
+                task_label = %execution.payload.task_label,
+                queue_position,
+                "remote worker task queued"
+            );
             append_queue_event(store, idempotency_key, queue_position, queued_at_ms);
             started_seq = 2;
             next_output_seq = 3;
@@ -97,6 +105,14 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
             "failed to append TASK_STARTED event for submit {idempotency_key}: {error:#}"
         );
     }
+    tracing::info!(
+        idempotency_key,
+        task_run_id = %execution.payload.task_run_id,
+        attempt = execution.payload.attempt,
+        task_label = %execution.payload.task_label,
+        workspace_bytes = execution.payload.workspace_zip.len(),
+        "remote worker task started"
+    );
 
     let execution_result = store
         .execution_root_base_for_submit(idempotency_key)

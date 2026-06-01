@@ -65,15 +65,30 @@ async fn handle_remote_v1_http2_request(
             "request_body_too_large",
         )));
     }
-    let body = match collect_body_capped(body).await {
-        Ok(body) => body,
-        Err(response) => return Ok(hyper_response(response)),
-    };
     let path = parts
         .uri
         .path_and_query()
         .map(|value| value.as_str().to_string())
         .unwrap_or_else(|| "/".to_string());
+    let (path_only, query) = split_path_and_query(&path);
+    if parts.method.as_str() == "POST"
+        && path_only.starts_with("/v2/workspaces/uploads/")
+        && path_only.ends_with("/stream")
+    {
+        let response =
+            match stream_workspace_upload(&context, path_only, query, &parts.headers, body).await {
+                Ok(response) => response,
+                Err(err) => {
+                    tracing::error!(error = %err, "workspace upload stream failed");
+                    error_response(500, "workspace_upload_stream_failed")
+                }
+            };
+        return Ok(hyper_response(response));
+    }
+    let body = match collect_body_capped(body).await {
+        Ok(body) => body,
+        Err(response) => return Ok(hyper_response(response)),
+    };
     let response = handle_remote_v1_request_with_headers(
         &context,
         &store,

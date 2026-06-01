@@ -11,7 +11,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use base64::Engine;
+use sha2::{Digest, Sha256};
 use tak_core::model::{ResolvedTask, build_current_state_manifest};
 use zip::write::SimpleFileOptions;
 
@@ -38,8 +38,11 @@ pub(crate) fn stage_remote_workspace(
     let available_files = collect_workspace_files(workspace_root, &task.context)?;
     let manifest = build_current_state_manifest(available_files, &task.context);
     let staged_dir = tempfile::tempdir().context("failed to create staged remote workspace")?;
-    materialize_manifest_files(workspace_root, staged_dir.path(), &manifest.entries)?;
-    let (archive_zip_base64, archive_byte_len) = build_zip_snapshot_base64(staged_dir.path())?;
+    let staged_files_dir = staged_dir.path().join("files");
+    fs::create_dir_all(&staged_files_dir).context("failed to create staged files directory")?;
+    materialize_manifest_files(workspace_root, &staged_files_dir, &manifest.entries)?;
+    let archive_path = staged_dir.path().join("workspace.zip");
+    let (archive_byte_len, sha256) = write_zip_snapshot_hashed(&staged_files_dir, &archive_path)?;
     emit_task_status_message(
         output_observer,
         &task.label,
@@ -56,25 +59,49 @@ pub(crate) fn stage_remote_workspace(
     Ok(RemoteWorkspaceStage {
         temp_dir: staged_dir,
         manifest_hash: manifest.hash,
-        archive_zip_base64,
         archive_byte_len,
+        archive_path,
+        sha256,
     })
 }
 
-fn build_zip_snapshot_base64(staged_root: &Path) -> Result<(String, usize)> {
-    let mut archive_bytes = Vec::<u8>::new();
-    {
-        let cursor = std::io::Cursor::new(&mut archive_bytes);
-        let mut zip = zip::ZipWriter::new(cursor);
-        write_zip_entries_recursive(staged_root, staged_root, &mut zip)?;
-        zip.finish()
-            .context("failed finishing staged workspace zip snapshot")?;
+pub(super) fn write_zip_snapshot_hashed(
+    staged_root: &Path,
+    archive_path: &Path,
+) -> Result<(u64, String)> {
+    let archive = fs::File::create(archive_path)
+        .with_context(|| format!("failed to create {}", archive_path.display()))?;
+    let writer = std::io::BufWriter::new(archive);
+    let mut zip = zip::ZipWriter::new(writer);
+    write_zip_entries_recursive(staged_root, staged_root, &mut zip)?;
+    let mut writer = zip
+        .finish()
+        .context("failed finishing staged workspace zip snapshot")?;
+    writer
+        .flush()
+        .context("failed flushing staged workspace zip snapshot")?;
+    let byte_len = fs::metadata(archive_path)
+        .with_context(|| format!("failed to stat {}", archive_path.display()))?
+        .len();
+    let sha256 = hash_file_hex(archive_path)?;
+    Ok((byte_len, sha256))
+}
+
+fn hash_file_hex(path: &Path) -> Result<String> {
+    let mut file =
+        fs::File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .with_context(|| format!("failed to read {}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
     }
-    let archive_byte_len = archive_bytes.len();
-    Ok((
-        base64::engine::general_purpose::STANDARD.encode(&archive_bytes),
-        archive_byte_len,
-    ))
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn write_zip_entries_recursive<W: Write + std::io::Seek>(

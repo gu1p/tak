@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, bail};
-use base64::Engine;
 use prost::Message;
 use tak_core::model::{
     ContainerRuntimeSourceSpec, NeedDef, OutputSelectorSpec, RemoteRuntimeSpec, ResolvedTask,

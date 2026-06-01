@@ -6,6 +6,8 @@ use anyhow::{Result, anyhow};
 use base64::Engine;
 use takd::SubmitAttemptStore;
 
+const RESULT_GRACE_POLLS: usize = 2;
+
 pub(super) fn print_task_logs(
     state_root: &Path,
     task_run_id: &str,
@@ -48,10 +50,17 @@ impl TaskLogFollower {
     }
 
     fn run(&mut self) -> Result<()> {
+        let mut result_grace_polls = 0usize;
         loop {
             let terminal_event_seen = self.print_new_events()?;
-            if !self.follow || terminal_event_seen || self.result_exists()? {
+            if !self.follow || terminal_event_seen {
                 return Ok(());
+            }
+            if self.result_exists()? {
+                if result_grace_polls >= RESULT_GRACE_POLLS {
+                    return Ok(());
+                }
+                result_grace_polls = result_grace_polls.saturating_add(1);
             }
             self.polls = self.polls.saturating_add(1);
             if self.max_polls.is_some_and(|limit| self.polls >= limit) {

@@ -25,6 +25,7 @@ use config::{
     socket_addr_from_host_port, test_tor_onion_dial_addr, tor_connect_retry_delay,
     tor_connect_timeout,
 };
+pub(super) use http2_session::BrokerBody;
 use http2_session::Http2Session;
 use protocol_memory::RemoteProtocol;
 pub use types::BrokerForwardResponse;
@@ -159,6 +160,23 @@ impl TorBroker {
                 } else {
                     Err(first)
                 }
+            }
+        }
+    }
+
+    pub(super) async fn http2_exchange_stream(
+        &self,
+        endpoint: &str,
+        request: BrokerHttp2StreamRequest,
+    ) -> std::result::Result<BrokerHttp2Response, BrokerHttpError> {
+        let session_key = request.session_key(endpoint);
+        let (session, _) = self.http2_session(endpoint, &session_key).await?;
+        match session.send_stream(request).await {
+            Ok(response) => Ok(response),
+            Err(err) => {
+                self.evict_session_if_unchanged(&session_key, &session)
+                    .await;
+                Err(err)
             }
         }
     }

@@ -71,9 +71,9 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
     let active_root_name = active_key.replace(':', "_");
     let active_exec_root = exec_root.join(&active_root_name);
     let active_artifact_root = artifact_root.join(&active_root_name);
-    fs::create_dir_all(&active_artifact_root).expect("create active artifact root");
 
     wait_for_path(&active_exec_root, true, "creation").await;
+    fs::create_dir_all(&active_artifact_root).expect("create active artifact root");
     wait_for_path(&stale_exec_root, false, "cleanup").await;
     wait_for_path(&stale_artifact_root, false, "cleanup").await;
 

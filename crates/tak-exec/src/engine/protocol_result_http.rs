@@ -11,8 +11,9 @@ use crate::remote_protocol_codec::parse_remote_result_outputs;
 mod request;
 
 pub(crate) use request::{
-    RemoteHttpResponse, remote_protocol_http_request,
-    remote_protocol_http_request_with_extra_headers,
+    DaemonWorkspaceUploadStreamRequest, RemoteHttpResponse, StreamUploadProgress,
+    remote_protocol_http_request, remote_protocol_http_request_with_extra_headers,
+    stream_workspace_upload_via_daemon,
 };
 
 const REMOTE_RESULT_TIMEOUT: Duration = Duration::from_secs(10);

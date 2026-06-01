@@ -3,8 +3,6 @@ use std::collections::BTreeMap;
 use anyhow::{Result, anyhow};
 use tak_core::model::{ResolvedTask, TaskLabel};
 
-use super::{PlacementMode, TaskOutputObserver, TaskStatusPhase};
-
 use super::output_observer::emit_task_status_message;
 use super::preflight_fallback::{
     fallback_after_auth_submit_failure, is_auth_submit_failure, preflight_ordered_remote_target,
@@ -16,6 +14,9 @@ use super::remote_models::{
 use super::remote_selection::SharedRemoteSelectionState;
 use super::runtime_metadata::resolve_runtime_execution_metadata;
 use super::session_workspaces::PreparedTaskSession;
+use super::{PlacementMode, TaskOutputObserver, TaskStatusPhase};
+
+mod upload_progress;
 
 pub(crate) struct AttemptSubmitState<'a> {
     pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
@@ -73,17 +74,12 @@ pub(crate) async fn resolve_attempt_submit_state(
             task.label
         )
     })?;
-    emit_task_status_message(
+    let upload_progress = upload_progress::start_upload_progress(
         output_observer,
         &task.label,
         submit.attempt,
-        TaskStatusPhase::RemoteSubmit,
-        Some(target.node_id.as_str()),
-        format!(
-            "submitting {} to remote node {}",
-            remote_workspace.upload_size_mb(),
-            target.node_id
-        ),
+        &target,
+        remote_workspace,
     )?;
 
     match remote_protocol_submit(RemoteProtocolSubmit {
@@ -96,10 +92,19 @@ pub(crate) async fn resolve_attempt_submit_state(
         fused_members: submit.fused_members,
         execution_label: submit.execution_label,
         fused_member_execution_labels: submit.fused_member_execution_labels,
+        output_observer,
     })
     .await
     {
         Ok(selected_target) => {
+            upload_progress::finish_upload_progress(
+                output_observer,
+                &task.label,
+                submit.attempt,
+                &selected_target,
+                remote_workspace,
+                upload_progress,
+            )?;
             placement.remote_node_id = Some(selected_target.node_id.clone());
             placement.strict_remote_target = Some(selected_target.clone());
             emit_task_status_message(

@@ -1,5 +1,10 @@
 use super::*;
 
+#[path = "request/head.rs"]
+mod head;
+
+pub(super) use head::LocalBrokerRequestHead;
+
 const MAX_REQUEST_HEADER_BYTES: usize = 64 * 1024;
 const MAX_REQUEST_BODY_BYTES: usize = 512 * 1024 * 1024;
 
@@ -78,6 +83,25 @@ where
         headers,
         body,
     })
+}
+
+pub(super) async fn parse_broker_request_head<R>(
+    first_line: String,
+    reader: &mut R,
+) -> std::result::Result<LocalBrokerRequestHead, BrokerHttpError>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let (method, path) = parse_request_line(&first_line)?;
+    let header_lines = read_header_lines(reader, first_line.len()).await?;
+    let headers = parse_headers(&header_lines);
+    let content_length = content_length(&headers)?;
+    Ok(LocalBrokerRequestHead::new(
+        method,
+        path,
+        headers,
+        content_length,
+    ))
 }
 
 fn parse_request_line(line: &str) -> std::result::Result<(String, String), BrokerHttpError> {

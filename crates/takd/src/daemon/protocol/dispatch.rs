@@ -91,10 +91,17 @@ pub(super) async fn dispatch_request(
             request_id: payload.request_id,
             peers: peers.snapshots(),
         }),
-        Request::PeersEligible(payload) => Ok(Response::PeersSnapshot {
-            request_id: payload.request_id,
-            peers: peers.eligible(&payload.requirements),
-        }),
+        Request::PeersEligible(payload) => {
+            // Match submit placement: prefer warm peers, but allow cold-dial
+            // streaming to a still-Connecting peer.
+            peers
+                .wait_for_placeable_peer(&payload.requirements, place_remote_wait_timeout())
+                .await;
+            Ok(Response::PeersSnapshot {
+                request_id: payload.request_id,
+                peers: peers.placeable(&payload.requirements),
+            })
+        }
         Request::PlaceRemote(payload) => {
             // Give a just-configured or reconnecting peer a brief moment to warm
             // up so the submit lands on an already-open connection rather than
@@ -102,17 +109,44 @@ pub(super) async fn dispatch_request(
             peers
                 .wait_for_placeable_peer(&payload.requirements, place_remote_wait_timeout())
                 .await;
-            match peers.select_placeable(crate::daemon::peer_manager::PeerPlacementRequest {
-                requirements: &payload.requirements,
-                selection: payload.selection,
-                task_run_id: &payload.task_run_id,
-                attempt: payload.attempt,
-            }) {
-                Ok(peer) => remote::place_remote_task(payload, peer, peers, broker, tasks).await,
-                Err(err) => Ok(Response::Error {
-                    request_id: payload.request_id,
-                    message: err.to_string(),
-                }),
+            let preferred_peer = payload.preferred_node_id.as_ref().and_then(|node_id| {
+                peers
+                    .placeable(&payload.requirements)
+                    .into_iter()
+                    .find(|peer| &peer.node_id == node_id)
+            });
+            let selected_peer = preferred_peer.map(Ok).unwrap_or_else(|| {
+                peers.select_placeable(crate::daemon::peer_manager::PeerPlacementRequest {
+                    requirements: &payload.requirements,
+                    selection: payload.selection,
+                    task_run_id: &payload.task_run_id,
+                    attempt: payload.attempt,
+                })
+            });
+            match selected_peer {
+                Ok(peer) => {
+                    tracing::info!(
+                        task_run_id = %payload.task_run_id,
+                        attempt = payload.attempt,
+                        node_id = %peer.node_id,
+                        endpoint = %peer.endpoint,
+                        state = peer.state.as_str(),
+                        "placing remote task through Tor peer"
+                    );
+                    remote::place_remote_task(payload, peer, peers, broker, tasks).await
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        task_run_id = %payload.task_run_id,
+                        attempt = payload.attempt,
+                        error = %err,
+                        "remote placement failed"
+                    );
+                    Ok(Response::Error {
+                        request_id: payload.request_id,
+                        message: err.to_string(),
+                    })
+                }
             }
         }
         Request::ForwardRemoteHttp(payload) => {

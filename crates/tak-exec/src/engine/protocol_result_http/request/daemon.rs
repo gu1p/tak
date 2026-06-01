@@ -1,5 +1,4 @@
-use std::path::Path;
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use prost::Message;
@@ -12,16 +11,18 @@ use super::{RemoteHttpResponse, ResponseHeader};
 
 #[path = "daemon/types.rs"]
 mod types;
-
 use types::{DaemonRequest, DaemonResponse, PeerEligibility, RemoteHeader};
 #[path = "daemon/lifecycle.rs"]
 mod lifecycle;
-
 use lifecycle::{lifecycle_request, request_id};
 #[path = "daemon/errors.rs"]
-mod errors;
+pub(super) mod errors;
+#[path = "daemon/stream_upload.rs"]
+mod stream_upload;
 
 use errors::{daemon_error, daemon_timeout};
+pub(crate) use stream_upload::DaemonWorkspaceUploadStreamRequest;
+pub(crate) use stream_upload::{StreamUploadProgress, stream_workspace_upload_via_daemon};
 
 pub(super) async fn request_via_daemon(
     target: &StrictRemoteTarget,
@@ -58,6 +59,7 @@ fn daemon_request_for(
             request_id: request_id("place", target, path),
             requirements: node_requirements(target),
             selection: selection_value(target.remote_selection).to_string(),
+            preferred_node_id: preferred_node_id(extra_headers),
             task_run_id: submit.task_run_id,
             attempt: submit.attempt,
             submit_body: body.to_vec(),
@@ -74,6 +76,14 @@ fn daemon_request_for(
         headers: request_headers(extra_headers),
         body: body.to_vec(),
     })
+}
+
+fn preferred_node_id(extra_headers: &[(&str, String)]) -> Option<String> {
+    extra_headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("x-tak-preferred-node"))
+        .map(|(_, value)| value.clone())
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn selection_value(selection: tak_core::model::RemoteSelectionSpec) -> &'static str {
@@ -140,6 +150,9 @@ fn daemon_response_to_http(
             "local takd daemon failed while contacting remote node {}: {message}",
             target.node_id
         ),
+        DaemonResponse::PeersSnapshot { .. } => {
+            bail!("local takd daemon returned peer list for remote HTTP request")
+        }
     }
 }
 
