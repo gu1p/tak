@@ -55,21 +55,18 @@ impl PeerManager {
         };
         let previous_state = entry.snapshot.state;
         let now = unix_epoch_ms();
-        entry.consecutive_failures = entry.consecutive_failures.saturating_add(1);
-        entry.next_heartbeat_due_ms = next_retry_due_ms(
-            &entry.snapshot.node_id,
-            entry.snapshot.reconnect_attempts.saturating_add(1),
-            now,
-        );
+        entry.consecutive_failures = 0;
+        entry.next_heartbeat_due_ms = now.saturating_add(duration_ms(HEARTBEAT_INTERVAL));
         entry.snapshot.state = PeerState::Degraded;
         entry.snapshot.last_heartbeat_ms = Some(now);
+        entry.snapshot.last_successful_connection_ms = Some(now);
         entry.snapshot.last_error_summary = Some(format!("peer health is {}", ping.health));
         entry.snapshot.active_job_count = Some(ping.active_job_count);
         entry.snapshot.queue_depth = Some(ping.queue_depth);
         entry.snapshot.resource_summary = Some(ping.resource_summary);
         entry.snapshot.protocol_version = Some(ping.protocol_version);
         entry.snapshot.heartbeat_rtt_ms = Some(rtt_ms);
-        entry.snapshot.reconnect_attempts = entry.snapshot.reconnect_attempts.saturating_add(1);
+        entry.snapshot.reconnect_attempts = 0;
         log_peer_state_transition(entry, previous_state);
     }
 

@@ -117,6 +117,9 @@ High-level flow:
 - Falls back to direct remote v1 authenticated HTTP only for legacy direct remotes when the daemon
   is not reachable.
 - Tor remote status does not bootstrap client-side Tor; it requires daemon peer state.
+- Tor peer state is peer-observed. A `degraded` peer may still be reachable: it means the last
+  authenticated `/v1/node/ping` succeeded but the remote reported non-healthy transport state.
+  That condition is polled on the normal heartbeat cadence, not reconnect backoff.
 - One-shot mode prints `Nodes`, `Containers`, and `Active Jobs` sections.
 - Terminal watch mode refreshes a Ratatui dashboard at the requested interval and restores the screen on clean interrupt.
 

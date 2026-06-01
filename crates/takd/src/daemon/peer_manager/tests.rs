@@ -10,6 +10,8 @@ mod heartbeat_io;
 mod heartbeat_protocol_memory;
 #[path = "tests/heartbeat_timeout.rs"]
 mod heartbeat_timeout;
+#[path = "tests/heartbeat_unhealthy.rs"]
+mod heartbeat_unhealthy;
 #[path = "tests/inventory.rs"]
 mod inventory;
 #[path = "tests/local_identity.rs"]

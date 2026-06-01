@@ -49,7 +49,7 @@ pub(in crate::cli) fn render_snapshot_with_prefix(
                     .map(age_since)
                     .unwrap_or_else(|| "never".to_string()),
                 peer.reconnect_attempts,
-                result.error.as_deref().unwrap_or("ok"),
+                daemon_peer_status_label(result, peer),
                 peer.last_error_summary
                     .as_deref()
                     .map(|value| format!(" detail={value}"))
@@ -113,5 +113,20 @@ pub(in crate::cli) fn render_snapshot_with_prefix(
     output
 }
 
+fn daemon_peer_status_label<'a>(
+    result: &'a RemoteStatusResult,
+    peer: &super::DaemonPeerSnapshot,
+) -> &'a str {
+    if let Some(error) = result.error.as_deref() {
+        return error;
+    }
+    if peer.state == "degraded" {
+        return "degraded";
+    }
+    "ok"
+}
+
+#[path = "render_plain_tests.rs"]
+mod render_plain_tests;
 #[path = "render_tests.rs"]
 mod render_tests;
