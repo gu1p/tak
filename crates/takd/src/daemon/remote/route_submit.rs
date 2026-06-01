@@ -142,5 +142,8 @@ fn prepare_resource_admission(
                 queued_at_ms,
             })
         }
+        ResourceAdmissionDecision::Rejected { reason } => Err(anyhow!(
+            "resource_requirements_exceed_worker_capacity: {reason}"
+        )),
     }
 }

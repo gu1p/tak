@@ -9,7 +9,13 @@ use tak_core::model::{
 use crate::ImageCacheOptions;
 use crate::container_engine::ContainerEngine;
 
-use super::{PlacementMode, RemoteCandidateDiagnostic, RemoteLogChunk, SyncedOutput};
+use super::{PlacementMode, RemoteCandidateDiagnostic, SyncedOutput};
+
+mod container_lifecycle;
+mod remote_events;
+
+pub(crate) use container_lifecycle::ContainerLifecycleStage;
+pub(crate) use remote_events::{ParsedRemoteEvents, RemoteStatusUpdate};
 
 const DAEMON_TOR_PLACEMENT_NODE_ID: &str = "__takd_daemon_tor__";
 const DAEMON_TOR_PLACEMENT_ENDPOINT: &str = "http://takd-daemon-placement.onion";
@@ -47,6 +53,18 @@ impl StrictRemoteTarget {
     pub(crate) fn is_daemon_tor_placement(&self) -> bool {
         self.transport_kind == StrictRemoteTransportKind::Tor
             && self.node_id == DAEMON_TOR_PLACEMENT_NODE_ID
+    }
+
+    pub(crate) fn is_daemon_tor_node_id(node_id: &str) -> bool {
+        node_id == DAEMON_TOR_PLACEMENT_NODE_ID
+    }
+
+    pub(crate) fn remote_worker_node_id(&self) -> Option<&str> {
+        if self.is_daemon_tor_placement() {
+            None
+        } else {
+            Some(self.node_id.as_str())
+        }
     }
 }
 
@@ -118,14 +136,6 @@ pub(crate) struct RemoteProtocolResult {
     pub(crate) stderr_tail: Option<String>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct ParsedRemoteEvents {
-    pub(crate) next_seq: u64,
-    pub(crate) done: bool,
-    pub(crate) remote_logs: Vec<RemoteLogChunk>,
-    pub(crate) status_messages: Vec<String>,
-}
-
 #[derive(Debug)]
 pub(crate) struct RemoteWorkspaceStage {
     pub(crate) temp_dir: tempfile::TempDir,
@@ -179,21 +189,4 @@ pub(crate) struct RemoteSubmitContext<'a> {
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
     pub(crate) execution_label: Option<&'a str>,
     pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ContainerLifecycleStage {
-    Pull,
-    Start,
-    Runtime,
-}
-
-impl ContainerLifecycleStage {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Pull => "pull",
-            Self::Start => "start",
-            Self::Runtime => "runtime",
-        }
-    }
 }

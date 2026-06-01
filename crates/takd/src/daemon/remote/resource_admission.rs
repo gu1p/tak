@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
+mod fit;
 mod request;
 #[path = "resource_admission_reservation_tests.rs"]
 mod reservation_tests;
@@ -12,6 +13,8 @@ mod reservation_tests;
 mod test_support;
 #[path = "resource_admission_tests.rs"]
 mod tests;
+
+use fit::{can_fit, fits_total_capacity, promote_queued, queue_position, rejection_reason};
 
 pub(crate) use request::{ResourceRequest, ResourceRequestInput, proto_resource_limits};
 
@@ -45,6 +48,7 @@ struct ResourceAdmissionState {
 pub(crate) enum ResourceAdmissionDecision {
     Admitted,
     Queued { queue_position: usize },
+    Rejected { reason: String },
 }
 
 impl SharedResourceAdmission {
@@ -77,6 +81,19 @@ impl SharedResourceAdmission {
         request: ResourceRequest,
     ) -> Result<ResourceAdmissionDecision> {
         let mut state = self.lock_state()?;
+        if !fits_total_capacity(&state.capacity, &request) {
+            return Ok(ResourceAdmissionDecision::Rejected {
+                reason: rejection_reason(&state.capacity, &request),
+            });
+        }
+        if state.reservations.contains_key(&request.idempotency_key) {
+            return Ok(ResourceAdmissionDecision::Admitted);
+        }
+        if let Some(position) = queue_position(&state.queue, &request.idempotency_key) {
+            return Ok(ResourceAdmissionDecision::Queued {
+                queue_position: position,
+            });
+        }
         if state.queue.is_empty() && can_fit(&mut state, &request) {
             state
                 .reservations
@@ -134,43 +151,4 @@ impl SharedResourceAdmission {
             .lock()
             .map_err(|_| anyhow!("resource admission lock poisoned"))
     }
-}
-
-fn promote_queued(state: &mut ResourceAdmissionState) {
-    loop {
-        let Some(next) = state.queue.front().cloned() else {
-            return;
-        };
-        if !can_fit(state, &next) {
-            return;
-        }
-        let next = state.queue.pop_front().expect("queued request");
-        state
-            .reservations
-            .insert(next.idempotency_key.clone(), next);
-    }
-}
-
-fn can_fit(state: &mut ResourceAdmissionState, request: &ResourceRequest) -> bool {
-    let used = reserved_totals(state);
-    let requested_cpu = request.resource_limits.cpu_cores.unwrap_or(0.0);
-    let requested_memory = request.resource_limits.memory_mb.unwrap_or(0);
-    used.cpu_cores + requested_cpu <= state.capacity.cpu_cores
-        && used.memory_mb.saturating_add(requested_memory) <= state.capacity.memory_mb
-}
-
-fn reserved_totals(state: &ResourceAdmissionState) -> ResourceCapacity {
-    state.reservations.values().fold(
-        ResourceCapacity {
-            cpu_cores: 0.0,
-            memory_mb: 0,
-        },
-        |mut totals, request| {
-            totals.cpu_cores += request.resource_limits.cpu_cores.unwrap_or(0.0);
-            totals.memory_mb = totals
-                .memory_mb
-                .saturating_add(request.resource_limits.memory_mb.unwrap_or(0));
-            totals
-        },
-    )
 }

@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
-use std::thread;
+use std::{thread, time::Duration};
 
 use super::RecordingEvents;
 use super::remote_routes::{SubmitBehavior, serve_remote_request};
@@ -16,6 +16,14 @@ pub struct RecordingRemoteServer {
 impl RecordingRemoteServer {
     pub fn spawn_success(node_id: &str, events: RecordingEvents) -> Self {
         Self::spawn(node_id, events, SubmitBehavior::Success, None)
+    }
+
+    pub fn spawn_success_with_result_delay(
+        node_id: &str,
+        events: RecordingEvents,
+        result_delay: Duration,
+    ) -> Self {
+        Self::spawn_with_result_delay(node_id, events, SubmitBehavior::Success, None, result_delay)
     }
 
     pub fn spawn_success_with_status(
@@ -36,6 +44,16 @@ impl RecordingRemoteServer {
         submit: SubmitBehavior,
         status: Option<NodeStatusResponse>,
     ) -> Self {
+        Self::spawn_with_result_delay(node_id, events, submit, status, Duration::ZERO)
+    }
+
+    fn spawn_with_result_delay(
+        node_id: &str,
+        events: RecordingEvents,
+        submit: SubmitBehavior,
+        status: Option<NodeStatusResponse>,
+        result_delay: Duration,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind recording remote server");
         let port = listener
             .local_addr()
@@ -53,6 +71,7 @@ impl RecordingRemoteServer {
                     &events,
                     submit,
                     status.as_ref(),
+                    result_delay,
                 ) {
                     break;
                 }

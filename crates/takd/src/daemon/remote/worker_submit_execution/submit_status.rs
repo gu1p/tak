@@ -49,7 +49,8 @@ fn append_queue_event(
     timestamp_ms: i64,
 ) {
     let ahead = queue_position.saturating_sub(1);
-    let message = format!("queued on remote node; {ahead} tasks ahead");
+    let message =
+        format!("queued: waiting for remote capacity (queue position: {queue_position}; {ahead} tasks ahead)");
     if let Err(error) = store.append_event(
         idempotency_key,
         1,

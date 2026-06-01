@@ -3,6 +3,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{PeerSnapshot, PeerState};
 
+mod capacity_diagnostic;
+mod resource_summary;
+
+use capacity_diagnostic::{capacity_diagnostic, has_resource_requirements};
+use resource_summary::PeerResources;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PeerEligibility {
@@ -82,12 +88,12 @@ fn peer_matches_resource_requirements(
     let resources = PeerResources::parse(summary);
     requirements.cpu_cores.is_none_or(|required| {
         resources
-            .cpu_available
-            .is_some_and(|available| available >= required)
+            .cpu_total
+            .is_none_or(|capacity| capacity >= required)
     }) && requirements.memory_mb.is_none_or(|required| {
         resources
-            .memory_available_mb
-            .is_some_and(|available| available >= required)
+            .memory_total_mb
+            .is_none_or(|capacity| capacity >= required)
     })
 }
 
@@ -141,36 +147,11 @@ fn placement_diagnostic(peers: &[PeerSnapshot], requirements: &PeerEligibility) 
                 && peer_matches_inventory_requirements(snapshot, requirements)
         })
     {
-        return anyhow!("no Tor peers have enough resource capacity");
+        return anyhow!("{}", capacity_diagnostic(peers, requirements));
     }
     anyhow!("no placeable Tor peers")
 }
 
 fn all_state(peers: &[PeerSnapshot], state: PeerState) -> bool {
     peers.iter().all(|snapshot| snapshot.state == state)
-}
-
-fn has_resource_requirements(requirements: &PeerEligibility) -> bool {
-    requirements.cpu_cores.is_some() || requirements.memory_mb.is_some()
-}
-
-#[derive(Default)]
-struct PeerResources {
-    cpu_available: Option<f64>,
-    memory_available_mb: Option<u64>,
-}
-
-impl PeerResources {
-    fn parse(summary: &str) -> Self {
-        let mut resources = Self::default();
-        for part in summary.split_whitespace() {
-            if let Some(value) = part.strip_prefix("cpu_available=") {
-                resources.cpu_available = value.parse::<f64>().ok();
-            }
-            if let Some(value) = part.strip_prefix("memory_available_mb=") {
-                resources.memory_available_mb = value.parse::<u64>().ok();
-            }
-        }
-        resources
-    }
 }

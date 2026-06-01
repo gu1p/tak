@@ -4,6 +4,10 @@ fn persist_queued_cancelled_submit(
     queued_at_ms: i64,
 ) {
     let finished_at = unix_epoch_ms();
+    let reason = execution
+        .context
+        .active_execution_cancel_reason(&execution.payload.task_run_id, Some(execution.payload.attempt))
+        .unwrap_or(None);
     persist_cancelled_result(CancelledSubmitResult {
         store: &execution.store,
         idempotency_key,
@@ -12,6 +16,7 @@ fn persist_queued_cancelled_submit(
         finished_at,
         duration_ms: finished_at.saturating_sub(queued_at_ms),
         stdout_tail: "",
+        stderr_tail: cancellation_message(reason),
         seq: 2,
     });
 }

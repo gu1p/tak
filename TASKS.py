@@ -18,7 +18,21 @@ def cargo_cmd(*argv):
     return cmd("sh", "-c", CARGO_SHARED_ENV_SCRIPT, "tak-cargo", "cargo", *argv)
 
 
-CHECK_CONTEXT = CurrentState(ignored=[gitignore()])
+CHECK_EXAMPLE_CATALOG_FIXTURES = [
+    path("//examples/large/27_hybrid_local_remote_test_suite_success/TASKS.py"),
+    path("//examples/large/27_hybrid_local_remote_test_suite_success/apps/web/TASKS.py"),
+    path("//examples/large/28_hybrid_local_remote_test_suite_failure_with_logs/TASKS.py"),
+    path("//examples/large/28_hybrid_local_remote_test_suite_failure_with_logs/apps/web/TASKS.py"),
+    path("//examples/large/29_remote_any_transport_container_log_storm/TASKS.py"),
+    path("//examples/large/29_remote_any_transport_container_log_storm/apps/logstorm/TASKS.py"),
+    path("//examples/large/30_remote_session_share_paths/TASKS.py"),
+    path("//examples/large/31_remote_session_share_workspace/TASKS.py"),
+]
+
+CHECK_CONTEXT = CurrentState(
+    ignored=[gitignore()],
+    include=CHECK_EXAMPLE_CATALOG_FIXTURES,
+)
 
 CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),

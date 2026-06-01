@@ -74,6 +74,12 @@ async fn connect_tor(target: &StrictRemoteTarget) -> Result<RemoteIoStream> {
 async fn connect_tor_broker(target: &StrictRemoteTarget) -> Result<RemoteIoStream> {
     let socket_path = broker_socket_path();
     let stream = UnixStream::connect(&socket_path).await.with_context(|| {
+        if target.is_daemon_tor_placement() {
+            return format!(
+                "infra error: Tor remote execution requires local takd serve; local takd Tor broker unavailable at {} during remote placement",
+                socket_path.display()
+            );
+        }
         format!(
             "infra error: Tor remote execution requires local takd serve; local takd Tor broker unavailable at {} while contacting remote node {}",
             socket_path.display(),

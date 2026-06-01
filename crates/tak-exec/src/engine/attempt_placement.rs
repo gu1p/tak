@@ -61,7 +61,7 @@ pub(crate) async fn preflight_task_placement(
             &selected.node_id,
         );
         placement.ordered_remote_targets = ordered;
-        placement.remote_node_id = Some(selected.node_id.clone());
+        placement.remote_node_id = selected.remote_worker_node_id().map(str::to_string);
         placement.strict_remote_target = Some(selected);
         return Ok(placement);
     }

@@ -9,7 +9,7 @@ mod observer;
 
 pub use observer::{
     OutputStream, TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskStartedEvent,
-    TaskStatusEvent, TaskStatusPhase,
+    TaskStatusEvent, TaskStatusEventKind, TaskStatusPhase, TaskStructuredStatusEvent,
 };
 
 #[derive(Clone)]

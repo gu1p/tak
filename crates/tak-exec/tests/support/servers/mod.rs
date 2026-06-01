@@ -14,7 +14,9 @@ mod upload_begin_auth_rejecting;
 pub use auth_rejecting_submit::AuthRejectingSubmitServer;
 pub use delayed_events::DelayedEventsServer;
 pub use non_terminal_events::NonTerminalEventsServer;
-pub use recording::{RecordingEvents, RecordingLeaseServer, RecordingRemoteServer};
+pub use recording::{
+    RecordingEvents, RecordingLeaseConfig, RecordingLeaseServer, RecordingRemoteServer,
+};
 pub use scripted_events::{EventPollPlan, ScriptedEventsServer};
 pub use takd_server::RunningTakdServer;
 pub use upload_begin_auth_rejecting::UploadBeginAuthRejectingServer;

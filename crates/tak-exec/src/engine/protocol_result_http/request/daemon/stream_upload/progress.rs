@@ -4,8 +4,8 @@ use std::time::Instant;
 use anyhow::Result;
 use tak_core::model::TaskLabel;
 
-use crate::engine::output_observer::emit_task_status_message;
-use crate::engine::{TaskOutputObserver, TaskStatusPhase};
+use crate::engine::output_observer::{TaskStatusDetails, emit_task_status_message_with_details};
+use crate::engine::{TaskOutputObserver, TaskStatusEventKind, TaskStatusPhase};
 
 pub(crate) struct StreamUploadProgress<'a> {
     pub(crate) observer: Option<&'a Arc<dyn TaskOutputObserver>>,
@@ -44,7 +44,7 @@ impl<'a> ActiveStreamUploadProgress<'a> {
         } else {
             sent as f64 * 100.0 / self.total as f64
         };
-        emit_task_status_message(
+        emit_task_status_message_with_details(
             self.input.observer,
             self.input.task_label,
             self.input.attempt,
@@ -58,6 +58,13 @@ impl<'a> ActiveStreamUploadProgress<'a> {
                 peer_node_id,
                 mb_sent / elapsed
             ),
+            TaskStatusDetails {
+                kind: Some(TaskStatusEventKind::UploadProgress),
+                transport: Some("tor".to_string()),
+                bytes_total: Some(self.total),
+                bytes_sent: Some(sent),
+                ..TaskStatusDetails::default()
+            },
         )
     }
 }

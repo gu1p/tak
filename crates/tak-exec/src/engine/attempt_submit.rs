@@ -3,10 +3,8 @@ use std::collections::BTreeMap;
 use anyhow::{Result, anyhow};
 use tak_core::model::{ResolvedTask, TaskLabel};
 
-use super::output_observer::emit_task_status_message;
-use super::preflight_fallback::{
-    fallback_after_auth_submit_failure, is_auth_submit_failure, preflight_ordered_remote_target,
-};
+use super::output_observer::{TaskStatusDetails, emit_task_status_message_with_details};
+use super::preflight_fallback::{fallback_after_auth_submit_failure, is_auth_submit_failure};
 use super::protocol_submit::{RemoteProtocolSubmit, remote_protocol_submit};
 use super::remote_models::{
     RemoteSubmitContext, RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
@@ -14,9 +12,11 @@ use super::remote_models::{
 use super::remote_selection::SharedRemoteSelectionState;
 use super::runtime_metadata::resolve_runtime_execution_metadata;
 use super::session_workspaces::PreparedTaskSession;
-use super::{PlacementMode, TaskOutputObserver, TaskStatusPhase};
+use super::{PlacementMode, TaskOutputObserver, TaskStatusEventKind, TaskStatusPhase};
 
+mod target_refresh;
 mod upload_progress;
+use target_refresh::refresh_remote_target_for_attempt;
 
 pub(crate) struct AttemptSubmitState<'a> {
     pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
@@ -107,13 +107,26 @@ pub(crate) async fn resolve_attempt_submit_state(
             )?;
             placement.remote_node_id = Some(selected_target.node_id.clone());
             placement.strict_remote_target = Some(selected_target.clone());
-            emit_task_status_message(
+            let accepted_message = if selected_target.daemon_task_handle.is_some() {
+                format!(
+                    "remote worker {} selected by local takd; task accepted",
+                    selected_target.node_id
+                )
+            } else {
+                format!("remote task accepted by {}", selected_target.node_id)
+            };
+            emit_task_status_message_with_details(
                 output_observer,
                 &task.label,
                 submit.attempt,
                 TaskStatusPhase::RemoteSubmit,
                 Some(selected_target.node_id.as_str()),
-                format!("remote task accepted by {}", selected_target.node_id),
+                accepted_message,
+                TaskStatusDetails {
+                    kind: Some(TaskStatusEventKind::WorkerSelected),
+                    transport: Some(selected_target.transport_kind.as_result_value().to_string()),
+                    ..TaskStatusDetails::default()
+                },
             )?;
         }
         Err(submit_error) => {
@@ -151,50 +164,5 @@ pub(crate) async fn resolve_attempt_submit_state(
         }
     }
 
-    Ok(())
-}
-
-async fn refresh_remote_target_for_attempt(
-    task: &ResolvedTask,
-    placement: &mut TaskPlacement,
-    task_run_id: &str,
-    attempt: u32,
-    output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
-    remote_selection_state: &SharedRemoteSelectionState,
-) -> Result<()> {
-    if attempt == 1 && placement.strict_remote_target.is_some() {
-        return Ok(());
-    }
-    let ordered = remote_selection_state.reserve_ordered_targets_for_attempt(
-        &placement.ordered_remote_targets,
-        placement.remote_selection,
-        &task.label.to_string(),
-        task_run_id,
-        attempt,
-    );
-    let reserved_node_id = ordered.first().map(|target| target.node_id.clone());
-    let selected = match preflight_ordered_remote_target(
-        task,
-        &ordered,
-        placement.remote_selection,
-        output_observer,
-    )
-    .await
-    {
-        Ok(selected) => selected,
-        Err(err) => {
-            remote_selection_state
-                .release_reserved_target(placement.remote_selection, reserved_node_id.as_deref());
-            return Err(err);
-        }
-    };
-    remote_selection_state.confirm_selected_target(
-        placement.remote_selection,
-        reserved_node_id.as_deref(),
-        &selected.node_id,
-    );
-    placement.ordered_remote_targets = ordered;
-    placement.remote_node_id = Some(selected.node_id.clone());
-    placement.strict_remote_target = Some(selected);
     Ok(())
 }

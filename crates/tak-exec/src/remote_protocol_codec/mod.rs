@@ -13,8 +13,9 @@ use tak_proto::{
 };
 
 use crate::{
-    OutputStream, ParsedRemoteEvents, RemoteLogChunk, RemoteWorkspaceStage, StrictRemoteTarget,
-    SyncedOutput, task_run_metadata::task_run_metadata_for_runtime,
+    OutputStream, ParsedRemoteEvents, RemoteLogChunk, RemoteStatusUpdate, RemoteWorkspaceStage,
+    StrictRemoteTarget, SyncedOutput, TaskStatusEventKind,
+    task_run_metadata::task_run_metadata_for_runtime,
 };
 
 mod events_parser;
@@ -26,6 +27,8 @@ pub(crate) use events_parser::parse_remote_events_response;
 pub(crate) use outputs_parser::parse_remote_result_outputs;
 pub(crate) use submit_payload::{RemoteSubmitPayloadInput, build_remote_submit_payload};
 
+#[cfg(test)]
+mod events_parser_queue_tests;
 #[cfg(test)]
 mod events_parser_tests;
 #[cfg(test)]

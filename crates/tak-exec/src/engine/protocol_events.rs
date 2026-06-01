@@ -17,7 +17,9 @@ use super::{
 
 use crate::remote_protocol_codec::parse_remote_events_response;
 
-use super::output_observer::emit_task_status_message;
+use super::output_observer::{
+    TaskStatusDetails, emit_task_status_message, emit_task_status_message_with_details,
+};
 use super::protocol_result_http::{remote_protocol_http_request, try_remote_protocol_result};
 use super::remote_models::RemoteProtocolResult;
 use super::remote_wait_status::{remote_wait_heartbeat_interval, render_remote_wait_heartbeat};
@@ -113,16 +115,23 @@ pub(crate) async fn remote_protocol_events(
 
         let previous_seq = last_seen_seq;
         let parsed = parse_remote_events_response(target, &response_body, last_seen_seq)?;
+        debug_assert_eq!(parsed.status_messages.len(), parsed.status_updates.len());
         let saw_new_activity = parsed.next_seq > previous_seq;
         last_seen_seq = parsed.next_seq;
-        for message in &parsed.status_messages {
-            emit_task_status_message(
+        for update in &parsed.status_updates {
+            emit_task_status_message_with_details(
                 output_observer,
                 task_label,
                 attempt,
                 TaskStatusPhase::RemoteWait,
                 Some(target.node_id.as_str()),
-                message.clone(),
+                update.message.clone(),
+                TaskStatusDetails {
+                    kind: Some(update.kind),
+                    queue_position: update.queue_position,
+                    transport: Some(target.transport_kind.as_result_value().to_string()),
+                    ..TaskStatusDetails::default()
+                },
             )?;
         }
         for chunk in &parsed.remote_logs {

@@ -104,7 +104,8 @@ impl LeaseManager {
         Ok(())
     }
 
-    /// Releases an active lease and reclaims associated limiter usage.
+    /// Releases a lease and reclaims its limiter usage. Idempotent: releasing a
+    /// lease that has already expired or been released is a successful no-op.
     ///
     /// ```no_run
     /// # // Reason: This behavior depends on internal state and is compile-checked only.
@@ -115,10 +116,18 @@ impl LeaseManager {
     pub fn release(&mut self, lease_id: &str) -> Result<()> {
         self.expire_leases();
 
-        let record = self
-            .leases
-            .remove(lease_id)
-            .ok_or_else(|| anyhow!("lease {lease_id} does not exist"))?;
+        // Release is idempotent. A lease that has already expired or been
+        // released holds no usage, so releasing it again is a successful no-op.
+        // Lease ids are unique UUIDs that are never reused, so an absent id
+        // unambiguously means "this exact lease already ended" rather than a
+        // collision with a different live lease. This keeps completed work from
+        // being reported as failed when a task outlives its lease TTL and the
+        // client's release races the daemon's expiry sweep. Skipping deallocate
+        // here is required: the expiry/prior release already reclaimed usage.
+        let Some(record) = self.leases.remove(lease_id) else {
+            tracing::debug!("release of already-ended lease {lease_id} treated as no-op");
+            return Ok(());
+        };
         self.deallocate(&record.needs);
         self.delete_active_lease(lease_id)?;
         self.append_history("release", lease_id, &record)?;

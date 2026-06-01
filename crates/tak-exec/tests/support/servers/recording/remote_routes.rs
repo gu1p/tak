@@ -1,4 +1,5 @@
 use std::net::TcpStream;
+use std::time::Duration;
 
 use prost::Message;
 use tak_proto::{ErrorResponse, NodeStatusResponse, PollTaskEventsResponse, SubmitTaskRequest};
@@ -20,6 +21,7 @@ pub(super) fn serve_remote_request(
     events: &RecordingEvents,
     submit: SubmitBehavior,
     status: Option<&NodeStatusResponse>,
+    result_delay: Duration,
 ) -> bool {
     let Some(request) = read_request_path_and_body(stream) else {
         return true;
@@ -61,6 +63,7 @@ pub(super) fn serve_remote_request(
             true
         }
         _ if request.path.contains("/result") => {
+            std::thread::sleep(result_delay);
             write_protobuf_response(stream, "200 OK", &success_result(node_id));
             true
         }

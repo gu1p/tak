@@ -112,17 +112,21 @@ fn compact_resource_summary(status: &NodeStatusResponse) -> String {
 }
 
 fn cpu_summary(cpu: &tak_proto::CpuUsage) -> String {
-    match cpu.tak_admission_available_cores {
-        Some(available) => format!("cpu_available={available:.2}"),
-        None => format!("cpu_cores={}", cpu.logical_cores),
-    }
+    let total = f64::from(cpu.logical_cores);
+    let available = cpu
+        .tak_admission_available_cores
+        .map(|available| format!("cpu_available={available:.2}"))
+        .unwrap_or_else(|| "cpu_available=unknown".to_string());
+    format!("{available} cpu_total={total:.2}")
 }
 
 fn memory_summary(memory: &tak_proto::MemoryUsage) -> String {
-    match memory.tak_admission_available_bytes {
-        Some(available) => format!("memory_available_mb={}", available / 1024 / 1024),
-        None => format!("memory_total_mb={}", memory.total_bytes / 1024 / 1024),
-    }
+    let total_mb = memory.total_bytes / 1024 / 1024;
+    let available = memory
+        .tak_admission_available_bytes
+        .map(|available| format!("memory_available_mb={}", available / 1024 / 1024))
+        .unwrap_or_else(|| "memory_available_mb=unknown".to_string());
+    format!("{available} memory_total_mb={total_mb}")
 }
 
 fn storage_summary(storage: &tak_proto::StorageUsage) -> String {
@@ -131,3 +135,6 @@ fn storage_summary(storage: &tak_proto::StorageUsage) -> String {
         storage.available_bytes / 1024 / 1024
     )
 }
+
+#[cfg(test)]
+mod tests;

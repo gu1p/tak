@@ -49,6 +49,8 @@ mod route_uploads;
 mod router;
 mod runtime;
 mod runtime_state;
+#[cfg(test)]
+mod runtime_tests;
 mod status_job_metadata;
 mod status_resources;
 mod status_state;

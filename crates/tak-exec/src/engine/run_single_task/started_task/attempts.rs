@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tak_core::model::ResolvedTask;
 
-use crate::lease_client::{acquire_task_lease, release_task_lease};
+use crate::lease_client::{TaskLease, acquire_task_lease, release_task_lease};
 use crate::retry::{retry_backoff_delay, should_retry};
 
 use super::super::super::attempt_execution::{
@@ -46,7 +46,7 @@ pub(super) async fn run_attempts(
     loop {
         *context.attempt += 1;
         let current_attempt = *context.attempt;
-        let lease_id = acquire_task_lease(task, current_attempt, options, lease_context).await?;
+        let mut lease = acquire_task_lease(task, current_attempt, options, lease_context).await?;
         let attempt_result = async {
             submit_remote_attempt_if_needed(
                 task,
@@ -59,7 +59,7 @@ pub(super) async fn run_attempts(
             run_one_attempt(task, workspace_root, options, current_attempt, &context).await
         }
         .await;
-        release_attempt_lease(lease_id.as_deref(), task, options).await?;
+        release_attempt_lease(lease.as_mut(), task, options).await?;
         let outcome = attempt_result?;
         if outcome.attempt_success || !can_retry(task, current_attempt, outcome.last_exit_code) {
             let result = build_task_result(current_attempt, outcome, &context);
@@ -120,12 +120,13 @@ async fn run_one_attempt(
 }
 
 async fn release_attempt_lease(
-    lease_id: Option<&str>,
+    lease: Option<&mut TaskLease>,
     task: &ResolvedTask,
     options: &RunOptions,
 ) -> Result<()> {
-    if let Some(id) = lease_id {
-        release_task_lease(id, options)
+    if let Some(lease) = lease {
+        lease.stop_renewal();
+        release_task_lease(lease.id(), options)
             .await
             .context(format!("failed releasing lease for {}", task.label))?;
     }

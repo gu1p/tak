@@ -25,7 +25,8 @@ pub use fake_docker::install_fake_docker;
 pub use fake_docker_daemon::FakeDockerDaemon;
 pub use inventory::{RemoteInventoryRecord, write_remote_inventory};
 pub use lease_order_case::{
-    RemoteLeaseCase, remote_lease_case, remote_lease_case_with_submit_failure,
+    RemoteLeaseCase, remote_lease_case, remote_lease_case_with_slow_result,
+    remote_lease_case_with_submit_failure,
 };
 pub use lease_order_fused::fused_remote_cascade_spec;
 pub use lease_order_need::add_ui_lock_need;
@@ -41,8 +42,8 @@ pub use remote_worker_runtime::{
 };
 pub use servers::{
     AuthRejectingSubmitServer, DelayedEventsServer, EventPollPlan, NonTerminalEventsServer,
-    RecordingEvents, RecordingLeaseServer, RecordingRemoteServer, RunningTakdServer,
-    ScriptedEventsServer, UploadBeginAuthRejectingServer,
+    RecordingEvents, RecordingLeaseConfig, RecordingLeaseServer, RecordingRemoteServer,
+    RunningTakdServer, ScriptedEventsServer, UploadBeginAuthRejectingServer,
 };
 pub use status_observer::CollectingStatusObserver;
 pub use task_spec::{

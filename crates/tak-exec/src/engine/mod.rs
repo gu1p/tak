@@ -83,7 +83,7 @@ pub use public_types::{
     ContainerExecutionIdentity, ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk,
     RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput,
     TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent,
-    TaskStatusEvent, TaskStatusPhase,
+    TaskStatusEvent, TaskStatusEventKind, TaskStatusPhase, TaskStructuredStatusEvent,
 };
 pub use remote_diagnostics::{
     NoMatchingRemoteError, RemoteCandidateDiagnostic, RemoteCandidateRejection,
@@ -102,8 +102,8 @@ pub(crate) use lease_context::LeaseContext;
 pub(crate) use output_observer::{emit_task_finished, emit_task_output, emit_task_started};
 pub(crate) use remote_http_exchange_error::{RemoteHttpExchangeError, RemoteHttpExchangeErrorKind};
 pub(crate) use remote_models::{
-    ContainerExecutionPlan, ImageCachePlan, ParsedRemoteEvents, RemoteTargetSelection,
-    RemoteWorkspaceStage, StrictRemoteTarget,
+    ContainerExecutionPlan, ImageCachePlan, ParsedRemoteEvents, RemoteStatusUpdate,
+    RemoteTargetSelection, RemoteWorkspaceStage, StrictRemoteTarget,
 };
 
 /// Executes exactly one resolved task and preserves the task's own success and exit metadata.

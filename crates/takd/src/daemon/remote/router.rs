@@ -28,6 +28,7 @@ pub(super) fn handle_remote_v1_request_with_headers(
 ) -> Result<RemoteV1Response> {
     let method = method.trim().to_ascii_uppercase();
     let (path_only, query) = split_path_and_query(path);
+    refresh_task_liveness(context, path_only, query)?;
 
     if let Some(response) = handle_node_metadata_route(context, &method, path_only) {
         return Ok(response);
@@ -67,4 +68,25 @@ pub(super) fn handle_remote_v1_request_with_headers(
         404,
         &format!("not_found:{method}:{path_only}"),
     ))
+}
+
+fn refresh_task_liveness(
+    context: &RemoteNodeContext,
+    path_only: &str,
+    query: Option<&str>,
+) -> Result<()> {
+    let Some(task_run_id) = remote_task_run_id_from_path(path_only) else {
+        return Ok(());
+    };
+    let attempt = query_param_u64(query, "attempt").and_then(|value| u32::try_from(value).ok());
+    context.refresh_active_client(task_run_id, attempt)
+}
+
+fn remote_task_run_id_from_path(path_only: &str) -> Option<&str> {
+    let tail = path_only.strip_prefix("/v1/tasks/")?;
+    let (task_run_id, suffix) = tail.split_once('/')?;
+    if task_run_id.is_empty() || suffix.is_empty() {
+        return None;
+    }
+    Some(task_run_id)
 }

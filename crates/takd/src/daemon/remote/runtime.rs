@@ -3,7 +3,7 @@ use std::time::Duration;
 
 const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
 const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
-const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 60 * 1000;
+const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 600 * 1000;
 const DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS: u64 = 1000;
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
 
@@ -60,16 +60,9 @@ impl RemoteRuntimeConfig {
         Self {
             explicit_remote_exec_root: None,
             temp_dir: std::env::temp_dir(),
-            // Default tests to an isolated, non-existent docker host. Tests that
-            // need a real (fake) daemon override this via `with_docker_host`
-            // (see `configure_fake_docker_env`). Without an explicit host the
-            // cleanup janitor / usage sampler would fall back to
-            // `connect_with_local_defaults()`, which reads the process-global
-            // `DOCKER_HOST` env. Under parallel tests that env is shared, so a
-            // janitor from one test could connect to another test's fake daemon
-            // and reap its still-active containers — the root cause of the
-            // CI-only orphan-watchdog flake. Pointing the default at a dead
-            // socket keeps every test's docker traffic on its own daemon.
+            // Tests that need a fake daemon override this via `with_docker_host`.
+            // The default dead socket keeps janitors from reading process-global
+            // `DOCKER_HOST` and crossing into another parallel test's daemon.
             docker_host: Some("unix:///nonexistent/takd-tests-isolated-docker.sock".to_string()),
             podman_socket: None,
             runtime_dir: None,
@@ -89,37 +82,30 @@ impl RemoteRuntimeConfig {
         self.explicit_remote_exec_root = Some(path.into());
         self
     }
-
     pub fn with_temp_dir(mut self, path: impl Into<PathBuf>) -> Self {
         self.temp_dir = path.into();
         self
     }
-
     pub fn with_docker_host(mut self, host: impl Into<String>) -> Self {
         self.docker_host = Some(host.into());
         self
     }
-
     pub fn with_podman_socket(mut self, socket: impl Into<String>) -> Self {
         self.podman_socket = Some(socket.into());
         self
     }
-
     pub fn with_runtime_dir(mut self, runtime_dir: impl Into<String>) -> Self {
         self.runtime_dir = Some(runtime_dir.into());
         self
     }
-
     pub fn with_uid(mut self, uid: impl Into<String>) -> Self {
         self.uid = Some(uid.into());
         self
     }
-
     pub fn with_skip_exec_root_probe(mut self, skip: bool) -> Self {
         self.skip_exec_root_probe = skip;
         self
     }
-
     pub fn with_remote_cleanup_ttl(mut self, ttl: Duration) -> Self {
         self.remote_cleanup_ttl = ttl;
         self

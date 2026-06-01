@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use tak_proto::NodeInfo;
 
-use super::active_executions::SharedActiveExecutions;
+use super::active_executions::{
+    ActiveExecutionCancelReason, SharedActiveExecutions, StaleActiveExecution,
+};
 use super::resource_admission::{
     ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
 };
@@ -136,9 +138,17 @@ impl RemoteNodeContext {
         self.active_executions.refresh_client(task_run_id, attempt)
     }
 
-    pub(crate) fn cancel_stale_active_executions(&self) -> Result<Vec<String>> {
+    pub(super) fn cancel_stale_active_executions(&self) -> Result<Vec<StaleActiveExecution>> {
         self.active_executions
             .cancel_stale(self.runtime_config().remote_client_stale_ttl())
+    }
+
+    pub(super) fn active_execution_cancel_reason(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+    ) -> Result<Option<ActiveExecutionCancelReason>> {
+        self.active_executions.cancel_reason(task_run_id, attempt)
     }
 
     pub fn runtime_config(&self) -> RemoteRuntimeConfig {

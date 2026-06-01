@@ -6,11 +6,11 @@ struct CancelledSubmitResult<'a> {
     finished_at: i64,
     duration_ms: i64,
     stdout_tail: &'a str,
+    stderr_tail: String,
     seq: u64,
 }
 
 fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
-    let stderr_tail = "task cancelled";
     if let Err(error) = result.store.set_result_payload(
         result.idempotency_key,
         &serde_json::json!({
@@ -24,7 +24,7 @@ fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
             "sync_mode": "OUTPUTS_AND_LOGS",
             "outputs": serde_json::json!([]),
             "stdout_tail": json_tail_value(result.stdout_tail),
-            "stderr_tail": stderr_tail,
+            "stderr_tail": result.stderr_tail,
         })
         .to_string(),
     ) {
@@ -40,7 +40,7 @@ fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
             "kind": "TASK_CANCELLED",
             "timestamp_ms": result.finished_at,
             "success": false,
-            "message": stderr_tail,
+            "message": result.stderr_tail,
         })
         .to_string(),
     ) {
@@ -48,6 +48,18 @@ fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
             "failed to append TASK_CANCELLED event for submit {}: {error:#}",
             result.idempotency_key
         );
+    }
+}
+
+fn cancellation_message(
+    reason: Option<super::active_executions::ActiveExecutionCancelReason>,
+) -> String {
+    match reason {
+        Some(super::active_executions::ActiveExecutionCancelReason::ClientStale { stale_ms }) => format!(
+            "remote worker cancelled task after {}s without client contact (client presumed disconnected)",
+            stale_ms.saturating_add(999) / 1000
+        ),
+        _ => "task cancelled".to_string(),
     }
 }
 

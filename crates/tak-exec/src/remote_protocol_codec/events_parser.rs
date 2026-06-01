@@ -15,13 +15,15 @@ pub(crate) fn parse_remote_events_response(
     let mut checkpoint = last_seen_seq;
     let mut remote_logs = Vec::new();
     let mut status_messages = Vec::new();
+    let mut status_updates = Vec::new();
     for event in parsed.events {
         checkpoint = checkpoint.max(event.seq);
         if event.seq <= last_seen_seq {
             continue;
         }
-        if let Some(message) = event_status_message(&event) {
-            status_messages.push(message);
+        if let Some(update) = event_status_update(&event) {
+            status_messages.push(update.message.clone());
+            status_updates.push(update);
         }
         let stream = match event.kind.as_str() {
             "TASK_STDOUT_CHUNK" | "TASK_LOG_CHUNK" => Some(OutputStream::Stdout),
@@ -52,10 +54,11 @@ pub(crate) fn parse_remote_events_response(
         done: parsed.done,
         remote_logs,
         status_messages,
+        status_updates,
     })
 }
 
-fn event_status_message(event: &tak_proto::RemoteEvent) -> Option<String> {
+fn event_status_update(event: &tak_proto::RemoteEvent) -> Option<RemoteStatusUpdate> {
     if matches!(
         event.kind.as_str(),
         "TASK_QUEUED" | "TASK_QUEUE_POSITION" | "TASK_FAILED" | "TASK_CANCELLED" | "TASK_TERMINAL"
@@ -64,17 +67,42 @@ fn event_status_message(event: &tak_proto::RemoteEvent) -> Option<String> {
         .as_deref()
         .filter(|message| !message.is_empty())
     {
-        return Some(message.to_string());
+        return Some(RemoteStatusUpdate {
+            message: message.to_string(),
+            kind: event_status_kind(event.kind.as_str()),
+            queue_position: queue_position_from_message(message),
+        });
     }
     let failure_verb = terminal_failure_verb(event.kind.as_str())?;
     if event.success == Some(false)
         && let Some(exit_code) = event.exit_code
     {
-        return Some(format!(
-            "remote task {failure_verb} with exit code {exit_code}"
-        ));
+        return Some(RemoteStatusUpdate {
+            message: format!("remote task {failure_verb} with exit code {exit_code}"),
+            kind: event_status_kind(event.kind.as_str()),
+            queue_position: None,
+        });
     }
     None
+}
+
+fn event_status_kind(kind: &str) -> TaskStatusEventKind {
+    match kind {
+        "TASK_QUEUED" => TaskStatusEventKind::QueueAdmission,
+        "TASK_QUEUE_POSITION" => TaskStatusEventKind::QueuePositionChanged,
+        "TASK_CANCELLED" => TaskStatusEventKind::Cancellation,
+        "TASK_FAILED" | "TASK_TERMINAL" => TaskStatusEventKind::FatalFailure,
+        _ => TaskStatusEventKind::RemoteExecutionStart,
+    }
+}
+
+fn queue_position_from_message(message: &str) -> Option<usize> {
+    let (_, tail) = message.split_once("queue position: ")?;
+    let value = tail
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>();
+    value.parse().ok()
 }
 
 fn terminal_failure_verb(kind: &str) -> Option<&'static str> {

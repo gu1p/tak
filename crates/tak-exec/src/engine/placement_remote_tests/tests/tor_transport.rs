@@ -23,6 +23,7 @@ fn tor_remote_candidate_uses_daemon_placeholder_without_client_inventory() {
         .as_ref()
         .expect("daemon placeholder target");
     assert!(target.is_daemon_tor_placement());
+    assert_eq!(placement.remote_node_id, None);
     assert!(placement.ordered_remote_targets.is_empty());
     assert_eq!(target.required_pool.as_deref(), Some("build"));
     assert_eq!(target.required_tags, vec!["linux"]);

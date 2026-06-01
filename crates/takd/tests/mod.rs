@@ -1,5 +1,3 @@
-pub mod support;
-
 mod agent_cli_contract;
 mod agent_logs_all_contract;
 mod agent_logs_contract;
@@ -84,6 +82,7 @@ mod service_tor_live_behavior;
 mod service_tor_recovery_behavior;
 mod service_tor_startup_recovery_behavior;
 mod submit_store_contract;
+pub mod support;
 mod task_list_contract;
 mod task_logs_contract;
 mod task_logs_failure_contract;

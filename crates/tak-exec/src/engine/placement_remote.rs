@@ -66,7 +66,7 @@ pub(crate) fn remote_task_candidate(
 fn daemon_tor_placement(remote: &RemoteSpec, reason: Option<String>) -> TaskPlacement {
     TaskPlacement {
         placement_mode: PlacementMode::Remote,
-        remote_node_id: Some(StrictRemoteTarget::daemon_tor_placement(remote).node_id),
+        remote_node_id: None,
         strict_remote_target: Some(StrictRemoteTarget::daemon_tor_placement(remote)),
         ordered_remote_targets: Vec::new(),
         remote_selection: remote.selection,

@@ -17,7 +17,8 @@ use zip::write::SimpleFileOptions;
 
 use super::{RemoteWorkspaceStage, TaskOutputObserver, TaskStatusPhase};
 
-use super::output_observer::emit_task_status_message;
+use super::TaskStatusEventKind;
+use super::output_observer::{TaskStatusDetails, emit_task_status_message_with_details};
 use super::remote_models::format_upload_size_mb;
 use super::workspace_collect::{collect_workspace_files, materialize_manifest_files};
 use super::workspace_sync::normalize_filesystem_relative_path;
@@ -27,13 +28,17 @@ pub(crate) fn stage_remote_workspace(
     workspace_root: &Path,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<RemoteWorkspaceStage> {
-    emit_task_status_message(
+    emit_task_status_message_with_details(
         output_observer,
         &task.label,
         1,
         TaskStatusPhase::RemoteStageWorkspace,
         None,
         "staging remote workspace",
+        TaskStatusDetails {
+            kind: Some(TaskStatusEventKind::WorkspaceStage),
+            ..TaskStatusDetails::default()
+        },
     )?;
     let available_files = collect_workspace_files(workspace_root, &task.context)?;
     let manifest = build_current_state_manifest(available_files, &task.context);
@@ -43,7 +48,7 @@ pub(crate) fn stage_remote_workspace(
     materialize_manifest_files(workspace_root, &staged_files_dir, &manifest.entries)?;
     let archive_path = staged_dir.path().join("workspace.zip");
     let (archive_byte_len, sha256) = write_zip_snapshot_hashed(&staged_files_dir, &archive_path)?;
-    emit_task_status_message(
+    emit_task_status_message_with_details(
         output_observer,
         &task.label,
         1,
@@ -54,6 +59,11 @@ pub(crate) fn stage_remote_workspace(
             manifest.entries.len(),
             format_upload_size_mb(archive_byte_len)
         ),
+        TaskStatusDetails {
+            kind: Some(TaskStatusEventKind::WorkspaceStage),
+            bytes_total: Some(archive_byte_len),
+            ..TaskStatusDetails::default()
+        },
     )?;
 
     Ok(RemoteWorkspaceStage {

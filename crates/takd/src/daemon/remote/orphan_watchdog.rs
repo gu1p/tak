@@ -6,9 +6,13 @@ pub(crate) fn spawn_remote_orphan_watchdog(context: RemoteNodeContext) {
         loop {
             tokio::time::sleep(interval).await;
             match context.cancel_stale_active_executions() {
-                Ok(keys) => {
-                    for key in keys {
-                        tracing::warn!("cancelled orphaned remote execution {key}");
+                Ok(stale_executions) => {
+                    for stale in stale_executions {
+                        tracing::warn!(
+                            idempotency_key = %stale.idempotency_key,
+                            stale_ms = stale.stale_ms,
+                            "cancelled orphaned remote execution"
+                        );
                     }
                 }
                 Err(error) => tracing::warn!("remote orphan watchdog sweep failed: {error:#}"),

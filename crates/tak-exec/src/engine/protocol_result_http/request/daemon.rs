@@ -17,10 +17,13 @@ mod lifecycle;
 use lifecycle::{lifecycle_request, request_id};
 #[path = "daemon/errors.rs"]
 pub(super) mod errors;
+#[path = "daemon/resource_limits.rs"]
+mod resource_limits;
 #[path = "daemon/stream_upload.rs"]
 mod stream_upload;
 
 use errors::{daemon_error, daemon_timeout};
+use resource_limits::runtime_resource_limits;
 pub(crate) use stream_upload::DaemonWorkspaceUploadStreamRequest;
 pub(crate) use stream_upload::{StreamUploadProgress, stream_workspace_upload_via_daemon};
 
@@ -146,10 +149,15 @@ fn daemon_response_to_http(
             daemon_peer_node_id: None,
             daemon_peer_endpoint: None,
         }),
-        DaemonResponse::Error { message } => bail!(
-            "local takd daemon failed while contacting remote node {}: {message}",
-            target.node_id
-        ),
+        DaemonResponse::Error { message } => {
+            if target.is_daemon_tor_placement() {
+                bail!("local takd daemon failed during remote placement: {message}");
+            }
+            bail!(
+                "local takd daemon failed while contacting remote node {}: {message}",
+                target.node_id
+            )
+        }
         DaemonResponse::PeersSnapshot { .. } => {
             bail!("local takd daemon returned peer list for remote HTTP request")
         }
@@ -166,17 +174,6 @@ fn node_requirements(target: &StrictRemoteTarget) -> PeerEligibility {
         cpu_cores,
         memory_mb,
     }
-}
-
-fn runtime_resource_limits(target: &StrictRemoteTarget) -> (Option<f64>, Option<u64>) {
-    let Some(tak_core::model::RemoteRuntimeSpec::Containerized {
-        resource_limits: Some(limits),
-        ..
-    }) = target.runtime.as_ref()
-    else {
-        return (None, None);
-    };
-    (limits.cpu_cores, limits.memory_mb)
 }
 
 fn response_headers(headers: Vec<RemoteHeader>) -> Vec<ResponseHeader> {

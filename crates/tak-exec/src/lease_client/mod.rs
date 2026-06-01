@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -13,7 +13,7 @@ use crate::{LeaseContext, RunOptions};
 mod acquire_release;
 mod needs_transport;
 
-pub(crate) use acquire_release::{acquire_task_lease, release_task_lease};
+pub(crate) use acquire_release::{TaskLease, acquire_task_lease, release_task_lease};
 pub(crate) use needs_transport::convert_needs;
 
 use needs_transport::send_daemon_request;
@@ -55,6 +55,13 @@ struct ReleaseLeaseRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct RenewLeaseRequest {
+    request_id: String,
+    lease_id: String,
+    ttl_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct LeaseInfo {
     lease_id: String,
     ttl_ms: u64,
@@ -70,6 +77,7 @@ struct PendingInfo {
 #[serde(tag = "type")]
 enum Request {
     AcquireLease(AcquireLeaseRequest),
+    RenewLease(RenewLeaseRequest),
     ReleaseLease(ReleaseLeaseRequest),
 }
 
@@ -86,6 +94,10 @@ enum Response {
     },
     LeaseReleased {
         request_id: String,
+    },
+    LeaseRenewed {
+        request_id: String,
+        ttl_ms: u64,
     },
     Error {
         request_id: String,

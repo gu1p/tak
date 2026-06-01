@@ -38,6 +38,14 @@ fn persist_worker_execution_result(
 }
 
 fn persist_cancelled_worker_result(input: &WorkerExecutionResultPersistence<'_>, stdout_tail: &str) {
+    let reason = input
+        .execution
+        .context
+        .active_execution_cancel_reason(
+            &input.execution.payload.task_run_id,
+            Some(input.execution.payload.attempt),
+        )
+        .unwrap_or(None);
     tracing::warn!(
         idempotency_key = input.idempotency_key,
         task_run_id = %input.execution.payload.task_run_id,
@@ -54,6 +62,7 @@ fn persist_cancelled_worker_result(input: &WorkerExecutionResultPersistence<'_>,
         finished_at: input.finished_at,
         duration_ms: input.duration_ms,
         stdout_tail,
+        stderr_tail: cancellation_message(reason),
         seq: input.output_observer.claim_next_seq(),
     });
 }

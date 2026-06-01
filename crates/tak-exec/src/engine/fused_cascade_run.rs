@@ -12,7 +12,7 @@ use super::remote_models::TaskPlacement;
 use super::remote_selection::SharedRemoteSelectionState;
 use super::session_workspaces::SharedExecutionSessionManager;
 use super::{LeaseContext, PlacementMode, RunOptions, TaskRunResult};
-use crate::lease_client::{acquire_task_lease, release_task_lease};
+use crate::lease_client::{TaskLease, acquire_task_lease, release_task_lease};
 
 mod events;
 mod local;
@@ -125,7 +125,7 @@ async fn run_started_fused_cascade(
         &remote_workspace,
         &prepared_session,
     );
-    let lease_id = acquire_task_lease(&cascade.task, 1, options, lease_context).await?;
+    let mut lease = acquire_task_lease(&cascade.task, 1, options, lease_context).await?;
     let fused_result = if placement.placement_mode == PlacementMode::Remote {
         remote::run_remote_fused_attempt(remote::RemoteFusedAttemptContext {
             cascade,
@@ -153,11 +153,7 @@ async fn run_started_fused_cascade(
         })
         .await
     };
-    if let Some(id) = lease_id.as_ref() {
-        release_task_lease(id, options)
-            .await
-            .context(format!("failed releasing lease for {}", cascade.task.label))?;
-    }
+    release_fused_lease(lease.as_mut(), &cascade.task.label, options).await?;
     let (attempts, outcome) = fused_result?;
     let result = setup::build_task_result(
         task_run_id,
@@ -171,4 +167,18 @@ async fn run_started_fused_cascade(
     sessions.finish_task(prepared_session.as_ref(), result.success)?;
     events::emit_finished(&cascade.task, options, &result)?;
     Ok(result)
+}
+
+async fn release_fused_lease(
+    lease: Option<&mut TaskLease>,
+    label: &TaskLabel,
+    options: &RunOptions,
+) -> Result<()> {
+    if let Some(lease) = lease {
+        lease.stop_renewal();
+        release_task_lease(lease.id(), options)
+            .await
+            .context(format!("failed releasing lease for {label}"))?;
+    }
+    Ok(())
 }

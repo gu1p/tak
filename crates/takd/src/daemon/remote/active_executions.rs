@@ -17,11 +17,23 @@ struct ActiveExecutions {
     by_key: BTreeMap<String, ActiveExecution>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ActiveExecutionCancelReason {
+    Explicit,
+    ClientStale { stale_ms: i64 },
+}
+
+pub(super) struct StaleActiveExecution {
+    pub(super) idempotency_key: String,
+    pub(super) stale_ms: i64,
+}
+
 struct ActiveExecution {
     task_run_id: String,
     attempt: u32,
     cancellation: RunCancellation,
     last_client_seen_ms: i64,
+    cancel_reason: Option<ActiveExecutionCancelReason>,
 }
 
 impl SharedActiveExecutions {
@@ -39,6 +51,7 @@ impl SharedActiveExecutions {
                 attempt,
                 cancellation: cancellation.clone(),
                 last_client_seen_ms: unix_epoch_ms(),
+                cancel_reason: None,
             },
         );
         Ok(cancellation)
@@ -67,23 +80,46 @@ impl SharedActiveExecutions {
         let mut guard = self.lock()?;
         for execution in Self::matching_executions(&mut guard, task_run_id, attempt) {
             execution.cancellation.cancel();
+            execution.cancel_reason = Some(ActiveExecutionCancelReason::Explicit);
             cancelled = true;
         }
         Ok(cancelled)
     }
 
-    pub(super) fn cancel_stale(&self, ttl: Duration) -> Result<Vec<String>> {
+    pub(super) fn cancel_stale(&self, ttl: Duration) -> Result<Vec<StaleActiveExecution>> {
         let now = unix_epoch_ms();
         let ttl_ms = i64::try_from(ttl.as_millis()).unwrap_or(i64::MAX);
-        let mut keys = Vec::new();
-        let guard = self.lock()?;
-        for (key, execution) in &guard.by_key {
-            if now.saturating_sub(execution.last_client_seen_ms) >= ttl_ms {
+        let mut stale = Vec::new();
+        let mut guard = self.lock()?;
+        for (key, execution) in &mut guard.by_key {
+            let stale_ms = now.saturating_sub(execution.last_client_seen_ms);
+            if stale_ms >= ttl_ms {
                 execution.cancellation.cancel();
-                keys.push(key.clone());
+                execution.cancel_reason =
+                    Some(ActiveExecutionCancelReason::ClientStale { stale_ms });
+                stale.push(StaleActiveExecution {
+                    idempotency_key: key.clone(),
+                    stale_ms,
+                });
             }
         }
-        Ok(keys)
+        Ok(stale)
+    }
+
+    pub(super) fn cancel_reason(
+        &self,
+        task_run_id: &str,
+        attempt: Option<u32>,
+    ) -> Result<Option<ActiveExecutionCancelReason>> {
+        let guard = self.lock()?;
+        Ok(guard
+            .by_key
+            .values()
+            .find(|execution| {
+                execution.task_run_id == task_run_id
+                    && attempt.is_none_or(|attempt| execution.attempt == attempt)
+            })
+            .and_then(|execution| execution.cancel_reason))
     }
 
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, ActiveExecutions>> {
