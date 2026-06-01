@@ -69,10 +69,9 @@ pub(crate) async fn acquire_task_lease(
     };
 
     loop {
-        let response =
-            send_daemon_request(socket_path, Request::AcquireLease(acquire_request.clone()))
-                .await
-                .with_context(|| format!("lease acquire request failed for {}", task.label))?;
+        let response = send_daemon_request(socket_path, Request::Acquire(acquire_request.clone()))
+            .await
+            .with_context(|| format!("lease acquire request failed for {}", task.label))?;
 
         match response {
             Response::LeaseGranted { lease, .. } => {
@@ -114,7 +113,7 @@ fn spawn_lease_renewal(lease: LeaseInfo, socket_path: PathBuf) -> tokio::task::J
 async fn renew_task_lease(socket_path: &Path, lease_id: &str, ttl_ms: u64) -> Result<()> {
     let response = send_daemon_request(
         socket_path,
-        Request::RenewLease(RenewLeaseRequest {
+        Request::Renew(RenewLeaseRequest {
             request_id: Uuid::new_v4().to_string(),
             lease_id: lease_id.to_string(),
             ttl_ms,
@@ -145,7 +144,7 @@ pub(crate) async fn release_task_lease(lease_id: &str, options: &RunOptions) -> 
 
     let response = send_daemon_request(
         socket_path,
-        Request::ReleaseLease(ReleaseLeaseRequest {
+        Request::Release(ReleaseLeaseRequest {
             request_id: Uuid::new_v4().to_string(),
             lease_id: lease_id.to_string(),
         }),

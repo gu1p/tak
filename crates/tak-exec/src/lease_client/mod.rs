@@ -76,9 +76,12 @@ struct PendingInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum Request {
-    AcquireLease(AcquireLeaseRequest),
-    RenewLease(RenewLeaseRequest),
-    ReleaseLease(ReleaseLeaseRequest),
+    #[serde(rename = "AcquireLease")]
+    Acquire(AcquireLeaseRequest),
+    #[serde(rename = "RenewLease")]
+    Renew(RenewLeaseRequest),
+    #[serde(rename = "ReleaseLease")]
+    Release(ReleaseLeaseRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
