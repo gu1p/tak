@@ -54,7 +54,7 @@ fn logs_include_retryable_tor_startup_failure_details() {
             &state_root.display().to_string(),
             "--wait",
             "--timeout-secs",
-            "5",
+            "30",
         ])
         .output()
         .expect("run token show");

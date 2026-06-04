@@ -9,6 +9,10 @@ use tokio::net::UnixStream;
 mod progress;
 #[path = "stream_upload/response.rs"]
 mod response;
+#[path = "stream_upload/retry.rs"]
+mod retry;
+#[path = "stream_upload/status.rs"]
+mod status;
 
 use super::errors;
 use super::lifecycle::request_id;
@@ -20,6 +24,7 @@ use crate::engine::{StrictRemoteTarget, transport};
 use progress::ActiveStreamUploadProgress;
 pub(crate) use progress::StreamUploadProgress;
 use response::read_raw_http_response;
+use retry::StreamUploadPlan;
 
 pub(crate) struct DaemonStreamUploadResponse {
     pub(crate) response: RemoteHttpResponse,
@@ -28,7 +33,7 @@ pub(crate) struct DaemonStreamUploadResponse {
 
 pub(crate) struct DaemonWorkspaceUploadStreamRequest<'a> {
     pub(crate) target: &'a StrictRemoteTarget,
-    pub(crate) path: &'a str,
+    pub(crate) upload_id: &'a str,
     pub(crate) archive_path: &'a Path,
     pub(crate) offset: u64,
     pub(crate) size_bytes: u64,
@@ -40,33 +45,24 @@ pub(crate) struct DaemonWorkspaceUploadStreamRequest<'a> {
 pub(crate) async fn stream_workspace_upload_via_daemon(
     request: DaemonWorkspaceUploadStreamRequest<'_>,
 ) -> std::result::Result<DaemonStreamUploadResponse, RemoteHttpExchangeError> {
-    let exchange = async {
-        let peer = select_upload_peer(request.target).await?;
-        let mut progress = request
-            .progress
-            .map(|input| ActiveStreamUploadProgress::new(input, request.size_bytes));
-        let response = send_stream_upload_request(
-            &peer,
-            request.path,
-            request.archive_path,
-            request.offset,
-            request.size_bytes,
-            request.sha256,
-            progress.as_mut(),
-        )
-        .await?;
+    let target = request.target;
+    let timeout = request.timeout;
+    let plan = StreamUploadPlan::from_request(&request);
+    let progress_input = request.progress;
+    let exchange = async move {
+        let peer = select_upload_peer(target).await?;
+        let mut progress =
+            progress_input.map(|input| ActiveStreamUploadProgress::new(input, plan.size_bytes()));
+        let response = retry::stream_until_complete(&plan, &peer, progress.as_mut()).await?;
         Ok(DaemonStreamUploadResponse {
             response,
             peer_node_id: peer.node_id,
         })
     };
-    tokio::time::timeout(
-        transport::phase_timeout(request.target, request.timeout),
-        exchange,
-    )
-    .await
-    .map_err(|_| errors::daemon_timeout(request.target, "workspace upload stream"))?
-    .map_err(|err| errors::daemon_error(request.target, err))
+    tokio::time::timeout(transport::phase_timeout(target, timeout), exchange)
+        .await
+        .map_err(|_| errors::daemon_timeout(target, "workspace upload stream"))?
+        .map_err(|err| errors::daemon_error(target, err))
 }
 
 async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<DaemonPeerSnapshot> {

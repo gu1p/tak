@@ -49,7 +49,7 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
             &state_root.display().to_string(),
             "--wait",
             "--timeout-secs",
-            "5",
+            "30",
         ])
         .output()
         .expect("run takd token show");

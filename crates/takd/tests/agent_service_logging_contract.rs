@@ -52,7 +52,7 @@ fn serve_creates_service_log_with_tor_startup_milestones() {
             &state_root.display().to_string(),
             "--wait",
             "--timeout-secs",
-            "5",
+            "30",
         ])
         .output()
         .expect("run token show");

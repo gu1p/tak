@@ -42,6 +42,7 @@ pub struct RemoteSpec {
 pub enum RemoteSelectionSpec {
     Sequential,
     #[default]
+    RoundRobin,
     Shuffle,
 }
 

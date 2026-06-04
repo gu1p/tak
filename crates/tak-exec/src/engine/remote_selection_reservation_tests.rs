@@ -52,6 +52,28 @@ fn shuffle_reservations_spread_concurrent_first_attempts() {
     assert_ne!(first[0].node_id, second[0].node_id);
 }
 
+#[test]
+fn round_robin_reservations_rotate_in_inventory_order() {
+    let targets = targets(&["a", "b", "c"]);
+    let state = SharedRemoteSelectionState::default();
+
+    let selected = (0..5)
+        .map(|index| {
+            state.reserve_ordered_targets_for_attempt(
+                &targets,
+                RemoteSelectionSpec::RoundRobin,
+                "//:check",
+                &format!("run-{index}"),
+                1,
+            )[0]
+            .node_id
+            .clone()
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(selected, ["a", "b", "c", "a", "b"]);
+}
+
 fn targets(ids: &[&str]) -> Vec<StrictRemoteTarget> {
     ids.iter()
         .map(|id| StrictRemoteTarget {

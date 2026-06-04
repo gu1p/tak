@@ -81,6 +81,11 @@ class ShuffleRemoteSelectionSpec(TypedDict):
     kind: Literal["shuffle"]
 
 
+# Rotate through matching remotes in order.
+class RoundRobinRemoteSelectionSpec(TypedDict):
+    kind: Literal["round_robin"]
+
+
 # Internal local execution profile emitted by `Execution.Local(...)`.
 class LocalSpec(TypedDict):
     id: str
@@ -96,7 +101,11 @@ class RemoteSpec(TypedDict):
     required_capabilities: list[str]
     transport: DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
     container: ImageContainerSpec | DockerfileContainerSpec | None
-    selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec
+    selection: (
+        SequentialRemoteSelectionSpec
+        | ShuffleRemoteSelectionSpec
+        | RoundRobinRemoteSelectionSpec
+    )
     session: NotRequired["SessionSpec"]
 
 
@@ -437,7 +446,12 @@ class Execution:
             DirectHttpsTransportSpec | AnyTransportSpec | TorOnionServiceTransportSpec | None
         ) = ...,
         container: ImageContainerSpec | DockerfileContainerSpec | None = ...,
-        selection: SequentialRemoteSelectionSpec | ShuffleRemoteSelectionSpec | None = ...,
+        selection: (
+            SequentialRemoteSelectionSpec
+            | ShuffleRemoteSelectionSpec
+            | RoundRobinRemoteSelectionSpec
+            | None
+        ) = ...,
         session: SessionSpec | None = ...,
     ) -> RemoteExecutionSpec: ...
 
@@ -505,6 +519,10 @@ class RemoteSelection:
     # Prefer less-loaded matching remotes, then spread ties deterministically.
     @staticmethod
     def Shuffle() -> ShuffleRemoteSelectionSpec: ...
+
+    # Rotate through matching remotes in order.
+    @staticmethod
+    def RoundRobin() -> RoundRobinRemoteSelectionSpec: ...
 
 
 # Session reuse namespace.

@@ -107,7 +107,7 @@ def _local_spec(runtime=None, session=None):
     return spec
 
 def _remote_selection(selection=None):
-    return selection if selection is not None else {"kind": "shuffle"}
+    return selection if selection is not None else {"kind": "round_robin"}
 
 def _remote_spec(pool=None, required_tags=None, required_capabilities=None, transport=None, runtime=None, selection=None, session=None):
     if _is_host_runtime(runtime):
@@ -136,6 +136,12 @@ def RemoteSelection_Shuffle():
     """Prefer less-loaded matching remotes, then spread ties deterministically."""
     return {
         "kind": "shuffle",
+    }
+
+def RemoteSelection_RoundRobin():
+    """Rotate through matching remotes in order."""
+    return {
+        "kind": "round_robin",
     }
 
 def Transport_DirectHttps():

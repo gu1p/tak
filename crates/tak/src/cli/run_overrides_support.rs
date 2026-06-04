@@ -128,7 +128,7 @@ fn default_remote_spec() -> RemoteSpec {
         required_capabilities: Vec::new(),
         transport_kind: RemoteTransportKind::Any,
         runtime: None,
-        selection: RemoteSelectionSpec::Shuffle,
+        selection: RemoteSelectionSpec::RoundRobin,
         session: None,
     }
 }

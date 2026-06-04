@@ -39,7 +39,7 @@ fn inline_execution_policy_on_task_resolves_ordered_placements() {
         ExecutionPlacementSpec::Remote(remote) => {
             assert_eq!(remote.pool.as_deref(), Some("build"));
             assert_eq!(remote.required_tags, vec!["builder"]);
-            assert!(matches!(remote.selection, RemoteSelectionSpec::Shuffle));
+            assert!(matches!(remote.selection, RemoteSelectionSpec::RoundRobin));
             assert_runtime_image(remote.runtime.as_ref(), "alpine:3.20");
         }
         other => panic!("expected first remote placement, got {other:?}"),

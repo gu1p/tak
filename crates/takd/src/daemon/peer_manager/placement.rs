@@ -8,6 +8,7 @@ use super::{PeerEligibility, PeerManager, PeerSnapshot};
 pub enum PeerPlacementSelection {
     #[default]
     Sequential,
+    RoundRobin,
     Shuffle,
 }
 
@@ -80,6 +81,11 @@ impl PeerManager {
             PeerPlacementSelection::Sequential => {
                 super::first_placeable_or_error(&peers, request.requirements)?
             }
+            PeerPlacementSelection::RoundRobin => round_robin_placeable_peer(
+                &peers,
+                request.requirements,
+                &mut state.round_robin_cursors,
+            )?,
             PeerPlacementSelection::Shuffle => shuffled_placeable_peer(
                 &peers,
                 request.requirements,
@@ -96,6 +102,35 @@ impl PeerManager {
         }
         Ok(selected)
     }
+}
+
+fn round_robin_placeable_peer(
+    peers: &[PeerSnapshot],
+    requirements: &PeerEligibility,
+    cursors: &mut std::collections::BTreeMap<Vec<String>, usize>,
+) -> anyhow::Result<PeerSnapshot> {
+    let candidates = peers
+        .iter()
+        .filter(|peer| super::eligibility::peer_is_placeable(peer, requirements))
+        .cloned()
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return super::first_placeable_or_error(peers, requirements);
+    }
+    let key = round_robin_key(&candidates);
+    let cursor = cursors.entry(key).or_insert(0);
+    let selected = candidates[*cursor % candidates.len()].clone();
+    *cursor = cursor.saturating_add(1) % candidates.len();
+    Ok(selected)
+}
+
+fn round_robin_key(peers: &[PeerSnapshot]) -> Vec<String> {
+    let mut key = peers
+        .iter()
+        .map(|peer| peer.node_id.clone())
+        .collect::<Vec<_>>();
+    key.sort_unstable();
+    key
 }
 
 fn shuffled_placeable_peer(

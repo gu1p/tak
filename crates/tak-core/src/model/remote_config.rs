@@ -28,6 +28,7 @@ pub struct RemoteTransportDef {
 pub enum RemoteSelectionDef {
     Sequential,
     #[default]
+    RoundRobin,
     Shuffle,
 }
 

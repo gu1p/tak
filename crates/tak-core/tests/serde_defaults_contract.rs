@@ -17,14 +17,17 @@ fn module_and_local_execution_defaults_follow_contract() {
 }
 
 #[test]
-fn remote_execution_defaults_to_shuffle_selection() {
+fn remote_execution_defaults_to_round_robin_selection() {
     let remote: RemoteDef = serde_json::from_value(json!({})).expect("remote spec");
-    assert!(matches!(remote.selection, RemoteSelectionDef::Shuffle));
+    assert!(matches!(remote.selection, RemoteSelectionDef::RoundRobin));
 }
 
 #[test]
-fn resolved_remote_selection_defaults_to_shuffle() {
-    assert_eq!(RemoteSelectionSpec::default(), RemoteSelectionSpec::Shuffle);
+fn resolved_remote_selection_defaults_to_round_robin() {
+    assert_eq!(
+        RemoteSelectionSpec::default(),
+        RemoteSelectionSpec::RoundRobin
+    );
 }
 
 #[test]

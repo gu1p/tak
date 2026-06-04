@@ -12,7 +12,7 @@ use crate::support::{RemoteRecord, run_tak_output, write_remote_inventory};
 use recording::RecordingDockerRunNode;
 
 #[test]
-fn docker_run_default_remote_selection_uses_shuffle_load_awareness() -> Result<()> {
+fn docker_run_default_remote_selection_uses_round_robin_inventory_order() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let config_root = temp.path().join("config");
     let unknown = RecordingDockerRunNode::spawn("builder-unknown", false);
@@ -32,7 +32,7 @@ fn docker_run_default_remote_selection_uses_shuffle_load_awareness() -> Result<(
     assert_command_success(&output);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).trim(),
-        "builder-known"
+        "builder-unknown"
     );
     Ok(())
 }

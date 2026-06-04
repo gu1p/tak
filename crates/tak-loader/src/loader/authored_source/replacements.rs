@@ -30,6 +30,7 @@ pub(super) fn remote_selection_method_replacement(name: &str) -> Option<&'static
     match name {
         "Sequential" => Some("RemoteSelection_Sequential"),
         "Shuffle" => Some("RemoteSelection_Shuffle"),
+        "RoundRobin" => Some("RemoteSelection_RoundRobin"),
         _ => None,
     }
 }

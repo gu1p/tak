@@ -20,5 +20,7 @@ mod local_identity;
 mod placement;
 #[path = "tests/placement_readiness.rs"]
 mod placement_readiness;
+#[path = "tests/placement_round_robin.rs"]
+mod placement_round_robin;
 #[path = "tests/support.rs"]
 mod support;

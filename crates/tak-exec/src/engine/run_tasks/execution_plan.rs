@@ -179,7 +179,10 @@ fn placement_override(
 ) -> Option<TaskPlacement> {
     let placement = cascade.placement.clone()?;
     if label == &cascade.root
-        || placement.remote_selection != RemoteSelectionSpec::Shuffle
+        || !matches!(
+            placement.remote_selection,
+            RemoteSelectionSpec::Shuffle | RemoteSelectionSpec::RoundRobin
+        )
         || placement_uses_container_session(&placement)
     {
         return Some(placement);

@@ -9,7 +9,7 @@ fn daemon_lifecycle_requests_round_trip_through_wire_contract() {
         Request::PlaceRemote(PlaceRemoteRequest {
             request_id: "place".into(),
             requirements: Default::default(),
-            selection: PeerPlacementSelection::Shuffle,
+            selection: PeerPlacementSelection::RoundRobin,
             preferred_node_id: None,
             task_run_id: "task-1".into(),
             attempt: 1,

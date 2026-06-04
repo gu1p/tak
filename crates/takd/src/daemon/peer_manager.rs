@@ -76,6 +76,7 @@ pub struct PeerManager {
 struct PeerManagerState {
     peers: BTreeMap<String, PeerEntry>,
     placement_assignments: BTreeMap<String, usize>,
+    round_robin_cursors: BTreeMap<Vec<String>, usize>,
     // Identity of the node hosting this broker, if it is also an agent. Kept so
     // the local node is never inserted into its own peer set nor selected as a
     // placement target — the local takd is a bridge, never its own executor.

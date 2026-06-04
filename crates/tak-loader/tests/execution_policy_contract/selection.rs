@@ -27,3 +27,16 @@ fn execution_policy_accepts_explicit_shuffle_remote_selection() {
         other => panic!("expected remote placement, got {other:?}"),
     }
 }
+
+#[test]
+fn execution_policy_accepts_explicit_round_robin_remote_selection() {
+    let task = load_task(
+        r#"RUNTIME=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512)); POLICY=Execution.FirstAvailable(placements=[Execution.Remote(container=RUNTIME, selection=RemoteSelection.RoundRobin())]); SPEC=module_spec(tasks=[task("check", steps=[cmd("true")], execution=POLICY)]); SPEC"#,
+    );
+    match &policy_placements(&task)[0] {
+        ExecutionPlacementSpec::Remote(remote) => {
+            assert!(matches!(remote.selection, RemoteSelectionSpec::RoundRobin))
+        }
+        other => panic!("expected remote placement, got {other:?}"),
+    }
+}

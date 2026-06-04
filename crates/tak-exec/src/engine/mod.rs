@@ -77,6 +77,10 @@ mod workspace_upload_raw_http_test_support;
 mod workspace_upload_test_support;
 #[path = "workspace_upload_tests.rs"]
 mod workspace_upload_tests;
+#[path = "workspace_upload_tor_stream_test_support.rs"]
+mod workspace_upload_tor_stream_test_support;
+#[path = "workspace_upload_tor_stream_tests.rs"]
+mod workspace_upload_tor_stream_tests;
 
 pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
 pub use public_types::{

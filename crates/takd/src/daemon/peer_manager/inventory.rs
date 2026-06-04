@@ -48,6 +48,9 @@ impl PeerManager {
         state
             .placement_assignments
             .retain(|node_id, _| next.contains_key(node_id));
+        state
+            .round_robin_cursors
+            .retain(|node_ids, _| node_ids.iter().all(|node_id| next.contains_key(node_id)));
         for remote in next.values() {
             if let Some(entry) = state.peers.get(&remote.node_id)
                 && super::reconcile::peer_identity_changed(entry, remote)

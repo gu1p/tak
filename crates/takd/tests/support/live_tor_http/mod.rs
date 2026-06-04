@@ -2,6 +2,7 @@
 
 mod endpoint;
 mod response;
+mod timeout;
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -12,14 +13,7 @@ use tokio::time::{sleep, timeout};
 
 use self::endpoint::{endpoint_host_port, endpoint_socket_addr};
 use self::response::fetch_node_info;
-
-pub fn live_tor_test_timeout() -> Duration {
-    std::env::var("TAK_LIVE_TOR_TEST_TIMEOUT_SECS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .map(Duration::from_secs)
-        .unwrap_or_else(|| Duration::from_secs(180))
-}
+pub use self::timeout::{format_live_tor_wait_timeout, live_tor_test_timeout};
 
 pub async fn wait_for_onion_node_info(root: &Path, base_url: &str, bearer_token: &str) -> NodeInfo {
     wait_for_node_info_result(root, base_url, bearer_token)
@@ -40,17 +34,30 @@ async fn wait_for_node_info_result(
     let authority = endpoint_socket_addr(base_url)?;
 
     loop {
-        if let Ok(Ok(stream)) = timeout(
+        let last_error = match timeout(
             Duration::from_secs(15),
             client.connect((host.as_str(), port)),
         )
         .await
-            && let Ok(node) = fetch_node_info(stream, &authority, bearer_token, base_url).await
         {
-            return Ok(node);
-        }
+            Ok(Ok(stream)) => {
+                match fetch_node_info(stream, &authority, bearer_token, base_url).await {
+                    Ok(node) => return Ok(node),
+                    Err(err) => err.context("fetch onion node info from separate test Arti client"),
+                }
+            }
+            Ok(Err(err)) => {
+                anyhow!(err).context("connect separate test Arti client to onion service")
+            }
+            Err(_) => anyhow!(
+                "connect separate test Arti client to onion service timed out after 15000ms"
+            ),
+        };
         if Instant::now() >= deadline {
-            bail!("timed out waiting for separate Arti client to reach {base_url}");
+            bail!(
+                "{}",
+                format_live_tor_wait_timeout(base_url, Some(&last_error))
+            );
         }
         sleep(Duration::from_secs(1)).await;
     }

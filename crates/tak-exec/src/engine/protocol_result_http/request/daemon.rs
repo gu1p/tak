@@ -92,6 +92,7 @@ fn preferred_node_id(extra_headers: &[(&str, String)]) -> Option<String> {
 fn selection_value(selection: tak_core::model::RemoteSelectionSpec) -> &'static str {
     match selection {
         tak_core::model::RemoteSelectionSpec::Sequential => "sequential",
+        tak_core::model::RemoteSelectionSpec::RoundRobin => "round_robin",
         tak_core::model::RemoteSelectionSpec::Shuffle => "shuffle",
     }
 }

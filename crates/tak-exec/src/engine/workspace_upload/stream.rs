@@ -19,11 +19,10 @@ pub(super) async fn stream_upload_for_submit(
     output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
     let upload_id = upload_id(task_run_id, attempt, &workspace.sha256);
-    let path = format!("/v2/workspaces/uploads/{upload_id}/stream?offset=0");
     let streamed = crate::engine::protocol_result_http::stream_workspace_upload_via_daemon(
         crate::engine::protocol_result_http::DaemonWorkspaceUploadStreamRequest {
             target,
-            path: &path,
+            upload_id: &upload_id,
             archive_path: &workspace.archive_path,
             offset: 0,
             size_bytes: workspace.archive_byte_len,

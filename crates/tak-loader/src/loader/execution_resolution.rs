@@ -191,10 +191,10 @@ fn resolve_remote(remote: RemoteDef, package: &str) -> Result<RemoteSpec> {
         session,
     })
 }
-
 fn resolve_remote_selection(selection: RemoteSelectionDef) -> RemoteSelectionSpec {
     match selection {
         RemoteSelectionDef::Sequential => RemoteSelectionSpec::Sequential,
+        RemoteSelectionDef::RoundRobin => RemoteSelectionSpec::RoundRobin,
         RemoteSelectionDef::Shuffle => RemoteSelectionSpec::Shuffle,
     }
 }

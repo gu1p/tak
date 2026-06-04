@@ -57,7 +57,7 @@ fn remote_override_preserves_existing_remote_requirements_and_runtime() {
 }
 
 #[test]
-fn remote_override_defaults_new_remote_spec_to_shuffle_selection() {
+fn remote_override_defaults_new_remote_spec_to_round_robin_selection() {
     let label = task_label("check");
     let spec = workspace_with_task(resolved_task(label.clone(), TaskExecutionSpec::default()));
 
@@ -78,7 +78,7 @@ fn remote_override_defaults_new_remote_spec_to_shuffle_selection() {
 
     match &overridden.tasks.get(&label).expect("task").execution {
         TaskExecutionSpec::RemoteOnly(remote) => {
-            assert_eq!(remote.selection, RemoteSelectionSpec::Shuffle);
+            assert_eq!(remote.selection, RemoteSelectionSpec::RoundRobin);
         }
         other => panic!("expected remote execution, got {other:?}"),
     }

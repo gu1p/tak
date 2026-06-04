@@ -8,9 +8,17 @@ use tak_core::model::{
 };
 
 pub(crate) fn remote_workspace(root: &std::path::Path, labels: &[TaskLabel]) -> WorkspaceSpec {
+    remote_workspace_with_selection(root, labels, RemoteSelectionSpec::Shuffle)
+}
+
+pub(crate) fn remote_workspace_with_selection(
+    root: &std::path::Path,
+    labels: &[TaskLabel],
+    selection: RemoteSelectionSpec,
+) -> WorkspaceSpec {
     let tasks = labels
         .iter()
-        .map(|label| (label.clone(), remote_task(label)))
+        .map(|label| (label.clone(), remote_task(label, selection)))
         .collect();
     WorkspaceSpec {
         project_id: "remote-jobs-test".into(),
@@ -30,9 +38,9 @@ pub(crate) fn node_count(summary: &tak_exec::RunSummary, node_id: &str) -> usize
         .count()
 }
 
-fn remote_task(label: &TaskLabel) -> ResolvedTask {
+fn remote_task(label: &TaskLabel, selection: RemoteSelectionSpec) -> ResolvedTask {
     let mut remote = remote_builder_spec(RemoteTransportKind::Direct);
-    remote.selection = RemoteSelectionSpec::Shuffle;
+    remote.selection = selection;
     ResolvedTask {
         label: label.clone(),
         doc: String::new(),

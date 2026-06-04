@@ -3,7 +3,7 @@ use crate::support;
 use std::time::Duration;
 
 use support::env::{EnvGuard, env_lock};
-use support::live_tor_http::live_tor_test_timeout;
+use support::live_tor_http::{format_live_tor_wait_timeout, live_tor_test_timeout};
 
 fn repo_root() -> &'static std::path::Path {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -13,12 +13,21 @@ fn repo_root() -> &'static std::path::Path {
 }
 
 #[test]
-fn live_tor_http_timeout_defaults_to_three_minutes() {
+fn live_tor_http_timeout_defaults_to_seven_minutes() {
     let _lock = env_lock();
     let mut env = EnvGuard::default();
     env.remove("TAK_LIVE_TOR_TEST_TIMEOUT_SECS");
 
-    assert_eq!(live_tor_test_timeout(), Duration::from_secs(180));
+    assert_eq!(live_tor_test_timeout(), Duration::from_secs(420));
+}
+
+#[test]
+fn live_tor_http_timeout_message_includes_last_attempt_detail() {
+    let err = anyhow::anyhow!("unable to download hidden service descriptor");
+    let message = format_live_tor_wait_timeout("http://builder.onion", Some(&err));
+
+    assert!(message.contains("http://builder.onion"));
+    assert!(message.contains("last attempt: unable to download hidden service descriptor"));
 }
 
 #[test]
