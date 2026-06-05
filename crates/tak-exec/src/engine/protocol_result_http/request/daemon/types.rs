@@ -83,6 +83,10 @@ pub(super) enum DaemonResponse {
     },
     Error {
         message: String,
+        #[serde(default)]
+        code: Option<String>,
+        #[serde(default)]
+        retryable: Option<bool>,
     },
 }
 

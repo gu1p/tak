@@ -1,6 +1,6 @@
 use takd::{
     CancelTaskRequest, GetOutputRangeRequest, GetTaskResultRequest, PeerPlacementSelection,
-    PlaceRemoteRequest, Request, StreamTaskEventsRequest,
+    PlaceRemoteRequest, Request, Response, StreamTaskEventsRequest,
 };
 
 #[test]
@@ -42,5 +42,30 @@ fn daemon_lifecycle_requests_round_trip_through_wire_contract() {
         let encoded = serde_json::to_string(&request).expect("encode request");
         let decoded: Request = serde_json::from_str(&encoded).expect("decode request");
         assert_eq!(format!("{decoded:?}"), format!("{request:?}"));
+    }
+}
+
+#[test]
+fn daemon_error_responses_carry_structured_retry_metadata() {
+    let response = Response::Error {
+        request_id: "place".into(),
+        message: "all Tor peers are unreachable".into(),
+        code: Some("all_tor_peers_unreachable".into()),
+        retryable: Some(true),
+    };
+
+    let encoded = serde_json::to_string(&response).expect("encode response");
+    assert!(encoded.contains("\"code\":\"all_tor_peers_unreachable\""));
+    assert!(encoded.contains("\"retryable\":true"));
+
+    let decoded: Response = serde_json::from_str(&encoded).expect("decode response");
+    match decoded {
+        Response::Error {
+            code, retryable, ..
+        } => {
+            assert_eq!(code.as_deref(), Some("all_tor_peers_unreachable"));
+            assert_eq!(retryable, Some(true));
+        }
+        other => panic!("expected error response, got {other:?}"),
     }
 }

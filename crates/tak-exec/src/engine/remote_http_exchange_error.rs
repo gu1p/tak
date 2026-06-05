@@ -9,6 +9,7 @@ pub(crate) enum RemoteHttpExchangeErrorKind {
 pub(crate) struct RemoteHttpExchangeError {
     pub(crate) kind: RemoteHttpExchangeErrorKind,
     pub(crate) message: String,
+    retryable: bool,
 }
 
 impl RemoteHttpExchangeError {
@@ -16,6 +17,7 @@ impl RemoteHttpExchangeError {
         Self {
             kind: RemoteHttpExchangeErrorKind::Timeout,
             message,
+            retryable: true,
         }
     }
 
@@ -23,6 +25,7 @@ impl RemoteHttpExchangeError {
         Self {
             kind: RemoteHttpExchangeErrorKind::Connect,
             message,
+            retryable: true,
         }
     }
 
@@ -30,7 +33,20 @@ impl RemoteHttpExchangeError {
         Self {
             kind: RemoteHttpExchangeErrorKind::Other,
             message,
+            retryable: false,
         }
+    }
+
+    pub(crate) fn retryable_other(message: String) -> Self {
+        Self {
+            kind: RemoteHttpExchangeErrorKind::Other,
+            message,
+            retryable: true,
+        }
+    }
+
+    pub(crate) fn is_retryable(&self) -> bool {
+        self.retryable
     }
 }
 

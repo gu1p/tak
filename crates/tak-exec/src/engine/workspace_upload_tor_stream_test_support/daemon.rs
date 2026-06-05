@@ -117,7 +117,7 @@ async fn serve_daemon_request(
     } else if first_line.contains(r#""type":"ForwardRemoteHttp""#) {
         status_response(&first_line, state).await
     } else {
-        serde_json::json!({"type": "Error", "message": "unexpected request"})
+        serde_json::json!({"type": "Error", "message": "unexpected request", "retryable": false})
     };
     let stream = reader.get_mut();
     let _ = stream.write_all(response.to_string().as_bytes()).await;

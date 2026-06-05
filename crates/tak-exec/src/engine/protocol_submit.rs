@@ -12,7 +12,7 @@ use crate::remote_protocol_codec::{RemoteSubmitPayloadInput, build_remote_submit
 use super::protocol_result_http::{
     RemoteHttpResponse, remote_protocol_http_request_with_extra_headers,
 };
-use super::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
+use super::remote_submit_failure::RemoteSubmitFailure;
 
 /// Submits one remote attempt after successful preflight.
 ///
@@ -65,10 +65,7 @@ pub(crate) async fn remote_protocol_submit(
         fused_member_execution_labels: submit.fused_member_execution_labels,
         workspace_upload: workspace_upload.upload.as_ref(),
     })
-    .map_err(|err| RemoteSubmitFailure {
-        kind: RemoteSubmitFailureKind::Other,
-        message: format!("{err:#}"),
-    })?
+    .map_err(|err| RemoteSubmitFailure::other(format!("{err:#}")))?
     .encode_to_vec();
     let response = remote_protocol_http_request_with_extra_headers(
         submit.target,
@@ -80,57 +77,46 @@ pub(crate) async fn remote_protocol_submit(
         &preferred_node_header,
     )
     .await
-    .map_err(|err| RemoteSubmitFailure {
-        kind: RemoteSubmitFailureKind::Other,
-        message: err.to_string(),
+    .map_err(|err| {
+        if err.is_retryable() {
+            RemoteSubmitFailure::retryable_other(err.to_string())
+        } else {
+            RemoteSubmitFailure::other(err.to_string())
+        }
     })?;
     let status = response.status;
     let response_body = &response.body;
 
     if status == 401 || status == 403 {
-        return Err(RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Auth,
-            message: format!(
-                "infra error: remote node {} auth failed during submit with HTTP {}",
-                submit.target.node_id, status
-            ),
-        });
+        return Err(RemoteSubmitFailure::auth(format!(
+            "infra error: remote node {} auth failed during submit with HTTP {}",
+            submit.target.node_id, status
+        )));
     }
     if status != 200 {
-        return Err(RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!(
-                "infra error: remote node {} submit failed with HTTP {}",
-                submit.target.node_id, status
-            ),
-        });
+        return Err(RemoteSubmitFailure::other(format!(
+            "infra error: remote node {} submit failed with HTTP {}",
+            submit.target.node_id, status
+        )));
     }
 
-    let parsed =
-        SubmitTaskResponse::decode(response_body.as_slice()).map_err(|_| RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!(
-                "infra error: remote node {} returned invalid protobuf for submit",
-                submit.target.node_id
-            ),
-        })?;
+    let parsed = SubmitTaskResponse::decode(response_body.as_slice()).map_err(|_| {
+        RemoteSubmitFailure::other(format!(
+            "infra error: remote node {} returned invalid protobuf for submit",
+            submit.target.node_id
+        ))
+    })?;
     if !parsed.accepted {
-        return Err(RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!(
-                "infra error: remote node {} rejected submit for task {} attempt {}",
-                submit.target.node_id, submit.task.label, submit.attempt
-            ),
-        });
+        return Err(RemoteSubmitFailure::other(format!(
+            "infra error: remote node {} rejected submit for task {} attempt {}",
+            submit.target.node_id, submit.task.label, submit.attempt
+        )));
     }
     if !parsed.remote_worker {
-        return Err(RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!(
-                "infra error: remote node {} returned submit acknowledgement without remote worker support",
-                submit.target.node_id
-            ),
-        });
+        return Err(RemoteSubmitFailure::other(format!(
+            "infra error: remote node {} returned submit acknowledgement without remote worker support",
+            submit.target.node_id
+        )));
     }
 
     Ok(target_after_submit(submit.target, &response))

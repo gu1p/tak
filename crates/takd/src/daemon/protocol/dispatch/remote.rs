@@ -18,7 +18,7 @@ pub(super) async fn place_remote_task(
 ) -> Result<Response> {
     let request_id = payload.request_id;
     let task_handle = tasks.register(&peer.node_id, &payload.task_run_id)?;
-    let forwarded = forward_peer_request(
+    let forwarded = match forward_peer_request(
         &peer.node_id,
         "POST",
         "/v1/tasks/submit",
@@ -28,7 +28,17 @@ pub(super) async fn place_remote_task(
         broker,
     )
     .await
-    .map_err(|err| anyhow!("remote node {} unavailable: {err:#}", peer.node_id))?;
+    {
+        Ok(forwarded) => forwarded,
+        Err(err) => {
+            return Ok(Response::classified_error(
+                request_id,
+                format!("remote node {} unavailable: {err:#}", peer.node_id),
+                "remote_placement_transport_failed",
+                true,
+            ));
+        }
+    };
     Ok(Response::RemotePlaced {
         request_id,
         task_handle,

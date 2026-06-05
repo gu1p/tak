@@ -55,7 +55,36 @@ pub enum Response {
     Error {
         request_id: String,
         message: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        retryable: Option<bool>,
     },
+}
+
+impl Response {
+    pub fn error(request_id: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::Error {
+            request_id: request_id.into(),
+            message: message.into(),
+            code: None,
+            retryable: Some(false),
+        }
+    }
+
+    pub fn classified_error(
+        request_id: impl Into<String>,
+        message: impl Into<String>,
+        code: impl Into<String>,
+        retryable: bool,
+    ) -> Self {
+        Self::Error {
+            request_id: request_id.into(),
+            message: message.into(),
+            code: Some(code.into()),
+            retryable: Some(retryable),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

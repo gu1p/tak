@@ -22,7 +22,7 @@ mod resource_limits;
 #[path = "daemon/stream_upload.rs"]
 mod stream_upload;
 
-use errors::{daemon_error, daemon_timeout};
+use errors::{DaemonLocalError, daemon_error, daemon_timeout};
 use resource_limits::runtime_resource_limits;
 pub(crate) use stream_upload::DaemonWorkspaceUploadStreamRequest;
 pub(crate) use stream_upload::{StreamUploadProgress, stream_workspace_upload_via_daemon};
@@ -40,7 +40,7 @@ pub(super) async fn request_via_daemon(
         .map_err(|err| RemoteHttpExchangeError::other(format!("{err:#}")))?;
     let exchange = async {
         let response = send_daemon_request(&transport::broker_socket_path(), request).await?;
-        daemon_response_to_http(target, response)
+        daemon_response_to_http(response)
     };
     tokio::time::timeout(timeout, exchange)
         .await
@@ -98,11 +98,11 @@ fn selection_value(selection: tak_core::model::RemoteSelectionSpec) -> &'static 
 }
 
 async fn send_daemon_request(socket_path: &Path, request: DaemonRequest) -> Result<DaemonResponse> {
-    let stream = UnixStream::connect(socket_path).await.with_context(|| {
-        format!(
-            "Tor remote execution requires local takd serve; local takd daemon unavailable at {}",
-            socket_path.display()
-        )
+    let stream = UnixStream::connect(socket_path).await.map_err(|err| {
+        anyhow::Error::new(DaemonLocalError::connect(format!(
+            "Tor remote execution requires local takd serve; local takd daemon unavailable at {}: {err}",
+            socket_path.display(),
+        )))
     })?;
     let payload = serde_json::to_string(&request)?;
     let (reader_half, mut writer_half) = stream.into_split();
@@ -119,10 +119,7 @@ async fn send_daemon_request(socket_path: &Path, request: DaemonRequest) -> Resu
     serde_json::from_str(line.trim_end()).context("failed to decode daemon response")
 }
 
-fn daemon_response_to_http(
-    target: &StrictRemoteTarget,
-    response: DaemonResponse,
-) -> Result<RemoteHttpResponse> {
+fn daemon_response_to_http(response: DaemonResponse) -> Result<RemoteHttpResponse> {
     match response {
         DaemonResponse::RemotePlaced {
             task_handle,
@@ -150,15 +147,11 @@ fn daemon_response_to_http(
             daemon_peer_node_id: None,
             daemon_peer_endpoint: None,
         }),
-        DaemonResponse::Error { message } => {
-            if target.is_daemon_tor_placement() {
-                bail!("local takd daemon failed during remote placement: {message}");
-            }
-            bail!(
-                "local takd daemon failed while contacting remote node {}: {message}",
-                target.node_id
-            )
-        }
+        DaemonResponse::Error {
+            message,
+            code,
+            retryable,
+        } => Err(DaemonLocalError::response(message, code, retryable).into()),
         DaemonResponse::PeersSnapshot { .. } => {
             bail!("local takd daemon returned peer list for remote HTTP request")
         }

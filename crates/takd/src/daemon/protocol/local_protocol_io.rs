@@ -49,10 +49,7 @@ async fn decode_and_dispatch_request(
 }
 
 fn protocol_error_response(raw_request: &str, err: anyhow::Error) -> Response {
-    Response::Error {
-        request_id: request_id_from_raw_request(raw_request),
-        message: format!("{err:#}"),
-    }
+    Response::error(request_id_from_raw_request(raw_request), format!("{err:#}"))
 }
 
 fn request_id_from_raw_request(raw_request: &str) -> String {

@@ -8,6 +8,37 @@ pub(crate) enum RemoteSubmitFailureKind {
 pub(crate) struct RemoteSubmitFailure {
     pub(crate) kind: RemoteSubmitFailureKind,
     pub(crate) message: String,
+    pub(crate) retryable: bool,
+}
+
+impl RemoteSubmitFailure {
+    pub(crate) fn other(message: String) -> Self {
+        Self {
+            kind: RemoteSubmitFailureKind::Other,
+            message,
+            retryable: false,
+        }
+    }
+
+    pub(crate) fn retryable_other(message: String) -> Self {
+        Self {
+            kind: RemoteSubmitFailureKind::Other,
+            message,
+            retryable: true,
+        }
+    }
+
+    pub(crate) fn auth(message: String) -> Self {
+        Self {
+            kind: RemoteSubmitFailureKind::Auth,
+            message,
+            retryable: false,
+        }
+    }
+
+    pub(crate) fn is_retryable(&self) -> bool {
+        self.retryable
+    }
 }
 
 impl std::fmt::Display for RemoteSubmitFailure {

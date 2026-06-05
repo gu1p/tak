@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use super::super::{
     PeerEligibility, PeerManager, PeerPlacementRequest, PeerPlacementSelection, PeerSnapshot,
+    PlacementFailure,
 };
 use super::support::{inventory, ping, record};
 
@@ -51,7 +52,7 @@ fn manager() -> PeerManager {
     PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]))
 }
 
-fn select(peers: &PeerManager) -> anyhow::Result<PeerSnapshot> {
+fn select(peers: &PeerManager) -> Result<PeerSnapshot, PlacementFailure> {
     peers.select_placeable(PeerPlacementRequest {
         requirements: &PeerEligibility::default(),
         selection: PeerPlacementSelection::Sequential,

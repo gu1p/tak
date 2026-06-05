@@ -15,6 +15,7 @@ mod retry;
 mod status;
 
 use super::errors;
+use super::errors::DaemonLocalError;
 use super::lifecycle::request_id;
 use super::types::{DaemonPeerSnapshot, DaemonRequest, DaemonResponse};
 use super::{RemoteHttpResponse, node_requirements, send_daemon_request};
@@ -75,7 +76,11 @@ async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<DaemonPeerSna
             .into_iter()
             .next()
             .ok_or_else(|| anyhow!("all Tor peers are unreachable for workspace upload")),
-        DaemonResponse::Error { message } => bail!("{message}"),
+        DaemonResponse::Error {
+            message,
+            code,
+            retryable,
+        } => Err(DaemonLocalError::response(message, code, retryable).into()),
         _ => bail!("local takd returned unexpected response for peer selection"),
     }
 }

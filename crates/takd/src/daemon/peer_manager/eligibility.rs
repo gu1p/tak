@@ -4,9 +4,11 @@ use serde::{Deserialize, Serialize};
 use super::{PeerSnapshot, PeerState};
 
 mod capacity_diagnostic;
+mod placement_failure;
 mod resource_summary;
 
 use capacity_diagnostic::{capacity_diagnostic, has_resource_requirements};
+pub use placement_failure::PlacementFailure;
 use resource_summary::PeerResources;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -111,7 +113,7 @@ pub fn first_eligible_or_error(
 pub fn first_placeable_or_error(
     peers: &[PeerSnapshot],
     requirements: &PeerEligibility,
-) -> Result<PeerSnapshot> {
+) -> std::result::Result<PeerSnapshot, PlacementFailure> {
     if let Some(peer) = peers
         .iter()
         .find(|snapshot| peer_is_placeable(snapshot, requirements))
@@ -122,24 +124,28 @@ pub fn first_placeable_or_error(
     Err(placement_diagnostic(peers, requirements))
 }
 
-fn placement_diagnostic(peers: &[PeerSnapshot], requirements: &PeerEligibility) -> anyhow::Error {
+fn placement_diagnostic(
+    peers: &[PeerSnapshot],
+    requirements: &PeerEligibility,
+) -> PlacementFailure {
     if peers.is_empty() {
-        return anyhow!("no configured Tor peers");
+        return PlacementFailure::NoConfiguredPeers;
     }
-    if all_state(peers, PeerState::Unreachable) {
-        return anyhow!("all Tor peers are unreachable");
-    }
-    if all_state(peers, PeerState::AuthFailed) {
-        return anyhow!("all Tor peers are auth failed");
-    }
-    if all_state(peers, PeerState::ProtocolMismatch) {
-        return anyhow!("all Tor peers have protocol mismatch");
-    }
-    if !peers
+    let matching_peers = peers
         .iter()
-        .any(|snapshot| peer_matches_inventory_requirements(snapshot, requirements))
-    {
-        return anyhow!("no Tor peers match pool/tag/capability/transport requirements");
+        .filter(|snapshot| peer_matches_inventory_requirements(snapshot, requirements))
+        .collect::<Vec<_>>();
+    if matching_peers.is_empty() {
+        return PlacementFailure::NoMatchingPeers;
+    }
+    if all_matching_state(&matching_peers, PeerState::AuthFailed) {
+        return PlacementFailure::AllPeersAuthFailed;
+    }
+    if all_matching_state(&matching_peers, PeerState::ProtocolMismatch) {
+        return PlacementFailure::AllPeersProtocolMismatch;
+    }
+    if all_matching_state(&matching_peers, PeerState::Unreachable) {
+        return PlacementFailure::AllPeersUnreachable;
     }
     if has_resource_requirements(requirements)
         && peers.iter().any(|snapshot| {
@@ -147,11 +153,13 @@ fn placement_diagnostic(peers: &[PeerSnapshot], requirements: &PeerEligibility) 
                 && peer_matches_inventory_requirements(snapshot, requirements)
         })
     {
-        return anyhow!("{}", capacity_diagnostic(peers, requirements));
+        return PlacementFailure::ResourceRequirementsExceedWorkerCapacity {
+            diagnostic: capacity_diagnostic(peers, requirements),
+        };
     }
-    anyhow!("no placeable Tor peers")
+    PlacementFailure::NoPlaceablePeers
 }
 
-fn all_state(peers: &[PeerSnapshot], state: PeerState) -> bool {
+fn all_matching_state(peers: &[&PeerSnapshot], state: PeerState) -> bool {
     peers.iter().all(|snapshot| snapshot.state == state)
 }

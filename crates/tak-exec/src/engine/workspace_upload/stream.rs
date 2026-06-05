@@ -5,10 +5,10 @@ use tak_core::model::TaskLabel;
 use tak_proto::{AppendWorkspaceUploadResponse, WorkspaceUploadRef};
 
 use super::failures::{submit_decode_error, submit_protocol_error, submit_transport_error};
-use super::{WorkspaceUploadOutcome, upload_timeout};
+use super::{WorkspaceUploadOutcome, stream_upload_timeout};
 use crate::engine::TaskOutputObserver;
 use crate::engine::remote_models::{RemoteWorkspaceStage, StrictRemoteTarget};
-use crate::engine::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
+use crate::engine::remote_submit_failure::RemoteSubmitFailure;
 
 pub(super) async fn stream_upload_for_submit(
     target: &StrictRemoteTarget,
@@ -27,7 +27,7 @@ pub(super) async fn stream_upload_for_submit(
             offset: 0,
             size_bytes: workspace.archive_byte_len,
             sha256: &workspace.sha256,
-            timeout: upload_timeout(),
+            timeout: stream_upload_timeout(workspace.archive_byte_len),
             progress: task_label.map(|task_label| {
                 crate::engine::protocol_result_http::StreamUploadProgress {
                     observer: output_observer,
@@ -49,13 +49,10 @@ pub(super) async fn stream_upload_for_submit(
     let parsed = AppendWorkspaceUploadResponse::decode(streamed.response.body.as_slice())
         .map_err(|_| submit_decode_error(target, "workspace upload stream"))?;
     if !parsed.complete {
-        return Err(RemoteSubmitFailure {
-            kind: RemoteSubmitFailureKind::Other,
-            message: format!(
-                "infra error: remote node {} workspace upload stream stopped at byte {}",
-                streamed.peer_node_id, parsed.offset
-            ),
-        });
+        return Err(RemoteSubmitFailure::other(format!(
+            "infra error: remote node {} workspace upload stream stopped at byte {}",
+            streamed.peer_node_id, parsed.offset
+        )));
     }
     Ok(WorkspaceUploadOutcome {
         upload: Some(WorkspaceUploadRef {
@@ -67,8 +64,8 @@ pub(super) async fn stream_upload_for_submit(
     })
 }
 
-fn upload_id(task_run_id: &str, attempt: u32, sha256: &str) -> String {
-    format!("{task_run_id}-{attempt}-{sha256}")
+fn upload_id(task_run_id: &str, _attempt: u32, sha256: &str) -> String {
+    format!("{task_run_id}-{sha256}")
         .chars()
         .map(|value| {
             if value.is_ascii_alphanumeric() || matches!(value, '.' | '-' | '_') {

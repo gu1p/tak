@@ -18,6 +18,8 @@ mod inventory;
 mod local_identity;
 #[path = "tests/placement.rs"]
 mod placement;
+#[path = "tests/placement_failure_classification.rs"]
+mod placement_failure_classification;
 #[path = "tests/placement_readiness.rs"]
 mod placement_readiness;
 #[path = "tests/placement_round_robin.rs"]

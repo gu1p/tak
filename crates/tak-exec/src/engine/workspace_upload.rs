@@ -8,7 +8,7 @@ use tak_proto::{BeginWorkspaceUploadRequest, BeginWorkspaceUploadResponse, Works
 use super::TaskOutputObserver;
 use super::protocol_result_http::remote_protocol_http_request;
 use super::remote_models::{RemoteWorkspaceStage, StrictRemoteTarget};
-use super::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
+use super::remote_submit_failure::RemoteSubmitFailure;
 
 mod failures;
 mod legacy;
@@ -75,12 +75,11 @@ impl WorkspaceUploadOutcome {
 fn read_workspace_archive(
     workspace: &RemoteWorkspaceStage,
 ) -> Result<Vec<u8>, RemoteSubmitFailure> {
-    std::fs::read(&workspace.archive_path).map_err(|err| RemoteSubmitFailure {
-        kind: RemoteSubmitFailureKind::Other,
-        message: format!(
+    std::fs::read(&workspace.archive_path).map_err(|err| {
+        RemoteSubmitFailure::other(format!(
             "failed reading staged workspace archive {}: {err}",
             workspace.archive_path.display()
-        ),
+        ))
     })
 }
 
@@ -116,4 +115,8 @@ async fn begin_upload(
 
 fn upload_timeout() -> Duration {
     Duration::from_secs(30)
+}
+
+pub(super) fn stream_upload_timeout(size_bytes: u64) -> Duration {
+    Duration::from_secs(120 + size_bytes.div_ceil(24 * 1024))
 }

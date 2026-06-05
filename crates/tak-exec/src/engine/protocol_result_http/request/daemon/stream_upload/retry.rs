@@ -1,9 +1,10 @@
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use prost::Message;
 use tak_proto::AppendWorkspaceUploadResponse;
 
+use super::super::errors::DaemonLocalError;
 use super::super::types::DaemonPeerSnapshot;
 use super::progress::ActiveStreamUploadProgress;
 use super::status::{completed_status_response, upload_status};
@@ -130,12 +131,13 @@ fn retry_same_offset(
     err: &anyhow::Error,
 ) -> Result<()> {
     if *retries_at_offset >= MAX_RETRIES_PER_COMMITTED_OFFSET {
-        bail!(
+        return Err(DaemonLocalError::retryable_client(format!(
             "workspace upload stream retries exhausted for remote node {} at offset {} after {} retries; last error: {err:#}",
             peer.node_id,
             offset,
             MAX_RETRIES_PER_COMMITTED_OFFSET
-        );
+        ))
+        .into());
     }
     *retries_at_offset += 1;
     Ok(())

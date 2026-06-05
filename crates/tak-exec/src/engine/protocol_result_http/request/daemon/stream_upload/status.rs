@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail};
 use prost::Message;
 use tak_proto::{AppendWorkspaceUploadResponse, BeginWorkspaceUploadResponse};
 
+use super::super::errors::DaemonLocalError;
 use super::super::lifecycle::request_id;
 use super::super::send_daemon_request;
 use super::super::types::{DaemonPeerSnapshot, DaemonRequest, DaemonResponse};
@@ -30,7 +31,11 @@ pub(super) async fn upload_status(
         DaemonResponse::RemoteHttpResponse { status, .. } => {
             bail!("workspace upload status failed with HTTP {status}")
         }
-        DaemonResponse::Error { message } => bail!("{message}"),
+        DaemonResponse::Error {
+            message,
+            code,
+            retryable,
+        } => Err(DaemonLocalError::response(message, code, retryable).into()),
         _ => bail!("local takd returned unexpected response for upload status"),
     }
 }

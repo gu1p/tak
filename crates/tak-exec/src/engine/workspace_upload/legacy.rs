@@ -4,7 +4,7 @@ use tak_proto::{AppendWorkspaceUploadResponse, FinishWorkspaceUploadResponse};
 use super::failures::{submit_decode_error, submit_protocol_error};
 use super::requests::{append_chunk_request, finish_upload_request};
 use crate::engine::remote_models::StrictRemoteTarget;
-use crate::engine::remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind};
+use crate::engine::remote_submit_failure::RemoteSubmitFailure;
 
 const WORKSPACE_UPLOAD_CHUNK_BYTES: usize = 1024 * 1024;
 
@@ -22,13 +22,10 @@ pub(super) async fn upload_and_finish_chunks(
             FinishUpload::Incomplete { next_offset } => offset = next_offset,
         }
     }
-    Err(RemoteSubmitFailure {
-        kind: RemoteSubmitFailureKind::Other,
-        message: format!(
-            "infra error: remote node {} workspace upload finish did not complete",
-            target.node_id
-        ),
-    })
+    Err(RemoteSubmitFailure::other(format!(
+        "infra error: remote node {} workspace upload finish did not complete",
+        target.node_id
+    )))
 }
 
 async fn upload_chunks(

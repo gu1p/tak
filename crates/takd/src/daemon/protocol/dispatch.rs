@@ -29,10 +29,7 @@ pub(super) async fn dispatch_request(
             let request_id = payload.request_id.clone();
 
             if let Err(err) = ensure_valid_request(&payload) {
-                return Ok(Response::Error {
-                    request_id,
-                    message: err.to_string(),
-                });
+                return Ok(Response::error(request_id, err.to_string()));
             }
 
             let mut guard = manager
@@ -58,10 +55,7 @@ pub(super) async fn dispatch_request(
                     request_id: payload.request_id,
                     ttl_ms: payload.ttl_ms,
                 }),
-                Err(err) => Ok(Response::Error {
-                    request_id: payload.request_id,
-                    message: err.to_string(),
-                }),
+                Err(err) => Ok(Response::error(payload.request_id, err.to_string())),
             }
         }
         Request::ReleaseLease(payload) => {
@@ -72,10 +66,7 @@ pub(super) async fn dispatch_request(
                 Ok(()) => Ok(Response::LeaseReleased {
                     request_id: payload.request_id,
                 }),
-                Err(err) => Ok(Response::Error {
-                    request_id: payload.request_id,
-                    message: err.to_string(),
-                }),
+                Err(err) => Ok(Response::error(payload.request_id, err.to_string())),
             }
         }
         Request::Status(payload) => {
@@ -142,10 +133,12 @@ pub(super) async fn dispatch_request(
                         error = %err,
                         "remote placement failed"
                     );
-                    Ok(Response::Error {
-                        request_id: payload.request_id,
-                        message: err.to_string(),
-                    })
+                    Ok(Response::classified_error(
+                        payload.request_id,
+                        err.to_string(),
+                        err.code(),
+                        err.is_retryable(),
+                    ))
                 }
             }
         }
@@ -158,30 +151,21 @@ pub(super) async fn dispatch_request(
                 Ok(task) => {
                     remote::stream_task_events(request_id, task, payload, peers, broker).await
                 }
-                Err(err) => Ok(Response::Error {
-                    request_id,
-                    message: err.to_string(),
-                }),
+                Err(err) => Ok(Response::error(request_id, err.to_string())),
             }
         }
         Request::CancelTask(payload) => {
             let request_id = payload.request_id.clone();
             match tasks.resolve(&payload.task_handle) {
                 Ok(task) => remote::cancel_task(request_id, task, payload, peers, broker).await,
-                Err(err) => Ok(Response::Error {
-                    request_id,
-                    message: err.to_string(),
-                }),
+                Err(err) => Ok(Response::error(request_id, err.to_string())),
             }
         }
         Request::GetTaskResult(payload) => {
             let request_id = payload.request_id.clone();
             match tasks.resolve(&payload.task_handle) {
                 Ok(task) => remote::get_task_result(request_id, task, peers, broker).await,
-                Err(err) => Ok(Response::Error {
-                    request_id,
-                    message: err.to_string(),
-                }),
+                Err(err) => Ok(Response::error(request_id, err.to_string())),
             }
         }
         Request::GetOutputRange(payload) => {
@@ -190,10 +174,7 @@ pub(super) async fn dispatch_request(
                 Ok(task) => {
                     remote::get_output_range(request_id, task, payload, peers, broker).await
                 }
-                Err(err) => Ok(Response::Error {
-                    request_id,
-                    message: err.to_string(),
-                }),
+                Err(err) => Ok(Response::error(request_id, err.to_string())),
             }
         }
     }

@@ -22,7 +22,7 @@ pub use daemon::lease::{
 };
 pub use daemon::peer_manager::{
     LocalNodeIdentity, PeerEligibility, PeerManager, PeerPlacementSelection, PeerSnapshot,
-    PeerState,
+    PeerState, PlacementFailure,
 };
 pub use daemon::protocol::{
     AcquireLeaseRequest, CancelTaskRequest, ClientInfo, ForwardRemoteHttpRequest,

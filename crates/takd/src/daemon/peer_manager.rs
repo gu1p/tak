@@ -18,7 +18,9 @@ mod reconcile;
 mod state;
 
 use backoff::next_retry_due_ms;
-pub use eligibility::{PeerEligibility, first_eligible_or_error, first_placeable_or_error};
+pub use eligibility::{
+    PeerEligibility, PlacementFailure, first_eligible_or_error, first_placeable_or_error,
+};
 use eligibility::{peer_is_eligible, peer_is_placeable};
 use heartbeat::{HeartbeatTarget, duration_ms, ping_peer, should_ping, unix_epoch_ms};
 pub use local_identity::LocalNodeIdentity;

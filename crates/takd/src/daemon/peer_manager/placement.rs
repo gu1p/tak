@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::{PeerEligibility, PeerManager, PeerSnapshot};
+use super::{PeerEligibility, PeerManager, PeerSnapshot, PlacementFailure};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -62,7 +62,7 @@ impl PeerManager {
     pub fn select_placeable(
         &self,
         request: PeerPlacementRequest<'_>,
-    ) -> anyhow::Result<PeerSnapshot> {
+    ) -> Result<PeerSnapshot, PlacementFailure> {
         let mut state = self.lock_state();
         let local_identity = state.local_identity.clone();
         let peers = state
@@ -108,7 +108,7 @@ fn round_robin_placeable_peer(
     peers: &[PeerSnapshot],
     requirements: &PeerEligibility,
     cursors: &mut std::collections::BTreeMap<Vec<String>, usize>,
-) -> anyhow::Result<PeerSnapshot> {
+) -> Result<PeerSnapshot, PlacementFailure> {
     let candidates = peers
         .iter()
         .filter(|peer| super::eligibility::peer_is_placeable(peer, requirements))
@@ -139,7 +139,7 @@ fn shuffled_placeable_peer(
     assignments: &std::collections::BTreeMap<String, usize>,
     task_run_id: &str,
     attempt: u32,
-) -> anyhow::Result<PeerSnapshot> {
+) -> Result<PeerSnapshot, PlacementFailure> {
     let mut candidates = peers
         .iter()
         .filter(|peer| super::eligibility::peer_is_placeable(peer, requirements))

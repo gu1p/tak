@@ -3,7 +3,7 @@ use tak_core::model::ResolvedTask;
 
 use crate::engine::TaskOutputObserver;
 use crate::engine::preflight_fallback::preflight_ordered_remote_target;
-use crate::engine::remote_models::TaskPlacement;
+use crate::engine::remote_models::{StrictRemoteTarget, TaskPlacement};
 use crate::engine::remote_selection::SharedRemoteSelectionState;
 
 pub(super) async fn refresh_remote_target_for_attempt(
@@ -15,6 +15,14 @@ pub(super) async fn refresh_remote_target_for_attempt(
     remote_selection_state: &SharedRemoteSelectionState,
 ) -> Result<()> {
     if attempt == 1 && placement.strict_remote_target.is_some() {
+        return Ok(());
+    }
+    if placement.ordered_remote_targets.is_empty()
+        && placement
+            .strict_remote_target
+            .as_ref()
+            .is_some_and(StrictRemoteTarget::is_daemon_tor_placement)
+    {
         return Ok(());
     }
     let ordered = remote_selection_state.reserve_ordered_targets_for_attempt(

@@ -15,6 +15,7 @@ pub mod remote_mismatch;
 pub mod remote_progress_wait;
 pub mod remote_runtime_spec;
 pub mod remote_worker_runtime;
+pub mod retryable_tor_daemon;
 pub mod servers;
 pub mod status_observer;
 pub mod task_spec;
@@ -40,6 +41,7 @@ pub use remote_runtime_spec::alpine_spec;
 pub use remote_worker_runtime::{
     CollectingObserver, configure_fake_docker_env, configure_real_docker_env, worker_spec,
 };
+pub use retryable_tor_daemon::RetryableTorDaemon;
 pub use servers::{
     AuthRejectingSubmitServer, DelayedEventsServer, EventPollPlan, NonTerminalEventsServer,
     RecordingEvents, RecordingLeaseConfig, RecordingLeaseServer, RecordingRemoteServer,

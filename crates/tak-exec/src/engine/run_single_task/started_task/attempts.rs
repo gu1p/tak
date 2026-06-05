@@ -21,6 +21,10 @@ use super::super::super::{
     LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStatusPhase,
 };
 use super::super::events::emit_finished;
+use setup_retry::{can_retry_remote_setup, wait_before_remote_setup_retry};
+
+#[path = "attempts/setup_retry.rs"]
+mod setup_retry;
 
 pub(super) struct StartedAttemptContext<'a> {
     pub(super) task_run_id: &'a str,
@@ -60,7 +64,15 @@ pub(super) async fn run_attempts(
         }
         .await;
         release_attempt_lease(lease.as_mut(), task, options).await?;
-        let outcome = attempt_result?;
+        let outcome = match attempt_result {
+            Ok(outcome) => outcome,
+            Err(err) if can_retry_remote_setup(task, current_attempt, &err) => {
+                wait_before_remote_setup_retry(task, options, current_attempt, &context, &err)
+                    .await?;
+                continue;
+            }
+            Err(err) => return Err(err),
+        };
         if outcome.attempt_success || !can_retry(task, current_attempt, outcome.last_exit_code) {
             let result = build_task_result(current_attempt, outcome, &context);
             sessions.finish_task(context.session, result.success)?;

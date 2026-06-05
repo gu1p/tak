@@ -1,9 +1,11 @@
 #![cfg(test)]
 
+use std::time::Duration;
+
 use sha2::{Digest, Sha256};
 
 use super::remote_models::{RemoteWorkspaceStage, StrictRemoteTarget, StrictRemoteTransportKind};
-use super::workspace_upload::upload_workspace_for_submit;
+use super::workspace_upload::{stream_upload_timeout, upload_workspace_for_submit};
 use super::workspace_upload_test_support::UploadServer;
 
 #[tokio::test]
@@ -39,6 +41,12 @@ async fn workspace_upload_resumes_when_finish_reports_incomplete_offset() {
 
     assert_eq!(upload.upload_id, "upload-1");
     assert_eq!(server.bytes().await, archive);
+}
+
+#[test]
+fn stream_upload_timeout_scales_for_slow_tor_relays() {
+    assert_eq!(stream_upload_timeout(0), Duration::from_secs(120));
+    assert!(stream_upload_timeout(12 * 1024 * 1024) >= Duration::from_secs(600));
 }
 
 fn direct_target(addr: &str) -> StrictRemoteTarget {
