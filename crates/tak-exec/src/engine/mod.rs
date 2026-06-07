@@ -68,6 +68,8 @@ mod workspace_sync;
 mod workspace_sync_test_support;
 #[path = "workspace_sync_tests.rs"]
 mod workspace_sync_tests;
+#[path = "workspace_transfer_selection_tests.rs"]
+mod workspace_transfer_selection_tests;
 mod workspace_upload;
 #[path = "workspace_upload_auth_tests.rs"]
 mod workspace_upload_auth_tests;

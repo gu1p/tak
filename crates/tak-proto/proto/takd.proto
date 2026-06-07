@@ -154,6 +154,19 @@ message FinishWorkspaceUploadResponse {
   bool complete = 3;
 }
 
+message StartWorkspaceWormholeUploadRequest {
+  string upload_id = 1;
+  string code = 2;
+  string sha256 = 3;
+  uint64 size_bytes = 4;
+}
+
+message StartWorkspaceWormholeUploadResponse {
+  string upload_id = 1;
+  uint64 size_bytes = 2;
+  bool complete = 3;
+}
+
 message ExecutionSession {
   string key = 1;
   string name = 2;

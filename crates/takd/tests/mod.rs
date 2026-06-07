@@ -98,3 +98,4 @@ mod token_wait_malformed_health_contract;
 mod token_wait_pending_detail_contract;
 mod token_wait_transport_contract;
 mod tor_modules;
+mod workspace_wormhole_upload_contract;

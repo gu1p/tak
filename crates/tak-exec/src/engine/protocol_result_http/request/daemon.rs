@@ -21,11 +21,16 @@ pub(super) mod errors;
 mod resource_limits;
 #[path = "daemon/stream_upload.rs"]
 mod stream_upload;
+#[path = "daemon/wormhole_upload.rs"]
+mod wormhole_upload;
 
 use errors::{DaemonLocalError, daemon_error, daemon_timeout};
 use resource_limits::runtime_resource_limits;
 pub(crate) use stream_upload::DaemonWorkspaceUploadStreamRequest;
 pub(crate) use stream_upload::{StreamUploadProgress, stream_workspace_upload_via_daemon};
+pub(crate) use wormhole_upload::{
+    DaemonWorkspaceWormholeUploadRequest, send_workspace_wormhole_via_daemon,
+};
 
 pub(super) async fn request_via_daemon(
     target: &StrictRemoteTarget,

@@ -35,6 +35,7 @@ sysinfo.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
+magic-wormhole.workspace = true
 uuid.workspace = true
 tak-loader = { path = "../tak-loader" }
 tar.workspace = true

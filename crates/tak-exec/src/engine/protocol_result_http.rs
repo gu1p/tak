@@ -11,8 +11,9 @@ use crate::remote_protocol_codec::parse_remote_result_outputs;
 mod request;
 
 pub(crate) use request::{
-    DaemonWorkspaceUploadStreamRequest, RemoteHttpResponse, StreamUploadProgress,
-    remote_protocol_http_request, remote_protocol_http_request_with_extra_headers,
+    DaemonWorkspaceUploadStreamRequest, DaemonWorkspaceWormholeUploadRequest, RemoteHttpResponse,
+    StreamUploadProgress, remote_protocol_http_request,
+    remote_protocol_http_request_with_extra_headers, send_workspace_wormhole_via_daemon,
     stream_workspace_upload_via_daemon,
 };
 

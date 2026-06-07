@@ -66,7 +66,7 @@ pub(crate) async fn stream_workspace_upload_via_daemon(
         .map_err(|err| errors::daemon_error(target, err))
 }
 
-async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<DaemonPeerSnapshot> {
+pub(super) async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<DaemonPeerSnapshot> {
     let request = DaemonRequest::PeersEligible {
         request_id: request_id("upload-peers", target, "/v2/workspaces/uploads"),
         requirements: node_requirements(target),

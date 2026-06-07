@@ -7,6 +7,7 @@ use tak_proto::{
 
 mod storage;
 mod stream;
+mod wormhole;
 
 pub(super) use storage::resolve_workspace_upload_zip;
 use storage::{
@@ -17,6 +18,8 @@ use storage::{
 };
 pub(super) use stream::stream_workspace_upload;
 use stream::workspace_upload_status;
+pub(super) use wormhole::receive_workspace_wormhole_upload;
+use wormhole::wormhole_upload_available;
 
 pub(super) fn handle_workspace_upload_route(
     context: &RemoteNodeContext,
@@ -32,6 +35,14 @@ pub(super) fn handle_workspace_upload_route(
         && let Some(upload_id) = upload_path_arg(path_only, "")
     {
         return Ok(Some(workspace_upload_status(context, upload_id)?));
+    }
+    if method == "GET"
+        && let Some(upload_id) = upload_path_arg(path_only, "/wormhole")
+    {
+        return Ok(Some(wormhole_upload_available(upload_id)));
+    }
+    if method == "POST" && upload_path_arg(path_only, "/wormhole").is_some() {
+        return Ok(Some(error_response(426, "wormhole_requires_http2")));
     }
     let Some(upload_id) = upload_path_arg(path_only, "") else {
         let Some(upload_id) = upload_path_arg(path_only, "/finish") else {

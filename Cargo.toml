@@ -27,6 +27,7 @@ futures = "0.3"
 http-body-util = "0.1"
 hyper = { version = "1.7", features = ["client", "server", "http1", "http2"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
+magic-wormhole = "0.8.1"
 hex = "0.4"
 ignore = "0.4"
 predicates = "3.1"

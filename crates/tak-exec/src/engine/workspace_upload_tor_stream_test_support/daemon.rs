@@ -24,6 +24,8 @@ struct UploadState {
     expected_size: u64,
     dropped_commits: VecDeque<usize>,
     always_drop_without_progress: bool,
+    unsupported_wormhole: bool,
+    wormhole_attempts: usize,
     stream_offsets: Vec<u64>,
     status_nodes: Vec<String>,
 }
@@ -40,8 +42,16 @@ impl TorStreamUploadDaemon {
         spawn_daemon(archive, Vec::new(), true).await
     }
 
+    pub(crate) async fn spawn_with_unsupported_wormhole(archive: &[u8]) -> Self {
+        spawn_daemon_with_wormhole(archive, Vec::new(), false, true).await
+    }
+
     pub(crate) async fn bytes(&self) -> Vec<u8> {
         self.state.lock().await.bytes.clone()
+    }
+
+    pub(crate) async fn wormhole_attempts(&self) -> usize {
+        self.state.lock().await.wormhole_attempts
     }
 
     pub(crate) async fn stream_offsets(&self) -> Vec<u64> {
@@ -64,6 +74,21 @@ async fn spawn_daemon(
     dropped_commits: Vec<usize>,
     always_drop_without_progress: bool,
 ) -> TorStreamUploadDaemon {
+    spawn_daemon_with_wormhole(
+        archive,
+        dropped_commits,
+        always_drop_without_progress,
+        false,
+    )
+    .await
+}
+
+async fn spawn_daemon_with_wormhole(
+    archive: &[u8],
+    dropped_commits: Vec<usize>,
+    always_drop_without_progress: bool,
+    unsupported_wormhole: bool,
+) -> TorStreamUploadDaemon {
     let temp = tempfile::tempdir().expect("tempdir");
     let socket_path = temp.path().join("takd.sock");
     let socket_env = TakdSocketEnv::set(&socket_path);
@@ -73,6 +98,8 @@ async fn spawn_daemon(
         expected_size: archive.len() as u64,
         dropped_commits: dropped_commits.into(),
         always_drop_without_progress,
+        unsupported_wormhole,
+        wormhole_attempts: 0,
         stream_offsets: Vec::new(),
         status_nodes: Vec::new(),
     }));
@@ -175,7 +202,19 @@ async fn stream_response(
 
 async fn status_response(request: &str, state: Arc<Mutex<UploadState>>) -> serde_json::Value {
     let node_id = json_string_field(request, "node_id").unwrap_or_default();
+    let path = json_string_field(request, "path").unwrap_or_default();
     let mut state = state.lock().await;
+    if path.contains("/wormhole") {
+        state.wormhole_attempts += 1;
+        if state.unsupported_wormhole {
+            return serde_json::json!({
+                "type": "RemoteHttpResponse",
+                "status": 404,
+                "headers": [],
+                "body": [],
+            });
+        }
+    }
     state.status_nodes.push(node_id);
     serde_json::json!({
         "type": "RemoteHttpResponse",

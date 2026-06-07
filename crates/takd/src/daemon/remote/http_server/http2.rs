@@ -89,6 +89,20 @@ async fn handle_remote_v1_http2_request(
         Ok(body) => body,
         Err(response) => return Ok(hyper_response(response)),
     };
+    if parts.method.as_str() == "POST"
+        && path_only.starts_with("/v2/workspaces/uploads/")
+        && path_only.ends_with("/wormhole")
+    {
+        let response =
+            match receive_workspace_wormhole_upload(&context, path_only, body.as_slice()).await {
+                Ok(response) => response,
+                Err(err) => {
+                    tracing::error!(error = %err, "workspace wormhole upload failed");
+                    error_response(500, "workspace_wormhole_upload_failed")
+                }
+            };
+        return Ok(hyper_response(response));
+    }
     let response = handle_remote_v1_request_with_headers(
         &context,
         &store,

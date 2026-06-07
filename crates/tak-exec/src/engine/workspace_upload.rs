@@ -14,11 +14,13 @@ mod failures;
 mod legacy;
 mod requests;
 mod stream;
+mod wormhole;
 
 use failures::{submit_decode_error, submit_protocol_error, submit_transport_error};
 use legacy::upload_and_finish_chunks;
 use requests::begin_upload_request;
 use stream::stream_upload_for_submit;
+use wormhole::wormhole_upload_for_submit;
 
 pub(crate) async fn upload_workspace_for_submit(
     target: &StrictRemoteTarget,
@@ -28,17 +30,78 @@ pub(crate) async fn upload_workspace_for_submit(
     task_label: Option<&TaskLabel>,
     output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
-    if super::transport::uses_tor_broker(target).unwrap_or(false) {
-        return stream_upload_for_submit(
-            target,
-            task_run_id,
-            attempt,
-            workspace,
-            task_label,
-            output_observer,
-        )
-        .await;
+    match selected_workspace_transfer_for_target(target)? {
+        WorkspaceTransferChoice::DirectChunks => {
+            direct_chunk_upload_for_submit(target, task_run_id, attempt, workspace).await
+        }
+        WorkspaceTransferChoice::TorStream => {
+            stream_upload_for_submit(
+                target,
+                task_run_id,
+                attempt,
+                workspace,
+                task_label,
+                output_observer,
+            )
+            .await
+        }
+        WorkspaceTransferChoice::WormholeWithTorFallback => {
+            match wormhole_upload_for_submit(target, task_run_id, attempt, workspace).await {
+                Ok(outcome) => Ok(outcome),
+                Err(err) => {
+                    tracing::warn!(
+                        node_id = %target.node_id,
+                        error = %err.message,
+                        "workspace wormhole upload failed; falling back to Tor stream"
+                    );
+                    stream_upload_for_submit(
+                        target,
+                        task_run_id,
+                        attempt,
+                        workspace,
+                        task_label,
+                        output_observer,
+                    )
+                    .await
+                }
+            }
+        }
+        WorkspaceTransferChoice::WormholeRequired => {
+            wormhole_upload_for_submit(target, task_run_id, attempt, workspace).await
+        }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WorkspaceTransferChoice {
+    DirectChunks,
+    TorStream,
+    WormholeWithTorFallback,
+    WormholeRequired,
+}
+
+pub(crate) fn selected_workspace_transfer_for_target(
+    target: &StrictRemoteTarget,
+) -> Result<WorkspaceTransferChoice, RemoteSubmitFailure> {
+    if !super::transport::uses_tor_broker(target).unwrap_or(false) {
+        return Ok(WorkspaceTransferChoice::DirectChunks);
+    }
+    match std::env::var("TAK_REMOTE_WORKSPACE_TRANSFER")
+        .unwrap_or_default()
+        .trim()
+    {
+        "wormhole" => Ok(WorkspaceTransferChoice::WormholeWithTorFallback),
+        "wormhole-required" => Ok(WorkspaceTransferChoice::WormholeRequired),
+        _ => Ok(WorkspaceTransferChoice::TorStream),
+    }
+}
+
+async fn direct_chunk_upload_for_submit(
+    target: &StrictRemoteTarget,
+    task_run_id: &str,
+    attempt: u32,
+    workspace: &RemoteWorkspaceStage,
+) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
     let archive = read_workspace_archive(workspace)?;
     let sha256 = workspace.sha256.clone();
     let size_bytes = workspace.archive_byte_len;

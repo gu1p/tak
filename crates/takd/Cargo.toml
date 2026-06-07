@@ -27,6 +27,7 @@ hyper.workspace = true
 hyper-util.workspace = true
 ignore.workspace = true
 libc = "0.2"
+magic-wormhole.workspace = true
 prost.workspace = true
 qrcode.workspace = true
 ratatui.workspace = true
