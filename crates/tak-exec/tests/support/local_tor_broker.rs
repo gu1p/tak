@@ -23,6 +23,7 @@ impl LocalTorBroker {
     pub async fn spawn(root: &Path, dial_addr: &str, env: &mut EnvGuard) -> Self {
         let socket_path = root.join("run/takd-broker.sock");
         env.set("TAKD_SOCKET", socket_path.display().to_string());
+        env.set("TAK_REMOTE_WORKSPACE_TRANSFER", "tor-stream");
         let broker = TorBroker::for_test_dial_addr(dial_addr.to_string());
         let peers = peer_manager_from_current_inventory(broker.clone());
         // Mirror production: warm peer connections via heartbeats so placement

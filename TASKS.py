@@ -37,7 +37,7 @@ CHECK_CONTEXT = CurrentState(
 CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
-    resources=Container.Resources(cpu_cores=4.0, memory_mb=16384),
+    resources=Container.Resources(cpu_cores=4.0, memory_mb=8*1024),
 )
 
 CHECK_SESSION = session(

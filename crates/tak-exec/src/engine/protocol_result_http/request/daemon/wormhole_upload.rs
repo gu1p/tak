@@ -18,6 +18,9 @@ use super::{RemoteHttpResponse, ResponseHeader, send_daemon_request};
 use crate::engine::RemoteHttpExchangeError;
 use crate::engine::{StrictRemoteTarget, transport};
 
+#[path = "wormhole_upload/support.rs"]
+mod support;
+
 pub(crate) struct DaemonWorkspaceWormholeUploadRequest<'a> {
     pub(crate) target: &'a StrictRemoteTarget,
     pub(crate) upload_id: &'a str,
@@ -67,17 +70,13 @@ async fn preflight_wormhole_route(
             response.status
         );
     }
-    if !marks_wormhole_support(&response) {
+    if !support::marks_wormhole_support(&response) {
         bail!(
             "workspace wormhole upload route unavailable on remote node {}: missing support marker",
             peer.node_id
         );
     }
     Ok(())
-}
-
-fn marks_wormhole_support(response: &RemoteHttpResponse) -> bool {
-    response.header("x-tak-workspace-transfer") == Some("wormhole")
 }
 
 async fn send_wormhole_file(

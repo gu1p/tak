@@ -4,6 +4,9 @@ use anyhow::Result;
 use tak_core::model::TaskLabel;
 
 use crate::engine::output_observer::{TaskStatusDetails, emit_task_status_message_with_details};
+use crate::engine::workspace_upload::{
+    WorkspaceTransferChoice, selected_workspace_transfer_for_target,
+};
 use crate::engine::{
     RemoteWorkspaceStage, StrictRemoteTarget, TaskOutputObserver, TaskStatusEventKind,
     TaskStatusPhase,
@@ -30,7 +33,7 @@ pub(super) fn start_upload_progress(
         format!(
             "upload [----------] 0% {} {}",
             workspace.upload_size_mb(),
-            upload_target(target)
+            upload_target(target)?
         ),
         TaskStatusDetails {
             kind: Some(TaskStatusEventKind::UploadStart),
@@ -79,11 +82,17 @@ pub(super) fn finish_upload_progress(
     )
 }
 
-fn upload_target(target: &StrictRemoteTarget) -> String {
-    if target.is_daemon_tor_placement() {
-        "through local takd Tor relay".to_string()
-    } else {
-        format!("to remote node {}", target.node_id)
+fn upload_target(target: &StrictRemoteTarget) -> Result<String> {
+    if !target.is_daemon_tor_placement() {
+        return Ok(format!("to remote node {}", target.node_id));
+    }
+    match selected_workspace_transfer_for_target(target)? {
+        WorkspaceTransferChoice::WormholeWithTorFallback
+        | WorkspaceTransferChoice::WormholeRequired => {
+            Ok("through Magic Wormhole via local takd".to_string())
+        }
+        WorkspaceTransferChoice::TorStream => Ok("through local takd Tor relay".to_string()),
+        WorkspaceTransferChoice::DirectChunks => Ok(format!("to remote node {}", target.node_id)),
     }
 }
 
