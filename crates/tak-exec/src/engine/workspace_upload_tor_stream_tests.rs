@@ -2,13 +2,14 @@
 
 use super::workspace_upload::upload_workspace_for_submit;
 use super::workspace_upload_tor_stream_test_support::{
-    TorStreamUploadDaemon, tor_target, workspace_stage,
+    EnvVarGuard, TorStreamUploadDaemon, tor_target, workspace_stage,
 };
 
 #[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn tor_stream_upload_resumes_from_worker_status_after_dropped_response() {
     let _env_lock = super::env_test_lock::env_lock();
+    let _mode = EnvVarGuard::set("TAK_REMOTE_WORKSPACE_TRANSFER", "tor-stream");
     let archive = b"tor stream archive body".to_vec();
     let daemon = TorStreamUploadDaemon::spawn_with_dropped_commits(&archive, vec![8]).await;
     let workspace = workspace_stage(&archive);
@@ -30,6 +31,7 @@ async fn tor_stream_upload_resumes_from_worker_status_after_dropped_response() {
 #[tokio::test]
 async fn tor_stream_upload_exhausts_retries_when_status_does_not_advance() {
     let _env_lock = super::env_test_lock::env_lock();
+    let _mode = EnvVarGuard::set("TAK_REMOTE_WORKSPACE_TRANSFER", "tor-stream");
     let archive = b"never advances".to_vec();
     let daemon = TorStreamUploadDaemon::spawn_without_progress(&archive).await;
     let workspace = workspace_stage(&archive);
@@ -50,6 +52,7 @@ async fn tor_stream_upload_exhausts_retries_when_status_does_not_advance() {
 #[tokio::test]
 async fn tor_stream_upload_resets_retry_budget_after_committed_progress() {
     let _env_lock = super::env_test_lock::env_lock();
+    let _mode = EnvVarGuard::set("TAK_REMOTE_WORKSPACE_TRANSFER", "tor-stream");
     let archive = b"progress keeps retrying past three failures".to_vec();
     let daemon =
         TorStreamUploadDaemon::spawn_with_dropped_commits(&archive, vec![8, 8, 8, 8]).await;

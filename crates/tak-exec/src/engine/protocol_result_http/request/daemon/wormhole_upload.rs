@@ -67,7 +67,17 @@ async fn preflight_wormhole_route(
             response.status
         );
     }
+    if !marks_wormhole_support(&response) {
+        bail!(
+            "workspace wormhole upload route unavailable on remote node {}: missing support marker",
+            peer.node_id
+        );
+    }
     Ok(())
+}
+
+fn marks_wormhole_support(response: &RemoteHttpResponse) -> bool {
+    response.header("x-tak-workspace-transfer") == Some("wormhole")
 }
 
 async fn send_wormhole_file(

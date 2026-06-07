@@ -20,6 +20,9 @@ fn workspace_wormhole_route_advertises_support() {
     .expect("wormhole route");
 
     assert_eq!(response.status_code, 200);
+    assert!(response.headers.iter().any(|(name, value)| {
+        name.eq_ignore_ascii_case("x-tak-workspace-transfer") && value == "wormhole"
+    }));
     let available =
         StartWorkspaceWormholeUploadResponse::decode(response.body.as_slice()).expect("decode");
     assert_eq!(available.upload_id, "run-1-1-digest");

@@ -10,4 +10,5 @@ mod fixtures;
 mod http;
 
 pub(super) use daemon::TorStreamUploadDaemon;
+pub(super) use env::EnvVarGuard;
 pub(super) use fixtures::{tor_target, workspace_stage};

@@ -10,15 +10,23 @@ use tak_proto::{StartWorkspaceWormholeUploadRequest, StartWorkspaceWormholeUploa
 
 use super::*;
 
+const WORMHOLE_TRANSFER_HEADER: &str = "x-tak-workspace-transfer";
+const WORMHOLE_TRANSFER_VALUE: &str = "wormhole";
+
 pub(super) fn wormhole_upload_available(upload_id: &str) -> RemoteV1Response {
-    protobuf_response(
+    let mut response = protobuf_response(
         200,
         &StartWorkspaceWormholeUploadResponse {
             upload_id: upload_id.to_string(),
             size_bytes: 0,
             complete: false,
         },
-    )
+    );
+    response.headers.push((
+        WORMHOLE_TRANSFER_HEADER.to_string(),
+        WORMHOLE_TRANSFER_VALUE.to_string(),
+    ));
+    response
 }
 
 pub(in crate::daemon::remote) async fn receive_workspace_wormhole_upload(

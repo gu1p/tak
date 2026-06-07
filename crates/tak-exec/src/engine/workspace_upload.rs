@@ -1,7 +1,6 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use prost::Message;
-use std::sync::Arc;
 use tak_core::model::TaskLabel;
 use tak_proto::{BeginWorkspaceUploadRequest, BeginWorkspaceUploadResponse, WorkspaceUploadRef};
 
@@ -13,14 +12,18 @@ use super::remote_submit_failure::RemoteSubmitFailure;
 mod failures;
 mod legacy;
 mod requests;
+mod selection;
 mod stream;
 mod wormhole;
 
 use failures::{submit_decode_error, submit_protocol_error, submit_transport_error};
 use legacy::upload_and_finish_chunks;
 use requests::begin_upload_request;
+pub(crate) use selection::{WorkspaceTransferChoice, selected_workspace_transfer_for_target};
 use stream::stream_upload_for_submit;
 use wormhole::wormhole_upload_for_submit;
+
+const WORMHOLE_FALLBACK_RETRIES: u8 = 3;
 
 pub(crate) async fn upload_workspace_for_submit(
     target: &StrictRemoteTarget,
@@ -46,8 +49,9 @@ pub(crate) async fn upload_workspace_for_submit(
             .await
         }
         WorkspaceTransferChoice::WormholeWithTorFallback => {
-            match wormhole_upload_for_submit(target, task_run_id, attempt, workspace).await {
+            match wormhole_upload_with_retries(target, task_run_id, attempt, workspace).await {
                 Ok(outcome) => Ok(outcome),
+                Err(err) if !should_fallback_to_tor_stream(&err) => Err(err),
                 Err(err) => {
                     tracing::warn!(
                         node_id = %target.node_id,
@@ -67,33 +71,44 @@ pub(crate) async fn upload_workspace_for_submit(
             }
         }
         WorkspaceTransferChoice::WormholeRequired => {
-            wormhole_upload_for_submit(target, task_run_id, attempt, workspace).await
+            wormhole_upload_with_retries(target, task_run_id, attempt, workspace).await
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum WorkspaceTransferChoice {
-    DirectChunks,
-    TorStream,
-    WormholeWithTorFallback,
-    WormholeRequired,
+async fn wormhole_upload_with_retries(
+    target: &StrictRemoteTarget,
+    task_run_id: &str,
+    attempt: u32,
+    workspace: &RemoteWorkspaceStage,
+) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
+    for retry in 0..=WORMHOLE_FALLBACK_RETRIES {
+        match wormhole_upload_for_submit(target, task_run_id, attempt, workspace).await {
+            Ok(outcome) => return Ok(outcome),
+            Err(err) if retry < WORMHOLE_FALLBACK_RETRIES && err.is_retryable() => {
+                tracing::warn!(
+                    node_id = %target.node_id,
+                    error = %err.message,
+                    next_attempt = retry + 2,
+                    "workspace wormhole upload failed; retrying"
+                );
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    unreachable!("bounded workspace wormhole retry loop returns")
 }
 
-pub(crate) fn selected_workspace_transfer_for_target(
-    target: &StrictRemoteTarget,
-) -> Result<WorkspaceTransferChoice, RemoteSubmitFailure> {
-    if !super::transport::uses_tor_broker(target).unwrap_or(false) {
-        return Ok(WorkspaceTransferChoice::DirectChunks);
-    }
-    match std::env::var("TAK_REMOTE_WORKSPACE_TRANSFER")
-        .unwrap_or_default()
-        .trim()
-    {
-        "wormhole" => Ok(WorkspaceTransferChoice::WormholeWithTorFallback),
-        "wormhole-required" => Ok(WorkspaceTransferChoice::WormholeRequired),
-        _ => Ok(WorkspaceTransferChoice::TorStream),
-    }
+fn should_fallback_to_tor_stream(err: &RemoteSubmitFailure) -> bool {
+    !is_nonretryable_placement_failure(err)
+}
+
+fn is_nonretryable_placement_failure(err: &RemoteSubmitFailure) -> bool {
+    !err.is_retryable()
+        && !err.message.contains("workspace wormhole upload")
+        && err.message.contains("subsystem: placement")
+        && err.message.contains("stage: remote placement")
+        && err.message.contains("retryable: no")
 }
 
 async fn direct_chunk_upload_for_submit(

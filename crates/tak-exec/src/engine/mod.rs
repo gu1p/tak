@@ -83,6 +83,10 @@ mod workspace_upload_tests;
 mod workspace_upload_tor_stream_test_support;
 #[path = "workspace_upload_tor_stream_tests.rs"]
 mod workspace_upload_tor_stream_tests;
+#[path = "workspace_wormhole_marker_tests.rs"]
+mod workspace_wormhole_marker_tests;
+#[path = "workspace_wormhole_transfer_tests.rs"]
+mod workspace_wormhole_transfer_tests;
 
 pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
 pub use public_types::{
