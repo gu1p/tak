@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use tak_core::{label::TaskLabel, planner::topo_sort};
+use tak_core::{
+    label::TaskLabel,
+    planner::{DagError, topo_sort},
+};
 
 #[test]
 fn topo_sort_returns_dependency_first_order() {
@@ -38,4 +41,28 @@ fn topo_sort_detects_cycle() {
 
     let err = topo_sort(&deps).expect_err("should fail on cycle");
     assert!(err.to_string().contains("cycle"));
+}
+
+#[test]
+fn topo_sort_reports_missing_dependency_labels() {
+    let test = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "test".to_string(),
+    };
+    let build = TaskLabel {
+        package: "//apps/web".to_string(),
+        name: "build".to_string(),
+    };
+
+    let mut deps = BTreeMap::new();
+    deps.insert(test.clone(), vec![build.clone()]);
+
+    let err = topo_sort(&deps).expect_err("should fail on missing dependency");
+    match err {
+        DagError::MissingDependency { task, dependency } => {
+            assert_eq!(task, test);
+            assert_eq!(dependency, build);
+        }
+        DagError::Cycle => panic!("expected missing dependency, got cycle"),
+    }
 }

@@ -33,49 +33,70 @@ pub enum DagError {
 pub fn topo_sort(
     deps_by_task: &BTreeMap<TaskLabel, Vec<TaskLabel>>,
 ) -> Result<Vec<TaskLabel>, DagError> {
-    let mut in_degree: BTreeMap<TaskLabel, usize> = BTreeMap::new();
-    let mut reverse_edges: BTreeMap<TaskLabel, BTreeSet<TaskLabel>> = BTreeMap::new();
+    TaskGraph::from_dependencies(deps_by_task)?.dependency_first_order()
+}
 
-    for (task, deps) in deps_by_task {
-        in_degree.entry(task.clone()).or_insert(0);
-        for dep in deps {
-            if !deps_by_task.contains_key(dep) {
-                return Err(DagError::MissingDependency {
-                    task: task.clone(),
-                    dependency: dep.clone(),
-                });
+struct TaskGraph {
+    in_degree: BTreeMap<TaskLabel, usize>,
+    reverse_edges: BTreeMap<TaskLabel, BTreeSet<TaskLabel>>,
+}
+
+impl TaskGraph {
+    fn from_dependencies(
+        deps_by_task: &BTreeMap<TaskLabel, Vec<TaskLabel>>,
+    ) -> Result<Self, DagError> {
+        let mut in_degree: BTreeMap<TaskLabel, usize> = BTreeMap::new();
+        let mut reverse_edges: BTreeMap<TaskLabel, BTreeSet<TaskLabel>> = BTreeMap::new();
+
+        for (task, deps) in deps_by_task {
+            in_degree.entry(task.clone()).or_insert(0);
+            for dep in deps {
+                if !deps_by_task.contains_key(dep) {
+                    return Err(DagError::MissingDependency {
+                        task: task.clone(),
+                        dependency: dep.clone(),
+                    });
+                }
+                reverse_edges
+                    .entry(dep.clone())
+                    .or_default()
+                    .insert(task.clone());
+                *in_degree.entry(task.clone()).or_insert(0) += 1;
             }
-            reverse_edges
-                .entry(dep.clone())
-                .or_default()
-                .insert(task.clone());
-            *in_degree.entry(task.clone()).or_insert(0) += 1;
         }
+
+        Ok(Self {
+            in_degree,
+            reverse_edges,
+        })
     }
 
-    let mut queue: VecDeque<TaskLabel> = in_degree
-        .iter()
-        .filter_map(|(task, degree)| (*degree == 0).then_some(task.clone()))
-        .collect();
-    let mut ordered = Vec::with_capacity(in_degree.len());
+    fn dependency_first_order(mut self) -> Result<Vec<TaskLabel>, DagError> {
+        let mut queue: VecDeque<TaskLabel> = self
+            .in_degree
+            .iter()
+            .filter_map(|(task, degree)| (*degree == 0).then_some(task.clone()))
+            .collect();
+        let mut ordered = Vec::with_capacity(self.in_degree.len());
 
-    while let Some(task) = queue.pop_front() {
-        ordered.push(task.clone());
-        if let Some(dependents) = reverse_edges.get(&task) {
-            for dependent in dependents {
-                if let Some(entry) = in_degree.get_mut(dependent) {
-                    *entry -= 1;
-                    if *entry == 0 {
-                        queue.push_back(dependent.clone());
+        while let Some(task) = queue.pop_front() {
+            ordered.push(task.clone());
+            if let Some(dependents) = self.reverse_edges.get(&task) {
+                for dependent in dependents {
+                    if let Some(entry) = self.in_degree.get_mut(dependent) {
+                        *entry -= 1;
+                        if *entry == 0 {
+                            queue.push_back(dependent.clone());
+                        }
                     }
                 }
             }
         }
-    }
 
-    if ordered.len() != in_degree.len() {
-        return Err(DagError::Cycle);
-    }
+        if ordered.len() != self.in_degree.len() {
+            return Err(DagError::Cycle);
+        }
 
-    Ok(ordered)
+        Ok(ordered)
+    }
 }
