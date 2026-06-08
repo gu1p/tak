@@ -1,9 +1,11 @@
 use super::*;
 use clap::CommandFactory;
 
+mod local;
 mod remote;
 mod task;
 
+pub(super) use local::LocalCommands;
 pub(super) use remote::{RemoteCommands, RemoteTaskCommands};
 pub(super) use task::TaskCommands;
 
@@ -167,25 +169,24 @@ pub(super) enum Commands {
         #[arg(long, default_value_t = 1000)]
         interval_ms: u64,
     },
+    /// Update the installed tak and takd binaries from signed GitHub releases.
+    Update {
+        /// Only report whether a newer version exists; do not install.
+        #[arg(long, default_value_t = false)]
+        check: bool,
+        /// Install even if it is the same or older version (allow downgrade).
+        #[arg(long, default_value_t = false)]
+        force: bool,
+        /// Install this exact version instead of the latest (e.g. 0.1.40 or v0.1.40).
+        #[arg(long)]
+        version: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub(super) enum DocsCommands {
     /// Print the source-owned Tak authoring bundle for agents and contributors.
     Dump,
-}
-
-#[derive(Debug, Subcommand)]
-pub(super) enum LocalCommands {
-    /// Show local task, container, resource, and daemon status.
-    Status {
-        /// Keep refreshing the status view until interrupted.
-        #[arg(long, default_value_t = false)]
-        watch: bool,
-        /// Refresh the status snapshot every N milliseconds while watching.
-        #[arg(long, default_value_t = 1000)]
-        interval_ms: u64,
-    },
 }
 
 pub(crate) fn command_tree() -> clap::Command {

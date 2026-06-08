@@ -173,6 +173,7 @@ fn agent_config(base_url: Option<&str>) -> AgentConfig {
         transport: "direct".into(),
         hidden_service_nickname: "builder".into(),
         image_cache: None,
+        auto_update: Default::default(),
     }
 }
 

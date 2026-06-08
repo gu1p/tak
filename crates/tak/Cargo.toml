@@ -53,6 +53,7 @@ tak-core = { path = "../tak-core" }
 tak-exec = { path = "../tak-exec" }
 tak-loader = { path = "../tak-loader" }
 tak-proto = { path = "../tak-proto" }
+tak-update = { path = "../tak-update" }
 tokio.workspace = true
 toml.workspace = true
 url.workspace = true

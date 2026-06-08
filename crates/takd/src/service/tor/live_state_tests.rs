@@ -24,6 +24,7 @@ fn pending_context_rejects_invalid_configured_image_cache() {
             low_disk_min_free_percent: 10.0,
             low_disk_min_free_gb: 10.0,
         }),
+        auto_update: Default::default(),
     };
 
     let err = match pending_context(&config, "http://builder.onion", temp.path()) {

@@ -1,12 +1,11 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use tak_proto::{RemoteTokenPayload, encode_remote_token, encode_tor_invite_with_bearer};
 use uuid::Uuid;
 
-use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 use helpers::{hidden_service_nickname, node_info, normalize_values};
 use paths::{config_path, token_path};
 use token_state::read_token_error_into_anyhow;
@@ -14,6 +13,8 @@ use token_state::read_token_error_into_anyhow;
 const CONFIG_FILE: &str = "agent.toml";
 const TOKEN_FILE: &str = "agent.token";
 
+mod auto_update_config;
+mod context;
 mod direct_base_url;
 mod helpers;
 mod image_cache_config;
@@ -24,6 +25,8 @@ mod token_state;
 mod token_wait;
 mod transport_health;
 
+pub use auto_update_config::{AutoUpdateConfig, UpdateNetwork};
+pub use context::{ready_context, ready_context_with_state_root};
 pub(crate) use direct_base_url::{
     DirectBaseUrlError, parse_direct_base_url, validate_direct_base_url,
 };
@@ -50,6 +53,8 @@ pub struct AgentConfig {
     pub hidden_service_nickname: String,
     #[serde(default)]
     pub image_cache: Option<AgentImageCacheConfig>,
+    #[serde(default)]
+    pub auto_update: AutoUpdateConfig,
 }
 
 pub struct InitAgentOptions<'a> {
@@ -106,6 +111,7 @@ pub fn init_agent(
         transport: transport.to_string(),
         hidden_service_nickname: hidden_service_nickname(&node_id),
         image_cache: Some(resolve_init_image_cache_config(state_root, &options)?),
+        auto_update: AutoUpdateConfig::default(),
     };
     write_config(config_root, &config)?;
     let token_path = token_path(state_root);
@@ -155,38 +161,6 @@ pub fn persist_advertised_base_url(config_root: &Path, base_url: &str) -> Result
     }
     config.base_url = Some(base_url.to_string());
     write_config(config_root, &config)
-}
-
-pub fn ready_context(config: &AgentConfig) -> Result<RemoteNodeContext> {
-    let base_url = config
-        .base_url
-        .clone()
-        .ok_or_else(|| anyhow!("agent token not ready"))?;
-    Ok(RemoteNodeContext::new(
-        node_info(config, &base_url),
-        config.bearer_token.clone(),
-        RemoteRuntimeConfig::from_env(),
-    ))
-}
-
-pub fn ready_context_with_state_root(
-    config: &AgentConfig,
-    state_root: &Path,
-) -> Result<RemoteNodeContext> {
-    let base_url = config
-        .base_url
-        .clone()
-        .ok_or_else(|| anyhow!("agent token not ready"))?;
-    let mut context = RemoteNodeContext::new(
-        node_info(config, &base_url),
-        config.bearer_token.clone(),
-        RemoteRuntimeConfig::from_env(),
-    )
-    .with_state_root(state_root);
-    if let Some(image_cache) = &config.image_cache {
-        context = context.with_image_cache_config(image_cache.runtime_config(state_root)?);
-    }
-    Ok(context)
 }
 
 fn write_config(config_root: &Path, config: &AgentConfig) -> Result<()> {

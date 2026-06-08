@@ -1,0 +1,32 @@
+[package]
+name = "tak-update"
+version = "0.1.0"
+edition = "2024"
+autotests = false
+
+[[test]]
+name = "suite"
+path = "tests/mod.rs"
+
+[features]
+# Exposes test-only constructors (e.g. `VerifiedArchive::for_test`) that bypass
+# verification. Never enabled by production consumers (`tak`/`takd`); the crate's
+# own integration tests enable it via the self dev-dependency below.
+test-support = []
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tar.workspace = true
+flate2.workspace = true
+tempfile.workspace = true
+minisign-verify.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+# Self dev-dependency so the integration suite builds the crate with test-only
+# constructors enabled (standard Cargo pattern for test-support features).
+tak-update = { path = ".", features = ["test-support"] }

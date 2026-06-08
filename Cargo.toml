@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "crates/tak-core",
+  "crates/tak-update",
   "crates/tak-loader",
   "crates/tak-proto",
   "crates/tak-runner",
@@ -45,6 +46,9 @@ sha2 = "0.10"
 sha3 = "0.10"
 tempfile = "3.10"
 tar = "0.4"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+ureq = { version = "3.3", default-features = false, features = ["rustls", "rustls-webpki-roots", "gzip"] }
+minisign-verify = "0.2"
 thiserror = "2.0"
 prost = "0.13.5"
 prost-build = "0.13.5"

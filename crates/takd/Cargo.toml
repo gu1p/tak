@@ -39,6 +39,7 @@ sha2.workspace = true
 tak-core = { path = "../tak-core" }
 tak-proto = { path = "../tak-proto" }
 tak-runner = { path = "../tak-runner" }
+tak-update = { path = "../tak-update" }
 tokio.workspace = true
 tokio-util.workspace = true
 toml.workspace = true

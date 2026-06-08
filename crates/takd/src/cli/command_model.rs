@@ -72,6 +72,20 @@ pub(super) enum Commands {
         #[command(subcommand)]
         command: TokenCommands,
     },
+    /// Update the installed takd (and co-located tak) from signed GitHub releases.
+    Update {
+        #[arg(long)]
+        config_root: Option<PathBuf>,
+        /// Only report whether a newer version exists; do not install.
+        #[arg(long, default_value_t = false)]
+        check: bool,
+        /// Install even if it is the same or older version (allow downgrade).
+        #[arg(long, default_value_t = false)]
+        force: bool,
+        /// Install this exact version instead of the latest (e.g. 0.1.40 or v0.1.40).
+        #[arg(long)]
+        version: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]

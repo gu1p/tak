@@ -85,3 +85,4 @@ mod takd_bin_prebuilt_contract;
 mod task_history_concurrent_contract;
 mod task_history_contract;
 mod task_history_read_contract;
+mod update_command_contract;

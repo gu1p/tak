@@ -174,6 +174,17 @@ pub async fn run_cli() -> Result<ExitCode> {
         } => {
             run_status(&node_ids, watch, interval_ms).await?;
         }
+        Commands::Update {
+            check,
+            force,
+            version,
+        } => {
+            super::update_cli::run_update_command(super::update_cli::UpdateArgs {
+                check,
+                force,
+                version,
+            })?;
+        }
     }
 
     Ok(ExitCode::SUCCESS)

@@ -34,6 +34,7 @@ mod run_overrides_support;
 mod run_overrides_test_support;
 mod status;
 mod task_history;
+mod update_cli;
 mod workspace_helpers;
 
 use command_model::{Cli, Commands};

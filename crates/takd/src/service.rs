@@ -17,6 +17,7 @@ mod tor;
 use control::{AgentControlState, spawn_agent_control_socket};
 
 pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
+    crate::auto_update::reconcile_pending(state_root);
     let config_result = read_config(config_root);
     let broker = broker_for_transport(state_root, config_result.as_ref().ok());
     let local_identity = config_result
@@ -43,6 +44,11 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     abandon_unfinished_submits(&store)?;
     let control_state = AgentControlState::default();
     spawn_agent_control_socket(state_root, store.clone(), control_state.clone())?;
+    crate::auto_update::spawn_update_loop(
+        config_root.to_path_buf(),
+        state_root.to_path_buf(),
+        store.clone(),
+    );
     match config.transport.as_str() {
         "tor" => tor::serve_tor_agent(config_root, state_root, store, control_state, broker).await,
         "direct" => {

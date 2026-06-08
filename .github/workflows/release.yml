@@ -160,6 +160,26 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Sign release archives
+        env:
+          TAK_MINISIGN_SECRET_KEY: ${{ secrets.TAK_MINISIGN_SECRET_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${TAK_MINISIGN_SECRET_KEY:-}" ]; then
+            echo "::error::TAK_MINISIGN_SECRET_KEY is not set; refusing to publish an unsigned release. Add the signing secret (see docs/self-update.md)."
+            exit 1
+          fi
+          cargo install rsign2 --locked
+          key_file="$(mktemp)"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s\n' "$TAK_MINISIGN_SECRET_KEY" > "$key_file"
+          tag="${{ needs.prepare_tag.outputs.tag }}"
+          for archive in dist/*.tar.gz; do
+            rsign sign -W -s "$key_file" -x "${archive}.minisig" -t "tak release ${tag}" "$archive"
+            echo "signed ${archive}"
+          done
+
       - name: Create or update release
         shell: bash
         run: |

@@ -20,6 +20,7 @@ mod peers_output;
 mod status_output;
 mod task_logs;
 mod tasks_output;
+mod update;
 
 pub async fn run_cli() -> Result<()> {
     tak_core::crypto_provider::ensure_rustls_crypto_provider();
@@ -145,6 +146,15 @@ pub async fn run_cli() -> Result<()> {
                 }
             }
         },
+        Commands::Update {
+            config_root,
+            check,
+            force,
+            version,
+        } => {
+            let config_root = config_root.unwrap_or(default_config_root()?);
+            update::run_update_command(&config_root, check, force, version)?;
+        }
     }
 
     Ok(())

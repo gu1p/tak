@@ -76,6 +76,8 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Continue independent tasks even after one target fails.
 - `tak status`
   - Show local task/container/resource status plus configured remote node status.
+- `tak update` / `tak update --check`
+  - Update the installed `tak`/`takd` binaries from signed GitHub releases (or just report whether a newer version exists). `takd` agents can also auto-update themselves; see [Self-Update](docs/self-update.md).
 - `tak local status`
   - Show local active tasks, containerized runs, CPU, RAM, storage, and optional local daemon lease status.
 - `tak remote add <token>`
