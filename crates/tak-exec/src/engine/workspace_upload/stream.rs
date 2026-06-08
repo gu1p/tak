@@ -18,7 +18,7 @@ pub(super) async fn stream_upload_for_submit(
     task_label: Option<&TaskLabel>,
     output_observer: Option<&Arc<dyn TaskOutputObserver>>,
 ) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
-    let upload_id = upload_id(task_run_id, attempt, &workspace.sha256);
+    let upload_id = super::workspace_upload_id(task_run_id, &workspace.sha256);
     let streamed = crate::engine::protocol_result_http::stream_workspace_upload_via_daemon(
         crate::engine::protocol_result_http::DaemonWorkspaceUploadStreamRequest {
             target,
@@ -62,17 +62,4 @@ pub(super) async fn stream_upload_for_submit(
         }),
         preferred_node_id: Some(streamed.peer_node_id),
     })
-}
-
-fn upload_id(task_run_id: &str, _attempt: u32, sha256: &str) -> String {
-    format!("{task_run_id}-{sha256}")
-        .chars()
-        .map(|value| {
-            if value.is_ascii_alphanumeric() || matches!(value, '.' | '-' | '_') {
-                value
-            } else {
-                '_'
-            }
-        })
-        .collect()
 }
