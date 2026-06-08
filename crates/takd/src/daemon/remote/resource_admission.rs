@@ -42,6 +42,13 @@ struct ResourceAdmissionState {
     capacity: ResourceCapacity,
     reservations: BTreeMap<String, ResourceRequest>,
     queue: VecDeque<ResourceRequest>,
+    /// Cumulative reservations may exceed raw capacity by this factor (>=1):
+    /// admission is intentionally tolerant and the memory-pressure controller is
+    /// the runtime backstop. Never relaxes `fits_total_capacity`.
+    oversubscribe_x: u64,
+    /// When the controller is in its emergency band it sets this; new starts are
+    /// then queued (never admitted) until it clears. Does not evict running work.
+    held: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -52,7 +59,10 @@ pub(crate) enum ResourceAdmissionDecision {
 }
 
 impl SharedResourceAdmission {
-    pub(crate) fn new_detected(_tak_container_usage: SharedTakContainerUsage) -> Self {
+    pub(crate) fn new_detected(
+        _tak_container_usage: SharedTakContainerUsage,
+        oversubscribe_x: u64,
+    ) -> Self {
         let mut system = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_cpu(CpuRefreshKind::everything())
@@ -70,10 +80,27 @@ impl SharedResourceAdmission {
                     capacity,
                     reservations: BTreeMap::new(),
                     queue: VecDeque::new(),
+                    oversubscribe_x: oversubscribe_x.max(1),
+                    held: false,
                 }),
                 changed: Condvar::new(),
             }),
         }
+    }
+
+    /// Emergency admission hold: when `held`, new starts queue (never admitted)
+    /// until cleared. Running reservations are untouched. Set by the
+    /// memory-pressure controller's emergency band.
+    pub(crate) fn set_admission_held(&self, held: bool) -> Result<()> {
+        let mut state = self.lock_state()?;
+        let changed = state.held != held;
+        state.held = held;
+        drop(state);
+        if changed {
+            // Wake admission waiters so a cleared hold promotes queued starts.
+            self.inner.changed.notify_all();
+        }
+        Ok(())
     }
 
     pub(crate) fn admit_or_queue(

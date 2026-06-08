@@ -16,6 +16,10 @@ mod selection;
 mod stream;
 mod wormhole;
 
+#[cfg(test)]
+#[path = "workspace_upload/upload_id_tests.rs"]
+mod upload_id_tests;
+
 use failures::{submit_decode_error, submit_protocol_error, submit_transport_error};
 use legacy::upload_and_finish_chunks;
 use requests::begin_upload_request;
@@ -24,6 +28,19 @@ use stream::stream_upload_for_submit;
 use wormhole::wormhole_upload_for_submit;
 
 const WORMHOLE_FALLBACK_RETRIES: u8 = 3;
+
+fn workspace_upload_id(task_run_id: &str, sha256: &str) -> String {
+    format!("{task_run_id}-{sha256}")
+        .chars()
+        .map(|value| {
+            if value.is_ascii_alphanumeric() || matches!(value, '.' | '-' | '_') {
+                value
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
 
 pub(crate) async fn upload_workspace_for_submit(
     target: &StrictRemoteTarget,

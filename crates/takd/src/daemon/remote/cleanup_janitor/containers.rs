@@ -16,6 +16,14 @@ pub(super) async fn cleanup_inactive_takd_containers(
         .context("connect container engine for remote container cleanup")?;
     let containers = list_takd_containers(&docker).await?;
     for container in containers {
+        // Never force-remove a paused container: pausing is the memory-pressure
+        // controller's non-lethal hold, so reaping it would turn a pause into a
+        // kill (violating the never-kill policy) — notably on a daemon restart
+        // when the active set is empty. The controller owns resuming it; once it
+        // is running again, normal orphan cleanup applies.
+        if container.state.as_deref() == Some("paused") {
+            continue;
+        }
         let labels = container.labels.unwrap_or_default();
         if labels.get("tak.owner").map(String::as_str) != Some("takd") {
             continue;

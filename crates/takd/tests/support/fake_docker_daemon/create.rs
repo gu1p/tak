@@ -51,6 +51,7 @@ pub(super) fn create_container(
             working_dir: payload.working_dir,
             binds,
             labels: payload.labels.unwrap_or_default(),
+            state: "running".to_string(),
         },
         exit_code,
     })

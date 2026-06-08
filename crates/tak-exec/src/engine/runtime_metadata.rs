@@ -8,7 +8,9 @@ use anyhow::{Result, anyhow};
 use std::collections::BTreeMap;
 use std::env;
 use std::path::Path;
-use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, ResolvedTask};
+use tak_core::model::{
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, RemoteRuntimeSpec, ResolvedTask,
+};
 use uuid::Uuid;
 
 #[path = "runtime_metadata/test_injection.rs"]
@@ -65,7 +67,10 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
     workspace_root: Option<&Path>,
 ) -> Result<Option<RuntimeExecutionMetadata>> {
     match runtime {
-        RemoteRuntimeSpec::Containerized { source, .. } => {
+        RemoteRuntimeSpec::Containerized {
+            source,
+            resource_limits,
+        } => {
             maybe_fail_injected_container_lifecycle_stage(
                 task,
                 node_id,
@@ -131,6 +136,24 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
             );
             env_overrides.insert("TAK_REMOTE_ENGINE".to_string(), engine_name.clone());
             env_overrides.insert("TAK_REMOTE_CONTAINER_IMAGE".to_string(), image.clone());
+            // Cap test-harness/data parallelism to the declared CPU reservation.
+            // The container also gets a `nano_cpus` cgroup quota (see container
+            // runtime), which makes Rust's cgroup-aware `available_parallelism()`
+            // report ~cpu_cores; these env defaults are belt-and-suspenders for
+            // the doctest harness (`RUST_TEST_THREADS`) and rayon, whose spikes
+            // are the leading OOM trigger. They are defaults only: a step's own
+            // env still overrides them (see `build_container_step_spec`). We do
+            // NOT set `CARGO_BUILD_JOBS` here — tasks control it via a shell
+            // `${CARGO_BUILD_JOBS:-N}` fallback that a container-env value would
+            // otherwise override.
+            if let Some(cpu_threads) = container_parallelism_cap(resource_limits.as_ref()) {
+                env_overrides
+                    .entry("RUST_TEST_THREADS".to_string())
+                    .or_insert_with(|| cpu_threads.to_string());
+                env_overrides
+                    .entry("RAYON_NUM_THREADS".to_string())
+                    .or_insert_with(|| cpu_threads.to_string());
+            }
             maybe_fail_injected_container_lifecycle_stage(
                 task,
                 node_id,
@@ -145,6 +168,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
                     image: image.clone(),
                     container_user: None,
                     image_cache: None,
+                    resource_limits: resource_limits.clone(),
                 })
             };
             Ok(Some(RuntimeExecutionMetadata {
@@ -156,6 +180,17 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
             }))
         }
     }
+}
+
+/// Number of threads to which a containerized task's parallel work should be
+/// capped, derived from the declared CPU reservation. Floors fractional cores
+/// and never returns less than 1; `None` when no CPU reservation is declared.
+fn container_parallelism_cap(resource_limits: Option<&ContainerResourceLimitsSpec>) -> Option<u64> {
+    let cpu_cores = resource_limits?.cpu_cores?;
+    if !cpu_cores.is_finite() || cpu_cores <= 0.0 {
+        return None;
+    }
+    Some((cpu_cores.floor() as u64).max(1))
 }
 
 pub(super) fn should_use_simulated_container_runtime() -> bool {

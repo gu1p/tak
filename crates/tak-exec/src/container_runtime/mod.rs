@@ -13,7 +13,7 @@ use bollard::container::{
 use bollard::errors::Error as BollardError;
 use bollard::models::HostConfig;
 use futures::StreamExt;
-use tak_core::model::{ResolvedTask, StepDef, TaskLabel};
+use tak_core::model::{ContainerResourceLimitsSpec, ResolvedTask, StepDef, TaskLabel};
 use uuid::Uuid;
 
 use crate::container_engine::ContainerEngine;
@@ -56,6 +56,10 @@ struct ContainerStepRunContext<'a> {
     container_user: Option<&'a str>,
     cancellation: &'a RunCancellation,
     container_identity: Option<&'a crate::ContainerExecutionIdentity>,
+    /// Wall-clock step timeout, surfaced as a `tak.timeout_s` container label so
+    /// the daemon's memory-pressure controller can avoid pausing a container
+    /// whose timeout keeps counting while frozen (which would fail the step).
+    timeout_s: Option<u64>,
 }
 
 struct ContainerStepExecutor<'a> {
@@ -63,6 +67,7 @@ struct ContainerStepExecutor<'a> {
     engine: ContainerEngine,
     podman_wait_socket: Option<&'a str>,
     image: &'a str,
+    resource_limits: Option<&'a ContainerResourceLimitsSpec>,
 }
 
 pub(crate) async fn run_task_steps_in_container(
@@ -80,12 +85,14 @@ pub(crate) async fn run_task_steps_in_container(
         container_user: plan.container_user.as_deref(),
         cancellation: context.cancellation,
         container_identity: context.container_identity,
+        timeout_s: task.timeout_s,
     };
     let executor = ContainerStepExecutor {
         docker: &client.docker,
         engine: plan.engine,
         podman_wait_socket: client.podman_wait_socket.as_deref(),
         image: &plan.image,
+        resource_limits: plan.resource_limits.as_ref(),
     };
     tokio::select! {
         result = ensure_container_runtime_source(executor.docker, context.workspace_root, plan, &run_context) => result?,

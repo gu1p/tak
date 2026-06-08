@@ -58,6 +58,11 @@ impl FakeDockerDaemon {
     pub fn add_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
         self.state.add_container(container_id, labels);
     }
+
+    pub fn add_paused_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
+        self.state
+            .add_container_with_state(container_id, labels, "paused");
+    }
 }
 
 impl Drop for FakeDockerDaemon {

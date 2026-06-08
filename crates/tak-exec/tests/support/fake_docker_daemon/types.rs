@@ -14,6 +14,9 @@ pub struct CreateRecord {
     pub binds: Vec<String>,
     pub nano_cpus: Option<i64>,
     pub memory: Option<i64>,
+    pub memory_swap: Option<i64>,
+    pub oom_kill_disable: Option<bool>,
+    pub env: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

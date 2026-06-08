@@ -71,6 +71,57 @@ fn request_larger_than_total_capacity_is_rejected() {
 }
 
 #[test]
+fn tolerant_admission_admits_above_cumulative_capacity() {
+    // With oversubscription, summed reservations may far exceed raw capacity:
+    // the memory-pressure controller is the runtime backstop, not rejection.
+    let admission = SharedResourceAdmission::new_for_tests_with_oversubscribe(
+        ResourceCapacity {
+            cpu_cores: 4.0,
+            memory_mb: 4096,
+        },
+        16,
+    );
+    for index in 0..20 {
+        let decision = admission
+            .admit_or_queue(request(&format!("task-{index}"), 0.1, 512))
+            .expect("admission decision");
+        assert!(
+            matches!(decision, ResourceAdmissionDecision::Admitted),
+            "task {index} should be admitted under oversubscription: {decision:?}"
+        );
+    }
+    // 20 * 512 MB = 10240 MB, well over the 4096 MB raw capacity, none queued.
+    assert!(admission.queued_jobs().expect("queued jobs").is_empty());
+}
+
+#[test]
+fn emergency_hold_queues_new_starts_until_cleared() {
+    let admission = SharedResourceAdmission::new_for_tests_with_oversubscribe(
+        ResourceCapacity {
+            cpu_cores: 8.0,
+            memory_mb: 8192,
+        },
+        16,
+    );
+    admission.set_admission_held(true).expect("hold");
+    let held = admission
+        .admit_or_queue(request("start", 1.0, 512))
+        .expect("admission decision");
+    assert!(
+        matches!(held, ResourceAdmissionDecision::Queued { .. }),
+        "held admission must queue, got {held:?}"
+    );
+
+    admission.set_admission_held(false).expect("release hold");
+    // Clearing the hold lets the queued start promote on the next reconcile.
+    admission.release("noop").expect("promote queued");
+    assert!(
+        admission.queued_jobs().expect("queued jobs").is_empty(),
+        "queued start should promote once the hold clears"
+    );
+}
+
+#[test]
 fn duplicate_queued_request_keeps_single_fifo_entry() {
     let admission = SharedResourceAdmission::new_for_tests(ResourceCapacity {
         cpu_cores: 8.0,

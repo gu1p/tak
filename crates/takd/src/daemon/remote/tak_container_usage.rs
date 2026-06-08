@@ -75,7 +75,7 @@ async fn sample_tak_container_usage(
     Ok(total)
 }
 
-async fn connect_docker_client(runtime_config: &RemoteRuntimeConfig) -> Result<Docker> {
+pub(super) async fn connect_docker_client(runtime_config: &RemoteRuntimeConfig) -> Result<Docker> {
     let docker = if let Some(host) = runtime_config.docker_host() {
         if host.starts_with("unix://") || host.starts_with('/') {
             Docker::connect_with_unix(host, 120, API_DEFAULT_VERSION)?

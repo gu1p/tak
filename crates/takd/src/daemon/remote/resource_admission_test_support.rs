@@ -9,12 +9,21 @@ use super::{
 
 impl SharedResourceAdmission {
     pub(super) fn new_for_tests(capacity: ResourceCapacity) -> Self {
+        Self::new_for_tests_with_oversubscribe(capacity, 1)
+    }
+
+    pub(super) fn new_for_tests_with_oversubscribe(
+        capacity: ResourceCapacity,
+        oversubscribe_x: u64,
+    ) -> Self {
         Self {
             inner: std::sync::Arc::new(ResourceAdmissionLock {
                 state: std::sync::Mutex::new(ResourceAdmissionState {
                     capacity,
                     reservations: Default::default(),
                     queue: Default::default(),
+                    oversubscribe_x: oversubscribe_x.max(1),
+                    held: false,
                 }),
                 changed: std::sync::Condvar::new(),
             }),

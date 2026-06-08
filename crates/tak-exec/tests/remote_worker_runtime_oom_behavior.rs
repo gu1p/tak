@@ -46,8 +46,8 @@ async fn remote_worker_explains_137_with_container_oom_state() {
         messages.iter().any(|message| {
             message.contains("exit code 137")
                 && message.contains("OOMKilled=false")
-                && message.contains("resources are reservations only")
-                && message.contains("not applied as container memory limits")
+                && message.contains("never kills a container for over-using")
+                && message.contains("systemd-oomd")
         }),
         "missing 137 diagnostic: {messages:?}"
     );

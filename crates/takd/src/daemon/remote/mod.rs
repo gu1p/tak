@@ -35,6 +35,7 @@ mod http_server_request_validation_unit_tests;
 mod http_server_test_support;
 #[cfg(test)]
 mod http_server_unit_tests;
+mod memory_pressure_controller;
 mod orphan_watchdog;
 mod query_helpers;
 mod resource_admission;
@@ -82,6 +83,7 @@ use execution_root::{
     remote_execution_root_base,
 };
 pub(crate) use http_server::{handle_remote_v1_http_stream, handle_remote_v1_stream};
+pub(crate) use memory_pressure_controller::spawn_memory_pressure_controller;
 pub(crate) use orphan_watchdog::spawn_remote_orphan_watchdog;
 use query_helpers::{
     binary_response, binary_response_with_headers, error_response, protobuf_response,

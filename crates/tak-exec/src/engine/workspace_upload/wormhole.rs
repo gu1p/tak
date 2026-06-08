@@ -12,10 +12,10 @@ use crate::engine::remote_submit_failure::RemoteSubmitFailure;
 pub(super) async fn wormhole_upload_for_submit(
     target: &StrictRemoteTarget,
     task_run_id: &str,
-    attempt: u32,
+    _attempt: u32,
     workspace: &RemoteWorkspaceStage,
 ) -> Result<WorkspaceUploadOutcome, RemoteSubmitFailure> {
-    let upload_id = upload_id(task_run_id, attempt, &workspace.sha256);
+    let upload_id = super::workspace_upload_id(task_run_id, &workspace.sha256);
     let transferred = send_workspace_wormhole_via_daemon(DaemonWorkspaceWormholeUploadRequest {
         target,
         upload_id: &upload_id,
@@ -49,17 +49,4 @@ pub(super) async fn wormhole_upload_for_submit(
         }),
         preferred_node_id: Some(transferred.peer_node_id),
     })
-}
-
-fn upload_id(task_run_id: &str, _attempt: u32, sha256: &str) -> String {
-    format!("{task_run_id}-{sha256}")
-        .chars()
-        .map(|value| {
-            if value.is_ascii_alphanumeric() || matches!(value, '.' | '-' | '_') {
-                value
-            } else {
-                '_'
-            }
-        })
-        .collect()
 }

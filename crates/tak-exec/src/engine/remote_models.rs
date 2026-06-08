@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use tak_core::model::{
-    ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec,
-    RemoteTransportKind, ResolvedTask, SessionUseSpec, TaskLabel,
+    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec,
+    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, SessionUseSpec, TaskLabel,
 };
 
 use crate::ImageCacheOptions;
@@ -171,6 +171,13 @@ pub(crate) struct ContainerExecutionPlan {
     pub(crate) image: String,
     pub(crate) container_user: Option<String>,
     pub(crate) image_cache: Option<ImageCachePlan>,
+    /// Declared CPU/memory reservations for the task. Threaded to the container
+    /// runtime to enforce CPU as a real cgroup quota (`nano_cpus`) and to cap
+    /// test/codegen parallelism. Memory is NEVER applied as a hard cgroup cap:
+    /// that would let the kernel OOM-kill the container for over-using memory,
+    /// which Tak must not do. Memory pressure is handled by throttling and
+    /// admission, not by killing containers.
+    pub(crate) resource_limits: Option<ContainerResourceLimitsSpec>,
 }
 
 #[derive(Debug, Clone)]
