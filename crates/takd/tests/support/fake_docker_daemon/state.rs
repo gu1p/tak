@@ -77,6 +77,15 @@ impl FakeDockerDaemonState {
     }
 
     pub(super) fn add_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
+        self.add_container_with_state(container_id, labels, "running");
+    }
+
+    pub(super) fn add_container_with_state(
+        &self,
+        container_id: &str,
+        labels: BTreeMap<String, String>,
+        state: &str,
+    ) {
         self.record_create(
             CreateRecord {
                 container_id: container_id.to_string(),
@@ -86,6 +95,7 @@ impl FakeDockerDaemonState {
                 working_dir: None,
                 binds: Vec::new(),
                 labels,
+                state: state.to_string(),
             },
             0,
         );

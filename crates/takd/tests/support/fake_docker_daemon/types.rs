@@ -11,6 +11,8 @@ pub struct CreateRecord {
     pub working_dir: Option<String>,
     pub binds: Vec<String>,
     pub labels: BTreeMap<String, String>,
+    /// Engine state reported in the container list (`running`/`paused`).
+    pub state: String,
 }
 
 impl CreateRecord {

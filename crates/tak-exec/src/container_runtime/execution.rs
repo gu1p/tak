@@ -30,6 +30,7 @@ pub(super) async fn run_step_in_container(
         tty: Some(false),
         host_config: Some(HostConfig {
             binds: Some(vec![bind_mount]),
+            nano_cpus: container_nano_cpus(executor.resource_limits),
             ..Default::default()
         }),
         ..Default::default()
@@ -110,7 +111,7 @@ async fn start_and_wait_for_container_step(
 
 fn container_labels(run_context: &ContainerStepRunContext<'_>) -> Option<HashMap<String, String>> {
     let identity = run_context.container_identity?;
-    Some(HashMap::from([
+    let mut labels = HashMap::from([
         ("tak.owner".to_string(), identity.owner.clone()),
         ("tak.submit_key".to_string(), identity.submit_key.clone()),
         ("tak.task_run_id".to_string(), identity.task_run_id.clone()),
@@ -119,7 +120,16 @@ fn container_labels(run_context: &ContainerStepRunContext<'_>) -> Option<HashMap
             "tak.task_label".to_string(),
             run_context.task_label.to_string(),
         ),
-    ]))
+    ]);
+    // A nonzero step timeout is wall-clock: the daemon must not pause such a
+    // container (its timeout keeps running while frozen). Expose it as a label
+    // so the memory-pressure controller can skip it.
+    if let Some(timeout_s) = run_context.timeout_s
+        && timeout_s > 0
+    {
+        labels.insert("tak.timeout_s".to_string(), timeout_s.to_string());
+    }
+    Some(labels)
 }
 
 async fn emit_exit_137_diagnostic(
@@ -136,8 +146,21 @@ async fn emit_exit_137_diagnostic(
         attempt: run_context.attempt,
         phase: TaskStatusPhase::RemoteWait,
         remote_node_id: None,
-        message: exit_137_diagnostic_message(oom_state),
+        message: exit_137_diagnostic_message(oom_state, executor.resource_limits),
     })
+}
+
+/// CPU quota (`nano_cpus`) for the container, derived from the task's declared
+/// CPU reservation: `cpu_cores` CPUs == `cpu_cores * 1e9` nano-CPUs. Bounds CPU
+/// usage and makes Rust's cgroup-aware `available_parallelism()` report the
+/// reserved core count inside the container, taming default test/codegen
+/// parallelism. `None` when no CPU reservation is declared.
+fn container_nano_cpus(limits: Option<&ContainerResourceLimitsSpec>) -> Option<i64> {
+    let cpu_cores = limits?.cpu_cores?;
+    if !cpu_cores.is_finite() || cpu_cores <= 0.0 {
+        return None;
+    }
+    Some((cpu_cores * 1_000_000_000.0).round() as i64)
 }
 
 async fn container_oom_killed(docker: &Docker, container_id: &str) -> Option<bool> {
@@ -149,13 +172,29 @@ async fn container_oom_killed(docker: &Docker, container_id: &str) -> Option<boo
         .and_then(|state| state.oom_killed)
 }
 
-fn exit_137_diagnostic_message(oom_killed: Option<bool>) -> String {
+fn exit_137_diagnostic_message(
+    oom_killed: Option<bool>,
+    limits: Option<&ContainerResourceLimitsSpec>,
+) -> String {
     let oom_state = match oom_killed {
         Some(value) => format!("OOMKilled={value}"),
         None => "OOMKilled=unknown".to_string(),
     };
+    let throttling = match limits.and_then(|limits| limits.cpu_cores) {
+        Some(cpu_cores) => {
+            let thread_cap = (cpu_cores.floor() as u64).max(1);
+            format!(
+                "container CPU is throttled to {cpu_cores} core(s) and test/codegen parallelism is capped to {thread_cap} thread(s)"
+            )
+        }
+        None => "no container CPU/parallelism throttling is applied".to_string(),
+    };
     format!(
-        "container exited with exit code 137 ({oom_state}); Tak resources are reservations only and are not applied as container memory limits"
+        "container exited with exit code 137 ({oom_state}); {throttling}. \
+         Tak does not hard-cap container memory and never kills a container for over-using \
+         memory, so a 137 here is a host-level SIGKILL (kernel OOM or systemd-oomd) under memory \
+         pressure — reduce node concurrency or add host swap; inspect `dmesg -T | grep -i oom` \
+         and `journalctl -u systemd-oomd` on the worker"
     )
 }
 

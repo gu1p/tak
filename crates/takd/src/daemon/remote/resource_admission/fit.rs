@@ -18,11 +18,20 @@ pub(super) fn promote_queued(state: &mut ResourceAdmissionState) {
 }
 
 pub(super) fn can_fit(state: &mut ResourceAdmissionState, request: &ResourceRequest) -> bool {
+    // Emergency hold: admit nothing new until the controller clears it.
+    if state.held {
+        return false;
+    }
     let used = reserved_totals(state);
     let requested_cpu = request.resource_limits.cpu_cores.unwrap_or(0.0);
     let requested_memory = request.resource_limits.memory_mb.unwrap_or(0);
-    used.cpu_cores + requested_cpu <= state.capacity.cpu_cores
-        && used.memory_mb.saturating_add(requested_memory) <= state.capacity.memory_mb
+    // Tolerant admission: oversubscribe capacity by the configured factor. The
+    // memory-pressure controller (pause/unpause) is the runtime backstop; we do
+    // NOT reject on cumulative reservation pressure here.
+    let cpu_budget = state.capacity.cpu_cores * state.oversubscribe_x as f64;
+    let mem_budget = state.capacity.memory_mb.saturating_mul(state.oversubscribe_x);
+    used.cpu_cores + requested_cpu <= cpu_budget
+        && used.memory_mb.saturating_add(requested_memory) <= mem_budget
 }
 
 fn reserved_totals(state: &ResourceAdmissionState) -> ResourceCapacity {

@@ -92,7 +92,7 @@ async fn write_container_list_response(
                 "Image": record.image.unwrap_or_default(),
                 "Command": record.cmd.join(" "),
                 "Labels": record.labels,
-                "State": "running",
+                "State": record.state,
                 "Status": "Up",
             })
         })
