@@ -50,7 +50,7 @@ fn repo_root_check_runs_light_checks_then_shared_rust_lane() -> Result<()> {
                     else {
                         panic!("//:check remote placement should use a sized container");
                     };
-                    assert_eq!(limits.memory_mb, Some(16_384));
+                    assert_eq!(limits.memory_mb, Some(5 * 1024));
                 }
                 _ => unreachable!("remote placement already asserted"),
             }
