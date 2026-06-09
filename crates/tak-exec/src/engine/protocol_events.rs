@@ -20,8 +20,13 @@ use crate::remote_protocol_codec::parse_remote_events_response;
 use super::output_observer::{
     TaskStatusDetails, emit_task_status_message, emit_task_status_message_with_details,
 };
-use super::protocol_result_http::{remote_protocol_http_request, try_remote_protocol_result};
+use super::protocol_result_http::{
+    ResultProbe, probe_remote_protocol_result, remote_protocol_http_request,
+};
 use super::remote_models::RemoteProtocolResult;
+use super::remote_result_fetch::{
+    FetchOutcome, RemoteFetchFailure, classify_fetch_status, format_remote_fetch_failure,
+};
 use super::remote_wait_status::{remote_wait_heartbeat_interval, render_remote_wait_heartbeat};
 
 pub(crate) async fn remote_protocol_events(
@@ -36,8 +41,13 @@ pub(crate) async fn remote_protocol_events(
     const EVENT_RECONNECT_DELAY: Duration = Duration::from_millis(500);
     let event_wait_heartbeat = remote_wait_heartbeat_interval();
 
+    let result_probe_path = format!("/v1/tasks/{task_run_id}/result");
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
+    // Bounds consecutive transient (5xx / retryable transport) result probes while
+    // the stream is otherwise alive, so a *persistent* result-endpoint failure
+    // eventually surfaces instead of polling forever. Reset on progress / 404.
+    let mut result_probe_failures = 0_u32;
     let mut persisted_remote_logs = Vec::new();
     let mut silent_since = tokio::time::Instant::now();
     let mut next_wait_heartbeat = silent_since + event_wait_heartbeat;
@@ -87,17 +97,22 @@ pub(crate) async fn remote_protocol_events(
         };
 
         let (status, response_body) = match response {
-            Ok(success) => {
-                reconnect_attempts = 0;
-                success
-            }
+            Ok(success) => success,
             Err(err) => {
                 reconnect_attempts += 1;
                 if reconnect_attempts > MAX_EVENT_RECONNECTS {
                     bail!(
-                        "infra error: remote node {} events stream resume failed after seq {}: {err}",
-                        target.node_id,
-                        last_seen_seq
+                        "{}",
+                        format_remote_fetch_failure(&RemoteFetchFailure {
+                            target,
+                            task_run_id,
+                            attempt,
+                            phase: "events",
+                            path: &path,
+                            status: None,
+                            body: None,
+                            transport_error: Some(&err),
+                        })
                     );
                 }
                 tokio::time::sleep(EVENT_RECONNECT_DELAY).await;
@@ -105,12 +120,50 @@ pub(crate) async fn remote_protocol_events(
             }
         };
 
-        if status != 200 {
-            bail!(
-                "infra error: remote node {} events stream failed with HTTP {}",
-                target.node_id,
-                status
-            );
+        // Reset the reconnect budget only on a genuine 200. A non-200 is still a
+        // *successful* HTTP exchange, so resetting on any `Ok` would let a hard
+        // 5xx loop forever (reset -> +1 -> reset -> +1 ...) and never hit the cap.
+        if status == 200 {
+            reconnect_attempts = 0;
+        } else {
+            match classify_fetch_status(status) {
+                FetchOutcome::Retryable => {
+                    reconnect_attempts += 1;
+                    if reconnect_attempts > MAX_EVENT_RECONNECTS {
+                        bail!(
+                            "{}",
+                            format_remote_fetch_failure(&RemoteFetchFailure {
+                                target,
+                                task_run_id,
+                                attempt,
+                                phase: "events",
+                                path: &path,
+                                status: Some(status),
+                                body: Some(&response_body),
+                                transport_error: None,
+                            })
+                        );
+                    }
+                    // Resume from the same cursor (`after_seq={last_seen_seq}`); the
+                    // events parser drops already-seen seqs, so resuming after a
+                    // transient 5xx never replays output.
+                    tokio::time::sleep(EVENT_RECONNECT_DELAY).await;
+                    continue;
+                }
+                _ => bail!(
+                    "{}",
+                    format_remote_fetch_failure(&RemoteFetchFailure {
+                        target,
+                        task_run_id,
+                        attempt,
+                        phase: "events",
+                        path: &path,
+                        status: Some(status),
+                        body: Some(&response_body),
+                        transport_error: None,
+                    })
+                ),
+            }
         }
 
         let previous_seq = last_seen_seq;
@@ -148,14 +201,44 @@ pub(crate) async fn remote_protocol_events(
         if saw_new_activity {
             silent_since = tokio::time::Instant::now();
             next_wait_heartbeat = silent_since + event_wait_heartbeat;
+            // Progress proves the stream is healthy; forgive earlier transient
+            // result probes.
+            result_probe_failures = 0;
         }
         if parsed.done {
             return Ok((persisted_remote_logs, None));
         }
-        if last_seen_seq == previous_seq
-            && let Some(result) = try_remote_protocol_result(target, task_run_id, attempt).await?
-        {
-            return Ok((persisted_remote_logs, Some(result)));
+        if last_seen_seq == previous_seq {
+            match probe_remote_protocol_result(target, task_run_id, attempt).await? {
+                ResultProbe::Ready(result) => {
+                    return Ok((persisted_remote_logs, Some(result)));
+                }
+                ResultProbe::NotReady => {
+                    // Result genuinely not ready yet — keep waiting on the stream.
+                    result_probe_failures = 0;
+                }
+                ResultProbe::Transient { status, body } => {
+                    // Tolerate transient result failures (don't kill a live run),
+                    // but cap them so a persistent result-endpoint fault surfaces
+                    // instead of polling forever.
+                    result_probe_failures += 1;
+                    if result_probe_failures > MAX_EVENT_RECONNECTS {
+                        bail!(
+                            "{}",
+                            format_remote_fetch_failure(&RemoteFetchFailure {
+                                target,
+                                task_run_id,
+                                attempt,
+                                phase: "result",
+                                path: &result_probe_path,
+                                status,
+                                body: body.as_deref(),
+                                transport_error: None,
+                            })
+                        );
+                    }
+                }
+            }
         }
         tokio::time::sleep(EVENT_POLL_INTERVAL).await;
     }

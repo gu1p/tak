@@ -8,8 +8,8 @@ use crate::step_runner::StepRunResult;
 use super::output_observer::emit_task_status_message;
 use super::protocol_cancel::remote_protocol_cancel;
 use super::protocol_events::remote_protocol_events;
-use super::protocol_result_http::remote_protocol_result;
 use super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement};
+use super::remote_result_fetch::fetch_remote_result_with_retry;
 use super::result_tail_recovery::recover_missing_remote_result_tails;
 use super::step_execution::run_task_steps_with_runtime;
 use super::workspace_outputs::collect_workspace_outputs;
@@ -96,7 +96,26 @@ pub(crate) async fn execute_task_attempt(
         };
         let result = match protocol_result {
             Some(result) => result,
-            None => remote_protocol_result(target, context.task_run_id, context.attempt).await?,
+            None => {
+                // The terminal result fetch retries transient failures with
+                // backoff. Run it under the same cancellation guard as the event
+                // stream so a long retry sequence stays promptly interruptible.
+                let fetch = fetch_remote_result_with_retry(
+                    target,
+                    context.task_run_id,
+                    context.attempt,
+                    &context.task.label,
+                    context.output_observer,
+                );
+                tokio::pin!(fetch);
+                tokio::select! {
+                    result = &mut fetch => result?,
+                    _ = context.cancellation.cancelled() => {
+                        let _ = remote_protocol_cancel(target, context.task_run_id, context.attempt).await;
+                        return Err(super::cancellation::cancelled_error());
+                    }
+                }
+            }
         };
         recover_missing_remote_result_tails(
             context.task_run_id,

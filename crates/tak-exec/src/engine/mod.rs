@@ -34,6 +34,9 @@ mod public_types;
 pub(crate) mod remote_diagnostics;
 mod remote_http_exchange_error;
 pub(crate) mod remote_models;
+mod remote_result_fetch;
+#[cfg(test)]
+mod remote_result_fetch_tests;
 mod remote_selection;
 #[path = "remote_selection_reservation_tests.rs"]
 mod remote_selection_reservation_tests;

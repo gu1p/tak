@@ -8,7 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use crate::engine::protocol_result_http::{
-    remote_protocol_http_request, try_remote_protocol_result,
+    ResultProbe, probe_remote_protocol_result, remote_protocol_http_request,
 };
 use crate::engine::remote_models::{StrictRemoteTarget, StrictRemoteTransportKind};
 
@@ -69,10 +69,12 @@ async fn remote_protocol_result_allows_busy_direct_daemons_more_than_one_second(
     });
     let target = direct_target(format!("http://{addr}"));
 
-    let result = try_remote_protocol_result(&target, "task-run", 1)
+    let probe = probe_remote_protocol_result(&target, "task-run", 1)
         .await
-        .expect("result request should wait for busy daemon")
-        .expect("result");
+        .expect("result request should wait for busy daemon");
+    let ResultProbe::Ready(result) = probe else {
+        panic!("expected a ready result from a 200 response");
+    };
 
     assert!(result.success);
     server.await.expect("server task");
