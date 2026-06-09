@@ -1,17 +1,16 @@
 use std::fs;
-use std::sync::MutexGuard;
 use std::time::Duration;
 
 use super::{
-    EnvGuard, RecordingEvents, RecordingLeaseConfig, RecordingLeaseServer, RecordingRemoteServer,
-    RemoteInventoryRecord, add_ui_lock_need, env_lock, remote_builder_spec, remote_task_spec,
-    shell_step, write_remote_inventory,
+    LockedEnvGuard, RecordingEvents, RecordingLeaseConfig, RecordingLeaseServer,
+    RecordingRemoteServer, RemoteInventoryRecord, add_ui_lock_need, remote_builder_spec,
+    remote_task_spec, shell_step, write_remote_inventory,
 };
 use tak_core::model::{TaskLabel, WorkspaceSpec};
 use tak_exec::RunOptions;
 pub struct RemoteLeaseCase {
-    pub _env_lock: MutexGuard<'static, ()>,
-    pub _env: EnvGuard,
+    // A single guard that restores env BEFORE releasing the lock (see `LockedEnvGuard`).
+    pub _locked_env: LockedEnvGuard,
     pub _temp: tempfile::TempDir,
     pub events: RecordingEvents,
     pub _lease: RecordingLeaseServer,
@@ -63,9 +62,8 @@ async fn remote_lease_case_with_custom(
     )
     .await;
     let remote = spawn_remote(&format!("builder-{name}"), events.clone());
-    let env_lock = env_lock();
-    let mut env = EnvGuard::default();
-    env.set("XDG_CONFIG_HOME", config_root.display().to_string());
+    let mut locked_env = LockedEnvGuard::acquire();
+    locked_env.set("XDG_CONFIG_HOME", config_root.display().to_string());
     write_remote_inventory(
         &config_root,
         &[RemoteInventoryRecord::builder(
@@ -87,8 +85,7 @@ async fn remote_lease_case_with_custom(
         ..RunOptions::default()
     };
     RemoteLeaseCase {
-        _env_lock: env_lock,
-        _env: env,
+        _locked_env: locked_env,
         _temp: temp,
         events,
         _lease: lease,

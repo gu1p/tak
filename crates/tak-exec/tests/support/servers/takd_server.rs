@@ -2,16 +2,15 @@
 
 use std::path::Path;
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
 
 use tak_proto::NodeInfo;
 use takd::daemon::remote::{
     RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
+use super::takd_readiness::wait_for_node_info;
 use crate::support::install_fake_docker;
 
 pub struct RunningTakdServer {
@@ -75,48 +74,21 @@ impl Drop for RunningTakdServer {
     }
 }
 
+/// Installs the fake docker shim and points the process env at it. Done EXACTLY ONCE for the
+/// whole test process (the first `spawn`, which runs under the caller's `env_lock`), rather than
+/// on every spawn: these are global, never-restored writes, and repeating `set_var` on each
+/// spawn needlessly widens the window for concurrent `setenv`/`getenv` data races with other
+/// tests.
 fn ensure_simulated_container_runtime_env() {
-    static FAKE_DOCKER_BIN: OnceLock<std::path::PathBuf> = OnceLock::new();
-    let bin_root = FAKE_DOCKER_BIN.get_or_init(|| {
-        let path = std::env::temp_dir().join("tak-exec-test-fake-docker");
-        install_fake_docker(&path);
-        path
-    });
-
-    let current_path = std::env::var("PATH").unwrap_or_default();
-    let bin_prefix = bin_root.display().to_string();
-    if !current_path.split(':').any(|entry| entry == bin_prefix) {
-        unsafe { std::env::set_var("PATH", format!("{bin_prefix}:{current_path}")) };
-    }
-    unsafe { std::env::set_var("TAK_TEST_HOST_PLATFORM", "other") };
-}
-
-async fn wait_for_node_info(bind_addr: &str) {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        let result = tokio::time::timeout(
-            Duration::from_millis(250),
-            fetch_node_info_status(bind_addr),
-        )
-        .await;
-        if matches!(result, Ok(Ok(status)) if status.starts_with("HTTP/1.1 200")) {
-            return;
+    static INIT: OnceLock<()> = OnceLock::new();
+    INIT.get_or_init(|| {
+        let bin_root = std::env::temp_dir().join("tak-exec-test-fake-docker");
+        install_fake_docker(&bin_root);
+        let bin_prefix = bin_root.display().to_string();
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        if !current_path.split(':').any(|entry| entry == bin_prefix) {
+            unsafe { std::env::set_var("PATH", format!("{bin_prefix}:{current_path}")) };
         }
-        assert!(
-            Instant::now() < deadline,
-            "remote v1 test server did not become ready at {bind_addr}"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-}
-
-async fn fetch_node_info_status(bind_addr: &str) -> std::io::Result<String> {
-    let mut stream = TcpStream::connect(bind_addr).await?;
-    let request = format!(
-        "GET /v1/node/info HTTP/1.1\r\nHost: {bind_addr}\r\nAuthorization: Bearer secret\r\nConnection: close\r\n\r\n"
-    );
-    stream.write_all(request.as_bytes()).await?;
-    let mut response = String::new();
-    stream.read_to_string(&mut response).await?;
-    Ok(response.lines().next().unwrap_or_default().to_string())
+        unsafe { std::env::set_var("TAK_TEST_HOST_PLATFORM", "other") };
+    });
 }
