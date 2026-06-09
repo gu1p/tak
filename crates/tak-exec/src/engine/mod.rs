@@ -59,6 +59,9 @@ mod transport;
 mod transport_tests;
 mod transport_tor;
 mod workspace_collect;
+mod workspace_content_hash;
+#[path = "workspace_content_hash_tests.rs"]
+mod workspace_content_hash_tests;
 mod workspace_outputs;
 mod workspace_stage;
 #[path = "workspace_stage_tests.rs"]
@@ -74,6 +77,8 @@ mod workspace_upload;
 #[path = "workspace_upload_auth_tests.rs"]
 mod workspace_upload_auth_tests;
 mod workspace_upload_cache;
+#[path = "workspace_upload_cache_tests.rs"]
+mod workspace_upload_cache_tests;
 #[path = "workspace_upload_raw_http_test_support.rs"]
 mod workspace_upload_raw_http_test_support;
 #[path = "workspace_upload_test_support.rs"]

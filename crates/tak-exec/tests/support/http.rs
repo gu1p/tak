@@ -15,7 +15,9 @@ pub fn read_request_path_and_body(stream: &mut TcpStream) -> Option<TestHttpRequ
     if reader.read_line(&mut request_line).ok()? == 0 {
         return None;
     }
-    let path = request_line.split_whitespace().nth(1)?.to_string();
+    let mut request_fields = request_line.split_whitespace();
+    let method = request_fields.next()?.to_string();
+    let path = request_fields.next()?.to_string();
     let mut content_length = 0_usize;
     loop {
         let mut header = String::new();
@@ -28,16 +30,18 @@ pub fn read_request_path_and_body(stream: &mut TcpStream) -> Option<TestHttpRequ
             content_length = value.trim().parse::<usize>().unwrap_or(0);
         }
     }
-    let body = Vec::new();
-    if content_length > 0 {
+    let body = if content_length > 0 {
         let mut body = vec![0_u8; content_length];
         reader.read_exact(&mut body).ok()?;
-        return Some(TestHttpRequest { path, body });
-    }
-    Some(TestHttpRequest { path, body })
+        body
+    } else {
+        Vec::new()
+    };
+    Some(TestHttpRequest { method, path, body })
 }
 
 pub struct TestHttpRequest {
+    pub method: String,
     pub path: String,
     pub body: Vec<u8>,
 }

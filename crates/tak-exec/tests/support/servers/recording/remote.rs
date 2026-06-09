@@ -3,7 +3,9 @@ use std::net::{TcpListener, TcpStream};
 use std::{thread, time::Duration};
 
 use super::RecordingEvents;
-use super::remote_routes::{SubmitBehavior, serve_remote_request};
+use super::remote_routes::{RecordingResponses, serve_remote_request};
+use super::submit_route::SubmitBehavior;
+use super::upload_config::UploadConfig;
 use tak_proto::NodeStatusResponse;
 
 pub struct RecordingRemoteServer {
@@ -14,43 +16,21 @@ pub struct RecordingRemoteServer {
 }
 
 impl RecordingRemoteServer {
-    pub fn spawn_success(node_id: &str, events: RecordingEvents) -> Self {
-        Self::spawn(node_id, events, SubmitBehavior::Success, None)
-    }
-
-    pub fn spawn_success_with_result_delay(
-        node_id: &str,
-        events: RecordingEvents,
-        result_delay: Duration,
-    ) -> Self {
-        Self::spawn_with_result_delay(node_id, events, SubmitBehavior::Success, None, result_delay)
-    }
-
-    pub fn spawn_success_with_status(
-        node_id: &str,
-        events: RecordingEvents,
-        status: NodeStatusResponse,
-    ) -> Self {
-        Self::spawn(node_id, events, SubmitBehavior::Success, Some(status))
-    }
-
-    pub fn spawn_submit_failure(node_id: &str, events: RecordingEvents) -> Self {
-        Self::spawn(node_id, events, SubmitBehavior::Failure, None)
-    }
-
-    fn spawn(
+    pub(super) fn spawn(
         node_id: &str,
         events: RecordingEvents,
         submit: SubmitBehavior,
+        upload: UploadConfig,
         status: Option<NodeStatusResponse>,
     ) -> Self {
-        Self::spawn_with_result_delay(node_id, events, submit, status, Duration::ZERO)
+        Self::spawn_with_result_delay(node_id, events, submit, upload, status, Duration::ZERO)
     }
 
-    fn spawn_with_result_delay(
+    pub(super) fn spawn_with_result_delay(
         node_id: &str,
         events: RecordingEvents,
         submit: SubmitBehavior,
+        upload: UploadConfig,
         status: Option<NodeStatusResponse>,
         result_delay: Duration,
     ) -> Self {
@@ -61,18 +41,16 @@ impl RecordingRemoteServer {
             .port();
         let node_id = node_id.to_string();
         let thread_node_id = node_id.clone();
+        let responses = RecordingResponses {
+            submit,
+            upload,
+            status,
+            result_delay,
+        };
         let handle = thread::spawn(move || {
             loop {
                 let (mut stream, _) = listener.accept().expect("accept recording remote request");
-                if !serve_remote_request(
-                    &mut stream,
-                    &thread_node_id,
-                    port,
-                    &events,
-                    submit,
-                    status.as_ref(),
-                    result_delay,
-                ) {
+                if !serve_remote_request(&mut stream, &thread_node_id, port, &events, &responses) {
                     break;
                 }
             }

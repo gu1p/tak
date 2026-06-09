@@ -8,7 +8,7 @@ use super::super::remote_models::{RemoteWorkspaceStage, RuntimeExecutionMetadata
 use super::super::remote_selection::SharedRemoteSelectionState;
 use super::super::session_cascade::task_with_session_context;
 use super::super::session_workspaces::{PreparedTaskSession, SharedExecutionSessionManager};
-use super::super::workspace_collect::{WorkspaceUploadIdentity, workspace_upload_identity};
+use super::super::workspace_content_hash::{WorkspaceUploadIdentity, workspace_upload_identity};
 use super::super::workspace_stage::stage_remote_workspace;
 use super::super::{
     LeaseContext, PlacementMode, RunOptions, TaskFinishedEvent, TaskRunResult, emit_task_finished,

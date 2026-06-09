@@ -163,7 +163,3 @@ impl Drop for UploadLeadGuard {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "workspace_upload_cache_tests.rs"]
-mod workspace_upload_cache_tests;

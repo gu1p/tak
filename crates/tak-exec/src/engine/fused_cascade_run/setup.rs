@@ -9,7 +9,7 @@ use crate::engine::remote_selection::SharedRemoteSelectionState;
 use crate::engine::session_cascade::task_with_session_context;
 use crate::engine::session_workspaces::PreparedTaskSession;
 use crate::engine::task_result::{TaskRunResultContext, build_task_run_result};
-use crate::engine::workspace_collect::{WorkspaceUploadIdentity, workspace_upload_identity};
+use crate::engine::workspace_content_hash::{WorkspaceUploadIdentity, workspace_upload_identity};
 use crate::engine::workspace_stage::stage_remote_workspace;
 use crate::engine::{PlacementMode, RunOptions, TaskRunResult};
 
