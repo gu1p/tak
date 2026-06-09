@@ -99,8 +99,8 @@ use route_result::handle_remote_result_route;
 use route_submit::handle_remote_submit_route;
 use route_tasks::handle_remote_tasks_route;
 use route_uploads::{
-    handle_workspace_upload_route, receive_workspace_wormhole_upload, resolve_workspace_upload_zip,
-    stream_workspace_upload,
+    WORKSPACE_UPLOADS_DIR_NAME, WorkspaceUploadMissing, handle_workspace_upload_route,
+    receive_workspace_wormhole_upload, resolve_workspace_upload_zip, stream_workspace_upload,
 };
 use router::handle_remote_v1_request_with_headers;
 use submit_payload_parse::parse_remote_worker_submit_payload;

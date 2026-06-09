@@ -26,7 +26,6 @@ pub(crate) fn workspace_stage(archive: &[u8]) -> RemoteWorkspaceStage {
     std::fs::write(&archive_path, archive).expect("archive");
     RemoteWorkspaceStage {
         temp_dir,
-        manifest_hash: "manifest".into(),
         archive_path,
         archive_byte_len: archive.len() as u64,
         sha256: format!("{:x}", Sha256::digest(archive)),

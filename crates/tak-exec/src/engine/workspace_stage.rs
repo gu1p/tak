@@ -68,7 +68,6 @@ pub(crate) fn stage_remote_workspace(
 
     Ok(RemoteWorkspaceStage {
         temp_dir: staged_dir,
-        manifest_hash: manifest.hash,
         archive_byte_len,
         archive_path,
         sha256,

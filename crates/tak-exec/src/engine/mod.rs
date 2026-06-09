@@ -73,6 +73,7 @@ mod workspace_transfer_selection_tests;
 mod workspace_upload;
 #[path = "workspace_upload_auth_tests.rs"]
 mod workspace_upload_auth_tests;
+mod workspace_upload_cache;
 #[path = "workspace_upload_raw_http_test_support.rs"]
 mod workspace_upload_raw_http_test_support;
 #[path = "workspace_upload_test_support.rs"]

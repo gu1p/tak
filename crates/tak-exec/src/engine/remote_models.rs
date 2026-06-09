@@ -139,7 +139,6 @@ pub(crate) struct RemoteProtocolResult {
 #[derive(Debug)]
 pub(crate) struct RemoteWorkspaceStage {
     pub(crate) temp_dir: tempfile::TempDir,
-    pub(crate) manifest_hash: String,
     pub(crate) archive_path: PathBuf,
     pub(crate) archive_byte_len: u64,
     pub(crate) sha256: String,
@@ -196,4 +195,6 @@ pub(crate) struct RemoteSubmitContext<'a> {
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
     pub(crate) execution_label: Option<&'a str>,
     pub(crate) fused_member_execution_labels: Option<&'a BTreeMap<TaskLabel, String>>,
+    pub(crate) upload_cache: &'a super::workspace_upload_cache::SharedWorkspaceUploadCache,
+    pub(crate) workspace_content_hash: &'a str,
 }

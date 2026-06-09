@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use tak_core::model::RemoteSelectionSpec;
 
 use super::remote_models::StrictRemoteTarget;
+use super::workspace_upload_cache::SharedWorkspaceUploadCache;
 
 mod ordering;
 pub(crate) use ordering::ordered_remote_targets_for_attempt;
@@ -62,9 +63,18 @@ impl RemoteSelectionState {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct SharedRemoteSelectionState {
     inner: Arc<Mutex<RemoteSelectionState>>,
+    /// Per-run cache of workspace uploads, so the same repository is uploaded to a node only
+    /// once per job. It carries its own internal synchronization (never the `inner` mutex
+    /// above), so it can be awaited on without holding the selection lock.
+    upload_cache: SharedWorkspaceUploadCache,
 }
 
 impl SharedRemoteSelectionState {
+    /// The per-run workspace-upload cache (see [`SharedWorkspaceUploadCache`]).
+    pub(crate) fn upload_cache(&self) -> &SharedWorkspaceUploadCache {
+        &self.upload_cache
+    }
+
     pub(crate) fn reserve_ordered_targets_for_attempt(
         &self,
         targets: &[StrictRemoteTarget],

@@ -1,6 +1,6 @@
 use tak_core::model::RemoteSelectionSpec;
 
-use super::{PlacementMode, RemoteWorkspaceStage, TaskRunResult};
+use super::{PlacementMode, TaskRunResult};
 
 use super::attempt_execution::AttemptExecutionOutcome;
 use super::remote_models::{RuntimeExecutionMetadata, TaskPlacement};
@@ -11,7 +11,10 @@ pub(crate) struct TaskRunResultContext<'a> {
     pub(crate) attempt: u32,
     pub(crate) success: bool,
     pub(crate) placement: &'a TaskPlacement,
-    pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    /// Paths-only manifest hash of the task's context. Threaded explicitly (rather than read
+    /// from the staged workspace) so it is preserved even when staging is skipped on a per-job
+    /// upload-cache hit.
+    pub(crate) context_manifest_hash: Option<String>,
     pub(crate) runtime_metadata: Option<&'a RuntimeExecutionMetadata>,
     pub(crate) session: Option<&'a PreparedTaskSession>,
 }
@@ -34,9 +37,7 @@ pub(crate) fn build_task_run_result(
             .as_ref()
             .map(|target| target.transport_kind.as_result_value().to_string()),
         decision_reason: context.placement.decision_reason.clone(),
-        context_manifest_hash: context
-            .remote_workspace
-            .map(|staged| staged.manifest_hash.clone()),
+        context_manifest_hash: context.context_manifest_hash,
         remote_runtime_kind: outcome
             .remote_runtime_kind
             .or_else(|| context.runtime_metadata.map(|meta| meta.kind.clone())),
@@ -72,7 +73,7 @@ pub(crate) fn empty_task_result() -> TaskRunResult {
             attempt: 1,
             success: true,
             placement: &placement,
-            remote_workspace: None,
+            context_manifest_hash: None,
             runtime_metadata: None,
             session: None,
         },

@@ -7,6 +7,28 @@ pub(super) use stream::{
     commit_partial_upload, ensure_metadata, hash_partial_prefix, truncate_partial_upload,
 };
 
+/// Directory (under each remote execution root) that holds resumable workspace
+/// upload blobs (`{upload_id}.zip` / `.part` / `.meta`). It is deliberately
+/// excluded from the generic per-job cleanup sweep and reaped per-blob instead,
+/// so a blob reused across the tasks of one job is not deleted mid-job. See the
+/// cleanup janitor and `touch_upload_files`.
+pub(in crate::daemon::remote) const WORKSPACE_UPLOADS_DIR_NAME: &str = ".workspace-uploads";
+
+/// A referenced workspace upload blob is no longer present on this node (e.g. it
+/// was reaped by the cleanup janitor). Distinguished from malformed-request errors
+/// so the submit route can answer with a retryable status and the client can
+/// re-upload instead of treating it as a hard failure.
+#[derive(Debug)]
+pub(in crate::daemon::remote) struct WorkspaceUploadMissing(pub String);
+
+impl std::fmt::Display for WorkspaceUploadMissing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "workspace upload {} is missing", self.0)
+    }
+}
+
+impl std::error::Error for WorkspaceUploadMissing {}
+
 pub(super) struct UploadStatus {
     pub(super) offset: u64,
     pub(super) complete: bool,
@@ -40,10 +62,45 @@ pub(in crate::daemon::remote) fn resolve_workspace_upload_zip(
         size_bytes: upload.size_bytes,
     };
     let path = completed_upload_path(context, &upload.upload_id);
-    let bytes = fs::read(&path)
-        .with_context(|| format!("workspace upload {} is not complete", upload.upload_id))?;
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(WorkspaceUploadMissing(upload.upload_id.clone()).into());
+        }
+        Err(err) => {
+            return Err(err).with_context(|| format!("read workspace upload {}", upload.upload_id));
+        }
+    };
     ensure_upload_matches(&metadata, &bytes)?;
+    // Refresh the blob (and its sidecars) so an actively-reused upload survives the
+    // per-blob TTL sweep for as long as the job keeps referencing it. Best-effort:
+    // a touch failure must not fail the resolve — the blob itself is valid.
+    touch_upload_files(context, &upload.upload_id);
     Ok(bytes)
+}
+
+/// Bumps the mtime of a workspace upload's `.zip`/`.meta`/`.part` files to now.
+/// Used on every successful resolve so the per-blob cleanup sweep (which keys off
+/// file mtime) keeps actively-referenced blobs alive. Missing files / IO errors
+/// are ignored — this is purely a liveness hint.
+fn touch_upload_files(context: &RemoteNodeContext, upload_id: &str) {
+    let now = std::time::SystemTime::now();
+    for path in [
+        completed_upload_path(context, upload_id),
+        metadata_path(context, upload_id),
+        partial_upload_path(context, upload_id),
+    ] {
+        let Ok(file) = fs::OpenOptions::new().write(true).open(&path) else {
+            continue;
+        };
+        if let Err(err) = file.set_modified(now) {
+            tracing::warn!(
+                upload_id,
+                path = %path.display(),
+                "failed to refresh workspace upload mtime: {err}"
+            );
+        }
+    }
 }
 
 pub(super) fn ensure_upload_root(context: &RemoteNodeContext) -> Result<()> {
@@ -149,7 +206,7 @@ pub(super) fn ensure_valid_upload_id(upload_id: &str) -> Result<()> {
 }
 
 fn upload_root(context: &RemoteNodeContext) -> PathBuf {
-    remote_execution_root_base(context).join(".workspace-uploads")
+    remote_execution_root_base(context).join(WORKSPACE_UPLOADS_DIR_NAME)
 }
 
 fn metadata_path(context: &RemoteNodeContext, upload_id: &str) -> PathBuf {

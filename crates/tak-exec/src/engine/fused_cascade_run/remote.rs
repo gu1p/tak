@@ -22,6 +22,7 @@ pub(super) struct RemoteFusedAttemptContext<'a> {
     pub(super) placement: &'a mut TaskPlacement,
     pub(super) remote_selection_state: &'a SharedRemoteSelectionState,
     pub(super) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    pub(super) workspace_content_hash: Option<&'a str>,
     pub(super) session: Option<&'a PreparedTaskSession>,
     pub(super) execution_label: Option<&'a str>,
     pub(super) member_execution_labels: &'a BTreeMap<TaskLabel, String>,
@@ -38,15 +39,18 @@ pub(super) async fn run_remote_fused_attempt(
         placement,
         remote_selection_state,
         remote_workspace,
+        workspace_content_hash,
         session,
         execution_label,
         member_execution_labels,
     } = context;
     resolve_attempt_submit_state(
         &cascade.task,
+        workspace_root,
         placement,
         AttemptSubmitState {
             remote_workspace,
+            workspace_content_hash,
             task_run_id,
             attempt: 1,
             session,

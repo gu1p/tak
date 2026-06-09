@@ -22,7 +22,18 @@ pub(super) fn handle_remote_submit_route(
 
     let worker_payload = match parse_remote_worker_submit_payload(context, &payload) {
         Ok(worker_payload) => worker_payload,
-        Err(_) => return Ok(error_response(400, "invalid_submit_fields")),
+        Err(err) => {
+            // A referenced workspace upload that was reaped (NotFound) is reported as a
+            // distinct, retryable status so the client can transparently re-upload and
+            // resubmit, instead of treating it like a malformed request.
+            if err
+                .chain()
+                .any(|cause| cause.is::<WorkspaceUploadMissing>())
+            {
+                return Ok(error_response(409, "workspace_upload_missing"));
+            }
+            return Ok(error_response(400, "invalid_submit_fields"));
+        }
     };
     tracing::info!(
         task_run_id,

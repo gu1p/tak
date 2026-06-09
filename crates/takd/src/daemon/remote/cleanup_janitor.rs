@@ -13,6 +13,8 @@ mod cleanup_janitor_permission_tests;
 mod containers;
 #[path = "cleanup_janitor/image_cache.rs"]
 mod image_cache;
+#[cfg(test)]
+mod workspace_uploads_tests;
 
 pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
     spawn_remote_execution_cleanup_janitor(context.clone(), store);
@@ -59,6 +61,7 @@ pub(crate) async fn run_remote_cleanup_once(
     let ttl = context.runtime_config().remote_cleanup_ttl();
     for root in cleanup_roots(context, store)? {
         cleanup_stale_remote_entries(&root, &active_jobs, ttl)?;
+        cleanup_stale_workspace_uploads(&root.join(WORKSPACE_UPLOADS_DIR_NAME), ttl)?;
     }
     if !tak_core::mock::mock_container_enabled() {
         containers::cleanup_inactive_takd_containers(context, &active_jobs).await?;
@@ -138,6 +141,13 @@ where
         let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
+        // The workspace-upload blob cache is reaped per-blob by
+        // `cleanup_stale_workspace_uploads` (it is shared across a job's tasks and
+        // refreshed on every resolve), so it must never be removed as a whole
+        // directory by this generic per-job sweep.
+        if name == WORKSPACE_UPLOADS_DIR_NAME {
+            continue;
+        }
         if active_jobs.contains(name) || !is_stale(&path, ttl)? {
             continue;
         }
@@ -178,6 +188,69 @@ fn remove_stale_remote_entry(path: &Path) -> Result<()> {
             .with_context(|| format!("failed to remove stale file {}", path.display()))?;
     }
     Ok(())
+}
+
+/// Reaps individual stale workspace-upload blobs under `.workspace-uploads`.
+///
+/// This directory is excluded from the generic per-job directory sweep (see
+/// `cleanup_stale_remote_entries_with`) because a single blob is referenced by every
+/// task of a job that shares the same workspace content, and `touch_upload_files`
+/// refreshes each blob's mtime on resolve. So we clean per FILE by file mtime: a blob
+/// no longer referenced for `ttl` is removed, but actively-reused blobs survive.
+fn cleanup_stale_workspace_uploads(upload_dir: &Path, ttl: Duration) -> Result<()> {
+    cleanup_stale_workspace_uploads_with(upload_dir, ttl, remove_stale_workspace_upload_file)
+}
+
+fn cleanup_stale_workspace_uploads_with<F>(
+    upload_dir: &Path,
+    ttl: Duration,
+    mut remove_stale: F,
+) -> Result<()>
+where
+    F: FnMut(&Path) -> Result<()>,
+{
+    let read_dir = match std::fs::read_dir(upload_dir) {
+        Ok(read_dir) => read_dir,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => {
+            return Err(err).with_context(|| {
+                format!(
+                    "failed to read workspace upload dir {}",
+                    upload_dir.display()
+                )
+            });
+        }
+    };
+
+    for entry in read_dir {
+        let entry = entry.with_context(|| {
+            format!(
+                "failed to read workspace upload entry under {}",
+                upload_dir.display()
+            )
+        })?;
+        let path = entry.path();
+        if !path.is_file() || !is_stale(&path, ttl)? {
+            continue;
+        }
+        if let Err(err) = remove_stale(&path) {
+            if is_permission_denied(&err) {
+                tracing::warn!(
+                    "remote cleanup janitor skipped stale workspace upload {}: {err:#}",
+                    path.display()
+                );
+                continue;
+            }
+            return Err(err);
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_stale_workspace_upload_file(path: &Path) -> Result<()> {
+    std::fs::remove_file(path)
+        .with_context(|| format!("failed to remove stale workspace upload {}", path.display()))
 }
 
 fn is_permission_denied(err: &anyhow::Error) -> bool {

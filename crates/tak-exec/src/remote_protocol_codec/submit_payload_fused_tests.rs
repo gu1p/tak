@@ -38,7 +38,7 @@ fn build_remote_submit_payload_includes_fused_member_policies() {
         task_run_id: "task-run-1",
         attempt: 1,
         task: &task,
-        remote_workspace: &remote_workspace,
+        remote_workspace: Some(&remote_workspace),
         session: None,
         execution_label: Some("check"),
         fused_members: Some(&[member]),
