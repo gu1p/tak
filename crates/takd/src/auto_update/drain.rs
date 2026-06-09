@@ -18,6 +18,13 @@ pub(crate) enum DrainOutcome {
 /// A stuck task must not pin an old (possibly vulnerable) binary forever, so the
 /// caller proceeds anyway after the deadline; the restarted daemon re-adopts
 /// orphaned attempts from the same sqlite store.
+///
+/// ```no_run
+/// # // Reason: needs a tokio runtime and a constructed SubmitAttemptStore backed by sqlite.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) async fn wait_until_idle(
     store: &SubmitAttemptStore,
     deadline: Duration,

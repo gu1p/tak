@@ -76,6 +76,13 @@ impl MemoryPressureSettings {
 
     /// Keep the hysteresis band valid; on any ordering violation, reset the three
     /// watermarks to defaults while preserving interval/floor/min_running.
+    ///
+    /// ```no_run
+    /// # // Reason: private method on a pub(crate) type; not reachable from a doctest.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn sanitized(self) -> Self {
         if self.emergency_pct < self.pause_pct && self.pause_pct < self.resume_pct {
             return self;
@@ -340,6 +347,13 @@ fn bool_from_env(name: &str, default: bool) -> bool {
 }
 
 /// Parse a 1..=100 percentage; out-of-range or unparsable falls back to default.
+///
+/// ```no_run
+/// # // Reason: private free function reading process environment; not reachable from a doctest.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn percent_from_env(name: &str, default: u64) -> u64 {
     std::env::var(name)
         .ok()

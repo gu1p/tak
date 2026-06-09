@@ -38,11 +38,25 @@ pub struct SelfUpdateRequest<'a> {
 
 /// Resolve destinations from the running binary and run the verified update
 /// against the real GitHub release host.
+///
+/// ```no_run
+/// # // Reason: resolves the running binary and performs network IO to GitHub.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn self_update(request: &SelfUpdateRequest<'_>) -> Result<UpdateOutcome> {
     self_update_with(&UreqReleaseClient::new(), request)
 }
 
 /// Like [`self_update`], but with an injected release client (for integration tests).
+///
+/// ```no_run
+/// # // Reason: resolves the running binary and depends on the injected release client.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn self_update_with<C: ReleaseClient>(
     client: &C,
     request: &SelfUpdateRequest<'_>,

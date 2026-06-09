@@ -51,6 +51,13 @@ pub enum ArchiveError {
 /// can only run on authentic bytes. Errors if either binary is missing,
 /// duplicated, or implausibly large. Members are matched by their root path
 /// (`tak`/`takd`), tolerating a leading `./`.
+///
+/// ```no_run
+/// # // Reason: requires a VerifiedArchive (signature + checksum already verified).
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn extract_binaries(archive: &VerifiedArchive) -> Result<Binaries, ArchiveError> {
     let mut members = collect_members(archive.as_bytes(), &["tak", "takd"])?;
     let tak = members

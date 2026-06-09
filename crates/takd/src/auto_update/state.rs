@@ -61,6 +61,13 @@ fn write_state(state_root: &Path, pending: &PendingUpdate) -> Result<()> {
 }
 
 /// Record a freshly-applied update so the next boot can confirm or roll it back.
+///
+/// ```no_run
+/// # // Reason: performs filesystem IO and takes a crate-internal state root.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn record_pending(state_root: &Path, tag: &str, backups: &[PathBuf]) -> Result<()> {
     write_state(
         state_root,
@@ -73,6 +80,13 @@ pub(crate) fn record_pending(state_root: &Path, tag: &str, backups: &[PathBuf]) 
 }
 
 /// Read the pending update, if any. Logs and ignores a malformed state file.
+///
+/// ```no_run
+/// # // Reason: reads from the filesystem and returns a crate-internal type.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn read_pending(state_root: &Path) -> Option<PendingUpdate> {
     let raw = fs::read_to_string(state_path(state_root)).ok()?;
     match toml::from_str(&raw) {
@@ -85,6 +99,13 @@ pub(crate) fn read_pending(state_root: &Path) -> Option<PendingUpdate> {
 }
 
 /// Mark the current binary healthy: delete the backups and clear the state.
+///
+/// ```no_run
+/// # // Reason: deletes backup files and state on the filesystem.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn commit(state_root: &Path) {
     if let Some(pending) = read_pending(state_root) {
         for backup in &pending.backups {
@@ -95,6 +116,13 @@ pub(crate) fn commit(state_root: &Path) {
 }
 
 /// Restore each `<target>.bak` over `<target>` (used to revert a failed swap).
+///
+/// ```no_run
+/// # // Reason: renames backup files over their targets on the filesystem.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn restore_backups(backups: &[PathBuf]) {
     for backup in backups {
         restore_backup(backup);
@@ -102,6 +130,13 @@ pub(crate) fn restore_backups(backups: &[PathBuf]) {
 }
 
 /// Increment the boot counter and decide whether to keep running or roll back.
+///
+/// ```no_run
+/// # // Reason: mutates persistent state on the filesystem and returns a crate-internal type.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn reconcile_on_start(state_root: &Path) -> BootDecision {
     let Some(mut pending) = read_pending(state_root) else {
         return BootDecision::None;

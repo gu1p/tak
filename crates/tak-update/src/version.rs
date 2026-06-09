@@ -41,7 +41,7 @@ pub enum VersionParseError {
 /// A single leading `v` is tolerated: release tags carry it (`v0.1.7`) while
 /// `--version` output does not (`0.1.7`), mirroring the installer's `resolve_tag`.
 ///
-/// ```
+/// ```rust
 /// use tak_update::version::parse_version;
 /// assert_eq!(parse_version("v0.1.7").unwrap(), parse_version("0.1.7").unwrap());
 /// assert!(parse_version("0.2.0").unwrap() > parse_version("0.1.99").unwrap());
@@ -77,7 +77,7 @@ fn parse_component(component: &str, original: &str) -> Result<u64, VersionParseE
 
 /// Render a version as a release tag string (`vX.Y.Z`).
 ///
-/// ```
+/// ```rust
 /// use tak_update::version::{parse_version, tag_string};
 /// assert_eq!(tag_string(parse_version("0.1.7").unwrap()), "v0.1.7");
 /// ```

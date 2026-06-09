@@ -21,6 +21,13 @@ pub struct BinaryArtifact {
 
 impl BinaryArtifact {
     /// Crate-internal constructor, used by the verified [`crate::plan::run_update`] path.
+    ///
+    /// ```no_run
+    /// # // Reason: crate-private constructor, not reachable from a doctest.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn for_install(name: impl Into<String>, dest: PathBuf, bytes: Vec<u8>) -> Self {
         Self {
             name: name.into(),
@@ -30,6 +37,13 @@ impl BinaryArtifact {
     }
 
     /// Test-only constructor (compiled under the `test-support` feature).
+    ///
+    /// ```no_run
+    /// # // Reason: gated behind the `test-support` feature, not built by a plain doctest.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "test-support")]
     pub fn for_test(name: impl Into<String>, dest: impl Into<PathBuf>, bytes: Vec<u8>) -> Self {
         Self {
@@ -52,11 +66,25 @@ pub struct InstallPlan {
 
 impl InstallPlan {
     /// Crate-internal constructor, used by the verified [`crate::plan::run_update`] path.
+    ///
+    /// ```no_run
+    /// # // Reason: crate-private constructor, not reachable from a doctest.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn for_install(tag: String, artifacts: Vec<BinaryArtifact>) -> Self {
         Self { tag, artifacts }
     }
 
     /// Test-only constructor (compiled under the `test-support` feature).
+    ///
+    /// ```no_run
+    /// # // Reason: gated behind the `test-support` feature, not built by a plain doctest.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "test-support")]
     pub fn for_test(tag: impl Into<String>, artifacts: Vec<BinaryArtifact>) -> Self {
         Self {
@@ -109,5 +137,12 @@ pub enum InstallError {
 /// Atomically install a validated set of release binaries, all-or-nothing.
 pub trait Installer {
     /// Validate every candidate, then swap them in, rolling back on partial failure.
+    ///
+    /// ```no_run
+    /// # // Reason: trait method declaration; performs filesystem swaps and process probes.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn install(&self, plan: &InstallPlan) -> Result<InstallReport, InstallError>;
 }

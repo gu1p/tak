@@ -27,7 +27,7 @@ pub enum ChecksumError {
 
 /// Lowercase hex SHA-256 of `bytes`.
 ///
-/// ```
+/// ```rust
 /// use tak_update::verify::sha256_hex;
 /// assert_eq!(
 ///     sha256_hex(b""),
@@ -45,7 +45,7 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 /// Only the first whitespace-delimited token is used; it is lowercased and must
 /// be exactly 64 hex characters.
 ///
-/// ```
+/// ```rust
 /// use tak_update::verify::parse_sha256_line;
 /// let digest = "a".repeat(64);
 /// let line = format!("{digest}  tak-v0.1.7-x86_64-unknown-linux-musl.tar.gz");
@@ -62,7 +62,7 @@ pub fn parse_sha256_line(line: &str) -> Result<String, ChecksumError> {
 
 /// Verify `bytes` against a `shasum -a 256` checksum line, comparing in constant time.
 ///
-/// ```
+/// ```rust
 /// use tak_update::verify::{sha256_hex, verify_sha256};
 /// let bytes = b"release archive";
 /// let line = format!("{}  archive.tar.gz", sha256_hex(bytes));
@@ -107,6 +107,13 @@ pub enum SignatureError {
 /// Verify a minisign signature (`minisig`, the `.minisig` file content) over
 /// `bytes`, using `public_key` (a full `.pub` file's content or its bare base64
 /// key line). Only modern (prehashed) minisign signatures are accepted.
+///
+/// ```no_run
+/// # // Reason: needs a real minisign public key and matching `.minisig` signature.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn verify_signature(
     bytes: &[u8],
     minisig: &str,
@@ -157,6 +164,13 @@ impl VerifiedArchive {
 
     /// Test-only constructor that bypasses verification. Compiled only under the
     /// `test-support` feature so production callers cannot reach it.
+    ///
+    /// ```no_run
+    /// # // Reason: gated behind the `test-support` feature, off in default doctest builds.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "test-support")]
     pub fn for_test(bytes: Vec<u8>) -> Self {
         Self(bytes)
@@ -167,6 +181,13 @@ impl VerifiedArchive {
 ///
 /// The signature (authenticity) is checked first, then the checksum (integrity);
 /// only then are the bytes wrapped as a [`VerifiedArchive`].
+///
+/// ```no_run
+/// # // Reason: needs a real minisign key, signature, and checksum line.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn verify_archive(
     bytes: Vec<u8>,
     minisig: &str,

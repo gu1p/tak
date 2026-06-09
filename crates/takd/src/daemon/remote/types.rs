@@ -188,6 +188,13 @@ impl RemoteNodeContext {
     }
 
     /// Set/clear the emergency admission hold (memory-pressure controller).
+    ///
+    /// ```no_run
+    /// # // Reason: depends on internal resource-admission state held by the daemon.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn set_admission_held(&self, held: bool) -> Result<()> {
         self.resource_admission.set_admission_held(held)
     }

@@ -37,6 +37,7 @@ impl UreqReleaseClient {
     /// Build a client with sensible timeouts and bundled WebPKI roots.
     ///
     /// ```no_run
+    /// # // Reason: requires network access to GitHub.
     /// use tak_update::http::UreqReleaseClient;
     /// use tak_update::release_client::ReleaseClient;
     /// let client = UreqReleaseClient::new();
@@ -51,6 +52,13 @@ impl UreqReleaseClient {
     }
 
     /// GET `url` with retry on transient failures, returning the body bytes.
+    ///
+    /// ```no_run
+    /// # // Reason: private method on &self that performs network IO.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn fetch_bytes(&self, url: &str, limit: u64) -> Result<Vec<u8>> {
         let mut attempt = 0;
         loop {

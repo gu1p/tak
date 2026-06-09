@@ -7,6 +7,13 @@ use super::helpers::node_info;
 use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 
 /// Build a ready remote-node context for `config` (requires an advertised base URL).
+///
+/// ```no_run
+/// # // Reason: needs a fully constructed AgentConfig and reads runtime config from the environment.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn ready_context(config: &AgentConfig) -> Result<RemoteNodeContext> {
     let base_url = config
         .base_url
@@ -20,6 +27,13 @@ pub fn ready_context(config: &AgentConfig) -> Result<RemoteNodeContext> {
 }
 
 /// Like [`ready_context`], also wiring the state root and image-cache config.
+///
+/// ```no_run
+/// # // Reason: needs a constructed AgentConfig plus a filesystem state root and reads runtime config from the environment.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn ready_context_with_state_root(
     config: &AgentConfig,
     state_root: &Path,

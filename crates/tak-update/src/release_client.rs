@@ -25,7 +25,7 @@ pub struct ReleaseCoordinates {
 impl ReleaseCoordinates {
     /// Build coordinates from any string-like parts.
     ///
-    /// ```
+    /// ```rust
     /// use tak_update::release_client::ReleaseCoordinates;
     /// let c = ReleaseCoordinates::new("gu1p/tak", "v0.1.7", "aarch64-apple-darwin");
     /// assert_eq!(c.tag, "v0.1.7");
@@ -39,11 +39,27 @@ impl ReleaseCoordinates {
     }
 
     /// The archive file name, e.g. `tak-v0.1.7-x86_64-unknown-linux-musl.tar.gz`.
+    ///
+    /// ```rust
+    /// use tak_update::release_client::ReleaseCoordinates;
+    /// let c = ReleaseCoordinates::new("gu1p/tak", "v0.1.7", "x86_64-unknown-linux-musl");
+    /// assert_eq!(c.archive_name(), "tak-v0.1.7-x86_64-unknown-linux-musl.tar.gz");
+    /// ```
     pub fn archive_name(&self) -> String {
         format!("tak-{}-{}.tar.gz", self.tag, self.target)
     }
 
     /// The archive download URL (itself 302-redirects to the asset CDN).
+    ///
+    /// ```rust
+    /// use tak_update::release_client::ReleaseCoordinates;
+    /// let c = ReleaseCoordinates::new("gu1p/tak", "v0.1.7", "x86_64-unknown-linux-musl");
+    /// assert_eq!(
+    ///     c.archive_url(),
+    ///     "https://github.com/gu1p/tak/releases/download/v0.1.7/\
+    ///      tak-v0.1.7-x86_64-unknown-linux-musl.tar.gz",
+    /// );
+    /// ```
     pub fn archive_url(&self) -> String {
         format!(
             "https://github.com/{}/releases/download/{}/{}",
@@ -54,17 +70,39 @@ impl ReleaseCoordinates {
     }
 
     /// The companion checksum URL (`<archive>.sha256`).
+    ///
+    /// ```rust
+    /// use tak_update::release_client::ReleaseCoordinates;
+    /// let c = ReleaseCoordinates::new("gu1p/tak", "v0.1.7", "x86_64-unknown-linux-musl");
+    /// assert_eq!(c.sha256_url(), format!("{}.sha256", c.archive_url()));
+    /// assert!(c.sha256_url().ends_with(".tar.gz.sha256"));
+    /// ```
     pub fn sha256_url(&self) -> String {
         format!("{}.sha256", self.archive_url())
     }
 
     /// The companion signature URL (`<archive>.minisig`).
+    ///
+    /// ```rust
+    /// use tak_update::release_client::ReleaseCoordinates;
+    /// let c = ReleaseCoordinates::new("gu1p/tak", "v0.1.7", "x86_64-unknown-linux-musl");
+    /// assert_eq!(c.signature_url(), format!("{}.minisig", c.archive_url()));
+    /// assert!(c.signature_url().ends_with(".tar.gz.minisig"));
+    /// ```
     pub fn signature_url(&self) -> String {
         format!("{}.minisig", self.archive_url())
     }
 }
 
 /// The `releases/latest` URL whose redirect reveals the newest tag.
+///
+/// ```rust
+/// use tak_update::release_client::latest_release_url;
+/// assert_eq!(
+///     latest_release_url("gu1p/tak"),
+///     "https://github.com/gu1p/tak/releases/latest",
+/// );
+/// ```
 pub fn latest_release_url(repo: &str) -> String {
     format!("https://github.com/{repo}/releases/latest")
 }
@@ -85,7 +123,7 @@ pub enum TagParseError {
 /// Mirrors the `resolve_tag` parsing in `get-tak.sh`: take the path segment after
 /// `/releases/tag/`, dropping any `?query`/`#fragment` and trailing slash.
 ///
-/// ```
+/// ```rust
 /// use tak_update::release_client::tag_from_latest_url;
 /// assert_eq!(
 ///     tag_from_latest_url("https://github.com/gu1p/tak/releases/tag/v0.1.7").unwrap(),
@@ -115,11 +153,39 @@ pub fn tag_from_latest_url(url: &str) -> Result<String, TagParseError> {
 /// [`crate::http`]; tests use an in-memory fake.
 pub trait ReleaseClient: Send + Sync {
     /// Resolve the newest release tag for `repo` (e.g. `v0.1.7`).
+    ///
+    /// ```no_run
+    /// # // Reason: trait method declaration with no body; real impl performs network IO.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn resolve_latest_tag(&self, repo: &str) -> anyhow::Result<String>;
     /// Download the release archive bytes.
+    ///
+    /// ```no_run
+    /// # // Reason: trait method declaration with no body; real impl performs network IO.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn download_archive(&self, coordinates: &ReleaseCoordinates) -> anyhow::Result<Vec<u8>>;
     /// Download the companion `.sha256` checksum line.
+    ///
+    /// ```no_run
+    /// # // Reason: trait method declaration with no body; real impl performs network IO.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn download_sha256(&self, coordinates: &ReleaseCoordinates) -> anyhow::Result<String>;
     /// Download the companion `.minisig` signature file content.
+    ///
+    /// ```no_run
+    /// # // Reason: trait method declaration with no body; real impl performs network IO.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn download_signature(&self, coordinates: &ReleaseCoordinates) -> anyhow::Result<String>;
 }

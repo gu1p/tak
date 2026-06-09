@@ -155,6 +155,13 @@ async fn emit_exit_137_diagnostic(
 /// usage and makes Rust's cgroup-aware `available_parallelism()` report the
 /// reserved core count inside the container, taming default test/codegen
 /// parallelism. `None` when no CPU reservation is declared.
+///
+/// ```no_run
+/// # // Reason: private crate-internal helper, not reachable via `use`.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn container_nano_cpus(limits: Option<&ContainerResourceLimitsSpec>) -> Option<i64> {
     let cpu_cores = limits?.cpu_cores?;
     if !cpu_cores.is_finite() || cpu_cores <= 0.0 {

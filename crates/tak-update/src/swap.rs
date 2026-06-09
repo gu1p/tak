@@ -47,6 +47,13 @@ pub struct Backup {
 
 impl Backup {
     /// The on-disk path of the `.bak` copy.
+    ///
+    /// ```no_run
+    /// # // Reason: depends on internal `Backup` state produced by `back_up`.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub fn path(&self) -> &Path {
         &self.backup_path
     }
@@ -56,6 +63,13 @@ impl Backup {
 ///
 /// The staging file is created in `target`'s parent directory so the final step is
 /// an atomic same-filesystem `rename`. The original is untouched on any error.
+///
+/// ```no_run
+/// # // Reason: performs filesystem IO (stage, fsync, rename over a live binary).
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn swap_binary_atomically(target: &Path, new_bytes: &[u8], mode: u32) -> Result<(), SwapError> {
     let dir = target
         .parent()
@@ -91,6 +105,13 @@ pub fn swap_binary_atomically(target: &Path, new_bytes: &[u8], mode: u32) -> Res
 /// backup). Refuses a non-regular target (symlink/dir): self-update only replaces
 /// real binaries, so a symlinked install path is a configuration we decline to
 /// silently rewrite.
+///
+/// ```no_run
+/// # // Reason: performs filesystem IO (stat and copy the target aside).
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn back_up(target: &Path) -> Result<Option<Backup>, SwapError> {
     let meta = match fs::symlink_metadata(target) {
         Ok(meta) => meta,
@@ -113,12 +134,26 @@ pub fn back_up(target: &Path) -> Result<Option<Backup>, SwapError> {
 }
 
 /// Restore a backed-up binary over its original path (atomic same-dir rename).
+///
+/// ```no_run
+/// # // Reason: performs filesystem IO and needs a `Backup` from `back_up`.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn restore(backup: &Backup) -> Result<(), SwapError> {
     fs::rename(&backup.backup_path, &backup.original)
         .map_err(|err| SwapError::Rename(backup.original.clone(), err))
 }
 
 /// Remove a backup once the new binary is confirmed healthy.
+///
+/// ```no_run
+/// # // Reason: performs filesystem IO and needs a `Backup` from `back_up`.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn discard(backup: Backup) {
     let _ = fs::remove_file(&backup.backup_path);
 }

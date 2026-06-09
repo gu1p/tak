@@ -91,6 +91,13 @@ impl SharedResourceAdmission {
     /// Emergency admission hold: when `held`, new starts queue (never admitted)
     /// until cleared. Running reservations are untouched. Set by the
     /// memory-pressure controller's emergency band.
+    ///
+    /// ```no_run
+    /// # // Reason: operates on internal locked admission state.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn set_admission_held(&self, held: bool) -> Result<()> {
         let mut state = self.lock_state()?;
         let changed = state.held != held;

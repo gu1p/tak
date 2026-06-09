@@ -21,7 +21,7 @@ pub enum UnsupportedTarget {
 /// Accepts the spellings emitted by both `uname` and Rust's `std::env::consts`
 /// (`Linux`/`linux`, `Darwin`/`macos`, `amd64`/`x86_64`, `arm64`/`aarch64`).
 ///
-/// ```
+/// ```rust
 /// use tak_update::target::target_triple;
 /// assert_eq!(target_triple("linux", "x86_64").unwrap(), "x86_64-unknown-linux-musl");
 /// assert_eq!(target_triple("macos", "arm64").unwrap(), "aarch64-apple-darwin");
@@ -43,7 +43,7 @@ pub fn target_triple(os: &str, arch: &str) -> Result<String, UnsupportedTarget> 
 
 /// Resolve the running host's release target triple.
 ///
-/// ```
+/// ```rust
 /// // The suite only runs on supported hosts (linux/macOS, x86_64/aarch64).
 /// assert!(tak_update::target::host_target_triple().is_ok());
 /// ```

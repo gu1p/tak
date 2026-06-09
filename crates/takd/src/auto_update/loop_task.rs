@@ -17,6 +17,13 @@ use super::state;
 
 /// Spawn the background auto-update loop. No-op when disabled, when the kill
 /// switch is set, or when the binary is not in a self-updatable location.
+///
+/// ```no_run
+/// # // Reason: spawns a background tokio task, reads config from disk, and needs constructed daemon state.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn spawn_update_loop(
     config_root: PathBuf,
     state_root: PathBuf,

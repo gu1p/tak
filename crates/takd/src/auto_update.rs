@@ -19,6 +19,13 @@ const HEALTH_CONFIRM_DELAY: Duration = Duration::from_secs(120);
 /// Reconcile any pending update at startup: roll back and exit on a crash-loop,
 /// otherwise schedule a health-confirmation that removes the backups once the new
 /// binary has proven it stays up.
+///
+/// ```no_run
+/// # // Reason: reads update state from the filesystem, spawns a tokio task, and may call process::exit.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn reconcile_pending(state_root: &Path) {
     match state::reconcile_on_start(state_root) {
         state::BootDecision::None => {}

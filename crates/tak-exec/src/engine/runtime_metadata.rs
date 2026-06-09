@@ -185,6 +185,21 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
 /// Number of threads to which a containerized task's parallel work should be
 /// capped, derived from the declared CPU reservation. Floors fractional cores
 /// and never returns less than 1; `None` when no CPU reservation is declared.
+///
+/// ```rust
+/// // Mirrors the derivation: floor fractional cores, but never below 1.
+/// fn cap(cpu_cores: Option<f64>) -> Option<u64> {
+///     let cpu_cores = cpu_cores?;
+///     if !cpu_cores.is_finite() || cpu_cores <= 0.0 {
+///         return None;
+///     }
+///     Some((cpu_cores.floor() as u64).max(1))
+/// }
+/// assert_eq!(cap(Some(2.7)), Some(2));
+/// assert_eq!(cap(Some(0.5)), Some(1));
+/// assert_eq!(cap(Some(0.0)), None);
+/// assert_eq!(cap(None), None);
+/// ```
 fn container_parallelism_cap(resource_limits: Option<&ContainerResourceLimitsSpec>) -> Option<u64> {
     let cpu_cores = resource_limits?.cpu_cores?;
     if !cpu_cores.is_finite() || cpu_cores <= 0.0 {

@@ -29,7 +29,10 @@ pub(super) fn can_fit(state: &mut ResourceAdmissionState, request: &ResourceRequ
     // memory-pressure controller (pause/unpause) is the runtime backstop; we do
     // NOT reject on cumulative reservation pressure here.
     let cpu_budget = state.capacity.cpu_cores * state.oversubscribe_x as f64;
-    let mem_budget = state.capacity.memory_mb.saturating_mul(state.oversubscribe_x);
+    let mem_budget = state
+        .capacity
+        .memory_mb
+        .saturating_mul(state.oversubscribe_x);
     used.cpu_cores + requested_cpu <= cpu_budget
         && used.memory_mb.saturating_add(requested_memory) <= mem_budget
 }

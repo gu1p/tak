@@ -69,6 +69,13 @@ pub struct UpdateOutcome {
 }
 
 /// Resolve a target version and, unless `check_only`, install it.
+///
+/// ```no_run
+/// # // Reason: needs constructed `ReleaseClient`/`Installer` ports and performs network/filesystem IO.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn run_update<C, I>(
     client: &C,
     installer: &I,

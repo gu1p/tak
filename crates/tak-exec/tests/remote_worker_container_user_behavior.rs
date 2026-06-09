@@ -67,7 +67,10 @@ async fn remote_worker_container_runtime_omits_limits_without_resources() {
     assert_eq!(create.nano_cpus, None);
     assert_eq!(create.memory, None);
     assert!(
-        !create.env.iter().any(|var| var.starts_with("RUST_TEST_THREADS=")),
+        !create
+            .env
+            .iter()
+            .any(|var| var.starts_with("RUST_TEST_THREADS=")),
         "RUST_TEST_THREADS should not be injected without a CPU reservation: {:?}",
         create.env
     );

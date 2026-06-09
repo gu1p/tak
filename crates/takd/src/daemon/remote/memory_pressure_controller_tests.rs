@@ -98,10 +98,7 @@ fn respects_min_running() {
         run("c", 30, false),
     ];
     // min_running=2 with 3 running -> at most one pause (newest).
-    assert_eq!(
-        select_pause_victims(&running, 2, 8),
-        vec!["c".to_string()]
-    );
+    assert_eq!(select_pause_victims(&running, 2, 8), vec!["c".to_string()]);
 }
 
 #[test]

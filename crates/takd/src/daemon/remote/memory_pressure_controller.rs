@@ -40,6 +40,13 @@ const BYTES_PER_MB: u64 = 1024 * 1024;
 pub(crate) trait MemorySignal: Send + Sync {
     /// `(available_bytes, total_bytes)`. `available` is MemAvailable — excludes
     /// reclaimable page cache, so it answers "can we allocate without swapping?".
+    ///
+    /// ```no_run
+    /// # // Reason: trait method declaration with no body; private trait not reachable from a doctest.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     fn read(&self) -> (u64, u64);
 }
 
@@ -143,6 +150,13 @@ fn classify(available: u64, thresholds: &Thresholds) -> PressureState {
 /// newest-first, never the oldest running container, never timeout-bearing, and
 /// never enough to drop the running count below `min_running`. At most
 /// `max_to_pause`.
+///
+/// ```no_run
+/// # // Reason: operates on the private `ManagedContainer` type, not reachable from a doctest.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn select_pause_victims(
     running: &[ManagedContainer],
     min_running: usize,
@@ -176,6 +190,13 @@ fn select_pause_victims(
 
 /// Pick the paused container to resume: newest-created first (resume the most
 /// recently started task first), mirroring the newest-first pause policy.
+///
+/// ```no_run
+/// # // Reason: operates on the private `ManagedContainer` type, not reachable from a doctest.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn select_unpause_target(paused: &[ManagedContainer]) -> Option<String> {
     paused
         .iter()
@@ -200,6 +221,13 @@ enum TickAction {
 /// that runner finish (while memory is still below the resume watermark, since
 /// paused RSS is retained) would freeze the node forever. Forced progress
 /// guarantees at least `min_running` always running, so memory can always drain.
+///
+/// ```no_run
+/// # // Reason: operates on the private `PressureState`/`ManagedContainer` types, not reachable from a doctest.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn decide(
     state: PressureState,
     running: &[ManagedContainer],
@@ -212,14 +240,15 @@ fn decide(
         return TickAction::Unpause(id);
     }
     match state {
-        PressureState::Emergency => {
-            match select_pause_victims(running, min_running, usize::MAX) {
-                victims if victims.is_empty() => TickAction::None,
-                victims => TickAction::Pause(victims),
-            }
-        }
+        PressureState::Emergency => match select_pause_victims(running, min_running, usize::MAX) {
+            victims if victims.is_empty() => TickAction::None,
+            victims => TickAction::Pause(victims),
+        },
         PressureState::Pause => {
-            match select_pause_victims(running, min_running, 1).into_iter().next() {
+            match select_pause_victims(running, min_running, 1)
+                .into_iter()
+                .next()
+            {
                 Some(id) => TickAction::Pause(vec![id]),
                 None => TickAction::None,
             }
@@ -293,6 +322,13 @@ async fn unpause_container(docker: &Docker, id: &str) {
 
 /// One controller iteration: read pressure and take a single pause/unpause action
 /// (several pauses only under Emergency). Stateless — derived from engine state.
+///
+/// ```no_run
+/// # // Reason: async fn that connects to Docker and reads host memory; needs a tokio runtime and live engine.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 async fn run_memory_pressure_tick(
     runtime_config: &RemoteRuntimeConfig,
     signal: &dyn MemorySignal,

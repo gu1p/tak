@@ -77,6 +77,14 @@ impl AutoUpdateConfig {
     /// An explicit `network` wins; otherwise `direct` nodes default to clearnet and
     /// every other transport (e.g. `tor`) defaults to disabled, so a tor-only node
     /// never silently reaches the clearnet release host.
+    ///
+    /// ```rust
+    /// use takd::agent::{AutoUpdateConfig, UpdateNetwork};
+    ///
+    /// let cfg = AutoUpdateConfig::default();
+    /// assert_eq!(cfg.effective_network("direct"), UpdateNetwork::Clearnet);
+    /// assert_eq!(cfg.effective_network("tor"), UpdateNetwork::Disabled);
+    /// ```
     pub fn effective_network(&self, transport: &str) -> UpdateNetwork {
         self.network.unwrap_or(if transport == "direct" {
             UpdateNetwork::Clearnet
@@ -86,6 +94,14 @@ impl AutoUpdateConfig {
     }
 
     /// Whether the background update loop should run for a node on `transport`.
+    ///
+    /// ```rust
+    /// use takd::agent::AutoUpdateConfig;
+    ///
+    /// let cfg = AutoUpdateConfig::default();
+    /// assert!(cfg.loop_enabled("direct"));
+    /// assert!(!cfg.loop_enabled("tor"));
+    /// ```
     pub fn loop_enabled(&self, transport: &str) -> bool {
         self.enabled && self.effective_network(transport) != UpdateNetwork::Disabled
     }

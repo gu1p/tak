@@ -36,6 +36,13 @@ const SYSTEM_PREFIXES: &[&str] = &[
 /// `canonicalize` makes macOS and any symlinked launcher resolve to the real file
 /// before the system-path guards run, so a symlink into a read-only store is
 /// correctly classified as [`Updatability::SystemManaged`]/[`Updatability::NotWritable`].
+///
+/// ```no_run
+/// # // Reason: reads the running process's executable path (process/filesystem IO).
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub fn resolve_running_binary() -> std::io::Result<PathBuf> {
     let exe = std::env::current_exe()?;
     Ok(std::fs::canonicalize(&exe).unwrap_or(exe))
@@ -43,7 +50,7 @@ pub fn resolve_running_binary() -> std::io::Result<PathBuf> {
 
 /// The sibling binary path in the same directory (e.g. `tak` next to `takd`).
 ///
-/// ```
+/// ```rust
 /// use std::path::Path;
 /// use tak_update::install_target::sibling_path;
 /// assert_eq!(
@@ -60,7 +67,7 @@ pub fn sibling_path(primary: &Path, sibling_name: &str) -> PathBuf {
 
 /// Whether `path` is under a package-manager-owned system prefix.
 ///
-/// ```
+/// ```rust
 /// use std::path::Path;
 /// use tak_update::install_target::is_system_managed_path;
 /// assert!(is_system_managed_path(Path::new("/usr/local/bin/takd")));
@@ -74,6 +81,15 @@ pub fn is_system_managed_path(path: &Path) -> bool {
 }
 
 /// Classify whether `target` can be self-updated in place.
+///
+/// ```rust
+/// use std::path::Path;
+/// use tak_update::install_target::{updatability, Updatability};
+/// assert_eq!(
+///     updatability(Path::new("/usr/local/bin/takd")),
+///     Updatability::SystemManaged,
+/// );
+/// ```
 pub fn updatability(target: &Path) -> Updatability {
     if is_system_managed_path(target) {
         return Updatability::SystemManaged;
