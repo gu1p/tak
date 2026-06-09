@@ -24,7 +24,7 @@ fn build_remote_submit_payload_includes_runtime_steps_and_declared_needs() {
         task_run_id: "task-run-1",
         attempt: 7,
         task: &task,
-        remote_workspace: &remote_workspace,
+        remote_workspace: Some(&remote_workspace),
         session: None,
         execution_label: Some("check.build"),
         fused_members: None,

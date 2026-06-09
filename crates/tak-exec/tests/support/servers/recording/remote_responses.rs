@@ -1,4 +1,13 @@
-use tak_proto::{GetTaskResultResponse, NodeInfo, SubmitTaskResponse};
+use tak_proto::{
+    AppendWorkspaceUploadResponse, BeginWorkspaceUploadResponse, ErrorResponse,
+    FinishWorkspaceUploadResponse, GetTaskResultResponse, NodeInfo, SubmitTaskResponse,
+};
+
+pub(super) fn error_response(message: &str) -> ErrorResponse {
+    ErrorResponse {
+        message: message.into(),
+    }
+}
 
 pub(super) fn node_info(node_id: &str, port: u16) -> NodeInfo {
     NodeInfo {
@@ -12,6 +21,29 @@ pub(super) fn node_info(node_id: &str, port: u16) -> NodeInfo {
         transport: "direct".into(),
         transport_state: "ready".into(),
         transport_detail: String::new(),
+    }
+}
+
+pub(super) fn begin_upload_response(upload_id: &str) -> BeginWorkspaceUploadResponse {
+    BeginWorkspaceUploadResponse {
+        upload_id: upload_id.into(),
+        offset: 0,
+        complete: false,
+    }
+}
+
+pub(super) fn append_upload_response(offset: u64) -> AppendWorkspaceUploadResponse {
+    AppendWorkspaceUploadResponse {
+        offset,
+        complete: false,
+    }
+}
+
+pub(super) fn finish_upload_response(upload_id: &str) -> FinishWorkspaceUploadResponse {
+    FinishWorkspaceUploadResponse {
+        upload_id: upload_id.into(),
+        size_bytes: 0,
+        complete: true,
     }
 }
 

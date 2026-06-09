@@ -9,12 +9,14 @@ mod storage;
 mod stream;
 mod wormhole;
 
-pub(super) use storage::resolve_workspace_upload_zip;
 use storage::{
     UploadMetadata, append_chunk, commit_partial_upload, completed_upload_path,
     current_upload_offset, ensure_metadata, ensure_upload_matches, ensure_upload_root,
     ensure_valid_upload_id, hash_partial_prefix, partial_upload_path, read_metadata,
     truncate_partial_upload, upload_status, write_metadata,
+};
+pub(super) use storage::{
+    WORKSPACE_UPLOADS_DIR_NAME, WorkspaceUploadMissing, resolve_workspace_upload_zip,
 };
 pub(super) use stream::stream_workspace_upload;
 use stream::workspace_upload_status;

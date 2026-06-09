@@ -59,12 +59,14 @@ pub(crate) async fn fallback_after_auth_submit_failure(
             task_run_id: submit.task_run_id,
             attempt: submit.attempt,
             task,
-            remote_workspace: submit.remote_workspace,
+            remote_workspace: Some(submit.remote_workspace),
             session: submit.session,
             fused_members: submit.fused_members,
             execution_label: submit.execution_label,
             fused_member_execution_labels: submit.fused_member_execution_labels,
             output_observer,
+            upload_cache: submit.upload_cache,
+            workspace_content_hash: submit.workspace_content_hash,
         })
         .await
         {

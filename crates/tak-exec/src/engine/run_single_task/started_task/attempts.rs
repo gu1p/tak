@@ -32,6 +32,8 @@ pub(super) struct StartedAttemptContext<'a> {
     pub(super) attempt: &'a mut u32,
     pub(super) runtime_metadata: Option<&'a RuntimeExecutionMetadata>,
     pub(super) remote_workspace: Option<&'a RemoteWorkspaceStage>,
+    pub(super) workspace_content_hash: Option<&'a str>,
+    pub(super) workspace_manifest_hash: Option<&'a str>,
     pub(super) session: Option<&'a PreparedTaskSession>,
     pub(super) run_root: &'a Path,
     pub(super) execution_label: Option<&'a str>,
@@ -54,6 +56,7 @@ pub(super) async fn run_attempts(
         let attempt_result = async {
             submit_remote_attempt_if_needed(
                 task,
+                workspace_root,
                 options,
                 current_attempt,
                 &mut context,
@@ -85,6 +88,7 @@ pub(super) async fn run_attempts(
 
 async fn submit_remote_attempt_if_needed(
     task: &ResolvedTask,
+    workspace_root: &Path,
     options: &RunOptions,
     attempt: u32,
     context: &mut StartedAttemptContext<'_>,
@@ -92,9 +96,11 @@ async fn submit_remote_attempt_if_needed(
 ) -> Result<()> {
     resolve_attempt_submit_state(
         task,
+        workspace_root,
         &mut *context.placement,
         AttemptSubmitState {
             remote_workspace: context.remote_workspace,
+            workspace_content_hash: context.workspace_content_hash,
             task_run_id: context.task_run_id,
             attempt,
             session: context.session,
@@ -156,7 +162,7 @@ fn build_task_result(
             attempt,
             success: outcome.attempt_success,
             placement: &*context.placement,
-            remote_workspace: context.remote_workspace,
+            context_manifest_hash: context.workspace_manifest_hash.map(str::to_string),
             runtime_metadata: context.runtime_metadata,
             session: context.session,
         },

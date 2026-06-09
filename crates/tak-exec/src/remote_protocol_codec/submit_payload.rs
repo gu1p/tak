@@ -6,7 +6,10 @@ pub(crate) struct RemoteSubmitPayloadInput<'a> {
     pub(crate) task_run_id: &'a str,
     pub(crate) attempt: u32,
     pub(crate) task: &'a ResolvedTask,
-    pub(crate) remote_workspace: &'a RemoteWorkspaceStage,
+    /// The staged workspace, required only when `workspace_upload` is `None` (the inline
+    /// fallback path) so the zip bytes can be embedded. On the upload/reuse path the blob is
+    /// referenced by `workspace_upload` and no local stage is needed.
+    pub(crate) remote_workspace: Option<&'a RemoteWorkspaceStage>,
     pub(crate) session: Option<&'a crate::engine::session_workspaces::PreparedTaskSession>,
     pub(crate) execution_label: Option<&'a str>,
     pub(crate) fused_members: Option<&'a [ResolvedTask]>,
@@ -29,19 +32,26 @@ pub(crate) fn build_remote_submit_payload(
         fused_member_execution_labels,
         workspace_upload,
     } = input;
-    let _ = &remote_workspace.manifest_hash;
     let metadata = task_run_metadata_for_runtime(task, target.runtime.as_ref());
     Ok(SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt,
         workspace_zip: match workspace_upload {
             Some(_) => Vec::new(),
-            None => std::fs::read(&remote_workspace.archive_path).with_context(|| {
-                format!(
-                    "failed reading staged workspace archive {}",
-                    remote_workspace.archive_path.display()
-                )
-            })?,
+            None => {
+                let remote_workspace = remote_workspace.ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "internal error: inline submit for task {} requires a staged workspace",
+                        task.label
+                    )
+                })?;
+                std::fs::read(&remote_workspace.archive_path).with_context(|| {
+                    format!(
+                        "failed reading staged workspace archive {}",
+                        remote_workspace.archive_path.display()
+                    )
+                })?
+            }
         },
         steps: task
             .steps

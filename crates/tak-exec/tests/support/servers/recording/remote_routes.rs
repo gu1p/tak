@@ -1,17 +1,21 @@
 use std::net::TcpStream;
 use std::time::Duration;
 
-use prost::Message;
-use tak_proto::{ErrorResponse, NodeStatusResponse, PollTaskEventsResponse, SubmitTaskRequest};
+use tak_proto::{NodeStatusResponse, PollTaskEventsResponse};
 
 use super::RecordingEvents;
-use super::remote_responses::{node_info, submit_response, success_result};
+use super::remote_responses::{error_response, node_info, submit_response, success_result};
+use super::submit_route::{SubmitBehavior, handle_submit};
+use super::upload_config::UploadConfig;
+use super::upload_routes::{UPLOAD_PREFIX, handle_workspace_upload};
 use crate::support::http::{read_request_path_and_body, write_protobuf_response};
 
-#[derive(Clone, Copy)]
-pub(super) enum SubmitBehavior {
-    Success,
-    Failure,
+/// How a recording node responds, captured once per server and reused for every request.
+pub(super) struct RecordingResponses {
+    pub(super) submit: SubmitBehavior,
+    pub(super) upload: UploadConfig,
+    pub(super) status: Option<NodeStatusResponse>,
+    pub(super) result_delay: Duration,
 }
 
 pub(super) fn serve_remote_request(
@@ -19,9 +23,7 @@ pub(super) fn serve_remote_request(
     node_id: &str,
     port: u16,
     events: &RecordingEvents,
-    submit: SubmitBehavior,
-    status: Option<&NodeStatusResponse>,
-    result_delay: Duration,
+    responses: &RecordingResponses,
 ) -> bool {
     let Some(request) = read_request_path_and_body(stream) else {
         return true;
@@ -29,70 +31,46 @@ pub(super) fn serve_remote_request(
     match request.path.as_str() {
         "/__shutdown" => {
             write_protobuf_response(stream, "200 OK", &submit_response("shutdown"));
-            false
+            return false;
         }
         "/v1/node/info" => {
             write_protobuf_response(stream, "200 OK", &node_info(node_id, port));
-            true
+            return true;
         }
         "/v1/node/status" => {
-            if let Some(status) = status {
-                write_protobuf_response(stream, "200 OK", status);
-            } else {
-                write_protobuf_response(stream, "404 Not Found", &error_response("not found"));
+            match responses.status.as_ref() {
+                Some(status) => write_protobuf_response(stream, "200 OK", status),
+                None => {
+                    write_protobuf_response(stream, "404 Not Found", &error_response("not found"))
+                }
             }
-            true
+            return true;
         }
         "/v1/tasks/submit" => {
-            events.record("remote_submit");
-            if let Ok(payload) = SubmitTaskRequest::decode(request.body.as_slice()) {
-                events.record_submit_payload(payload);
-            }
-            write_submit_response(stream, submit);
-            true
+            let reap = responses.upload.reap_after_reference;
+            handle_submit(stream, events, responses.submit, reap, &request);
+            return true;
         }
-        _ if request.path.contains("/events") => {
-            write_protobuf_response(
-                stream,
-                "200 OK",
-                &PollTaskEventsResponse {
-                    events: Vec::new(),
-                    done: true,
-                },
-            );
-            true
-        }
-        _ if request.path.contains("/result") => {
-            std::thread::sleep(result_delay);
-            write_protobuf_response(stream, "200 OK", &success_result(node_id));
-            true
-        }
-        _ => {
-            write_protobuf_response(stream, "404 Not Found", &error_response("not found"));
-            true
-        }
+        _ => {}
     }
-}
 
-fn error_response(message: &str) -> ErrorResponse {
-    ErrorResponse {
-        message: message.into(),
+    if request.path.starts_with(UPLOAD_PREFIX) {
+        handle_workspace_upload(stream, events, responses.upload.mode, &request);
+        return true;
     }
-}
-
-fn write_submit_response(stream: &mut TcpStream, submit: SubmitBehavior) {
-    match submit {
-        SubmitBehavior::Success => {
-            write_protobuf_response(stream, "200 OK", &submit_response("task-run-1:1"));
-        }
-        SubmitBehavior::Failure => {
-            write_protobuf_response(
-                stream,
-                "500 Internal Server Error",
-                &ErrorResponse {
-                    message: "submit failed".into(),
-                },
-            );
-        }
+    if request.path.contains("/events") {
+        let response = PollTaskEventsResponse {
+            events: Vec::new(),
+            done: true,
+        };
+        write_protobuf_response(stream, "200 OK", &response);
+        return true;
     }
+    if request.path.contains("/result") {
+        std::thread::sleep(responses.result_delay);
+        write_protobuf_response(stream, "200 OK", &success_result(node_id));
+        return true;
+    }
+    write_protobuf_response(stream, "404 Not Found", &error_response("not found"));
+    true
 }

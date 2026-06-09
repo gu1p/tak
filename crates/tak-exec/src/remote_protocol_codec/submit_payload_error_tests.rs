@@ -13,7 +13,7 @@ fn build_remote_submit_payload_rejects_missing_workspace_archive() {
         task_run_id: "task-run-1",
         attempt: 1,
         task: &task,
-        remote_workspace: &remote_workspace,
+        remote_workspace: Some(&remote_workspace),
         session: None,
         execution_label: None,
         fused_members: None,

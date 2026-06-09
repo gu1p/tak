@@ -111,8 +111,13 @@ async fn run_started_fused_cascade(
         member_execution_labels,
     } = context;
     let runtime_metadata = resolve_initial_runtime_metadata(&cascade.task, placement).await?;
-    let remote_workspace =
-        setup::stage_remote_workspace_if_needed(&cascade.task, workspace_root, options, placement)?;
+    let (remote_workspace, upload_identity) = setup::stage_remote_workspace_if_needed(
+        &cascade.task,
+        workspace_root,
+        options,
+        placement,
+        remote_selection_state,
+    )?;
     let prepared_session = sessions.prepare_task(
         &cascade.task,
         placement.session.as_ref(),
@@ -135,6 +140,7 @@ async fn run_started_fused_cascade(
             placement,
             remote_selection_state,
             remote_workspace: remote_workspace.as_ref(),
+            workspace_content_hash: upload_identity.as_ref().map(|id| id.content_hash.as_str()),
             session: prepared_session.as_ref(),
             execution_label,
             member_execution_labels,
@@ -160,7 +166,7 @@ async fn run_started_fused_cascade(
         attempts,
         outcome,
         placement,
-        remote_workspace.as_ref(),
+        upload_identity.as_ref().map(|id| id.manifest_hash.clone()),
         runtime_metadata.as_ref(),
         prepared_session.as_ref(),
     );

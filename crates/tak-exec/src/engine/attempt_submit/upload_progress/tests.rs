@@ -56,7 +56,6 @@ fn daemon_tor_upload_start_names_default_wormhole_transfer() {
         archive_path: temp_dir.path().join("workspace.zip"),
         archive_byte_len: 3_770_000,
         sha256: "abc123".into(),
-        manifest_hash: "manifest".into(),
         temp_dir,
     };
 
