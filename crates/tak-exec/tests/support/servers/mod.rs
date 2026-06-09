@@ -8,6 +8,7 @@ mod non_terminal_events;
 mod non_terminal_events_responses;
 mod recording;
 mod scripted_events;
+mod takd_readiness;
 mod takd_server;
 mod upload_begin_auth_rejecting;
 

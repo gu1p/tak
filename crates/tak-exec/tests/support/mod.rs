@@ -21,7 +21,7 @@ pub mod status_observer;
 pub mod task_spec;
 pub mod workspace_task_spec;
 
-pub use env::{EnvGuard, env_lock};
+pub use env::{EnvGuard, LockedEnvGuard, env_lock};
 pub use fake_docker::install_fake_docker;
 pub use fake_docker_daemon::FakeDockerDaemon;
 pub use inventory::{RemoteInventoryRecord, write_remote_inventory};

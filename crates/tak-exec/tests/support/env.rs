@@ -42,3 +42,37 @@ impl Drop for EnvGuard {
         }
     }
 }
+
+/// Holds the global env serialization lock together with the env changes it scopes.
+///
+/// Field order is load-bearing: `env` is declared first so it drops (restoring the process
+/// environment) BEFORE `_lock` releases. Storing a bare `MutexGuard` and `EnvGuard` separately
+/// in a struct — which drops fields in declaration order — easily inverts this and restores env
+/// *after* unlocking, clobbering the next env-locked test. This guard makes that impossible.
+pub struct LockedEnvGuard {
+    env: EnvGuard,
+    _lock: MutexGuard<'static, ()>,
+}
+
+impl LockedEnvGuard {
+    pub fn acquire() -> Self {
+        let lock = env_lock();
+        Self {
+            env: EnvGuard::default(),
+            _lock: lock,
+        }
+    }
+
+    pub fn set(&mut self, key: &str, value: impl Into<String>) {
+        self.env.set(key, value);
+    }
+
+    pub fn remove(&mut self, key: &str) {
+        self.env.remove(key);
+    }
+
+    /// Mutable access to the inner `EnvGuard`, for helpers that take `&mut EnvGuard`.
+    pub fn env_mut(&mut self) -> &mut EnvGuard {
+        &mut self.env
+    }
+}

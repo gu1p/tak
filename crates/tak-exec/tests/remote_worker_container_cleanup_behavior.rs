@@ -6,14 +6,14 @@ use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
 use tak_exec::{execute_remote_worker_steps, execute_remote_worker_steps_with_output};
 
 use crate::support::{
-    CollectingObserver, EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock,
-    shell_step, worker_spec,
+    CollectingObserver, FakeDockerDaemon, LockedEnvGuard, configure_real_docker_env, shell_step,
+    worker_spec,
 };
 
 #[tokio::test]
 async fn remote_worker_removes_container_after_start_failure() {
-    let (temp, daemon, workspace_root, spec, _env_lock, mut env) = cleanup_case();
-    configure_real_docker_env(temp.path(), daemon.socket_path(), &mut env);
+    let (temp, daemon, workspace_root, spec, mut locked_env) = cleanup_case();
+    configure_real_docker_env(temp.path(), daemon.socket_path(), locked_env.env_mut());
     daemon.fail_start("start refused");
 
     let err = execute_remote_worker_steps(&workspace_root, &spec)
@@ -27,8 +27,8 @@ async fn remote_worker_removes_container_after_start_failure() {
 
 #[tokio::test]
 async fn remote_worker_removes_container_when_log_stream_fails() {
-    let (temp, daemon, workspace_root, spec, _env_lock, mut env) = cleanup_case();
-    configure_real_docker_env(temp.path(), daemon.socket_path(), &mut env);
+    let (temp, daemon, workspace_root, spec, mut locked_env) = cleanup_case();
+    configure_real_docker_env(temp.path(), daemon.socket_path(), locked_env.env_mut());
     daemon.fail_logs("logs unavailable");
     daemon.release_container_exit();
 
@@ -46,11 +46,9 @@ fn cleanup_case() -> (
     FakeDockerDaemon,
     std::path::PathBuf,
     tak_exec::RemoteWorkerExecutionSpec,
-    impl Drop,
-    EnvGuard,
+    LockedEnvGuard,
 ) {
-    let env_lock = env_lock();
-    let env = EnvGuard::default();
+    let locked_env = LockedEnvGuard::acquire();
     let temp = tempfile::tempdir().expect("tempdir");
     let daemon = FakeDockerDaemon::spawn(temp.path());
     let workspace_root = temp.path().join("workspace");
@@ -67,7 +65,7 @@ fn cleanup_case() -> (
         }),
         "builder-a",
     );
-    (temp, daemon, workspace_root, spec, env_lock, env)
+    (temp, daemon, workspace_root, spec, locked_env)
 }
 
 fn removed_container_ids(daemon: &FakeDockerDaemon) -> Vec<String> {
