@@ -12,26 +12,61 @@ use super::{DaemonPeerSnapshot, RemoteRecord, RemoteStatusResult};
 
 const DAEMON_PEERS_TIMEOUT: Duration = Duration::from_millis(500);
 
+/// Outcome of querying the local `takd serve` peer list for Tor node status.
+///
+/// The distinction matters: `Snapshot` means the local daemon answered — even an
+/// empty vector is the definitive "takd is up but is not currently reporting any
+/// matching Tor peer", which is a completely different situation from
+/// `Unavailable` ("the takd peer socket did not answer at all"). Collapsing the
+/// two into a single `None` is what made a running `takd` look like it was down
+/// and produced the misleading "requires local takd serve" message.
+pub(in crate::cli) enum DaemonPeerOutcome {
+    /// The local takd peer socket did not answer: takd is not running, was too
+    /// busy to reply within [`DAEMON_PEERS_TIMEOUT`], or `TAKD_SOCKET` points
+    /// somewhere else. Tor node status cannot be read.
+    Unavailable,
+    /// The local takd answered; these are the matching Tor peer results, which
+    /// may be empty when no configured Tor peer is currently connected.
+    Snapshot(Vec<RemoteStatusResult>),
+}
+
+impl DaemonPeerOutcome {
+    /// Whether the local takd answered the peer query at all.
+    pub(in crate::cli) fn daemon_reachable(&self) -> bool {
+        matches!(self, Self::Snapshot(_))
+    }
+}
+
 pub(in crate::cli) async fn fetch_daemon_peer_snapshot(
     node_filters: &[String],
-) -> Result<Option<Vec<RemoteStatusResult>>> {
+) -> Result<DaemonPeerOutcome> {
     let socket_path = daemon_socket_path();
     let peers = match fetch_daemon_peers(&socket_path).await {
         Ok(peers) => peers,
-        Err(DaemonPeerFetchError::Unavailable) => return Ok(None),
+        Err(DaemonPeerFetchError::Unavailable) => return Ok(DaemonPeerOutcome::Unavailable),
         Err(DaemonPeerFetchError::Failed(err)) => return Err(err),
     };
-    let results = results_from_peers(peers, node_filters);
-    if results.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(results))
+    Ok(DaemonPeerOutcome::Snapshot(results_from_peers(
+        peers,
+        node_filters,
+    )))
 }
 
-fn daemon_socket_path() -> PathBuf {
+pub(super) fn daemon_socket_path() -> PathBuf {
     std::env::var_os("TAKD_SOCKET")
         .map(PathBuf::from)
         .unwrap_or_else(tak_core::runtime_paths::default_daemon_socket_path)
+}
+
+/// Honest replacement for the old "Tor remote status requires local takd serve"
+/// bail. Tor `.onion` node status is owned by `takd serve`; this is only ever
+/// shown when the local takd peer socket is genuinely unreachable (so it no
+/// longer fires while takd is running and answering).
+pub(super) fn tor_status_daemon_unreachable_message() -> String {
+    format!(
+        "Tor node status comes from local takd serve; local takd peer socket at {} is unreachable (start takd serve or set TAKD_SOCKET)",
+        daemon_socket_path().display()
+    )
 }
 
 async fn fetch_daemon_peers(

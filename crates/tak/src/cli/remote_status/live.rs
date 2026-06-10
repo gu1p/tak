@@ -1,4 +1,4 @@
-use std::io::stdout;
+use std::io::{Write, stdout};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -78,6 +78,13 @@ pub(super) async fn run_remote_status_dashboard(
         polls = polls.saturating_add(1);
         if !watch {
             if snapshot.iter().any(|result| result.error.is_some()) {
+                // The one-shot dashboard leaves the cursor on its final frame
+                // line. Break to a fresh line before the top-level error report
+                // (written to stderr by `main`) so it no longer smushes onto the
+                // last cell — e.g. "...takd serve" + "Error:" => "serveError:".
+                let mut out = stdout();
+                let _ = out.write_all(b"\n");
+                let _ = out.flush();
                 bail!("failed to query one or more remote nodes");
             }
             return Ok(());

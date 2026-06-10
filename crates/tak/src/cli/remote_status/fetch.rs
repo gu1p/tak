@@ -57,5 +57,10 @@ async fn fetch_node_status(
             .map_err(ProbeAttemptError::into_anyhow);
     }
 
-    bail!("Tor remote status requires local takd serve")
+    // Reaching here means a Tor `.onion` node was probed directly, which only
+    // happens once the local takd peer query has already come back unavailable
+    // (the daemon path owns Tor status and filters these out otherwise). Report
+    // the real reason instead of the old message that wrongly implied takd was
+    // not serving even when it was.
+    bail!("{}", super::daemon::tor_status_daemon_unreachable_message())
 }

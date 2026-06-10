@@ -7,8 +7,8 @@ use tokio::time::sleep;
 
 use super::remote_inventory::{RemoteRecord, list_remotes};
 use super::remote_status::{
-    RemoteStatusResult, fetch_daemon_peer_status_snapshot, fetch_mixed_remote_status_snapshot,
-    fetch_remote_status_snapshot,
+    DaemonPeerStatusOutcome, RemoteStatusResult, fetch_daemon_peer_status_snapshot,
+    fetch_mixed_remote_status_snapshot, fetch_remote_status_snapshot,
 };
 
 mod daemon;
@@ -47,14 +47,16 @@ pub(super) async fn run_status(
 
     loop {
         let local = local_status_snapshot().await?;
-        let daemon_snapshot = fetch_daemon_peer_status_snapshot(node_filters).await?;
+        let daemon_outcome = fetch_daemon_peer_status_snapshot(node_filters).await?;
         let remotes = selected_status_remotes_or_empty_when_daemon_available(
             node_filters,
-            daemon_snapshot.is_some(),
+            daemon_outcome.daemon_reachable(),
         )?;
-        let remote = match daemon_snapshot {
-            Some(snapshot) => fetch_mixed_remote_status_snapshot(&remotes, snapshot).await,
-            None => fetch_remote_status_snapshot(&remotes).await,
+        let remote = match daemon_outcome {
+            DaemonPeerStatusOutcome::Snapshot(snapshot) => {
+                fetch_mixed_remote_status_snapshot(&remotes, snapshot).await
+            }
+            DaemonPeerStatusOutcome::Unavailable => fetch_remote_status_snapshot(&remotes).await,
         };
         print!("{}", render_status_snapshot(&local, &remote));
         stdout().flush().context("flush status output")?;
