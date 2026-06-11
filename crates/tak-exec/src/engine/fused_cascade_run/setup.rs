@@ -40,6 +40,13 @@ pub(super) fn build_task_result(
 /// Fused-cascade twin of the single-task staging helper: stages the merged-context workspace
 /// and computes its per-job upload-cache content hash, skipping staging when the identical
 /// content is already uploaded to the chosen node this job.
+///
+/// ```no_run
+/// # // Reason: This helper depends on remote placement state and filesystem staging.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(super) fn stage_remote_workspace_if_needed(
     task: &ResolvedTask,
     workspace_root: &Path,

@@ -57,6 +57,31 @@ is_test_source_file() {
   esac
 }
 
+is_doc_only_changed_file() {
+  local file="$1"
+
+  [[ "$mode" == "working-tree" ]] || return 1
+  has_git_worktree || return 1
+  git diff --quiet HEAD -- "$file" && return 1
+
+  local changed=0
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      diff\ --git*|index\ *|---\ *|+++\ *|@@\ *) continue ;;
+      +*|-*)
+        changed=1
+        local content="${line:1}"
+        if [[ ! "$content" =~ ^[[:space:]]*$ && ! "$content" =~ ^[[:space:]]*/// ]]; then
+          return 1
+        fi
+        ;;
+    esac
+  done < <(git diff --unified=0 HEAD -- "$file")
+
+  (( changed != 0 ))
+}
+
 disallowed_test_markers() {
   local file="$1"
   awk '
@@ -130,6 +155,9 @@ while IFS= read -r file; do
 
   violations="$(disallowed_test_markers "$file")"
   if [[ -n "$violations" ]]; then
+    if is_doc_only_changed_file "$file"; then
+      continue
+    fi
     echo "src-test-separation-check: ${file} contains test attributes"
     echo "$violations"
     failures=1

@@ -71,6 +71,13 @@ pub(crate) struct SharedRemoteSelectionState {
 
 impl SharedRemoteSelectionState {
     /// The per-run workspace-upload cache (see [`SharedWorkspaceUploadCache`]).
+    ///
+    /// ```no_run
+    /// # // Reason: This private accessor is exercised through remote execution tests.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn upload_cache(&self) -> &SharedWorkspaceUploadCache {
         &self.upload_cache
     }

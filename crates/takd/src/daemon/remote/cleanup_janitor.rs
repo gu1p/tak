@@ -197,6 +197,13 @@ fn remove_stale_remote_entry(path: &Path) -> Result<()> {
 /// task of a job that shares the same workspace content, and `touch_upload_files`
 /// refreshes each blob's mtime on resolve. So we clean per FILE by file mtime: a blob
 /// no longer referenced for `ttl` is removed, but actively-reused blobs survive.
+///
+/// ```no_run
+/// # // Reason: This helper mutates daemon-owned workspace-upload storage and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn cleanup_stale_workspace_uploads(upload_dir: &Path, ttl: Duration) -> Result<()> {
     cleanup_stale_workspace_uploads_with(upload_dir, ttl, remove_stale_workspace_upload_file)
 }

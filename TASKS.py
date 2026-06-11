@@ -37,7 +37,7 @@ CHECK_CONTEXT = CurrentState(
 CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
-    resources=Container.Resources(cpu_cores=4.0, memory_mb=5*1024),
+    resources=Container.Resources(cpu_cores=4.0, memory_mb=8*1024),
 )
 
 CHECK_SESSION = session(
@@ -48,7 +48,13 @@ CHECK_SESSION = session(
 
 CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
     placements=[
-        Execution.Remote(container=CHECK_CONTAINER, session=CHECK_SESSION),
+        Execution.Remote(
+            pool="build",
+            required_tags=["builder"],
+            required_capabilities=["linux"],
+            container=CHECK_CONTAINER,
+            session=CHECK_SESSION,
+        ),
         Execution.Local(),
     ],
     doc="Run check tasks in a shared remote-first test workspace container.",

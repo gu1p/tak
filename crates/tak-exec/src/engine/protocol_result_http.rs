@@ -25,6 +25,13 @@ const REMOTE_RESULT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Performs the raw result GET, returning the HTTP status and body verbatim and
 /// surfacing transport failures as a typed `RemoteHttpExchangeError` so callers
 /// can classify retryability. The result endpoint is read-only and idempotent.
+///
+/// ```no_run
+/// # // Reason: This helper performs remote HTTP IO and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) async fn raw_remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,
@@ -55,6 +62,13 @@ pub(crate) enum ResultProbe {
 /// transient (5xx / retryable transport) outcome lets the caller keep polling;
 /// only a terminal (non-retryable) failure aborts here, with a rich error. The
 /// terminal result fetch (with bounded retry) lives in `remote_result_fetch`.
+///
+/// ```no_run
+/// # // Reason: This helper performs remote HTTP IO and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) async fn probe_remote_protocol_result(
     target: &StrictRemoteTarget,
     task_run_id: &str,

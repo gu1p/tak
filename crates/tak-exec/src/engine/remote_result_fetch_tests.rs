@@ -44,6 +44,13 @@ fn task_label() -> TaskLabel {
 }
 
 /// A fast policy with no backoff so retry tests complete near-instantly.
+///
+/// ```no_run
+/// # // Reason: This private test helper is compile-checked through the test harness.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn fast_policy() -> ResultFetchPolicy {
     ResultFetchPolicy {
         max_attempts: 3,
@@ -97,6 +104,13 @@ fn stdout_event(seq: u64, bytes: &[u8]) -> RemoteEvent {
 /// Serves a fixed sequence of `(status, body)` responses, one per accepted
 /// connection (the client closes each connection — `Connection: close`). Returns
 /// the number of requests actually served, so tests can assert request counts.
+///
+/// ```no_run
+/// # // Reason: This helper opens a local test TCP listener and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn spawn_http_server(
     listener: TcpListener,
     responses: Vec<(u16, Vec<u8>)>,

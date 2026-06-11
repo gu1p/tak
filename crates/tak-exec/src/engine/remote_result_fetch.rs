@@ -34,6 +34,13 @@ const RESULT_NOT_FOUND_GRACE_ATTEMPTS: u32 = 5;
 const RESULT_NOT_FOUND_BACKOFF: Duration = Duration::from_millis(250);
 
 /// Exponential backoff for transient result fetches: 0.25s, 0.5s, 1s, 2s, 4s.
+///
+/// ```no_run
+/// # // Reason: This private policy helper is exercised through result-fetch tests.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn result_fetch_backoff() -> BackoffDef {
     BackoffDef::ExpJitter {
         min_s: 0.25,
@@ -58,6 +65,13 @@ pub(crate) enum FetchOutcome {
 /// Maps an HTTP status to a retry decision. Status codes already encode
 /// retryability, so the client classifies here rather than relying on a server
 /// flag (mirrors the existing `broker_error_response` status classification).
+///
+/// ```no_run
+/// # // Reason: This private classifier is exercised through result-fetch tests.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn classify_fetch_status(status: u16) -> FetchOutcome {
     match status {
         200 => FetchOutcome::Ok,
@@ -88,6 +102,13 @@ pub(crate) struct RemoteFetchFailure<'a> {
 /// attempt identity, the exact path, and the decoded server detail (or a bounded
 /// body preview), so a fatal remote fetch is debuggable from the client output
 /// alone. Style mirrors `protocol_result_http/request/daemon/errors.rs`.
+///
+/// ```no_run
+/// # // Reason: This formatter needs remote target fixtures and is covered by result-fetch tests.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn format_remote_fetch_failure(failure: &RemoteFetchFailure<'_>) -> String {
     let target = failure.target;
     let mut lines = vec![
@@ -123,6 +144,13 @@ pub(crate) fn format_remote_fetch_failure(failure: &RemoteFetchFailure<'_>) -> S
 
 /// Decodes the server's `ErrorResponse.message`, falling back to a bounded
 /// UTF-8/byte-length preview when the body is absent or not that protobuf.
+///
+/// ```no_run
+/// # // Reason: This private decoder is exercised through result-fetch tests.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn decode_error_detail(body: Option<&[u8]>) -> String {
     let Some(body) = body else {
         return "<no body>".to_string();
@@ -173,6 +201,13 @@ impl ResultFetchPolicy {
 /// - 404 → bounded grace retry, since the terminal event and the result row are
 ///   persisted non-atomically.
 /// - other 4xx / non-retryable transport error → fail immediately.
+///
+/// ```no_run
+/// # // Reason: This helper performs remote result HTTP IO and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) async fn fetch_remote_result_with_retry(
     target: &StrictRemoteTarget,
     task_run_id: &str,

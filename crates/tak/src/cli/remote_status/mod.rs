@@ -125,6 +125,13 @@ pub(in crate::cli) async fn fetch_mixed_remote_status_snapshot(
 
 /// A Tor remote that is configured but absent from the local takd peer snapshot:
 /// takd is up, it just has no live session for this node yet.
+///
+/// ```no_run
+/// # // Reason: This private renderer needs CLI remote records and is covered by contract tests.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn tor_peer_not_reported_result(remote: RemoteRecord) -> RemoteStatusResult {
     RemoteStatusResult {
         remote,

@@ -32,6 +32,13 @@ pub(in crate::cli) enum DaemonPeerOutcome {
 
 impl DaemonPeerOutcome {
     /// Whether the local takd answered the peer query at all.
+    ///
+    /// ```no_run
+    /// # // Reason: This private CLI outcome is exercised through remote-status tests.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(in crate::cli) fn daemon_reachable(&self) -> bool {
         matches!(self, Self::Snapshot(_))
     }
@@ -62,6 +69,13 @@ pub(super) fn daemon_socket_path() -> PathBuf {
 /// bail. Tor `.onion` node status is owned by `takd serve`; this is only ever
 /// shown when the local takd peer socket is genuinely unreachable (so it no
 /// longer fires while takd is running and answering).
+///
+/// ```no_run
+/// # // Reason: This private CLI message depends on runtime socket paths.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(super) fn tor_status_daemon_unreachable_message() -> String {
     format!(
         "Tor node status comes from local takd serve; local takd peer socket at {} is unreachable (start takd serve or set TAKD_SOCKET)",

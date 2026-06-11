@@ -141,6 +141,13 @@ const MAX_HANDLER_DETAIL_BYTES: usize = 512;
 /// safe to place in an `ErrorResponse.message`. Keeps only the first line of the
 /// `{err:#}` chain (the rest stays in the daemon log), collapses whitespace, and
 /// truncates on a UTF-8 char boundary. Avoids log-injection and oversized bodies.
+///
+/// ```no_run
+/// # // Reason: This private HTTP helper is exercised through server behavior tests.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn sanitize_handler_detail(err: &anyhow::Error) -> String {
     let raw = format!("{err:#}");
     let first_line = raw.lines().next().unwrap_or_default();

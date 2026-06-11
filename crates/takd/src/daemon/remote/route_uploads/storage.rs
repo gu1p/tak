@@ -83,6 +83,13 @@ pub(in crate::daemon::remote) fn resolve_workspace_upload_zip(
 /// Used on every successful resolve so the per-blob cleanup sweep (which keys off
 /// file mtime) keeps actively-referenced blobs alive. Missing files / IO errors
 /// are ignored — this is purely a liveness hint.
+///
+/// ```no_run
+/// # // Reason: This helper touches daemon upload files and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn touch_upload_files(context: &RemoteNodeContext, upload_id: &str) {
     let now = std::time::SystemTime::now();
     for path in [

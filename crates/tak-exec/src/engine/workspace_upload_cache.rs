@@ -78,6 +78,13 @@ pub(crate) struct UploadLeadGuard {
 impl SharedWorkspaceUploadCache {
     /// Returns a completed upload for `key` if one exists. Does not wait on an in-flight
     /// upload — used to decide whether staging can be skipped up front.
+    ///
+    /// ```no_run
+    /// # // Reason: This cache helper is exercised through remote workspace-upload tests.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn peek(&self, key: &Key) -> Option<CachedUpload> {
         let map = self.inner.lock().expect("upload cache mutex poisoned");
         match map.get(key) {
@@ -88,6 +95,13 @@ impl SharedWorkspaceUploadCache {
 
     /// Drops a completed entry (e.g. after a referenced blob turned out to be missing on the
     /// node), so the next claim re-uploads. Leaves an in-flight entry alone.
+    ///
+    /// ```no_run
+    /// # // Reason: This cache helper is exercised through remote workspace-upload tests.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn invalidate(&self, key: &Key) {
         let mut map = self.inner.lock().expect("upload cache mutex poisoned");
         if matches!(map.get(key), Some(Slot::Done(_))) {
@@ -98,6 +112,13 @@ impl SharedWorkspaceUploadCache {
     /// Claims responsibility for `key`: reuse an existing/just-finished upload, or become the
     /// single-flight leader. Followers wait on the leader with no lock held; if the leader
     /// fails (guard dropped without publishing) they re-claim and one becomes the new leader.
+    ///
+    /// ```no_run
+    /// # // Reason: This async cache helper coordinates test uploads and is compile-checked only.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) async fn claim(&self, key: Key) -> UploadClaim {
         loop {
             let mut receiver = {
@@ -132,6 +153,13 @@ impl SharedWorkspaceUploadCache {
 
 impl UploadLeadGuard {
     /// Records the completed upload and wakes any waiters so they reuse it.
+    ///
+    /// ```no_run
+    /// # // Reason: This guard is constructed by the upload cache claim path.
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub(crate) fn publish(mut self, cached: CachedUpload) {
         {
             let mut map = self

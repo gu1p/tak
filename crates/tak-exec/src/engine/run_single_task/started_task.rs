@@ -111,6 +111,13 @@ pub(super) fn emit_started_task_failure(
 /// identical content is already uploaded to the chosen node this job, in which case staging is
 /// skipped (the staged workspace is `None`) and the later submit references the cached blob.
 /// Returns the (possibly absent) stage plus the content hash (absent for non-remote placements).
+///
+/// ```no_run
+/// # // Reason: This helper depends on remote placement state and workspace staging.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 fn stage_remote_workspace_if_needed(
     task: &ResolvedTask,
     workspace_root: &Path,

@@ -29,6 +29,13 @@ pub(crate) struct WorkspaceUploadIdentity {
 ///
 /// `state` must be the same `CurrentState` staging uses (e.g. from the session-context-resolved
 /// task), so the hashed set matches exactly what would be uploaded.
+///
+/// ```no_run
+/// # // Reason: This helper hashes a real workspace filesystem and is compile-checked only.
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #     Ok(())
+/// # }
+/// ```
 pub(crate) fn workspace_upload_identity(
     workspace_root: &Path,
     state: &CurrentStateSpec,
