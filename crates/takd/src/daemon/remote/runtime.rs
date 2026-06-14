@@ -1,100 +1,20 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+mod config_accessors;
+mod env_parse;
+mod memory_pressure_settings;
+
+use env_parse::{bool_from_env, duration_from_env, optional_trimmed_env, u64_from_env};
+pub(crate) use memory_pressure_settings::MemoryPressureSettings;
+
 const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
 const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
 const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 600 * 1000;
 const DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS: u64 = 1000;
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
 
-const DEFAULT_MEMORY_PRESSURE_INTERVAL_MS: u64 = 1000;
-const DEFAULT_MEMORY_PRESSURE_PAUSE_PCT: u64 = 15;
-const DEFAULT_MEMORY_PRESSURE_PAUSE_FLOOR_MB: u64 = 2048;
-const DEFAULT_MEMORY_PRESSURE_RESUME_PCT: u64 = 25;
-const DEFAULT_MEMORY_PRESSURE_EMERGENCY_PCT: u64 = 7;
-const DEFAULT_MEMORY_PRESSURE_MIN_RUNNING: usize = 1;
 const DEFAULT_ADMISSION_OVERSUBSCRIBE_X: u64 = 16;
-
-/// Tunables for the never-kill memory-pressure controller. Percentages are of
-/// host total memory. `pause_floor_mb` is an absolute MemAvailable floor: the
-/// controller pauses when available drops below the LARGER of `pause_pct`% of
-/// total or this floor, so the threshold stays sane on both large nodes (where a
-/// percentage is many GiB) and small ones (where it is too tight). Invariant
-/// `emergency_pct < pause_pct < resume_pct` (the resume/pause gap is the
-/// hysteresis dead-band); a misconfigured set falls back to defaults.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct MemoryPressureSettings {
-    pub(crate) interval: Duration,
-    pub(crate) pause_pct: u64,
-    pub(crate) pause_floor_mb: u64,
-    pub(crate) resume_pct: u64,
-    pub(crate) emergency_pct: u64,
-    pub(crate) min_running: usize,
-}
-
-impl MemoryPressureSettings {
-    pub(crate) fn defaults() -> Self {
-        Self {
-            interval: Duration::from_millis(DEFAULT_MEMORY_PRESSURE_INTERVAL_MS),
-            pause_pct: DEFAULT_MEMORY_PRESSURE_PAUSE_PCT,
-            pause_floor_mb: DEFAULT_MEMORY_PRESSURE_PAUSE_FLOOR_MB,
-            resume_pct: DEFAULT_MEMORY_PRESSURE_RESUME_PCT,
-            emergency_pct: DEFAULT_MEMORY_PRESSURE_EMERGENCY_PCT,
-            min_running: DEFAULT_MEMORY_PRESSURE_MIN_RUNNING,
-        }
-    }
-
-    fn from_env() -> Self {
-        Self {
-            interval: Duration::from_millis(duration_from_env(
-                "TAKD_MEMORY_PRESSURE_INTERVAL_MS",
-                DEFAULT_MEMORY_PRESSURE_INTERVAL_MS,
-            )),
-            pause_pct: percent_from_env(
-                "TAKD_MEMORY_PRESSURE_PAUSE_PCT",
-                DEFAULT_MEMORY_PRESSURE_PAUSE_PCT,
-            ),
-            pause_floor_mb: u64_from_env(
-                "TAKD_MEMORY_PRESSURE_PAUSE_FLOOR_MB",
-                DEFAULT_MEMORY_PRESSURE_PAUSE_FLOOR_MB,
-            ),
-            resume_pct: percent_from_env(
-                "TAKD_MEMORY_PRESSURE_RESUME_PCT",
-                DEFAULT_MEMORY_PRESSURE_RESUME_PCT,
-            ),
-            emergency_pct: percent_from_env(
-                "TAKD_MEMORY_PRESSURE_EMERGENCY_PCT",
-                DEFAULT_MEMORY_PRESSURE_EMERGENCY_PCT,
-            ),
-            min_running: usize_from_env(
-                "TAKD_MEMORY_PRESSURE_MIN_RUNNING",
-                DEFAULT_MEMORY_PRESSURE_MIN_RUNNING,
-            ),
-        }
-        .sanitized()
-    }
-
-    /// Keep the hysteresis band valid; on any ordering violation, reset the three
-    /// watermarks to defaults while preserving interval/floor/min_running.
-    ///
-    /// ```no_run
-    /// # // Reason: private method on a pub(crate) type; not reachable from a doctest.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    fn sanitized(self) -> Self {
-        if self.emergency_pct < self.pause_pct && self.pause_pct < self.resume_pct {
-            return self;
-        }
-        Self {
-            interval: self.interval,
-            pause_floor_mb: self.pause_floor_mb,
-            min_running: self.min_running,
-            ..Self::defaults()
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteRuntimeConfig {
@@ -232,132 +152,4 @@ impl RemoteRuntimeConfig {
         self.remote_client_watchdog_interval = interval;
         self
     }
-
-    pub(crate) fn explicit_remote_exec_root(&self) -> Option<&PathBuf> {
-        self.explicit_remote_exec_root.as_ref()
-    }
-
-    pub(crate) fn temp_dir(&self) -> &PathBuf {
-        &self.temp_dir
-    }
-
-    pub(crate) fn docker_host(&self) -> Option<&str> {
-        self.docker_host.as_deref()
-    }
-
-    pub(crate) fn podman_socket(&self) -> Option<&str> {
-        self.podman_socket.as_deref()
-    }
-
-    pub(crate) fn runtime_dir(&self) -> Option<&str> {
-        self.runtime_dir.as_deref()
-    }
-
-    pub(crate) fn uid(&self) -> Option<&str> {
-        self.uid.as_deref()
-    }
-
-    pub(crate) fn skip_exec_root_probe(&self) -> bool {
-        self.skip_exec_root_probe
-    }
-
-    pub(crate) fn remote_cleanup_ttl(&self) -> Duration {
-        self.remote_cleanup_ttl
-    }
-
-    pub(crate) fn remote_cleanup_interval(&self) -> Duration {
-        self.remote_cleanup_interval
-    }
-
-    pub(crate) fn remote_client_stale_ttl(&self) -> Duration {
-        self.remote_client_stale_ttl
-    }
-
-    pub(crate) fn remote_client_watchdog_interval(&self) -> Duration {
-        self.remote_client_watchdog_interval
-    }
-
-    pub(crate) fn memory_pressure(&self) -> MemoryPressureSettings {
-        self.memory_pressure
-    }
-
-    pub(crate) fn admission_oversubscribe_x(&self) -> u64 {
-        self.admission_oversubscribe_x
-    }
-
-    pub(crate) fn memory_pressure_enabled(&self) -> bool {
-        self.memory_pressure_enabled
-    }
-
-    pub(crate) fn default_remote_execution_root_base(&self) -> PathBuf {
-        if cfg!(unix) && !self.use_temp_dir_default_exec_root {
-            return PathBuf::from("/var/tmp").join(REMOTE_EXEC_ROOT_DIR);
-        }
-        self.temp_dir.join(REMOTE_EXEC_ROOT_DIR)
-    }
-
-    pub(crate) fn initial_execution_root_base(&self) -> PathBuf {
-        self.explicit_remote_exec_root
-            .clone()
-            .unwrap_or_else(|| self.default_remote_execution_root_base())
-    }
-}
-
-fn optional_trimmed_env(name: &str) -> Option<String> {
-    std::env::var(name)
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
-
-fn duration_from_env(name: &str, default_ms: u64) -> u64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(default_ms)
-}
-
-fn u64_from_env(name: &str, default: u64) -> u64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(default)
-}
-
-fn usize_from_env(name: &str, default: usize) -> usize {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.trim().parse::<usize>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(default)
-}
-
-fn bool_from_env(name: &str, default: bool) -> bool {
-    match std::env::var(name)
-        .ok()
-        .map(|value| value.trim().to_ascii_lowercase())
-        .as_deref()
-    {
-        Some("1" | "true" | "yes" | "on") => true,
-        Some("0" | "false" | "no" | "off") => false,
-        _ => default,
-    }
-}
-
-/// Parse a 1..=100 percentage; out-of-range or unparsable falls back to default.
-///
-/// ```no_run
-/// # // Reason: private free function reading process environment; not reachable from a doctest.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn percent_from_env(name: &str, default: u64) -> u64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .filter(|value| (1..=100).contains(value))
-        .unwrap_or(default)
 }
