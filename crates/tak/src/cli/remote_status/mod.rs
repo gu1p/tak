@@ -4,15 +4,18 @@ use std::io::{IsTerminal, Write, stdout};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
-use super::remote_inventory::{RemoteRecord, list_remotes};
+use super::remote_inventory::RemoteRecord;
 
 mod daemon;
 mod fetch;
 mod http;
 mod live;
 mod render;
+mod selection;
 mod types;
 mod view;
+
+use selection::selected_remotes_or_empty_when_daemon_available;
 
 use daemon::{DaemonPeerOutcome, fetch_daemon_peer_snapshot};
 use fetch::fetch_snapshot;
@@ -169,44 +172,6 @@ async fn run_remote_status_plain(
         }
         sleep(poll_interval).await;
     }
-}
-
-fn selected_remotes_or_empty_when_daemon_available(
-    node_filters: &[String],
-    daemon_available: bool,
-) -> Result<Vec<RemoteRecord>> {
-    match selected_remotes(node_filters) {
-        Ok(remotes) => Ok(remotes),
-        Err(_) if daemon_available => Ok(Vec::new()),
-        Err(err) => Err(err),
-    }
-}
-
-fn selected_remotes(node_filters: &[String]) -> Result<Vec<RemoteRecord>> {
-    let enabled = list_remotes()?
-        .into_iter()
-        .filter(|remote| remote.enabled)
-        .collect::<Vec<_>>();
-    if enabled.is_empty() {
-        bail!("no enabled remotes configured");
-    }
-    if node_filters.is_empty() {
-        return Ok(enabled);
-    }
-
-    let wanted = node_filters
-        .iter()
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .collect::<BTreeSet<_>>();
-    let selected = enabled
-        .into_iter()
-        .filter(|remote| wanted.contains(remote.node_id.as_str()))
-        .collect::<Vec<_>>();
-    if selected.is_empty() {
-        bail!("no enabled remotes matched the requested node filters");
-    }
-    Ok(selected)
 }
 
 fn test_max_polls() -> Option<usize> {
