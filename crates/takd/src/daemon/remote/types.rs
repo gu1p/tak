@@ -4,9 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use tak_proto::NodeInfo;
 
-use super::active_executions::{
-    ActiveExecutionCancelReason, SharedActiveExecutions, StaleActiveExecution,
-};
+use super::active_executions::SharedActiveExecutions;
 use super::resource_admission::{
     ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
 };
@@ -18,6 +16,7 @@ use super::runtime::RemoteRuntimeConfig;
 use super::runtime_state::RemoteRuntimeState;
 use super::status_state::{SharedNodeStatusState, new_shared_node_status_state};
 
+mod context_active_executions;
 mod context_status;
 mod records;
 mod worker_payload;
@@ -106,53 +105,6 @@ impl RemoteNodeContext {
         guard.transport_state = transport_state.to_string();
         guard.transport_detail = transport_detail.unwrap_or_default().to_string();
         Ok(())
-    }
-
-    pub(crate) fn register_active_execution(
-        &self,
-        idempotency_key: String,
-        task_run_id: &str,
-        attempt: u32,
-    ) -> Result<tak_runner::RunCancellation> {
-        self.active_executions
-            .register(idempotency_key, task_run_id, attempt)
-    }
-
-    pub(crate) fn unregister_active_execution(&self, idempotency_key: &str) -> Result<()> {
-        self.active_executions.unregister(idempotency_key)
-    }
-
-    pub(crate) fn active_execution_keys(&self) -> Result<Vec<String>> {
-        self.active_executions.keys()
-    }
-
-    pub(crate) fn cancel_active_task(
-        &self,
-        task_run_id: &str,
-        attempt: Option<u32>,
-    ) -> Result<bool> {
-        self.active_executions.cancel_task(task_run_id, attempt)
-    }
-
-    pub(crate) fn refresh_active_client(
-        &self,
-        task_run_id: &str,
-        attempt: Option<u32>,
-    ) -> Result<()> {
-        self.active_executions.refresh_client(task_run_id, attempt)
-    }
-
-    pub(super) fn cancel_stale_active_executions(&self) -> Result<Vec<StaleActiveExecution>> {
-        self.active_executions
-            .cancel_stale(self.runtime_config().remote_client_stale_ttl())
-    }
-
-    pub(super) fn active_execution_cancel_reason(
-        &self,
-        task_run_id: &str,
-        attempt: Option<u32>,
-    ) -> Result<Option<ActiveExecutionCancelReason>> {
-        self.active_executions.cancel_reason(task_run_id, attempt)
     }
 
     pub fn runtime_config(&self) -> RemoteRuntimeConfig {
