@@ -1,3 +1,23 @@
+use std::time::Duration;
+
+use anyhow::{Result, bail};
+use tak_core::model::TaskLabel;
+
+use super::protocol_result_http::{
+    ResultProbe, probe_remote_protocol_result, remote_protocol_http_request,
+};
+use super::remote_models::RemoteProtocolResult;
+use super::remote_result_fetch::{FetchOutcome, classify_fetch_status};
+use super::remote_wait_status::{remote_wait_heartbeat_interval, render_remote_wait_heartbeat};
+use super::{RemoteLogChunk, StrictRemoteTarget, TaskOutputObserver};
+
+use crate::remote_protocol_codec::parse_remote_events_response;
+
+mod emit;
+mod failure;
+use emit::{emit_event_batch, emit_remote_wait};
+use failure::{EventStreamTarget, event_stream_failure};
+
 /// Opens the remote event stream endpoint for one attempt.
 ///
 /// ```no_run
@@ -6,29 +26,6 @@
 /// #     Ok(())
 /// # }
 /// ```
-use std::time::Duration;
-
-use anyhow::{Result, bail};
-use tak_core::model::TaskLabel;
-
-use super::{
-    RemoteLogChunk, StrictRemoteTarget, TaskOutputObserver, TaskStatusPhase, emit_task_output,
-};
-
-use crate::remote_protocol_codec::parse_remote_events_response;
-
-use super::output_observer::{
-    TaskStatusDetails, emit_task_status_message, emit_task_status_message_with_details,
-};
-use super::protocol_result_http::{
-    ResultProbe, probe_remote_protocol_result, remote_protocol_http_request,
-};
-use super::remote_models::RemoteProtocolResult;
-use super::remote_result_fetch::{
-    FetchOutcome, RemoteFetchFailure, classify_fetch_status, format_remote_fetch_failure,
-};
-use super::remote_wait_status::{remote_wait_heartbeat_interval, render_remote_wait_heartbeat};
-
 pub(crate) async fn remote_protocol_events(
     target: &StrictRemoteTarget,
     task_run_id: &str,
@@ -42,6 +39,11 @@ pub(crate) async fn remote_protocol_events(
     let event_wait_heartbeat = remote_wait_heartbeat_interval();
 
     let result_probe_path = format!("/v1/tasks/{task_run_id}/result");
+    let failure = EventStreamTarget {
+        target,
+        task_run_id,
+        attempt,
+    };
     let mut last_seen_seq = 0_u64;
     let mut reconnect_attempts = 0_u32;
     // Bounds consecutive transient (5xx / retryable transport) result probes while
@@ -51,12 +53,11 @@ pub(crate) async fn remote_protocol_events(
     let mut persisted_remote_logs = Vec::new();
     let mut silent_since = tokio::time::Instant::now();
     let mut next_wait_heartbeat = silent_since + event_wait_heartbeat;
-    emit_task_status_message(
+    emit_remote_wait(
         output_observer,
+        target,
         task_label,
         attempt,
-        TaskStatusPhase::RemoteWait,
-        Some(target.node_id.as_str()),
         format!("waiting for remote output from {}", target.node_id),
     )?;
 
@@ -78,19 +79,9 @@ pub(crate) async fn remote_protocol_events(
             tokio::select! {
                 response = &mut response => break response,
                 _ = &mut wait_heartbeat => {
-                    let heartbeat_message = render_remote_wait_heartbeat(
-                        target,
-                        silent_since.elapsed().as_secs(),
-                    )
-                    .await;
-                    emit_task_status_message(
-                        output_observer,
-                        task_label,
-                        attempt,
-                        TaskStatusPhase::RemoteWait,
-                        Some(target.node_id.as_str()),
-                        heartbeat_message,
-                    )?;
+                    let heartbeat_message =
+                        render_remote_wait_heartbeat(target, silent_since.elapsed().as_secs()).await;
+                    emit_remote_wait(output_observer, target, task_label, attempt, heartbeat_message)?;
                     next_wait_heartbeat += event_wait_heartbeat;
                 }
             }
@@ -103,16 +94,7 @@ pub(crate) async fn remote_protocol_events(
                 if reconnect_attempts > MAX_EVENT_RECONNECTS {
                     bail!(
                         "{}",
-                        format_remote_fetch_failure(&RemoteFetchFailure {
-                            target,
-                            task_run_id,
-                            attempt,
-                            phase: "events",
-                            path: &path,
-                            status: None,
-                            body: None,
-                            transport_error: Some(&err),
-                        })
+                        event_stream_failure(&failure, "events", &path, None, None, Some(&err))
                     );
                 }
                 tokio::time::sleep(EVENT_RECONNECT_DELAY).await;
@@ -126,44 +108,27 @@ pub(crate) async fn remote_protocol_events(
         if status == 200 {
             reconnect_attempts = 0;
         } else {
-            match classify_fetch_status(status) {
-                FetchOutcome::Retryable => {
-                    reconnect_attempts += 1;
-                    if reconnect_attempts > MAX_EVENT_RECONNECTS {
-                        bail!(
-                            "{}",
-                            format_remote_fetch_failure(&RemoteFetchFailure {
-                                target,
-                                task_run_id,
-                                attempt,
-                                phase: "events",
-                                path: &path,
-                                status: Some(status),
-                                body: Some(&response_body),
-                                transport_error: None,
-                            })
-                        );
-                    }
-                    // Resume from the same cursor (`after_seq={last_seen_seq}`); the
-                    // events parser drops already-seen seqs, so resuming after a
-                    // transient 5xx never replays output.
-                    tokio::time::sleep(EVENT_RECONNECT_DELAY).await;
-                    continue;
-                }
-                _ => bail!(
-                    "{}",
-                    format_remote_fetch_failure(&RemoteFetchFailure {
-                        target,
-                        task_run_id,
-                        attempt,
-                        phase: "events",
-                        path: &path,
-                        status: Some(status),
-                        body: Some(&response_body),
-                        transport_error: None,
-                    })
-                ),
+            let retryable = classify_fetch_status(status) == FetchOutcome::Retryable;
+            if retryable {
+                reconnect_attempts += 1;
             }
+            if !retryable || reconnect_attempts > MAX_EVENT_RECONNECTS {
+                bail!(
+                    "{}",
+                    event_stream_failure(
+                        &failure,
+                        "events",
+                        &path,
+                        Some(status),
+                        Some(&response_body),
+                        None
+                    )
+                );
+            }
+            // Resume from the same cursor (`after_seq={last_seen_seq}`); the events
+            // parser drops already-seen seqs, so a transient 5xx never replays output.
+            tokio::time::sleep(EVENT_RECONNECT_DELAY).await;
+            continue;
         }
 
         let previous_seq = last_seen_seq;
@@ -171,32 +136,15 @@ pub(crate) async fn remote_protocol_events(
         debug_assert_eq!(parsed.status_messages.len(), parsed.status_updates.len());
         let saw_new_activity = parsed.next_seq > previous_seq;
         last_seen_seq = parsed.next_seq;
-        for update in &parsed.status_updates {
-            emit_task_status_message_with_details(
-                output_observer,
-                task_label,
-                attempt,
-                TaskStatusPhase::RemoteWait,
-                Some(target.node_id.as_str()),
-                update.message.clone(),
-                TaskStatusDetails {
-                    kind: Some(update.kind),
-                    queue_position: update.queue_position,
-                    transport: Some(target.transport_kind.as_result_value().to_string()),
-                    ..TaskStatusDetails::default()
-                },
-            )?;
-        }
-        for chunk in &parsed.remote_logs {
-            emit_task_output(
-                output_observer,
-                task_run_id,
-                task_label,
-                attempt,
-                chunk.stream,
-                &chunk.bytes,
-            )?;
-        }
+        emit_event_batch(
+            output_observer,
+            target,
+            task_label,
+            task_run_id,
+            attempt,
+            &parsed.status_updates,
+            &parsed.remote_logs,
+        )?;
         persisted_remote_logs.extend(parsed.remote_logs);
         if saw_new_activity {
             silent_since = tokio::time::Instant::now();
@@ -225,16 +173,14 @@ pub(crate) async fn remote_protocol_events(
                     if result_probe_failures > MAX_EVENT_RECONNECTS {
                         bail!(
                             "{}",
-                            format_remote_fetch_failure(&RemoteFetchFailure {
-                                target,
-                                task_run_id,
-                                attempt,
-                                phase: "result",
-                                path: &result_probe_path,
+                            event_stream_failure(
+                                &failure,
+                                "result",
+                                &result_probe_path,
                                 status,
-                                body: body.as_deref(),
-                                transport_error: None,
-                            })
+                                body.as_deref(),
+                                None
+                            )
                         );
                     }
                 }
