@@ -4,27 +4,26 @@ use anyhow::{Context, Result};
 use tak_core::model::ResolvedTask;
 
 use crate::lease_client::{TaskLease, acquire_task_lease, release_task_lease};
-use crate::retry::{retry_backoff_delay, should_retry};
 
 use super::super::super::attempt_execution::{
     AttemptExecutionContext, AttemptExecutionOutcome, execute_task_attempt,
 };
 use super::super::super::attempt_submit::{AttemptSubmitState, resolve_attempt_submit_state};
-use super::super::super::output_observer::emit_task_status_message;
 use super::super::super::remote_models::{
     RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
 use super::super::super::remote_selection::SharedRemoteSelectionState;
 use super::super::super::session_workspaces::{PreparedTaskSession, SharedExecutionSessionManager};
 use super::super::super::task_result::{TaskRunResultContext, build_task_run_result};
-use super::super::super::{
-    LeaseContext, PlacementMode, RunOptions, TaskRunResult, TaskStatusPhase,
-};
+use super::super::super::{LeaseContext, RunOptions, TaskRunResult};
 use super::super::events::emit_finished;
 use setup_retry::{can_retry_remote_setup, wait_before_remote_setup_retry};
+use task_retry::{can_retry, wait_before_retry};
 
 #[path = "attempts/setup_retry.rs"]
 mod setup_retry;
+#[path = "attempts/task_retry.rs"]
+mod task_retry;
 
 pub(super) struct StartedAttemptContext<'a> {
     pub(super) task_run_id: &'a str,
@@ -168,36 +167,4 @@ fn build_task_result(
         },
         outcome,
     )
-}
-
-fn can_retry(task: &ResolvedTask, attempt: u32, exit_code: Option<i32>) -> bool {
-    attempt < task.retry.attempts.max(1) && should_retry(exit_code, &task.retry.on_exit)
-}
-
-async fn wait_before_retry(
-    task: &ResolvedTask,
-    options: &RunOptions,
-    attempt: u32,
-    context: &StartedAttemptContext<'_>,
-) -> Result<()> {
-    let wait = retry_backoff_delay(&task.retry.backoff, attempt);
-    if context.placement.placement_mode == PlacementMode::Remote {
-        let message = if wait.is_zero() {
-            "retrying after failure immediately".to_string()
-        } else {
-            format!("retrying after failure in {wait:?}")
-        };
-        emit_task_status_message(
-            options.output_observer.as_ref(),
-            &task.label,
-            attempt + 1,
-            TaskStatusPhase::RetryWait,
-            context.placement.remote_node_id.as_deref(),
-            message,
-        )?;
-    }
-    if !wait.is_zero() {
-        tokio::time::sleep(wait).await;
-    }
-    Ok(())
 }
