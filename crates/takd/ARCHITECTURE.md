@@ -135,10 +135,10 @@ Startup recovery:
 
 ## Operational Entry Points
 
-- `run_server(socket_path, manager)`
-- `run_daemon(socket_path)` default daemon bootstrap
-- `default_socket_path()` and `default_state_db_path()`
 - `takd serve`: unified local daemon, PeerManager, Tor broker, and remote agent service.
+- `run_server_with_broker_and_peers(...)`: explicit in-process local protocol server.
+- `run_remote_v1_http_server(...)`: explicit in-process remote HTTP server.
+- `default_socket_path()`: default local protocol socket location.
 - `takd peers`: render daemon-owned Tor peer state.
 - `takd tasks`: list live remote task attempts from the running local takd process.
 - `takd task logs <task-run-id> [--follow]`: print persisted stdout/stderr chunks for a task run.
