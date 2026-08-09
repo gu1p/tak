@@ -24,7 +24,7 @@ pub enum ContainerSource {
     },
 }
 
-/// Tak execution metadata attached to a literal Make goal.
+/// Resolved Tak execution metadata after file defaults and goal overrides are merged.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GoalAnnotations {
     /// Optional local or remote placement.

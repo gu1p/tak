@@ -19,6 +19,18 @@ pub(super) struct RunExecutionOverrideArgs<'a> {
     pub container_build_context: Option<&'a str>,
 }
 
+impl RunExecutionOverrideArgs<'_> {
+    pub(super) fn is_configured(&self) -> bool {
+        self.local
+            || self.local_no_container
+            || self.remote
+            || self.container
+            || self.container_image.is_some()
+            || self.container_dockerfile.is_some()
+            || self.container_build_context.is_some()
+    }
+}
+
 pub(super) fn apply_run_execution_overrides(
     spec: &WorkspaceSpec,
     targets: &[TaskLabel],

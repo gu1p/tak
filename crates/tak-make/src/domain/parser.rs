@@ -1,8 +1,11 @@
-use super::annotations::{Annotation, parse_annotation, resolve_annotations};
+use super::annotations::{
+    Annotation, AnnotationSettings, ParsedAnnotation, parse_annotation, resolve_annotation_block,
+    resolve_annotations,
+};
 use super::{GoalAnnotations, MakefileParseError};
 
 struct SelectedGoal {
-    annotations: GoalAnnotations,
+    annotations: AnnotationSettings,
     authored: bool,
 }
 
@@ -10,7 +13,9 @@ pub(crate) fn annotations_for_goal(
     source: &str,
     requested_goal: &str,
 ) -> Result<GoalAnnotations, MakefileParseError> {
+    let mut defaults = Vec::<Annotation>::new();
     let mut pending = Vec::<Annotation>::new();
+    let mut authored_blocks = Vec::<AnnotationSettings>::new();
     let mut selected = None;
 
     for (index, line) in source.lines().enumerate() {
@@ -21,7 +26,12 @@ pub(crate) fn annotations_for_goal(
             continue;
         }
         if let Some(annotation) = parse_annotation(trimmed, line_number)? {
-            pending.push(annotation);
+            match annotation {
+                ParsedAnnotation::Default(annotation) => {
+                    defaults.push(annotation);
+                }
+                ParsedAnnotation::Goal(annotation) => pending.push(annotation),
+            }
             continue;
         }
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -40,23 +50,30 @@ pub(crate) fn annotations_for_goal(
         }
 
         let authored = !pending.is_empty();
-        let annotations = resolve_annotations(&pending)?;
+        let annotations = resolve_annotation_block(&pending)?;
+        if authored {
+            authored_blocks.push(annotations.clone());
+        }
         if rule.target == requested_goal {
             merge_selected_goal(&mut selected, annotations, authored, requested_goal)?;
         }
         pending.clear();
     }
 
-    selected
-        .map(|goal: SelectedGoal| goal.annotations)
-        .ok_or_else(|| MakefileParseError::GoalNotFound {
-            goal: requested_goal.to_string(),
-        })
+    let defaults = resolve_annotation_block(&defaults)?;
+    resolve_annotations(&defaults, AnnotationSettings::default())?;
+    for annotations in authored_blocks {
+        resolve_annotations(&defaults, annotations)?;
+    }
+    let goal = selected.ok_or_else(|| MakefileParseError::GoalNotFound {
+        goal: requested_goal.to_string(),
+    })?;
+    resolve_annotations(&defaults, goal.annotations)
 }
 
 fn merge_selected_goal(
     selected: &mut Option<SelectedGoal>,
-    annotations: GoalAnnotations,
+    annotations: AnnotationSettings,
     authored: bool,
     goal: &str,
 ) -> Result<(), MakefileParseError> {

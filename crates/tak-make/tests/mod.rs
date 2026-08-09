@@ -5,4 +5,7 @@ mod annotation_validation_behavior;
 mod failure_propagation_behavior;
 mod filesystem_reader_contract;
 mod fixtures;
+mod global_defaults_association_behavior;
+mod global_defaults_behavior;
+mod global_defaults_rejection_behavior;
 mod run_make_behavior;

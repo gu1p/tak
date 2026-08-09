@@ -3,7 +3,8 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow};
 use tak_exec::{RunOptions, run_resolved_task};
 use tak_make::{
-    GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeRunOutcome, RunMakeError,
+    GoalAnnotations, GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeRunOutcome,
+    RunMakeError,
 };
 
 use crate::cli::command_model::MakeArgs;
@@ -38,17 +39,19 @@ async fn execute_make_goal(
     request: GoalExecutionRequest,
     args: &MakeArgs,
 ) -> Result<MakeRunOutcome> {
+    let override_args = run_override_args(args);
+    let implicit_local_host =
+        request.annotations == GoalAnnotations::default() && !override_args.is_configured();
     let (spec, label) = make_workspace(request)?;
     warn_redundant_container_flag(args);
-    let spec = apply_run_execution_overrides(
-        &spec,
-        std::slice::from_ref(&label),
-        run_override_args(args),
-    )?;
+    let spec = apply_run_execution_overrides(&spec, std::slice::from_ref(&label), override_args)?;
     let task = spec
         .tasks
         .get(&label)
         .ok_or_else(|| anyhow!("missing synthetic Make task"))?;
+    if implicit_local_host {
+        print_implicit_local_host_notice(&args.goal);
+    }
     let result = run_resolved_task(
         task,
         &spec.root,
@@ -62,6 +65,15 @@ async fn execute_make_goal(
     Ok(MakeRunOutcome {
         exit_code: task_exit_code(result.success, result.exit_code),
     })
+}
+
+fn print_implicit_local_host_notice(goal: &str) {
+    eprintln!(
+        "info: no Tak execution configuration found for Make goal `{goal}`; running locally outside \
+         a container. To run remotely, set `# tak: default.execution=remote` plus a default \
+         container image or Dockerfile, add equivalent annotations to this goal, or pass \
+         `--remote` with a container source."
+    );
 }
 
 fn run_override_args(args: &MakeArgs) -> RunExecutionOverrideArgs<'_> {

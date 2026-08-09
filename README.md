@@ -165,7 +165,21 @@ Key fields:
 `tak make <goal>` does not load or require `TASKS.py`. Tak reads the same default file name order
 as GNU Make (`GNUmakefile`, `makefile`, then `Makefile`), resolves a literal target header, and
 executes exactly one opaque `make <goal>` command. Make—not Tak—expands and schedules that goal's
-prerequisites. With no execution annotation or CLI override, Tak runs it on the local host.
+prerequisites.
+
+File-wide defaults avoid repeating the same execution settings above every goal. Prefix each
+default key with `default.`:
+
+```make
+# tak: default.execution=remote
+# tak: default.container-image=ghcr.io/acme/build:latest
+
+build:
+	./scripts/build.sh
+
+test: build
+	./scripts/test.sh
+```
 
 Contiguous comments immediately above a goal can select placement and a container:
 
@@ -177,11 +191,23 @@ test: build
 	./scripts/test.sh
 ```
 
-Supported keys are `execution=local|remote`, `container-image=<reference>`,
-`container-dockerfile=<path>`, and `container-build-context=<path>`. The command accepts the same
-`--local`, `--local-no-container`, `--remote`, `--container`, `--container-image`,
-`--container-dockerfile`, and `--container-build-context` overrides as `tak exec`; command-line
-placement and runtime choices win over comments.
+Supported goal keys are `execution=local|remote`, `container-image=<reference>`,
+`container-dockerfile=<path>`, and `container-build-context=<path>`; the corresponding global keys
+use the `default.` prefix. Goal settings override compatible default fields, while unmentioned
+settings are inherited. A goal can override only the build context while inheriting a default
+Dockerfile. Selecting a goal image replaces a default Dockerfile and context, while selecting a
+goal Dockerfile replaces a default image.
+
+The complete precedence order is command-line flags, goal annotations, global defaults, then the
+implicit local-host fallback. The command accepts the same `--local`, `--local-no-container`,
+`--remote`, `--container`, `--container-image`, `--container-dockerfile`, and
+`--container-build-context` overrides as `tak exec`. An inherited container remains selected when a
+goal only changes `execution`; use `--local-no-container` when an invocation must explicitly ignore
+all authored container configuration.
+
+When no applicable Makefile or command-line execution configuration exists, Tak writes an `info:`
+notice to stderr before running locally outside a container. The notice points to global defaults,
+goal annotations, and CLI overrides that enable remote execution; Make's stdout remains unchanged.
 
 The annotation reader intentionally supports only literal single-target `target: prerequisites`
 headers. It does not interpret includes, expanded target names, generated rules, multi-target rules,

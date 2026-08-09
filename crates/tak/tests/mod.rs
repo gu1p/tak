@@ -31,6 +31,7 @@ mod local_installer_contract;
 mod local_status_contract;
 mod make_cli_contract;
 mod make_exit_status_contract;
+mod make_global_defaults_contract;
 mod make_local_container_contract;
 mod make_local_override_contract;
 mod make_remote_annotation_contract;

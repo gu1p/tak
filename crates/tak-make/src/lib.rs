@@ -2,7 +2,8 @@
 //!
 //! The application module coordinates two injected ports: a Makefile reader and a
 //! goal executor. Parsing and annotation validation remain pure domain behavior,
-//! while filesystem access stays in an outer adapter.
+//! including file-wide defaults and goal-specific overrides, while filesystem access
+//! stays in an outer adapter.
 
 mod adapters;
 mod application;

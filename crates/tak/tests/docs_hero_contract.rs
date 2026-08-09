@@ -22,9 +22,10 @@ const HERO_SECTIONS: [&str; 6] = [
 ];
 
 #[rustfmt::skip]
-const ROOT_TOKENS: [&str; 33] = [
+const ROOT_TOKENS: [&str; 34] = [
     "`tak list`", "`tak tree`", "`tak explain <label>`", "`tak graph [label] --format dot`",
-    "`tak web [label]`", "`tak run <label...>`", "`tak make <goal>`", "`tak run //:check`", "`tak run //:coverage`",
+    "`tak web [label]`", "`tak run <label...>`", "`tak make <goal>`", "# tak: default.execution=remote",
+    "`tak run //:check`", "`tak run //:coverage`",
     "`--keep-going`", "`tak status`", "`tak remote add <token>`", "`tak remote list`",
     "`tak remote remove <node-id>`", "`tak remote logs --node <id>`", "`tak remote tasks --node <id>`",
     "`tak remote task logs --node <id> <task-run-id>`", "`tak task list`", "`tak task logs <task-run-id>`",

@@ -8,10 +8,23 @@ pub(super) struct Annotation {
     value: String,
 }
 
+pub(super) enum ParsedAnnotation {
+    Default(Annotation),
+    Goal(Annotation),
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+pub(super) struct AnnotationSettings {
+    placement: Option<ExecutionPlacement>,
+    image: Option<String>,
+    dockerfile: Option<String>,
+    build_context: Option<String>,
+}
+
 pub(super) fn parse_annotation(
     line: &str,
     line_number: usize,
-) -> Result<Option<Annotation>, MakefileParseError> {
+) -> Result<Option<ParsedAnnotation>, MakefileParseError> {
     let Some(body) = line.strip_prefix("# tak:") else {
         return Ok(None);
     };
@@ -23,16 +36,28 @@ pub(super) fn parse_annotation(
     if key.is_empty() || value.is_empty() {
         return Err(MakefileParseError::MalformedAnnotation { line: line_number });
     }
-    Ok(Some(Annotation {
+    let (is_default, key) = match key.strip_prefix("default.") {
+        Some("") => {
+            return Err(MakefileParseError::MalformedAnnotation { line: line_number });
+        }
+        Some(key) => (true, key),
+        None => (false, key),
+    };
+    let annotation = Annotation {
         line: line_number,
         key: key.to_string(),
         value: value.to_string(),
+    };
+    Ok(Some(if is_default {
+        ParsedAnnotation::Default(annotation)
+    } else {
+        ParsedAnnotation::Goal(annotation)
     }))
 }
 
-pub(super) fn resolve_annotations(
+pub(super) fn resolve_annotation_block(
     entries: &[Annotation],
-) -> Result<GoalAnnotations, MakefileParseError> {
+) -> Result<AnnotationSettings, MakefileParseError> {
     let mut values = BTreeMap::new();
     for entry in entries {
         if values.insert(entry.key.as_str(), entry).is_some() {
@@ -47,11 +72,48 @@ pub(super) fn resolve_annotations(
     let image = value(&values, "container-image");
     let dockerfile = value(&values, "container-dockerfile");
     let build_context = value(&values, "container-build-context");
+    if image.is_some() && dockerfile.is_some() {
+        return Err(MakefileParseError::ConflictingContainerSources);
+    }
+    Ok(AnnotationSettings {
+        placement,
+        image,
+        dockerfile,
+        build_context,
+    })
+}
+
+pub(super) fn resolve_annotations(
+    defaults: &AnnotationSettings,
+    goal: AnnotationSettings,
+) -> Result<GoalAnnotations, MakefileParseError> {
+    let placement = goal.placement.or(defaults.placement);
+    let (image, dockerfile, build_context) = merge_container_settings(defaults, goal);
     let container = parse_container(image, dockerfile, build_context)?;
     Ok(GoalAnnotations {
         placement,
         container,
     })
+}
+
+fn merge_container_settings(
+    defaults: &AnnotationSettings,
+    goal: AnnotationSettings,
+) -> (Option<String>, Option<String>, Option<String>) {
+    if goal.image.is_some() {
+        return (goal.image, None, goal.build_context);
+    }
+    let build_context = goal
+        .build_context
+        .or_else(|| defaults.build_context.clone());
+    if goal.dockerfile.is_some() {
+        return (None, goal.dockerfile, build_context);
+    }
+    (
+        defaults.image.clone(),
+        defaults.dockerfile.clone(),
+        build_context,
+    )
 }
 
 fn value(values: &BTreeMap<&str, &Annotation>, key: &str) -> Option<String> {

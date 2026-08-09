@@ -36,6 +36,12 @@ done
         format!("cwd={}\narg=test\n", workspace.path().display())
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
-    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "info: no Tak execution configuration found for Make goal `test`; running locally outside \
+         a container. To run remotely, set `# tak: default.execution=remote` plus a default \
+         container image or Dockerfile, add equivalent annotations to this goal, or pass \
+         `--remote` with a container source.\n"
+    );
     Ok(())
 }

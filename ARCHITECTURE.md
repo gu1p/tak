@@ -85,9 +85,12 @@ Important loader rules:
 `tak make <goal>` bypasses this loader pipeline. `tak-make` reads GNU Make's default file-name
 order, accepts literal single-target headers, and passes one `make <goal>` process to `tak-exec`.
 Make remains responsible for its own prerequisite graph. Contiguous `# tak:` comments may select
-local/remote placement and a container image or Dockerfile; CLI execution flags take precedence.
-The initial adapter declares no output paths, so remote Make output streams and status return to
-the client while files created in the remote execution root do not.
+local/remote placement and a container image or Dockerfile. File-wide defaults use keys such as
+`# tak: default.execution=remote`; goal annotations override defaults, and CLI execution flags
+override both. With no applicable configuration, the CLI reports its implicit local-host,
+no-container fallback on stderr. The initial adapter declares no output paths, so remote Make
+output streams and status return to the client while files created in the remote execution root do
+not.
 
 ## Execution and Placement Flow
 

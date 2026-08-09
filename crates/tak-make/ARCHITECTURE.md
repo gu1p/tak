@@ -32,6 +32,14 @@ test: build
 	./scripts/test.sh
 ```
 
+File-wide defaults use the same keys with a `default.` prefix and may appear in top-level Makefile
+comments:
+
+```make
+# tak: default.execution=remote
+# tak: default.container-image=alpine:3.20
+```
+
 Supported keys are:
 
 - `execution=local|remote`
@@ -40,7 +48,11 @@ Supported keys are:
 - `container-build-context=<workspace path>`
 
 A blank line or ordinary comment breaks association. Image and Dockerfile sources are mutually
-exclusive. Unsupported annotated declarations fail at the parser boundary.
+exclusive within one scope. Resolution applies global defaults first, then compatible goal fields;
+a goal build context may inherit the default Dockerfile, while choosing an image or Dockerfile
+replaces the mutually exclusive source. The outer CLI applies command-line overrides last. An
+inherited container can be ignored for one invocation with `--local-no-container`. Unsupported
+annotated declarations fail at the parser boundary.
 
 ## Deliberate Limits
 

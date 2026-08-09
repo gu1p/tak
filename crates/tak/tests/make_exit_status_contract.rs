@@ -26,6 +26,13 @@ fn make_preserves_output_streams_and_nonzero_exit_status() -> Result<()> {
 
     assert_eq!(output.status.code(), Some(7), "status: {:?}", output.status);
     assert_eq!(String::from_utf8_lossy(&output.stdout), "make-stdout\n");
-    assert_eq!(String::from_utf8_lossy(&output.stderr), "make-stderr\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "info: no Tak execution configuration found for Make goal `fail`; running locally outside \
+         a container. To run remotely, set `# tak: default.execution=remote` plus a default \
+         container image or Dockerfile, add equivalent annotations to this goal, or pass \
+         `--remote` with a container source.\n\
+         make-stderr\n"
+    );
     Ok(())
 }
