@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "crates/tak-core",
+  "crates/tak-make",
   "crates/tak-update",
   "crates/tak-loader",
   "crates/tak-proto",

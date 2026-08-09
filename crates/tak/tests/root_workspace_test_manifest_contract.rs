@@ -20,6 +20,7 @@ fn read_repo_file(path: &str) -> Result<String> {
 fn workspace_tested_crates_use_explicit_suite_targets() -> Result<()> {
     for manifest in [
         "crates/tak-core/Cargo.toml",
+        "crates/tak-make/Cargo.toml",
         "crates/tak-loader/Cargo.toml",
         "crates/tak-proto/Cargo.toml",
         "crates/tak-runner/Cargo.toml",

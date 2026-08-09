@@ -120,6 +120,7 @@ pub async fn run_cli() -> Result<ExitCode> {
             })
             .await;
         }
+        Commands::Make(args) => return run_make_command(args).await,
         Commands::Run {
             labels,
             jobs,

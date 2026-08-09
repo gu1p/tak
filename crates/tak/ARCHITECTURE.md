@@ -2,8 +2,9 @@
 
 ## Purpose
 
-`tak` is the user-facing interface over three subsystems:
+`tak` is the user-facing interface over four subsystems:
 
+- `tak-make` for Makefile goal discovery and execution orchestration
 - `tak-loader` for workspace/task graph discovery
 - `tak-exec` for task execution
 - `takd serve` for daemon-owned Tor remote execution and optional local lease/status APIs
@@ -16,14 +17,16 @@ is not reachable.
 
 - `src/main.rs`: process entrypoint, delegates to library runtime.
 - `src/lib.rs`: clap parsing, command dispatch, and output formatting.
+- `src/cli/make_cli.rs`: Make-domain to synthetic Tak-task adapter.
 
 High-level flow:
 
 1. Parse command with clap.
 2. For workspace commands, load `WorkspaceSpec` from current working directory.
-3. Dispatch to loader/executor/remote-inventory APIs.
-4. Print line-oriented response to stdout.
-5. Return non-zero exit on any `Result::Err`.
+3. For `make`, resolve the annotated goal without loading `TASKS.py`.
+4. Dispatch to Make, loader, executor, or remote-inventory APIs.
+5. Print line-oriented response to stdout.
+6. Return non-zero exit on any `Result::Err`.
 
 ## Command Answer Matrix
 
@@ -35,6 +38,7 @@ High-level flow:
 | `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional guided label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)`; Tor remotes require local `takd serve` placement | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
 | `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
+| `tak make <goal>` | "Run this existing Make build through Tak" | `tak-make` goal resolution + synthetic one-step task + `run_resolved_task(...)` | Streams `make <goal>` stdout/stderr live, reports an unconfigured local-host fallback on stderr, and exits with Make's exit code. |
 | `tak status [--node <id>...] [--watch] [--interval-ms N]` | "What is local Tak doing, and what are my daemon-managed remotes doing?" | XDG task history + local daemon `Status` + daemon `PeersList` when reachable | Local section plus remote node, container, and active-job sections; watch mode repeats snapshots. |
 | `tak local status [--watch] [--interval-ms N]` | "What is this local Tak client doing?" | XDG task history + local CPU/RAM/storage + optional `TAKD_SOCKET` status | Local resource line plus container and active-job sections. |
 | `tak remote add <token>` | "Add a remote execution agent" | secret invite/token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
@@ -88,6 +92,22 @@ High-level flow:
 - Builds one synthetic command task and reuses the same executor/runtime override path as `run`.
 - Streams wrapped command `stdout` and `stderr` live without adding a summary line to stdout.
 - Preserves the wrapped process exit code on command failure.
+
+### `make`
+
+- Does not require a `TASKS.py` workspace.
+- Searches `GNUmakefile`, `makefile`, then `Makefile` and resolves a literal single-target header.
+- Reads file-wide defaults from `# tak: default.<key>=<value>` comments.
+- Reads only contiguous `# tak:` comments directly above the goal; supported settings select
+  local/remote execution plus an image or Dockerfile container source.
+- Builds one synthetic `make <goal>` task. Make owns and schedules its prerequisite graph.
+- Resolves CLI flags over goal annotations over global defaults over the implicit local-host
+  fallback.
+- Reports that implicit fallback on stderr and explains how to enable remote execution.
+- Streams Make stdout/stderr and preserves its process exit code.
+- Rejects annotated multi-target, pattern, double-colon, target-specific-variable, expanded,
+  included, or generated rule syntax rather than guessing.
+- Declares no output paths in the first version; a remote run does not copy generated files back.
 
 ### `web`
 
@@ -155,6 +175,7 @@ All commands fail fast on errors and return non-zero exit status.
 Common failure classes:
 
 - Workspace load/parse errors (`TASKS.py`, label resolution).
+- Makefile read/annotation errors (missing file or goal, unsupported annotated declaration).
 - Invalid CLI input (unsupported graph format, missing run labels, bad label syntax).
 - Execution failures (`run` task failure, timeout, retry exhaustion).
 - Remote onboarding/probe failures.
@@ -169,7 +190,7 @@ Representative user-facing errors:
 
 ## Environment-Driven Behavior
 
-`run` and `exec` use environment overrides:
+`run`, `exec`, and `make` use environment overrides:
 
 - `TAKD_SOCKET` optional lease daemon socket path
 - `TAK_LEASE_TTL_MS` for lease TTL

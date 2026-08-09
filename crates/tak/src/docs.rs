@@ -31,6 +31,7 @@ const TAK_LIB: &str = include_str!("lib.rs");
 const TAK_CORE_LIB: &str = include_str!("../../tak-core/src/lib.rs");
 const TAK_EXEC_LIB: &str = include_str!("../../tak-exec/src/lib.rs");
 const TAK_LOADER_LIB: &str = include_str!("../../tak-loader/src/lib.rs");
+const TAK_MAKE_LIB: &str = include_str!("../../tak-make/src/lib.rs");
 const TAKD_LIB: &str = include_str!("../../takd/src/lib.rs");
 const AUTHORING_WORKFLOW_DOCS: &str = include_str!("docs/authoring_workflow.rs");
 
@@ -44,6 +45,11 @@ pub(crate) fn render_docs_dump() -> Result<String> {
     let overview = extract_rust_module_docs(TAK_LIB)
         .context("failed to extract Tak overview from source docs")?;
     let crate_docs = [
+        (
+            "tak-make",
+            extract_rust_module_docs(TAK_MAKE_LIB)
+                .context("failed to extract tak-make overview from source docs")?,
+        ),
         (
             "tak-loader",
             extract_rust_module_docs(TAK_LOADER_LIB)
@@ -79,13 +85,11 @@ pub(crate) fn render_docs_dump() -> Result<String> {
     output.push_str("## What Tak Is For\n\n");
     output.push_str(overview.trim());
     output.push_str("\n\n");
-
     output.push_str("## Core Capabilities\n\n");
     for (crate_name, docs) in crate_docs {
         let _ = writeln!(output, "- `{crate_name}`: {}", docs.trim());
     }
     output.push('\n');
-
     output.push_str("## CLI Surface\n\n");
     for entry in cli_docs {
         let _ = writeln!(output, "### `{}`\n", entry.path);

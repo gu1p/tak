@@ -20,6 +20,7 @@ fn read_repo_file(path: &str) -> Result<String> {
 fn workspace_lib_crates_do_not_bridge_suite_tests_through_prod_libs() -> Result<()> {
     for lib_rs in [
         "crates/tak-core/src/lib.rs",
+        "crates/tak-make/src/lib.rs",
         "crates/tak-loader/src/lib.rs",
         "crates/tak-proto/src/lib.rs",
         "crates/tak-runner/src/lib.rs",
@@ -33,6 +34,7 @@ fn workspace_lib_crates_do_not_bridge_suite_tests_through_prod_libs() -> Result<
 
     for path in [
         "crates/tak-core/src/external_tests.rs",
+        "crates/tak-make/src/external_tests.rs",
         "crates/tak-loader/src/external_tests.rs",
         "crates/tak-proto/src/external_tests.rs",
         "crates/tak-runner/src/external_tests.rs",

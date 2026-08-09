@@ -2,10 +2,12 @@ use super::*;
 use clap::CommandFactory;
 
 mod local;
+mod make;
 mod remote;
 mod task;
 
 pub(super) use local::LocalCommands;
+pub(super) use make::MakeArgs;
 pub(super) use remote::{RemoteCommands, RemoteTaskCommands};
 pub(super) use task::TaskCommands;
 
@@ -104,6 +106,8 @@ pub(super) enum Commands {
         #[arg(last = true, required = true, num_args = 1.., allow_hyphen_values = true)]
         argv: Vec<String>,
     },
+    /// Execute one Makefile goal through Tak's runtime selection.
+    Make(MakeArgs),
     /// Execute one or more task labels plus their dependencies.
     Run {
         /// The task labels to run. Bare task names resolve at the workspace root package.
