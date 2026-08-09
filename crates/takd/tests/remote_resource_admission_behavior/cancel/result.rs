@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 pub(super) fn wait_for_result(
     context: &RemoteNodeContext,
@@ -11,11 +11,12 @@ pub(super) fn wait_for_result(
 ) -> GetTaskResultResponse {
     let deadline = Instant::now() + Duration::from_secs(3);
     loop {
-        let response = handle_remote_v1_request(
+        let response = takd::daemon::remote::handle_remote_v1_request(
             context,
             store,
             "GET",
             &format!("/v1/tasks/{task_run_id}/result?attempt=1"),
+            &[],
             None,
         )
         .expect("result response");

@@ -1,6 +1,6 @@
 use prost::Message;
 use tak_proto::{CmdStep, ErrorResponse, Step, SubmitTaskRequest, step};
-use takd::{SubmitAttemptStore, handle_remote_v1_request};
+use takd::SubmitAttemptStore;
 
 use crate::support::remote_output::{empty_workspace_zip, test_context};
 
@@ -36,11 +36,12 @@ fn remote_submit_without_runtime_is_rejected_as_invalid_input() {
         workspace_upload: None,
     };
 
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

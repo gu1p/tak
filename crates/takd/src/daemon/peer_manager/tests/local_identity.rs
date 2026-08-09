@@ -1,13 +1,13 @@
 use tak_proto::NodePingResponse;
 
 use super::super::{
-    LocalNodeIdentity, PeerEligibility, PeerManager, PeerPlacementRequest, PeerPlacementSelection,
+    LocalNodeIdentity, PeerEligibility, PeerPlacementRequest, PeerPlacementSelection,
 };
 use super::support::{inventory, record};
 
 #[test]
 fn inventory_excludes_local_node_by_id() {
-    let peers = PeerManager::from_inventory_with_local_identity(
+    let peers = super::fixtures::peer_manager_with_local_identity(
         inventory(vec![
             record("self", "tor", true, "secret"),
             record("builder-a", "tor", true, "secret"),
@@ -24,7 +24,7 @@ fn inventory_excludes_local_node_by_id() {
 
 #[test]
 fn inventory_excludes_local_node_by_endpoint() {
-    let peers = PeerManager::from_inventory_with_local_identity(
+    let peers = super::fixtures::peer_manager_with_local_identity(
         inventory(vec![record("builder-a", "tor", true, "secret")]),
         LocalNodeIdentity::new("other".into(), Some("http://builder-a.onion".into())),
     );
@@ -33,7 +33,7 @@ fn inventory_excludes_local_node_by_endpoint() {
 
 #[test]
 fn no_local_identity_keeps_every_peer() {
-    let peers = PeerManager::from_inventory(inventory(vec![
+    let peers = super::fixtures::peer_manager(inventory(vec![
         record("self", "tor", true, "secret"),
         record("builder-a", "tor", true, "secret"),
     ]));
@@ -44,7 +44,8 @@ fn no_local_identity_keeps_every_peer() {
 fn select_placeable_skips_the_local_node() {
     // The peer is adopted before the local identity is known, then the local
     // node is learned: the defensive guard must still keep it out of placement.
-    let peers = PeerManager::from_inventory(inventory(vec![record("self", "tor", true, "secret")]));
+    let peers =
+        super::fixtures::peer_manager(inventory(vec![record("self", "tor", true, "secret")]));
     peers.mark_ping_success("self", healthy_ping("self"), 1);
     peers.set_local_identity(LocalNodeIdentity::new("self".into(), None));
 

@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use takd::{PeerManager, TorBroker, new_shared_manager, run_server_with_broker_and_peers};
+use takd::{LeaseManager, PeerManager, TorBroker, run_server_with_broker_and_peers};
 use tokio::net::UnixStream;
 use tokio::task::JoinHandle;
 
@@ -16,7 +17,6 @@ pub use broker_error::spawn_broker_error;
 pub struct LocalTorBroker {
     handle: JoinHandle<anyhow::Result<()>>,
     socket_path: PathBuf,
-    broker: TorBroker,
 }
 
 impl LocalTorBroker {
@@ -24,7 +24,7 @@ impl LocalTorBroker {
         let socket_path = root.join("run/takd-broker.sock");
         env.set("TAKD_SOCKET", socket_path.display().to_string());
         env.set("TAK_REMOTE_WORKSPACE_TRANSFER", "tor-stream");
-        let broker = TorBroker::for_test_dial_addr(dial_addr.to_string());
+        let broker = TorBroker::for_direct_dial(dial_addr);
         let peers = peer_manager_from_current_inventory(broker.clone());
         // Mirror production: warm peer connections via heartbeats so placement
         // sees a Connected (not merely Connecting) peer.
@@ -34,7 +34,7 @@ impl LocalTorBroker {
         let handle = tokio::spawn(async move {
             run_server_with_broker_and_peers(
                 &socket_for_task,
-                new_shared_manager(),
+                Arc::new(Mutex::new(LeaseManager::default())),
                 broker_for_task,
                 peers,
             )
@@ -44,12 +44,7 @@ impl LocalTorBroker {
         Self {
             handle,
             socket_path,
-            broker,
         }
-    }
-
-    pub fn bootstrap_count(&self) -> usize {
-        self.broker.bootstrap_count()
     }
 }
 
@@ -58,7 +53,11 @@ fn peer_manager_from_current_inventory(broker: TorBroker) -> PeerManager {
         return PeerManager::default();
     };
     let peers = tak_core::remote_inventory::load_remote_inventory_at(&path)
-        .map(PeerManager::from_inventory)
+        .map(|inventory| {
+            let peers = PeerManager::default();
+            peers.apply_inventory(inventory);
+            peers
+        })
         .unwrap_or_default();
     peers.spawn_inventory_reloader_with_broker(path, broker);
     peers

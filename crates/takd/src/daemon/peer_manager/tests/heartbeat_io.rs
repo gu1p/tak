@@ -2,11 +2,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use super::super::heartbeat::{ping_peer, should_ping, unix_epoch_ms};
-use super::super::{PeerEligibility, PeerManager, PeerState};
+use super::super::{PeerEligibility, PeerState};
 use super::support::{
     encoded_ping_body, inventory, read_http_request, record, request_contains_bearer_secret,
 };
-use crate::daemon::protocol::TorBroker;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn heartbeat_uses_inventory_bearer_token_for_ping() {
@@ -44,12 +43,12 @@ async fn heartbeat_uses_inventory_bearer_token_for_ping() {
         request
     });
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let target = manager
         .heartbeat_targets_due(unix_epoch_ms())
         .pop()
         .unwrap();
-    let broker = TorBroker::for_test_dial_addr(addr.to_string());
+    let broker = super::fixtures::broker_for_dial_addr(addr.to_string());
 
     ping_peer(&manager, &broker, &target).await;
 
@@ -72,12 +71,12 @@ async fn heartbeat_marks_protocol_mismatch_for_unsupported_ping() {
             .expect("write ping response");
     });
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let target = manager
         .heartbeat_targets_due(unix_epoch_ms())
         .pop()
         .unwrap();
-    let broker = TorBroker::for_test_dial_addr(addr.to_string());
+    let broker = super::fixtures::broker_for_dial_addr(addr.to_string());
 
     ping_peer(&manager, &broker, &target).await;
     server.await.expect("ping server exits");

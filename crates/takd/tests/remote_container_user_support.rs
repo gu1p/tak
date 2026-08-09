@@ -29,7 +29,8 @@ pub fn setup_container_submit(
     );
     let runtime_config = configure_fake_docker_env(root, daemon.socket_path(), env)
         .with_explicit_remote_exec_root(explicit_root)
-        .with_temp_dir(tmpdir);
+        .with_temp_dir(tmpdir)
+        .build();
     let context = support::remote_output::test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(root.join("agent.sqlite")).expect("store");
     (daemon, context, store)

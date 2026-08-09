@@ -4,14 +4,12 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
 use super::takd_readiness::wait_for_node_info;
-use crate::support::install_fake_docker;
+use crate::support::{install_fake_docker, runtime_config};
 
 pub struct RunningTakdServer {
     pub bind_addr: String,
@@ -33,9 +31,7 @@ impl RunningTakdServer {
         } else {
             format!("http://{bind_addr}")
         };
-        let runtime_config = RemoteRuntimeConfig::for_tests()
-            .with_explicit_remote_exec_root(state_root.join("remote-exec"))
-            .with_skip_exec_root_probe(true);
+        let runtime_config = runtime_config::isolated(state_root);
         let context = RemoteNodeContext::new(
             NodeInfo {
                 node_id: node_id.into(),

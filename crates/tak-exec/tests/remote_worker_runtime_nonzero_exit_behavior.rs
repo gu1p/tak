@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use tak_exec::execute_remote_worker_steps;
+use tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 
 use crate::support;
 use support::{
@@ -28,9 +28,14 @@ async fn remote_worker_reports_nonzero_docker_wait_as_task_failure() {
         "printf 'lint failed\\n' >&2; exit 1",
     );
 
-    let result = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect("nonzero container exit should return a task result");
+    let result = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("nonzero container exit should return a task result");
 
     assert!(!result.success);
     assert_eq!(result.exit_code, Some(1));
@@ -58,9 +63,14 @@ async fn remote_worker_preserves_docker_wait_error_as_infra_failure() {
         "printf 'lint failed\\n' >&2; exit 1",
     );
 
-    let err = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect_err("docker wait errors should surface as infra failures");
+    let err = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect_err("docker wait errors should surface as infra failures");
 
     assert!(
         err.to_string()

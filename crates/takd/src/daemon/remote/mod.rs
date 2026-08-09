@@ -4,9 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
-use futures::StreamExt;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use safelog::DisplayRedacted;
 use sha2::{Digest, Sha256};
 use tak_core::label::parse_label;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef, normalize_path_ref};
@@ -16,10 +14,7 @@ use tak_runner::{
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tor_cell::relaycell::msg::Connected;
 use zip::read::ZipArchive;
-
-use crate::daemon::transport::TorHiddenServiceRuntimeConfig;
 
 mod active_executions;
 mod cleanup_janitor;
@@ -59,7 +54,6 @@ mod status_state_helpers;
 mod submit_payload_parse;
 mod submit_store;
 mod tak_container_usage;
-mod tor_server;
 mod types;
 mod worker_output_artifacts;
 mod worker_submit_execution;
@@ -71,7 +65,6 @@ pub use runtime::RemoteRuntimeConfig;
 pub use submit_store::{
     ActiveSubmitAttempt, SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key,
 };
-pub use tor_server::run_remote_v1_tor_hidden_service;
 pub use types::{
     RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteV1Response, SubmitAttemptSummaryRecord,
 };
@@ -102,12 +95,8 @@ use route_uploads::{
     WORKSPACE_UPLOADS_DIR_NAME, WorkspaceUploadMissing, handle_workspace_upload_route,
     receive_workspace_wormhole_upload, resolve_workspace_upload_zip, stream_workspace_upload,
 };
-use router::handle_remote_v1_request_with_headers;
 use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tak_container_usage::spawn_tak_container_usage_sampler;
-pub(crate) use tor_server::{
-    remote_v1_bind_addr_from_env, tor_hidden_service_runtime_config_from_env,
-};
 use types::{
     RemoteWorkerFusedMember, RemoteWorkerOutputRecord, RemoteWorkerSession,
     RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
@@ -120,39 +109,3 @@ use worker_submit_execution::{
 use worker_workspace_outputs::{
     collect_declared_remote_worker_outputs, unpack_remote_worker_workspace,
 };
-
-pub(crate) fn remote_node_context_from_env(base_url: Option<String>) -> RemoteNodeContext {
-    RemoteNodeContext::new(
-        tak_proto::NodeInfo {
-            node_id: env_or("TAKD_NODE_ID", "local"),
-            display_name: env_or("TAKD_DISPLAY_NAME", "local"),
-            base_url: base_url
-                .unwrap_or_else(|| env_or("TAKD_ADVERTISE_URL", "http://127.0.0.1:0")),
-            healthy: true,
-            pools: env_list("TAKD_NODE_POOLS", "default"),
-            tags: env_list("TAKD_NODE_TAGS", "builder"),
-            capabilities: env_list("TAKD_NODE_CAPABILITIES", "linux"),
-            transport: env_or("TAKD_NODE_TRANSPORT", "direct"),
-            transport_state: "ready".into(),
-            transport_detail: String::new(),
-        },
-        std::env::var("TAKD_BEARER_TOKEN").unwrap_or_default(),
-        RemoteRuntimeConfig::from_env(),
-    )
-}
-
-fn env_or(name: &str, default: &str) -> String {
-    std::env::var(name)
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| default.to_string())
-}
-
-fn env_list(name: &str, default: &str) -> Vec<String> {
-    env_or(name, default)
-        .split(',')
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .collect()
-}

@@ -110,8 +110,7 @@ pub use remote_diagnostics::{
     RequiredRemoteDiagnostic,
 };
 pub use remote_worker::{
-    execute_remote_worker_steps, execute_remote_worker_steps_with_cancellation,
-    execute_remote_worker_steps_with_output,
+    execute_remote_worker_steps_with_cancellation,
     execute_remote_worker_steps_with_output_and_cancellation,
 };
 pub use run_tasks::run_tasks;

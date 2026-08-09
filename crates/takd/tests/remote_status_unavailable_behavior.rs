@@ -2,14 +2,10 @@ use crate::support;
 use prost::Message;
 use std::fs;
 use std::os::unix::fs::symlink;
-use tak_proto::{
-    CmdStep, ContainerResourceLimits, ContainerRuntime, ErrorResponse, NodeInfo, RuntimeSpec, Step,
-    SubmitTaskRequest, runtime_spec, step,
-};
-use takd::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, build_submit_idempotency_key,
-    handle_remote_v1_request,
-};
+use tak_proto::{CmdStep, ErrorResponse, NodeInfo, Step, SubmitTaskRequest, step};
+use takd::{RemoteNodeContext, SubmitAttemptStore, build_submit_idempotency_key};
+
+use support::remote_output::test_container_runtime;
 
 #[test]
 fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unreadable() {
@@ -33,9 +29,10 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests()
+        support::runtime_config::builder()
             .with_explicit_remote_exec_root(exec_root_base.clone())
-            .with_skip_exec_root_probe(true),
+            .with_skip_exec_root_probe(true)
+            .build(),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit = SubmitTaskRequest {
@@ -62,11 +59,12 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
         execution_label: None,
         workspace_upload: None,
     };
-    let _ = handle_remote_v1_request(
+    let _ = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");
@@ -77,24 +75,17 @@ fn remote_status_route_returns_status_unavailable_when_active_job_root_is_unread
     fs::remove_dir_all(&execution_root).expect("remove execution root");
     symlink(&execution_root, &execution_root).expect("self-referential execution root symlink");
 
-    let response = handle_remote_v1_request(&context, &store, "GET", "/v1/node/status", None)
-        .expect("status response");
+    let response = takd::daemon::remote::handle_remote_v1_request(
+        &context,
+        &store,
+        "GET",
+        "/v1/node/status",
+        &[],
+        None,
+    )
+    .expect("status response");
     fs::remove_file(&execution_root).expect("remove execution root symlink");
     assert_eq!(response.status_code, 500);
     let error = ErrorResponse::decode(response.body.as_slice()).expect("decode error");
     assert_eq!(error.message, "status_unavailable");
-}
-
-fn test_container_runtime() -> RuntimeSpec {
-    RuntimeSpec {
-        kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
-            image: Some("alpine:3.20".into()),
-            dockerfile: None,
-            build_context: None,
-            resource_limits: Some(ContainerResourceLimits {
-                cpu_cores: 1.0,
-                memory_mb: 512,
-            }),
-        })),
-    }
 }

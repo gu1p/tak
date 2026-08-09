@@ -2,9 +2,7 @@ use std::time::Duration;
 
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
-use takd::{
-    RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request, run_remote_v1_http_server,
-};
+use takd::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 
 use crate::support::{
     env::{EnvGuard, env_lock},
@@ -18,7 +16,6 @@ mod active_liveness;
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread")]
 async fn watchdog_cancels_active_worker_without_client_heartbeat() {
-    // The guard serializes process-env mutation for the whole async test body.
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -33,7 +30,8 @@ async fn watchdog_cancels_active_worker_without_client_heartbeat() {
         .with_explicit_remote_exec_root(temp.path().join("remote-exec"))
         .with_skip_exec_root_probe(true)
         .with_remote_client_stale_ttl(Duration::from_millis(200))
-        .with_remote_client_watchdog_interval(Duration::from_millis(10));
+        .with_remote_client_watchdog_interval(Duration::from_millis(10))
+        .build();
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -84,7 +82,8 @@ async fn wait_for_removed_container(daemon: &FakeDockerDaemon) {
 
 fn get(context: &RemoteNodeContext, store: &SubmitAttemptStore, task: &str, endpoint: &str) {
     let path = format!("/v1/tasks/{task}/{endpoint}?attempt=1");
-    handle_remote_v1_request(context, store, "GET", &path, None).expect("remote request");
+    takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
+        .expect("remote request");
 }
 
 fn result(
@@ -94,7 +93,8 @@ fn result(
 ) -> GetTaskResultResponse {
     let path = format!("/v1/tasks/{task}/result?attempt=1");
     let response =
-        handle_remote_v1_request(context, store, "GET", &path, None).expect("result response");
+        takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
+            .expect("result response");
     assert_eq!(response.status_code, 200);
     GetTaskResultResponse::decode(response.body.as_slice()).expect("decode result")
 }

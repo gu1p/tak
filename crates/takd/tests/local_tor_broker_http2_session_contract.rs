@@ -1,7 +1,6 @@
 use prost::Message;
 use std::time::Duration;
 use tak_proto::NodeInfo;
-use takd::{TorBroker, new_shared_manager, run_server_with_broker};
 
 use crate::support;
 use support::local_broker_http::{response_body, send_broker_get_h2};
@@ -15,10 +14,8 @@ async fn local_tor_broker_reuses_one_http2_connection_for_repeated_requests() {
     let remote = support::http2_remote::Http2Remote::spawn(node_info_body()).await;
     let socket_path = temp.path().join("run/takd.sock");
     let server_socket_path = socket_path.clone();
-    let broker = TorBroker::for_test_dial_addr(remote.addr.clone());
-    let server = tokio::spawn(async move {
-        run_server_with_broker(&server_socket_path, new_shared_manager(), broker).await
-    });
+    let broker = crate::support::local_runtime::tor_broker(remote.addr.clone());
+    let server = crate::support::local_runtime::spawn_local_server(server_socket_path, broker);
 
     let first = send_broker_get_h2(&socket_path, "builder-h2").await;
     let second = send_broker_get_h2(&socket_path, "builder-h2").await;
@@ -49,10 +46,8 @@ async fn local_tor_broker_multiplexes_parallel_http2_requests_on_one_connection(
     .await;
     let socket_path = temp.path().join("run/takd.sock");
     let server_socket_path = socket_path.clone();
-    let broker = TorBroker::for_test_dial_addr(remote.addr.clone());
-    let server = tokio::spawn(async move {
-        run_server_with_broker(&server_socket_path, new_shared_manager(), broker).await
-    });
+    let broker = crate::support::local_runtime::tor_broker(remote.addr.clone());
+    let server = crate::support::local_runtime::spawn_local_server(server_socket_path, broker);
 
     let _ = send_broker_get_h2(&socket_path, "builder-h2").await;
     let (first, second) = tokio::join!(

@@ -14,19 +14,6 @@ pub(super) struct StoredLeaseRow {
 
 pub type SharedLeaseManager = Arc<Mutex<LeaseManager>>;
 
-/// Creates a shared in-memory lease manager.
-#[must_use]
-///
-/// ```no_run
-/// # // Reason: This behavior depends on internal state and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-pub fn new_shared_manager() -> SharedLeaseManager {
-    Arc::new(Mutex::new(LeaseManager::new()))
-}
-
 /// Creates a shared SQLite-backed lease manager.
 ///
 /// ```no_run

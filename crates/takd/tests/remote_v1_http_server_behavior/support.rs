@@ -2,9 +2,7 @@ use tak_proto::NodeInfo;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 
 pub(super) async fn fetch(path: &str) -> (String, Vec<u8>) {
     let context = RemoteNodeContext::new(
@@ -21,7 +19,7 @@ pub(super) async fn fetch(path: &str) -> (String, Vec<u8>) {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        crate::support::runtime_config::isolated(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("takd.sqlite"))

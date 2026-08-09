@@ -1,20 +1,23 @@
 use prost::Message;
 use tak_proto::{ErrorResponse, StartWorkspaceWormholeUploadResponse};
-use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::SubmitAttemptStore;
 
 #[test]
 fn workspace_wormhole_route_advertises_support() {
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let runtime = RemoteRuntimeConfig::for_tests().with_temp_dir(temp.path());
+    let runtime = crate::support::runtime_config::builder()
+        .with_explicit_remote_exec_root(temp.path().join("takd-remote-exec"))
+        .build();
     let context = crate::support::remote_output::test_context_with_runtime(runtime)
         .with_state_root(temp.path());
 
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "GET",
         "/v2/workspaces/uploads/run-1-1-digest/wormhole",
+        &[],
         None,
     )
     .expect("wormhole route");
@@ -34,15 +37,18 @@ fn workspace_wormhole_route_advertises_support() {
 fn workspace_wormhole_receive_rejects_plain_router_post() {
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let runtime = RemoteRuntimeConfig::for_tests().with_temp_dir(temp.path());
+    let runtime = crate::support::runtime_config::builder()
+        .with_explicit_remote_exec_root(temp.path().join("takd-remote-exec"))
+        .build();
     let context = crate::support::remote_output::test_context_with_runtime(runtime)
         .with_state_root(temp.path());
 
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v2/workspaces/uploads/run-1-1-digest/wormhole",
+        &[],
         Some(&[]),
     )
     .expect("wormhole post");

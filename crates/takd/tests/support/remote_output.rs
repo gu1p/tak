@@ -12,7 +12,7 @@ mod submit;
 use submit::submit_shell_task_with_outputs_and_runtime;
 
 pub fn test_context() -> RemoteNodeContext {
-    test_context_with_runtime(RemoteRuntimeConfig::for_tests())
+    test_context_with_runtime(super::runtime_config::isolated())
 }
 
 pub fn test_context_with_runtime(runtime_config: RemoteRuntimeConfig) -> RemoteNodeContext {

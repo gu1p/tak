@@ -31,7 +31,8 @@ async fn remote_worker_result_duration_covers_actual_execution_time() {
         },
     );
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
-        .with_temp_dir(tmpdir);
+        .with_temp_dir(tmpdir)
+        .build();
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 

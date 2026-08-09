@@ -133,7 +133,6 @@ impl TorRecoveryTracker {
 
 #[derive(Debug, Clone)]
 pub struct TorRecoveryBackoff {
-    initial: Duration,
     current: Duration,
     max: Duration,
 }
@@ -147,7 +146,6 @@ impl TorRecoveryBackoff {
         };
         let max = max.max(initial);
         Self {
-            initial,
             current: initial,
             max,
         }
@@ -157,9 +155,5 @@ impl TorRecoveryBackoff {
         let delay = self.current;
         self.current = self.current.saturating_mul(2).min(self.max);
         delay
-    }
-
-    pub fn reset(&mut self) {
-        self.current = self.initial;
     }
 }

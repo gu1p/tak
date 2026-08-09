@@ -119,11 +119,6 @@ fn abandon_unfinished_submits(store: &SubmitAttemptStore) -> Result<()> {
     Ok(())
 }
 
-#[doc(hidden)]
-pub fn observe_live_tor_client_stream(context: &crate::daemon::remote::RemoteNodeContext) {
-    tor::handle_accepted_stream_side_effects(context);
-}
-
 async fn serve_direct_agent(
     config_root: &Path,
     state_root: &Path,

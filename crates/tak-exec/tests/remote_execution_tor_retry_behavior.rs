@@ -7,9 +7,7 @@ use std::time::Duration;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 use tokio::net::TcpListener;
 
 use crate::support;
@@ -44,14 +42,12 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
         )],
     );
     let _broker = LocalTorBroker::spawn(temp.path(), &bind_addr, &mut env).await;
+    let runtime_config = support::runtime_config::isolated(temp.path());
     let delayed_server = tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(250)).await;
         let listener = TcpListener::bind(&bind_addr)
             .await
             .expect("bind delayed listener");
-        let runtime_config = RemoteRuntimeConfig::for_tests()
-            .with_explicit_remote_exec_root(temp.path().join("remote-exec"))
-            .with_skip_exec_root_probe(true);
         let context = RemoteNodeContext::new(
             NodeInfo {
                 node_id: "builder-tor-delayed".into(),

@@ -7,9 +7,7 @@ use std::fs;
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RemotePreflightExhaustedError, RemotePreflightFailureKind, RunOptions, run_tasks};
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 use tokio::net::TcpListener;
 
 use support::{
@@ -53,7 +51,7 @@ async fn remote_preflight_reports_live_recovering_state_before_submit() {
             transport_detail: "self-probe failed".into(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        support::runtime_config::isolated(temp.path()),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let server = tokio::spawn(async move {

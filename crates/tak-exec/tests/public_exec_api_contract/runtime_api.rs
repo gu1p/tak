@@ -2,9 +2,6 @@ use tak_core::model::{RemoteRuntimeSpec, StepDef, TaskLabel};
 
 #[test]
 fn remote_worker_public_api_stays_available() {
-    let _execute_remote_worker_steps = tak_exec::execute_remote_worker_steps;
-    let _execute_remote_worker_steps_with_output =
-        tak_exec::execute_remote_worker_steps_with_output;
     let task_label = TaskLabel {
         package: "//".to_string(),
         name: "task".to_string(),

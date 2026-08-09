@@ -2,7 +2,7 @@ use prost::Message;
 use tak_proto::{
     CmdStep, OutputSelector, RuntimeSpec, Step, SubmitTaskRequest, SubmitTaskResponse, step,
 };
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 use super::empty_workspace_zip;
 
@@ -38,11 +38,12 @@ pub(super) fn submit_shell_task_with_outputs_and_runtime(
         execution_label: None,
         workspace_upload: None,
     };
-    let submit = handle_remote_v1_request(
+    let submit = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

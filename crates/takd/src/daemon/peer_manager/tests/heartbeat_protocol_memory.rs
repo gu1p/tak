@@ -3,10 +3,9 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
+use super::super::PeerState;
 use super::super::heartbeat::{ping_peer, unix_epoch_ms};
-use super::super::{PeerManager, PeerState};
 use super::support::{encoded_ping_body, inventory, record};
-use crate::daemon::protocol::TorBroker;
 
 // After the first heartbeat learns a peer only answers HTTP/1.1 (its HTTP/2
 // attempt fails and the HTTP/1.1 fallback succeeds), later heartbeats must go
@@ -40,12 +39,12 @@ async fn heartbeat_remembers_http1_only_peer_and_skips_http2_next_time() {
     });
 
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let target = manager
         .heartbeat_targets_due(unix_epoch_ms())
         .pop()
         .unwrap();
-    let broker = TorBroker::for_test_dial_addr(addr.to_string());
+    let broker = super::fixtures::broker_for_dial_addr(addr.to_string());
 
     ping_peer(&manager, &broker, &target).await;
     assert_eq!(manager.snapshots()[0].state, PeerState::Connected);

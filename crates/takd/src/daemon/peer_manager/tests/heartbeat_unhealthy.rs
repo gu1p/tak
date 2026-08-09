@@ -1,11 +1,11 @@
 use super::super::heartbeat::unix_epoch_ms;
-use super::super::{PeerEligibility, PeerManager, PeerState};
+use super::super::{PeerEligibility, PeerState};
 use super::support::{inventory, ping, record};
 
 #[test]
 fn unhealthy_ping_records_successful_connection_without_reconnect_backoff() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
     ping.health = "recovering".to_string();
     let now = unix_epoch_ms();

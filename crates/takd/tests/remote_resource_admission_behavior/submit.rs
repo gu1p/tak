@@ -3,7 +3,7 @@ use tak_proto::{
     CmdStep, ContainerResourceLimits, ContainerRuntime, RuntimeSpec, Step, SubmitTaskRequest,
     runtime_spec, step,
 };
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 use crate::support::remote_output::empty_workspace_zip;
 
@@ -45,11 +45,12 @@ pub(super) fn submit(
         execution_label: None,
         workspace_upload: None,
     };
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

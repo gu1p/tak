@@ -1,6 +1,6 @@
 use prost::Message;
 use tak_proto::{CancelTaskResponse, NodeInfo};
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 #[test]
 fn remote_cancel_route_serves_protobuf_response() {
@@ -18,16 +18,17 @@ fn remote_cancel_route_serves_protobuf_response() {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        crate::support::runtime_config::isolated(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/task-run-9/cancel",
+        &[],
         None,
     )
     .expect("cancel response");

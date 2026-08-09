@@ -1,4 +1,4 @@
-use tak_exec::execute_remote_worker_steps;
+use tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 
 use crate::support::{EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock};
 
@@ -27,9 +27,14 @@ async fn remote_worker_records_cache_without_pruning_other_cached_images_inline(
     let spec = mutable_image_spec(db_path);
 
     daemon.release_container_exit();
-    let result = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect("mutable image runtime execution should succeed");
+    let result = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("mutable image runtime execution should succeed");
 
     assert!(result.success);
     assert!(daemon.image_removal_attempts().is_empty());

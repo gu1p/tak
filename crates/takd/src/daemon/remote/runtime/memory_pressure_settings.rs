@@ -40,29 +40,35 @@ impl MemoryPressureSettings {
         }
     }
 
-    pub(super) fn from_env() -> Self {
+    pub(super) fn from_environment(read_env: &impl Fn(&str) -> Option<String>) -> Self {
         Self {
             interval: Duration::from_millis(duration_from_env(
+                read_env,
                 "TAKD_MEMORY_PRESSURE_INTERVAL_MS",
                 DEFAULT_MEMORY_PRESSURE_INTERVAL_MS,
             )),
             pause_pct: percent_from_env(
+                read_env,
                 "TAKD_MEMORY_PRESSURE_PAUSE_PCT",
                 DEFAULT_MEMORY_PRESSURE_PAUSE_PCT,
             ),
             pause_floor_mb: u64_from_env(
+                read_env,
                 "TAKD_MEMORY_PRESSURE_PAUSE_FLOOR_MB",
                 DEFAULT_MEMORY_PRESSURE_PAUSE_FLOOR_MB,
             ),
             resume_pct: percent_from_env(
+                read_env,
                 "TAKD_MEMORY_PRESSURE_RESUME_PCT",
                 DEFAULT_MEMORY_PRESSURE_RESUME_PCT,
             ),
             emergency_pct: percent_from_env(
+                read_env,
                 "TAKD_MEMORY_PRESSURE_EMERGENCY_PCT",
                 DEFAULT_MEMORY_PRESSURE_EMERGENCY_PCT,
             ),
             min_running: usize_from_env(
+                read_env,
                 "TAKD_MEMORY_PRESSURE_MIN_RUNNING",
                 DEFAULT_MEMORY_PRESSURE_MIN_RUNNING,
             ),

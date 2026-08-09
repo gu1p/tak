@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use tak_core::remote_inventory::{RemoteInventory, RemoteRecord};
-use takd::{PeerManager, TorBroker, run_server_with_broker_and_peers};
+use takd::{PeerManager, run_server_with_broker_and_peers};
 
 use crate::support;
 
@@ -19,7 +19,7 @@ impl AuthServer {
 pub(super) async fn spawn_auth_server(socket_path: &Path, status: u16) -> AuthServer {
     let remote = support::http2_remote::Http2Remote::spawn_status(status, Vec::new()).await;
     let peers = tor_peer_manager();
-    let broker = TorBroker::for_test_dial_addr(remote.addr);
+    let broker = crate::support::local_runtime::tor_broker(remote.addr);
     // Mirror production: heartbeats probe the peer, so an auth-rejecting node is
     // marked AuthFailed before any submit is placed on it.
     peers.spawn_heartbeat_loop(broker.clone());
@@ -28,7 +28,7 @@ pub(super) async fn spawn_auth_server(socket_path: &Path, status: u16) -> AuthSe
     let server = tokio::spawn(async move {
         let _ = run_server_with_broker_and_peers(
             &server_socket_path,
-            takd::new_shared_manager(),
+            crate::support::local_runtime::in_memory_lease_manager(),
             broker,
             server_peers,
         )
@@ -52,7 +52,7 @@ pub(super) async fn wait_for_peer_state(peers: &PeerManager, state: takd::PeerSt
 }
 
 fn tor_peer_manager() -> PeerManager {
-    PeerManager::from_inventory(RemoteInventory {
+    crate::support::local_runtime::peer_manager(RemoteInventory {
         version: 1,
         remotes: vec![RemoteRecord {
             node_id: "builder-auth".into(),

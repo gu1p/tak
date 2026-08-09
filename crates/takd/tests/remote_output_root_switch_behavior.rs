@@ -1,4 +1,4 @@
-use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::SubmitAttemptStore;
 
 use crate::support;
 
@@ -16,9 +16,10 @@ fn finished_remote_task_serves_outputs_after_execution_root_changes() {
     let changed_exec_root = temp.path().join("root-b/exec-root");
 
     let context = test_context_with_runtime(
-        RemoteRuntimeConfig::for_tests()
+        support::runtime_config::builder()
             .with_explicit_remote_exec_root(initial_exec_root.clone())
-            .with_skip_exec_root_probe(true),
+            .with_skip_exec_root_probe(true)
+            .build(),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit_ack = submit_shell_task_with_outputs(
@@ -35,16 +36,18 @@ fn finished_remote_task_serves_outputs_after_execution_root_changes() {
     assert!(submit_ack.accepted);
     wait_for_terminal_events(&context, &store, "task-run-root-switch");
     let changed_context = test_context_with_runtime(
-        RemoteRuntimeConfig::for_tests()
+        support::runtime_config::builder()
             .with_explicit_remote_exec_root(changed_exec_root)
-            .with_skip_exec_root_probe(true),
+            .with_skip_exec_root_probe(true)
+            .build(),
     );
 
-    let output = handle_remote_v1_request(
+    let output = takd::daemon::remote::handle_remote_v1_request(
         &changed_context,
         &store,
         "GET",
         "/v1/tasks/task-run-root-switch/outputs?path=dist/out.txt",
+        &[],
         None,
     )
     .expect("output response");

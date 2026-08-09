@@ -3,7 +3,7 @@
 use std::fs;
 
 use tak_core::model::RemoteTransportKind;
-use tak_exec::{PlacementMode, RunOptions, run_tasks, target_set_from_summary};
+use tak_exec::{PlacementMode, RunOptions, run_tasks};
 
 use crate::support;
 
@@ -60,5 +60,5 @@ async fn remote_execution_uses_real_takd_server_and_syncs_outputs() {
     );
     assert_eq!(result.synced_outputs.len(), 1);
     assert!(result.remote_logs.is_empty());
-    assert!(target_set_from_summary(&summary).contains(&label));
+    assert!(summary.results.contains_key(&label));
 }

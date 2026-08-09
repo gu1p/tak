@@ -1,5 +1,3 @@
-use tak_core::remote_inventory::RemoteInventory;
-
 use super::PeerManager;
 
 /// Identity of the node hosting a broker, used to keep the local node out of its
@@ -46,31 +44,6 @@ impl LocalNodeIdentity {
 }
 
 impl PeerManager {
-    /// Builds a peer manager that excludes the local node from its own peer set.
-    ///
-    /// ```rust
-    /// use takd::{LocalNodeIdentity, PeerManager};
-    /// use tak_core::remote_inventory::RemoteInventory;
-    ///
-    /// let peers = PeerManager::from_inventory_with_local_identity(
-    ///     RemoteInventory {
-    ///         version: 1,
-    ///         remotes: vec![],
-    ///     },
-    ///     LocalNodeIdentity::new("node-self".to_string(), None),
-    /// );
-    /// assert!(peers.snapshots().is_empty());
-    /// ```
-    pub fn from_inventory_with_local_identity(
-        inventory: RemoteInventory,
-        identity: LocalNodeIdentity,
-    ) -> Self {
-        let manager = Self::default();
-        manager.set_local_identity(identity);
-        manager.apply_inventory(inventory);
-        manager
-    }
-
     pub(crate) fn set_local_identity(&self, identity: LocalNodeIdentity) {
         self.lock_state().local_identity = Some(identity);
     }

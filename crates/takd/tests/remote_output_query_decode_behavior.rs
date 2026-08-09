@@ -2,7 +2,9 @@ use std::fs;
 
 use prost::Message;
 use tak_proto::ErrorResponse;
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
+
+use crate::support;
 
 #[test]
 fn remote_output_route_decodes_percent_encoded_workspace_paths() {
@@ -23,11 +25,20 @@ fn remote_output_route_decodes_percent_encoded_workspace_paths() {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+        support::runtime_config::builder()
+            .with_explicit_remote_exec_root(exec_root_base.clone())
+            .build(),
     );
 
     let registration = store
-        .register_submit("run-1", Some(1), "builder-a", &exec_root_base)
+        .register_submit_with_execution_root_base(
+            "run-1",
+            Some(1),
+            "",
+            None,
+            "builder-a",
+            &exec_root_base,
+        )
         .expect("register submit");
     let idempotency_key = match registration {
         takd::SubmitRegistration::Created { idempotency_key }
@@ -43,11 +54,12 @@ fn remote_output_route_decodes_percent_encoded_workspace_paths() {
     fs::create_dir_all(&nested).expect("artifact dirs");
     fs::write(nested.join("output.txt"), b"hello from artifact").expect("artifact file");
 
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "GET",
         "/v1/tasks/run-1/outputs?path=nested%2Foutput.txt",
+        &[],
         None,
     )
     .expect("route response");

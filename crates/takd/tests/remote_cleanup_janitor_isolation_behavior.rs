@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use takd::{RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server};
+use takd::{SubmitAttemptStore, run_remote_v1_http_server};
 
 use crate::support::{
     env::{EnvGuard, env_lock},
@@ -14,8 +14,8 @@ use crate::support::{
 /// that belong to a *different* node's daemon. Under the parallel test suite
 /// that env is shared, so this previously let one test's janitor connect to
 /// another test's fake daemon and force-remove its still-active container — the
-/// root cause of the CI-only orphan-watchdog flake. `for_tests()` now defaults
-/// to an isolated docker host, so each node only ever touches its own daemon.
+/// root cause of the CI-only orphan-watchdog flake. The isolated fixture gives
+/// each node a dead docker host, so it cannot touch another daemon.
 #[test]
 fn cleanup_janitor_does_not_reap_active_containers_on_another_daemon() {
     let _env_lock = env_lock();
@@ -45,8 +45,9 @@ fn cleanup_janitor_does_not_reap_active_containers_on_another_daemon() {
 
         // This node has no docker host of its own and no active execution for
         // "other-job:1"; its janitor must not reach the other daemon.
-        let config =
-            RemoteRuntimeConfig::for_tests().with_remote_cleanup_interval(Duration::from_millis(5));
+        let config = crate::support::runtime_config::builder()
+            .with_remote_cleanup_interval(Duration::from_millis(5))
+            .build();
         let context = test_context_with_runtime(config);
         let store =
             SubmitAttemptStore::with_db_path(temp_node.path().join("node.sqlite")).expect("store");

@@ -34,5 +34,5 @@ pub use types::{
     RemoteResponseHeader, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
     StreamTaskEventsRequest, TaskInfo,
 };
-pub use unix_server::{run_server, run_server_with_broker, run_server_with_broker_and_peers};
+pub use unix_server::run_server_with_broker_and_peers;
 pub use validation::ensure_valid_request;

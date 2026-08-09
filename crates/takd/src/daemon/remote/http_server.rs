@@ -72,7 +72,7 @@ where
         write_http_response(stream, &error_response(401, "auth_failed")).await?;
         return Ok(());
     }
-    let response = handle_remote_v1_request_with_headers(
+    let response = handle_remote_v1_request(
         context,
         store,
         &request.method,

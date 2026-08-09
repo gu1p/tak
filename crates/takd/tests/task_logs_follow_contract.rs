@@ -12,10 +12,11 @@ fn task_logs_follow_streams_new_chunks_until_terminal_event() {
     let store = SubmitAttemptStore::with_db_path(state_root.join("agent.sqlite")).expect("store");
     let root = temp.path().join("exec");
     store
-        .register_submit_with_task_label(
+        .register_submit_with_execution_root_base(
             "task-run-follow",
             Some(1),
             "//apps/web:test",
+            None,
             "node-a",
             &root,
         )

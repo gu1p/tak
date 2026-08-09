@@ -14,13 +14,6 @@ use super::{
 use super::runtime_metadata::resolve_runtime_execution_metadata_for_node_runtime_with_workspace;
 use super::step_execution::run_task_steps_with_runtime;
 
-pub async fn execute_remote_worker_steps(
-    workspace_root: &Path,
-    spec: &RemoteWorkerExecutionSpec,
-) -> Result<RemoteWorkerExecutionResult> {
-    execute_remote_worker_steps_with_output(workspace_root, spec, None).await
-}
-
 pub async fn execute_remote_worker_steps_with_cancellation(
     workspace_root: &Path,
     spec: &RemoteWorkerExecutionSpec,
@@ -31,20 +24,6 @@ pub async fn execute_remote_worker_steps_with_cancellation(
         spec,
         None,
         cancellation,
-    )
-    .await
-}
-
-pub async fn execute_remote_worker_steps_with_output(
-    workspace_root: &Path,
-    spec: &RemoteWorkerExecutionSpec,
-    output_observer: Option<std::sync::Arc<dyn TaskOutputObserver>>,
-) -> Result<RemoteWorkerExecutionResult> {
-    execute_remote_worker_steps_with_output_and_cancellation(
-        workspace_root,
-        spec,
-        output_observer,
-        &RunCancellation::default(),
     )
     .await
 }

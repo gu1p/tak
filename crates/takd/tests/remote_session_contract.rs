@@ -1,4 +1,4 @@
-use takd::{RemoteRuntimeConfig, SubmitAttemptStore};
+use takd::SubmitAttemptStore;
 
 use crate::support;
 use support::env::{EnvGuard, env_lock};
@@ -15,9 +15,10 @@ fn share_workspace_session_preserves_remote_workspace_between_tasks() {
     let exec_root_base = temp.path().join("exec-root");
 
     let context = test_context_with_runtime(
-        RemoteRuntimeConfig::for_tests()
+        support::runtime_config::builder()
             .with_explicit_remote_exec_root(exec_root_base)
-            .with_skip_exec_root_probe(true),
+            .with_skip_exec_root_probe(true)
+            .build(),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     submit_session_task(
@@ -50,9 +51,10 @@ fn container_session_is_accepted_without_preserving_remote_workspace() {
     let exec_root_base = temp.path().join("exec-root");
 
     let context = test_context_with_runtime(
-        RemoteRuntimeConfig::for_tests()
+        support::runtime_config::builder()
             .with_explicit_remote_exec_root(exec_root_base)
-            .with_skip_exec_root_probe(true),
+            .with_skip_exec_root_probe(true)
+            .build(),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     submit_session_task(

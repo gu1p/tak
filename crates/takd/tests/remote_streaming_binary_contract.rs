@@ -1,6 +1,6 @@
 use prost::Message;
 use tak_proto::SubmitTaskResponse;
-use takd::{SubmitAttemptStore, handle_remote_v1_request};
+use takd::SubmitAttemptStore;
 
 use crate::support;
 
@@ -18,11 +18,12 @@ fn remote_routes_stream_stdout_and_stderr_events_before_terminal_result() {
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit = streaming_submit_request();
-    let submit = handle_remote_v1_request(
+    let submit = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

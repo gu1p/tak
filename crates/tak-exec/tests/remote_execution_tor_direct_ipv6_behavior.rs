@@ -10,9 +10,7 @@ use support::{
 use tak_core::model::RemoteTransportKind;
 use tak_exec::{RunOptions, run_tasks};
 use tak_proto::NodeInfo;
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 use tokio::net::TcpListener;
 
 #[tokio::test]
@@ -32,9 +30,7 @@ async fn tor_transport_reaches_non_onion_ipv6_remotes() {
     };
     let bind_addr = listener.local_addr().expect("listener addr");
     let base_url = format!("http://{bind_addr}");
-    let runtime_config = RemoteRuntimeConfig::for_tests()
-        .with_explicit_remote_exec_root(temp.path().join("remote-exec"))
-        .with_skip_exec_root_probe(true);
+    let runtime_config = support::runtime_config::isolated(temp.path());
     let context = RemoteNodeContext::new(
         NodeInfo {
             node_id: "builder-ipv6".into(),

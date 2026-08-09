@@ -18,8 +18,7 @@ pub mod service;
 mod test_env;
 
 pub use daemon::lease::{
-    AcquireLeaseResponse, LeaseManager, SharedLeaseManager, new_shared_manager,
-    new_shared_manager_with_db,
+    AcquireLeaseResponse, LeaseManager, SharedLeaseManager, new_shared_manager_with_db,
 };
 pub use daemon::peer_manager::{
     LocalNodeIdentity, PeerEligibility, PeerManager, PeerPlacementSelection, PeerSnapshot,
@@ -30,18 +29,18 @@ pub use daemon::protocol::{
     GetOutputRangeRequest, GetTaskResultRequest, LeaseInfo, LimiterUsage, NeedRequest,
     PeersEligibleRequest, PeersListRequest, PendingInfo, PlaceRemoteRequest, ReleaseLeaseRequest,
     RemoteResponseHeader, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
-    StreamTaskEventsRequest, TaskInfo, TorBroker, ensure_valid_request, run_server,
-    run_server_with_broker, run_server_with_broker_and_peers,
+    StreamTaskEventsRequest, TaskInfo, TorBroker, ensure_valid_request,
+    run_server_with_broker_and_peers,
 };
 pub use daemon::remote::{
     ActiveSubmitAttempt, RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteRuntimeConfig,
     RemoteV1Response, SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key,
-    handle_remote_v1_request, run_remote_v1_http_server, run_remote_v1_tor_hidden_service,
+    run_remote_v1_http_server,
 };
-pub use daemon::runtime::{default_socket_path, default_state_db_path, run_daemon};
+pub use daemon::runtime::default_socket_path;
 pub use daemon::transport::{
     ArtiSettings, ContainerEngine, ContainerEngineProbe, HostPlatform,
-    TorHiddenServiceRuntimeConfig, TorTransportConfig, normalize_tor_transport_config,
-    select_container_engine, select_container_engine_with_probe, validate_tor_transport_config,
+    TorHiddenServiceRuntimeConfig, TorTransportConfig, select_container_engine,
+    select_container_engine_with_probe,
 };
 pub use service::serve_agent;

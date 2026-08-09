@@ -1,8 +1,13 @@
+#![cfg(test)]
+
 use tak_proto::NodeInfo;
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, service::observe_live_tor_client_stream};
+
+use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
+
+use super::handle_accepted_stream_side_effects;
 
 #[test]
-fn live_tor_client_stream_observation_does_not_clear_recovering_state() {
+fn accepted_stream_does_not_clear_recovering_state() {
     let context = RemoteNodeContext::new(
         NodeInfo {
             node_id: "builder-a".into(),
@@ -17,10 +22,10 @@ fn live_tor_client_stream_observation_does_not_clear_recovering_state() {
             transport_detail: "self-probe failed".into(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        RemoteRuntimeConfig::isolated_for_test(),
     );
 
-    observe_live_tor_client_stream(&context);
+    handle_accepted_stream_side_effects(&context);
 
     let node = context.node_info().expect("node info");
     assert!(!node.healthy);

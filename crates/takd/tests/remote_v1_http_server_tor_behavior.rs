@@ -9,9 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use support::env::env_lock;
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 
 #[tokio::test]
 async fn remote_v1_http_server_requires_bearer_auth_for_tor_ping() {
@@ -30,7 +28,7 @@ async fn remote_v1_http_server_requires_bearer_auth_for_tor_ping() {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        support::runtime_config::builder().build(),
     );
     let temp = tempfile::tempdir().expect("tempdir");
     let db_path = temp.path().join("takd.sqlite");

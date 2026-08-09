@@ -1,12 +1,18 @@
 use super::*;
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::Full;
 use hyper::service::service_fn;
 use hyper::{Request as HyperRequest, Response as HyperResponse};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use prefixed_io::PrefixedIo;
 use request::authorization_is_valid;
+
+mod handler_error;
+mod request_body;
+
+use handler_error::sanitize_handler_detail;
+use request_body::{collect_body_capped, declared_length_exceeds_cap};
 
 // Server-side HTTP/2 receive windows. A job submit POSTs a multi-MB workspace as
 // the request body; with the default 64 KiB window the client can only have one
@@ -17,10 +23,6 @@ use request::authorization_is_valid;
 // RTT-bound. Tor's own circuit/stream SENDME windows still apply underneath.
 const HTTP2_STREAM_WINDOW: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW: u32 = 8 * 1024 * 1024;
-// Hard ceiling on a buffered request body, matching the broker's response cap.
-// With the larger receive windows above, this bounds how much an authenticated
-// peer can make the server allocate for one request.
-const MAX_REQUEST_BODY_BYTES: usize = 512 * 1024 * 1024;
 
 pub(super) async fn handle_remote_v1_http2_stream<S>(
     stream: PrefixedIo<S>,
@@ -103,7 +105,7 @@ async fn handle_remote_v1_http2_request(
             };
         return Ok(hyper_response(response));
     }
-    let response = match handle_remote_v1_request_with_headers(
+    let response = match handle_remote_v1_request(
         &context,
         &store,
         parts.method.as_str(),
@@ -132,81 +134,6 @@ async fn handle_remote_v1_http2_request(
         }
     };
     Ok(hyper_response(response))
-}
-
-/// Upper bound on the handler-error detail echoed into a 500 response body.
-const MAX_HANDLER_DETAIL_BYTES: usize = 512;
-
-/// Renders a handler error into a single-line, bounded, control-char-free string
-/// safe to place in an `ErrorResponse.message`. Keeps only the first line of the
-/// `{err:#}` chain (the rest stays in the daemon log), collapses whitespace, and
-/// truncates on a UTF-8 char boundary. Avoids log-injection and oversized bodies.
-///
-/// ```no_run
-/// # // Reason: This private HTTP helper is exercised through server behavior tests.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn sanitize_handler_detail(err: &anyhow::Error) -> String {
-    let raw = format!("{err:#}");
-    let first_line = raw.lines().next().unwrap_or_default();
-    let mut sanitized = String::with_capacity(first_line.len());
-    let mut prev_was_space = false;
-    for ch in first_line.chars() {
-        let mapped = if ch.is_control() || ch.is_whitespace() {
-            ' '
-        } else {
-            ch
-        };
-        if mapped == ' ' {
-            if prev_was_space {
-                continue;
-            }
-            prev_was_space = true;
-        } else {
-            prev_was_space = false;
-        }
-        sanitized.push(mapped);
-    }
-    let trimmed = sanitized.trim();
-    if trimmed.len() <= MAX_HANDLER_DETAIL_BYTES {
-        return trimmed.to_string();
-    }
-    // Reserve room for the ellipsis so the emitted detail never exceeds the cap.
-    let ellipsis = "…";
-    let mut end = MAX_HANDLER_DETAIL_BYTES - ellipsis.len();
-    while end > 0 && !trimmed.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}{ellipsis}", &trimmed[..end])
-}
-
-fn declared_length_exceeds_cap(headers: &hyper::HeaderMap) -> bool {
-    headers
-        .get(hyper::header::CONTENT_LENGTH)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.parse::<usize>().ok())
-        .is_some_and(|length| length > MAX_REQUEST_BODY_BYTES)
-}
-
-// Stream the request body, enforcing the size cap as frames arrive so an
-// oversized upload is rejected without first buffering all of it.
-async fn collect_body_capped(
-    body: hyper::body::Incoming,
-) -> std::result::Result<Vec<u8>, RemoteV1Response> {
-    let mut body = body;
-    let mut bytes = Vec::new();
-    while let Some(frame) = body.frame().await {
-        let frame = frame.map_err(|_| error_response(400, "truncated_body"))?;
-        if let Some(data) = frame.data_ref() {
-            if bytes.len().saturating_add(data.len()) > MAX_REQUEST_BODY_BYTES {
-                return Err(error_response(413, "request_body_too_large"));
-            }
-            bytes.extend_from_slice(data);
-        }
-    }
-    Ok(bytes)
 }
 
 fn http2_headers(headers: &hyper::HeaderMap) -> Vec<(String, String)> {

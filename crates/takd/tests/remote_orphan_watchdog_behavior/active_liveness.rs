@@ -2,10 +2,7 @@ use std::time::{Duration, Instant};
 
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
-use takd::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request,
-    run_remote_v1_http_server,
-};
+use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server};
 
 use crate::support::{
     env::{EnvGuard, env_lock},
@@ -64,6 +61,7 @@ fn runtime_config(
         .with_skip_exec_root_probe(true)
         .with_remote_client_stale_ttl(Duration::from_millis(200))
         .with_remote_client_watchdog_interval(Duration::from_millis(10))
+        .build()
 }
 
 fn get(
@@ -73,7 +71,8 @@ fn get(
     endpoint: &str,
 ) -> takd::RemoteV1Response {
     let path = format!("/v1/tasks/{task_run_id}/{endpoint}?attempt=1");
-    handle_remote_v1_request(context, store, "GET", &path, None).expect("remote request")
+    takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
+        .expect("remote request")
 }
 
 async fn wait_for_result(

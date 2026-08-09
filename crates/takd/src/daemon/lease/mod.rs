@@ -25,7 +25,7 @@ use models::{LeaseRecord, LimiterKey};
 use shared::StoredLeaseRow;
 
 pub use models::{AcquireLeaseResponse, LeaseManager};
-pub use shared::{SharedLeaseManager, new_shared_manager, new_shared_manager_with_db};
+pub use shared::{SharedLeaseManager, new_shared_manager_with_db};
 
 fn unix_epoch_ms() -> i64 {
     let millis = SystemTime::now()

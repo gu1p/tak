@@ -4,7 +4,7 @@ use hyper::Request;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use prost::Message;
 use tak_proto::{NodeInfo, NodePingResponse};
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn remote_v1_http2_server_requires_bearer_auth_for_tor_ping() {
@@ -21,7 +21,7 @@ async fn remote_v1_http2_server_requires_bearer_auth_for_tor_ping() {
             ..node_info()
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        crate::support::runtime_config::isolated(),
     );
     let server = tokio::spawn(takd::run_remote_v1_http_server(listener, store, context));
 

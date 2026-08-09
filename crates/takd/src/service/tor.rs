@@ -24,7 +24,6 @@ mod status_detail;
 mod test_bind;
 
 use health::tor_recovery_config;
-pub(crate) use rend::handle_accepted_stream_side_effects;
 use restart_loop::{TorLoopContext, run_live_loop, run_test_bind_loop};
 
 pub(super) async fn serve_tor_agent(

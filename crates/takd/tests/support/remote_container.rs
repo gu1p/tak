@@ -1,36 +1,15 @@
 use super::remote_output::empty_workspace_zip;
-use crate::support::env::EnvGuard;
-use crate::support::fake_docker::install_fake_docker;
 use prost::Message;
-use std::{env, path::Path};
 use tak_proto::{
     CmdStep, ContainerResourceLimits, ContainerRuntime, RuntimeSpec, Step, SubmitTaskRequest,
     SubmitTaskResponse, runtime_spec, step,
 };
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 mod result;
+mod runtime_config;
 pub use result::fetch_result;
-
-pub fn configure_fake_docker_env(
-    root: &Path,
-    socket_path: &Path,
-    env_guard: &mut EnvGuard,
-) -> RemoteRuntimeConfig {
-    let bin_root = root.join("bin");
-    install_fake_docker(&bin_root);
-    env_guard.set(
-        "PATH",
-        format!(
-            "{}:{}",
-            bin_root.display(),
-            env::var("PATH").unwrap_or_default()
-        ),
-    );
-    let docker_host = format!("unix://{}", socket_path.display());
-    env_guard.set("DOCKER_HOST", &docker_host);
-    RemoteRuntimeConfig::for_tests().with_docker_host(docker_host)
-}
+pub use runtime_config::configure_fake_docker_env;
 
 pub fn submit_container_task(
     context: &RemoteNodeContext,
@@ -88,11 +67,12 @@ pub fn submit_container_task_with_limits(
         execution_label: None,
         workspace_upload: None,
     };
-    let submit = handle_remote_v1_request(
+    let submit = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

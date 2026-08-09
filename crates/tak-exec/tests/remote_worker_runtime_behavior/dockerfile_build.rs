@@ -2,7 +2,7 @@ use std::fs;
 use std::time::Duration;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef, RemoteRuntimeSpec};
-use tak_exec::execute_remote_worker_steps;
+use tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 
 use crate::support::{
     EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock, shell_step, worker_spec,
@@ -53,7 +53,15 @@ async fn remote_worker_builds_dockerfile_runtime_before_running_steps() {
     let worker = tokio::spawn({
         let workspace_root = workspace_root.clone();
         let spec = spec.clone();
-        async move { execute_remote_worker_steps(&workspace_root, &spec).await }
+        async move {
+            execute_remote_worker_steps_with_output_and_cancellation(
+                &workspace_root,
+                &spec,
+                None,
+                &tak_exec::RunCancellation::default(),
+            )
+            .await
+        }
     });
 
     let build = tokio::time::timeout(Duration::from_secs(5), async {

@@ -16,7 +16,8 @@ async fn simulated_container_runtime_skips_exec_root_probe() {
 
     env.set("TAK_TEST_HOST_PLATFORM", "other");
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
-        .with_skip_exec_root_probe(true);
+        .with_skip_exec_root_probe(true)
+        .build();
     let context = support::remote_output::test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let ack = submit_container_task(&context, &store, "task-run-simulated", "true");

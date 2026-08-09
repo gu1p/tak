@@ -1,19 +1,6 @@
 use super::*;
 
 impl LeaseManager {
-    #[must_use]
-    /// Creates an in-memory lease manager with no configured capacities.
-    ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on internal state and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Creates a SQLite-backed lease manager and restores active lease state.
     ///
     /// ```no_run

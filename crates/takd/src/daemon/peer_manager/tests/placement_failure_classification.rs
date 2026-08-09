@@ -63,7 +63,7 @@ fn no_currently_placeable_peer_is_retryable() {
 }
 
 fn manager_with_peer(node_id: &str) -> PeerManager {
-    PeerManager::from_inventory(inventory(vec![record(node_id, "tor", true, "secret")]))
+    super::fixtures::peer_manager(inventory(vec![record(node_id, "tor", true, "secret")]))
 }
 
 fn select_failure(

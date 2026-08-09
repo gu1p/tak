@@ -11,12 +11,6 @@ use crate::daemon::protocol::TorBroker;
 const INVENTORY_RELOAD_INTERVAL: Duration = Duration::from_secs(1);
 
 impl PeerManager {
-    pub fn from_inventory(inventory: RemoteInventory) -> Self {
-        let manager = Self::default();
-        manager.apply_inventory(inventory);
-        manager
-    }
-
     pub fn apply_inventory_result(
         &self,
         inventory: Result<RemoteInventory>,

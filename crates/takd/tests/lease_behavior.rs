@@ -24,7 +24,7 @@ fn acquire_request(slots: f64) -> AcquireLeaseRequest {
 }
 #[test]
 fn grants_lease_when_capacity_exists() {
-    let mut manager = LeaseManager::new();
+    let mut manager = LeaseManager::default();
     manager.set_capacity("cpu", Scope::Machine, None, 4.0);
     let response = manager.acquire(acquire_request(2.0));
     match response {
@@ -36,7 +36,7 @@ fn grants_lease_when_capacity_exists() {
 }
 #[test]
 fn returns_pending_when_capacity_exhausted() {
-    let mut manager = LeaseManager::new();
+    let mut manager = LeaseManager::default();
     manager.set_capacity("cpu", Scope::Machine, None, 4.0);
 
     let first = manager.acquire(acquire_request(4.0));
@@ -49,7 +49,7 @@ fn returns_pending_when_capacity_exhausted() {
 }
 #[test]
 fn release_frees_capacity_for_future_requests() {
-    let mut manager = LeaseManager::new();
+    let mut manager = LeaseManager::default();
     manager.set_capacity("cpu", Scope::Machine, None, 4.0);
 
     let granted = manager.acquire(acquire_request(4.0));
@@ -64,7 +64,7 @@ fn release_frees_capacity_for_future_requests() {
 }
 #[test]
 fn release_is_idempotent_for_already_ended_lease() {
-    let mut manager = LeaseManager::new();
+    let mut manager = LeaseManager::default();
     manager.set_capacity("cpu", Scope::Machine, None, 4.0);
 
     let granted = manager.acquire(acquire_request(4.0));
@@ -86,7 +86,7 @@ fn release_is_idempotent_for_already_ended_lease() {
 
 #[test]
 fn release_of_unknown_lease_id_succeeds() {
-    let mut manager = LeaseManager::new();
+    let mut manager = LeaseManager::default();
     manager.set_capacity("cpu", Scope::Machine, None, 4.0);
 
     manager

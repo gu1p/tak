@@ -5,9 +5,7 @@ use tak_proto::ErrorResponse;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use takd::daemon::remote::{
-    RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server,
-};
+use takd::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 
 pub struct RunningServer {
     _temp: tempfile::TempDir,
@@ -34,7 +32,7 @@ pub async fn start_server() -> RunningServer {
     let context = RemoteNodeContext::new(
         node_info(),
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        super::runtime_config::isolated(),
     );
     let listener = TcpListener::bind("127.0.0.1:0")
         .await

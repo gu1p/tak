@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use prost::Message;
 use tak_proto::{CmdStep, NodeStatusResponse, Step, SubmitTaskRequest, step};
-use takd::{RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::SubmitAttemptStore;
 
 use support::remote_output::{
     empty_workspace_zip, test_container_runtime, test_context_with_runtime,
@@ -16,8 +16,10 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
     let _env_lock = support::env::env_lock();
     let mut env = support::env::EnvGuard::default();
     env.set("TAK_TEST_HOST_PLATFORM", "other");
-    let context =
-        test_context_with_runtime(RemoteRuntimeConfig::for_tests().with_skip_exec_root_probe(true));
+    let runtime_config = support::runtime_config::builder()
+        .with_skip_exec_root_probe(true)
+        .build();
+    let context = test_context_with_runtime(runtime_config);
     let temp = tempfile::tempdir().expect("tempdir");
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit = SubmitTaskRequest {
@@ -49,18 +51,26 @@ fn remote_status_route_serves_protobuf_and_reports_running_job() {
         execution_label: Some("check.build".into()),
         workspace_upload: None,
     };
-    let submit = handle_remote_v1_request(
+    let submit = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");
     assert_eq!(submit.status_code, 200);
     for _ in 0..50 {
-        let response = handle_remote_v1_request(&context, &store, "GET", "/v1/node/status", None)
-            .expect("status response");
+        let response = takd::daemon::remote::handle_remote_v1_request(
+            &context,
+            &store,
+            "GET",
+            "/v1/node/status",
+            &[],
+            None,
+        )
+        .expect("status response");
         assert_eq!(response.content_type, "application/x-protobuf");
         let status =
             NodeStatusResponse::decode(response.body.as_slice()).expect("decode node status");

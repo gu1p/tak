@@ -28,7 +28,8 @@ async fn containerized_remote_tasks_probe_and_choose_visible_tmpdir_root() {
         },
     );
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
-        .with_temp_dir(tmpdir);
+        .with_temp_dir(tmpdir)
+        .build();
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let ack = submit_container_task(&context, &store, "task-run-probed", "true");

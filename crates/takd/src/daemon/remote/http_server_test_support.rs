@@ -70,11 +70,11 @@ impl AsyncWrite for ScriptedHttpStream {
 }
 
 pub(super) fn node_context() -> RemoteNodeContext {
-    node_context_with_runtime(RemoteRuntimeConfig::for_tests())
+    node_context_with_runtime(RemoteRuntimeConfig::isolated_for_test())
 }
 
 pub(super) fn node_context_with_temp(path: &Path) -> RemoteNodeContext {
-    node_context_with_runtime(RemoteRuntimeConfig::for_tests().with_temp_dir(path))
+    node_context_with_runtime(RemoteRuntimeConfig::isolated_with_temp_dir_for_test(path))
         .with_state_root(path)
 }
 

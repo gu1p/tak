@@ -3,7 +3,7 @@
 use std::{fs, sync::Arc};
 
 use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
-use tak_exec::{execute_remote_worker_steps, execute_remote_worker_steps_with_output};
+use tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 
 use crate::support::{
     CollectingObserver, FakeDockerDaemon, LockedEnvGuard, configure_real_docker_env, shell_step,
@@ -16,9 +16,14 @@ async fn remote_worker_removes_container_after_start_failure() {
     configure_real_docker_env(temp.path(), daemon.socket_path(), locked_env.env_mut());
     daemon.fail_start("start refused");
 
-    let err = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect_err("start failure should surface");
+    let err = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect_err("start failure should surface");
 
     assert!(err.to_string().contains("start container failed"));
     assert_eq!(daemon.create_records().len(), 1);
@@ -33,9 +38,14 @@ async fn remote_worker_removes_container_when_log_stream_fails() {
     daemon.release_container_exit();
 
     let observer = Arc::new(CollectingObserver::default());
-    let _err = execute_remote_worker_steps_with_output(&workspace_root, &spec, Some(observer))
-        .await
-        .expect_err("log failure should surface");
+    let _err = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        Some(observer),
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect_err("log failure should surface");
 
     assert_eq!(daemon.create_records().len(), 1);
     assert_eq!(removed_container_ids(&daemon), vec!["container-123"]);

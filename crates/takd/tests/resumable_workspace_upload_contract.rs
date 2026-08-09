@@ -1,6 +1,5 @@
 use prost::Message;
 use sha2::{Digest, Sha256};
-use takd::{RemoteRuntimeConfig, handle_remote_v1_request};
 
 #[path = "resumable_workspace_upload_contract/support.rs"]
 mod support;
@@ -12,7 +11,9 @@ fn workspace_upload_begin_append_and_finish_resume_by_offset() {
     let temp = tempfile::tempdir().expect("tempdir");
     let store =
         takd::SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let runtime = RemoteRuntimeConfig::for_tests().with_temp_dir(temp.path());
+    let runtime = crate::support::runtime_config::builder()
+        .with_explicit_remote_exec_root(temp.path().join("takd-remote-exec"))
+        .build();
     let context = crate::support::remote_output::test_context_with_runtime(runtime)
         .with_state_root(temp.path());
     let archive = b"workspace-zip-bytes";
@@ -38,7 +39,9 @@ fn workspace_upload_finish_completes_zero_byte_upload() {
     let temp = tempfile::tempdir().expect("tempdir");
     let store =
         takd::SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let runtime = RemoteRuntimeConfig::for_tests().with_temp_dir(temp.path());
+    let runtime = crate::support::runtime_config::builder()
+        .with_explicit_remote_exec_root(temp.path().join("takd-remote-exec"))
+        .build();
     let context = crate::support::remote_output::test_context_with_runtime(runtime)
         .with_state_root(temp.path());
     let digest = format!("{:x}", Sha256::digest([]));
@@ -55,7 +58,9 @@ fn submit_rejects_workspace_upload_id_path_escape() {
     let temp = tempfile::tempdir().expect("tempdir");
     let store =
         takd::SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
-    let runtime = RemoteRuntimeConfig::for_tests().with_temp_dir(temp.path());
+    let runtime = crate::support::runtime_config::builder()
+        .with_explicit_remote_exec_root(temp.path().join("takd-remote-exec"))
+        .build();
     let context = crate::support::remote_output::test_context_with_runtime(runtime)
         .with_state_root(temp.path());
     let archive = crate::support::remote_output::empty_workspace_zip();
@@ -65,11 +70,12 @@ fn submit_rejects_workspace_upload_id_path_escape() {
     std::fs::write(exec_root.join("escape.zip"), &archive).expect("escaped upload");
 
     let submit = submit_with_upload("../escape", &digest, archive.len() as u64);
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

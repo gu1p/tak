@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -11,6 +10,7 @@ use super::*;
 
 mod config;
 mod connect;
+mod construction;
 mod default;
 mod http2_session;
 mod protobuf;
@@ -50,7 +50,6 @@ struct TorBrokerInner {
     remote_protocols: tokio::sync::Mutex<HashMap<String, (RemoteProtocol, std::time::Instant)>>,
     test_dial_addr: Option<String>,
     state_root: Option<PathBuf>,
-    bootstrap_count: AtomicUsize,
     // When set, the broker dials peers through the hidden service's Tor client
     // instead of bootstrapping its own. `requires_shared_client` marks the
     // `tor` transport, where that client is mandatory (we never spin up a rival).
@@ -64,42 +63,6 @@ enum BrokerClient {
 }
 
 impl TorBroker {
-    pub fn new() -> Self {
-        Self::with_options(test_tor_onion_dial_addr(), None, false)
-    }
-
-    pub fn for_test_dial_addr(dial_addr: String) -> Self {
-        Self::with_options(Some(dial_addr), None, false)
-    }
-
-    pub fn for_state_root(state_root: PathBuf) -> Self {
-        Self::with_options(test_tor_onion_dial_addr(), Some(state_root), false)
-    }
-
-    pub(in crate::daemon) fn with_options(
-        test_dial_addr: Option<String>,
-        state_root: Option<PathBuf>,
-        requires_shared_client: bool,
-    ) -> Self {
-        Self {
-            inner: Arc::new(TorBrokerInner {
-                client: tokio::sync::OnceCell::const_new(),
-                http2_sessions: tokio::sync::Mutex::new(HashMap::new()),
-                http2_dials: Mutex::new(HashSet::new()),
-                remote_protocols: tokio::sync::Mutex::new(HashMap::new()),
-                test_dial_addr,
-                state_root,
-                bootstrap_count: AtomicUsize::new(0),
-                shared_tor_client: Mutex::new(None),
-                requires_shared_client,
-            }),
-        }
-    }
-
-    pub fn bootstrap_count(&self) -> usize {
-        self.inner.bootstrap_count.load(Ordering::SeqCst)
-    }
-
     pub async fn warm(&self) -> Result<()> {
         // In shared mode the hidden-service client owns Tor and is bootstrapped
         // by the onion-serving path; the broker borrows it rather than warming
@@ -185,7 +148,6 @@ impl TorBroker {
         self.inner
             .client
             .get_or_try_init(|| async {
-                self.inner.bootstrap_count.fetch_add(1, Ordering::SeqCst);
                 if let Some(dial_addr) = self.inner.test_dial_addr.clone() {
                     return Ok(BrokerClient::Test(dial_addr));
                 }

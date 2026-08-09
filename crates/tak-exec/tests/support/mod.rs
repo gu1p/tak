@@ -16,6 +16,7 @@ pub mod remote_progress_wait;
 pub mod remote_runtime_spec;
 pub mod remote_worker_runtime;
 pub mod retryable_tor_daemon;
+pub mod runtime_config;
 pub mod servers;
 pub mod status_observer;
 pub mod task_spec;

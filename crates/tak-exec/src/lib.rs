@@ -18,7 +18,6 @@ mod remote_endpoint;
 mod remote_protocol_codec;
 mod retry;
 mod step_runner;
-mod summary;
 mod task_run_metadata;
 
 pub use client_observations::{
@@ -33,8 +32,8 @@ pub use engine::{
     RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RequiredRemoteDiagnostic,
     RunCancellation, RunCancelled, RunOptions, RunSummary, SyncedOutput, TaskFinishedEvent,
     TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent, TaskStatusEvent,
-    TaskStatusEventKind, TaskStatusPhase, TaskStructuredStatusEvent, execute_remote_worker_steps,
-    execute_remote_worker_steps_with_cancellation, execute_remote_worker_steps_with_output,
+    TaskStatusEventKind, TaskStatusPhase, TaskStructuredStatusEvent,
+    execute_remote_worker_steps_with_cancellation,
     execute_remote_worker_steps_with_output_and_cancellation, is_run_cancelled_error,
     run_resolved_task, run_tasks,
 };
@@ -43,7 +42,6 @@ pub(crate) use engine::{
     RemoteTargetSelection, RemoteWorkspaceStage, StrictRemoteTarget, emit_task_output,
 };
 pub use image_cache::{image_cache_status, run_image_cache_janitor_once};
-pub use summary::target_set_from_summary;
 #[path = "client_remotes_tests.rs"]
 mod client_remotes_tests;
 #[path = "engine/preflight_failure_classification_tests.rs"]

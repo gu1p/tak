@@ -14,7 +14,6 @@ use takd::{SubmitAttemptStore, build_submit_idempotency_key, run_remote_v1_http_
 use tokio::{net::TcpListener, time::sleep};
 
 const REMOTE_WORKER_STATE_TIMEOUT: Duration = Duration::from_secs(45);
-
 #[tokio::test(flavor = "multi_thread")]
 async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
     let _env_lock = env_lock();
@@ -46,7 +45,8 @@ async fn cleanup_janitor_removes_stale_roots_but_preserves_active_jobs() {
         .with_explicit_remote_exec_root(exec_root.clone())
         .with_skip_exec_root_probe(true)
         .with_remote_cleanup_ttl(Duration::from_millis(10))
-        .with_remote_cleanup_interval(Duration::from_millis(10));
+        .with_remote_cleanup_interval(Duration::from_millis(10))
+        .build();
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let server = tokio::spawn(run_remote_v1_http_server(

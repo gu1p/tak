@@ -28,7 +28,8 @@ async fn explicit_remote_exec_root_skips_probe_for_containerized_remote_tasks() 
     );
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
         .with_explicit_remote_exec_root(explicit_root.clone())
-        .with_temp_dir(tmpdir);
+        .with_temp_dir(tmpdir)
+        .build();
     let context = support::remote_output::test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let ack = submit_container_task(&context, &store, "task-run-explicit", "true");

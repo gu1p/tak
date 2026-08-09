@@ -3,7 +3,7 @@ use std::time::Duration;
 use prost::Message;
 use tak_core::remote_inventory::{RemoteInventory, RemoteRecord};
 use tak_proto::NodePingResponse;
-use takd::{PeerManager, TorBroker};
+use takd::PeerManager;
 
 use crate::support;
 use support::http2_remote::Http2Remote;
@@ -14,7 +14,7 @@ const ENDPOINT: &str = "http://builder-keeper.onion";
 #[tokio::test(flavor = "multi_thread")]
 async fn keeper_eagerly_holds_a_warm_connection_without_any_submit() {
     let remote = Http2Remote::spawn(ping_body()).await;
-    let broker = TorBroker::for_test_dial_addr(remote.addr.clone());
+    let broker = crate::support::local_runtime::tor_broker(remote.addr.clone());
     // No heartbeat and no submit: the keeper alone must open the connection.
     peers().spawn_connection_keeper(broker.clone());
 
@@ -25,7 +25,7 @@ async fn keeper_eagerly_holds_a_warm_connection_without_any_submit() {
 #[tokio::test(flavor = "multi_thread")]
 async fn keeper_redials_immediately_after_the_connection_is_lost() {
     let remote = Http2Remote::spawn(ping_body()).await;
-    let broker = TorBroker::for_test_dial_addr(remote.addr.clone());
+    let broker = crate::support::local_runtime::tor_broker(remote.addr.clone());
     peers().spawn_connection_keeper(broker.clone());
     wait_for_connections(&remote, 1).await;
 
@@ -48,7 +48,7 @@ async fn keeper_redials_immediately_after_the_connection_is_lost() {
 }
 
 fn peers() -> PeerManager {
-    PeerManager::from_inventory(RemoteInventory {
+    crate::support::local_runtime::peer_manager(RemoteInventory {
         version: 1,
         remotes: vec![RemoteRecord {
             node_id: NODE.into(),

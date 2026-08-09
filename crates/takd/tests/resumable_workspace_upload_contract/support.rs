@@ -2,7 +2,7 @@ use prost::Message;
 use tak_proto::{
     BeginWorkspaceUploadRequest, BeginWorkspaceUploadResponse, FinishWorkspaceUploadResponse,
 };
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 mod submit;
 pub(super) use submit::submit_with_upload;
@@ -20,11 +20,12 @@ pub(super) fn post_begin(
         size_bytes,
     }
     .encode_to_vec();
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "POST",
         "/v2/workspaces/uploads/begin",
+        &[],
         Some(&body),
     )
     .expect("begin");
@@ -39,11 +40,12 @@ pub(super) fn patch_chunk(
     offset: u64,
     chunk: &[u8],
 ) {
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "PATCH",
         &format!("/v2/workspaces/uploads/{upload_id}?offset={offset}"),
+        &[],
         Some(chunk),
     )
     .expect("append");
@@ -55,11 +57,12 @@ pub(super) fn post_finish(
     store: &SubmitAttemptStore,
     upload_id: &str,
 ) -> FinishWorkspaceUploadResponse {
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "POST",
         &format!("/v2/workspaces/uploads/{upload_id}/finish"),
+        &[],
         None,
     )
     .expect("finish");

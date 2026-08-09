@@ -1,9 +1,8 @@
-use super::super::PeerManager;
 use super::support::{inventory, record};
 
 #[test]
 fn all_connection_targets_returns_every_configured_peer() {
-    let peers = PeerManager::from_inventory(inventory(vec![
+    let peers = super::fixtures::peer_manager(inventory(vec![
         record("builder-a", "tor", true, "tok-a"),
         record("builder-b", "tor", true, "tok-b"),
     ]));

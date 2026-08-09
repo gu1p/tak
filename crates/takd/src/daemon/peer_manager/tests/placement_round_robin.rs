@@ -52,7 +52,7 @@ fn select_many(manager: &PeerManager, count: usize) -> Vec<String> {
 }
 
 fn connected_manager(nodes: &[(&str, u32, u32)]) -> PeerManager {
-    let manager = PeerManager::from_inventory(inventory(
+    let manager = super::fixtures::peer_manager(inventory(
         nodes
             .iter()
             .map(|(node_id, _, _)| record(node_id, "tor", true, "secret"))

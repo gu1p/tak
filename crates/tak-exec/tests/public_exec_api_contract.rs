@@ -12,7 +12,6 @@ fn tak_exec_crate_root_public_api_stays_available() {
     let _record_remote_observation = tak_exec::record_remote_observation;
     let _write_remote_observation = tak_exec::write_remote_observation;
     let _write_remote_observation_at = tak_exec::write_remote_observation_at;
-    let _target_set_from_summary = tak_exec::target_set_from_summary;
     let _endpoint_host_port = tak_exec::endpoint_host_port;
     let _endpoint_socket_addr = tak_exec::endpoint_socket_addr;
     let _socket_addr_from_host_port = tak_exec::socket_addr_from_host_port;

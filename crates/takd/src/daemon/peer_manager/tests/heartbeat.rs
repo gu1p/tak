@@ -1,11 +1,11 @@
 use super::super::heartbeat::unix_epoch_ms;
-use super::super::{PeerEligibility, PeerManager, PeerState};
+use super::super::{PeerEligibility, PeerState};
 use super::support::{inventory, ping, record};
 
 #[test]
 fn heartbeat_failures_move_connected_to_degraded_then_unreachable() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     manager.mark_ping_success("builder-a", ping(), 12);
 
     manager.mark_ping_failure("builder-a", "timeout");
@@ -18,7 +18,7 @@ fn heartbeat_failures_move_connected_to_degraded_then_unreachable() {
 #[test]
 fn heartbeat_rejects_ping_from_unexpected_node_id() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
     ping.node_id = "builder-b".to_string();
 
@@ -37,7 +37,7 @@ fn heartbeat_rejects_ping_from_unexpected_node_id() {
 #[test]
 fn heartbeat_rejects_ping_with_wrong_protocol_version() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
     ping.protocol_version = "v0".to_string();
 
@@ -51,7 +51,7 @@ fn heartbeat_rejects_ping_with_wrong_protocol_version() {
 #[test]
 fn unhealthy_ping_is_visible_but_not_placeable() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
     ping.health = "recovering".to_string();
 
@@ -66,7 +66,7 @@ fn unhealthy_ping_is_visible_but_not_placeable() {
 #[test]
 fn heartbeat_failures_back_off_before_next_retry() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let now = unix_epoch_ms();
 
     assert_eq!(manager.heartbeat_targets_due(now).len(), 1);

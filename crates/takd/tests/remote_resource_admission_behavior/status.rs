@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use prost::Message;
 use tak_proto::{ContainerResourceLimits, NodeStatusResponse, PollTaskEventsResponse};
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 const REMOTE_ADMISSION_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -29,8 +29,15 @@ pub(super) fn status(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
 ) -> NodeStatusResponse {
-    let response = handle_remote_v1_request(context, store, "GET", "/v1/node/status", None)
-        .expect("status response");
+    let response = takd::daemon::remote::handle_remote_v1_request(
+        context,
+        store,
+        "GET",
+        "/v1/node/status",
+        &[],
+        None,
+    )
+    .expect("status response");
     NodeStatusResponse::decode(response.body.as_slice()).expect("decode node status")
 }
 
@@ -58,11 +65,12 @@ pub(super) fn task_events(
     store: &SubmitAttemptStore,
     task_run_id: &str,
 ) -> Vec<tak_proto::RemoteEvent> {
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "GET",
         &format!("/v1/tasks/{task_run_id}/events"),
+        &[],
         None,
     )
     .expect("events response");

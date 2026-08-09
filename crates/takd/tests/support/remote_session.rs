@@ -5,7 +5,7 @@ use tak_proto::{
     CmdStep, ExecutionSession, GetTaskResultResponse, Step, SubmitTaskRequest, SubmitTaskResponse,
     step,
 };
-use takd::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 use super::remote_output::{empty_workspace_zip, test_container_runtime};
 
@@ -40,11 +40,12 @@ pub fn submit_session_task(
         execution_label: None,
         workspace_upload: None,
     };
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         context,
         store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");
@@ -69,7 +70,8 @@ pub fn session(
 pub fn assert_success(context: &RemoteNodeContext, store: &SubmitAttemptStore, task_run_id: &str) {
     let path = format!("/v1/tasks/{task_run_id}/result");
     let response =
-        handle_remote_v1_request(context, store, "GET", &path, None).expect("result response");
+        takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
+            .expect("result response");
     let result = GetTaskResultResponse::decode(response.body.as_slice()).expect("decode result");
     assert!(result.success, "task {task_run_id} failed: {result:?}");
 }

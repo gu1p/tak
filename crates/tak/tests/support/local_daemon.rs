@@ -25,7 +25,7 @@ impl LocalDaemonGuard {
         spec: &WorkspaceSpec,
         dial_addr: String,
     ) -> Self {
-        Self::spawn_with_broker(socket_path, spec, TorBroker::for_test_dial_addr(dial_addr))
+        Self::spawn_with_broker(socket_path, spec, TorBroker::for_direct_dial(dial_addr))
     }
     pub fn spawn_with_tor_inventory(
         socket_path: &Path,
@@ -33,10 +33,11 @@ impl LocalDaemonGuard {
         dial_addr: String,
         inventory_path: PathBuf,
     ) -> Self {
-        let broker = TorBroker::for_test_dial_addr(dial_addr);
+        let broker = TorBroker::for_direct_dial(dial_addr);
         let inventory = tak_core::remote_inventory::load_remote_inventory_at(&inventory_path)
             .expect("load client remote inventory for local daemon");
-        let peers = PeerManager::from_inventory(inventory);
+        let peers = PeerManager::default();
+        peers.apply_inventory(inventory);
         Self::spawn_with_broker_and_peers(socket_path, spec, broker, peers)
     }
     fn spawn_with_broker(socket_path: &Path, spec: &WorkspaceSpec, broker: TorBroker) -> Self {

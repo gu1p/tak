@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 pub(super) struct RangeFixture {
     pub(super) addr: std::net::SocketAddr,
@@ -18,7 +18,9 @@ impl RangeFixture {
         let context = RemoteNodeContext::new(
             node_info(),
             "secret".into(),
-            RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+            crate::support::runtime_config::builder()
+                .with_explicit_remote_exec_root(exec_root_base.clone())
+                .build(),
         );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -55,7 +57,14 @@ pub(super) fn write_artifact(temp: &tempfile::TempDir, key: &str) {
 
 pub(super) fn register_submit(store: &SubmitAttemptStore, exec_root_base: &Path) -> String {
     match store
-        .register_submit("run-range", Some(1), "builder-a", exec_root_base)
+        .register_submit_with_execution_root_base(
+            "run-range",
+            Some(1),
+            "",
+            None,
+            "builder-a",
+            exec_root_base,
+        )
         .expect("register submit")
     {
         takd::SubmitRegistration::Created { idempotency_key }

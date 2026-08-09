@@ -1,7 +1,9 @@
 use std::fs;
 
 use rusqlite::{Connection, params};
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
+
+use crate::support;
 
 #[test]
 fn remote_output_route_uses_context_execution_root_for_legacy_submit_rows_without_persisted_root() {
@@ -23,7 +25,9 @@ fn remote_output_route_uses_context_execution_root_for_legacy_submit_rows_withou
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+        support::runtime_config::builder()
+            .with_explicit_remote_exec_root(exec_root_base.clone())
+            .build(),
     );
 
     let conn = Connection::open(&db_path).expect("open sqlite");
@@ -43,11 +47,12 @@ fn remote_output_route_uses_context_execution_root_for_legacy_submit_rows_withou
     fs::create_dir_all(&nested).expect("artifact dirs");
     fs::write(nested.join("output.txt"), b"legacy output").expect("artifact file");
 
-    let response = handle_remote_v1_request(
+    let response = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "GET",
         "/v1/tasks/run-legacy/outputs?path=nested%2Foutput.txt",
+        &[],
         None,
     )
     .expect("route response");

@@ -1,6 +1,6 @@
 use prost::Message;
 use tak_proto::SubmitTaskResponse;
-use takd::{SubmitAttemptStore, handle_remote_v1_request};
+use takd::SubmitAttemptStore;
 
 use crate::support;
 
@@ -21,11 +21,12 @@ fn remote_routes_round_trip_non_utf8_chunk_bytes_without_persisting_lossy_chunk_
         "task-run-stream-non-utf8",
         "printf '\\377stdout\\n'; printf '\\200stderr\\n' >&2",
     );
-    let submit = handle_remote_v1_request(
+    let submit = takd::daemon::remote::handle_remote_v1_request(
         &context,
         &store,
         "POST",
         "/v1/tasks/submit",
+        &[],
         Some(&submit.encode_to_vec()),
     )
     .expect("submit response");

@@ -1,12 +1,14 @@
 use std::fs;
-use std::time::Duration;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef, RemoteRuntimeSpec};
-use tak_exec::execute_remote_worker_steps;
+use tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 
 use crate::support::{
     EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock, shell_step, worker_spec,
 };
+
+#[path = "reuse/wait.rs"]
+mod wait;
 
 #[tokio::test]
 async fn remote_worker_reuses_same_dockerfile_runtime_image_for_unchanged_context() {
@@ -46,9 +48,17 @@ async fn remote_worker_reuses_same_dockerfile_runtime_image_for_unchanged_contex
     let first = tokio::spawn({
         let workspace_root = workspace_root.clone();
         let spec = spec.clone();
-        async move { execute_remote_worker_steps(&workspace_root, &spec).await }
+        async move {
+            execute_remote_worker_steps_with_output_and_cancellation(
+                &workspace_root,
+                &spec,
+                None,
+                &tak_exec::RunCancellation::default(),
+            )
+            .await
+        }
     });
-    wait_for_build_count(&daemon, 1).await;
+    wait::for_build_count(&daemon, 1).await;
     daemon.release_container_exit();
     let first = first
         .await
@@ -56,9 +66,14 @@ async fn remote_worker_reuses_same_dockerfile_runtime_image_for_unchanged_contex
         .expect("first dockerfile runtime execution should succeed");
     assert!(first.success);
 
-    let second = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect("second dockerfile runtime execution should succeed");
+    let second = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("second dockerfile runtime execution should succeed");
     assert!(second.success);
 
     let builds = daemon.build_records();
@@ -72,17 +87,4 @@ async fn remote_worker_reuses_same_dockerfile_runtime_image_for_unchanged_contex
         "runtime image should use stable tak-runtime tag: {:?}",
         builds[0]
     );
-}
-
-async fn wait_for_build_count(daemon: &FakeDockerDaemon, expected: usize) {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            if daemon.build_records().len() >= expected {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("build request should reach fake docker daemon");
 }

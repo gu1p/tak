@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use tak_core::model::Scope;
-use takd::{AcquireLeaseResponse, SharedLeaseManager, new_shared_manager_with_db, run_server};
+use takd::{AcquireLeaseResponse, SharedLeaseManager, new_shared_manager_with_db};
 
 use crate::support::protocol::acquire_request;
 
@@ -44,5 +44,7 @@ fn spawn_protocol_server_with_manager(
     socket_path: PathBuf,
     manager: SharedLeaseManager,
 ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
-    tokio::spawn(async move { run_server(&socket_path, manager).await })
+    tokio::spawn(async move {
+        super::local_runtime::run_local_server(&socket_path, manager, takd::TorBroker::new()).await
+    })
 }

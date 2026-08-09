@@ -3,57 +3,25 @@ use std::path::Path;
 use super::*;
 
 impl SubmitAttemptStore {
-    /// Registers a submit attempt by `(task_run_id, attempt)` and returns whether it was created or attached.
+    /// Registers a submit attempt with its persisted task and execution metadata.
     ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
+    /// ```rust
+    /// # use std::path::Path;
+    /// # use takd::SubmitAttemptStore;
+    /// # fn example(store: &SubmitAttemptStore, root: &Path) -> anyhow::Result<()> {
+    /// let registration = store.register_submit_with_execution_root_base(
+    ///     "task-run-1",
+    ///     Some(1),
+    ///     "//:check",
+    ///     None,
+    ///     "builder-a",
+    ///     root,
+    /// )?;
+    /// # let _ = registration;
+    /// # Ok(())
     /// # }
     /// ```
-    pub fn register_submit(
-        &self,
-        task_run_id: &str,
-        attempt: Option<u32>,
-        selected_node_id: &str,
-        execution_root_base: &Path,
-    ) -> Result<SubmitRegistration> {
-        self.register_submit_with_task_label(
-            task_run_id,
-            attempt,
-            "",
-            selected_node_id,
-            execution_root_base,
-        )
-    }
-
-    /// Registers a submit attempt with task metadata used by takd operator commands.
-    ///
-    /// ```no_run
-    /// # // Reason: This behavior depends on local sqlite availability and is compile-checked only.
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// #     Ok(())
-    /// # }
-    /// ```
-    pub fn register_submit_with_task_label(
-        &self,
-        task_run_id: &str,
-        attempt: Option<u32>,
-        task_label: &str,
-        selected_node_id: &str,
-        execution_root_base: &Path,
-    ) -> Result<SubmitRegistration> {
-        self.register_submit_with_execution_root_base(
-            task_run_id,
-            attempt,
-            task_label,
-            None,
-            selected_node_id,
-            execution_root_base,
-        )
-    }
-
-    pub(in crate::daemon::remote) fn register_submit_with_execution_root_base(
+    pub fn register_submit_with_execution_root_base(
         &self,
         task_run_id: &str,
         attempt: Option<u32>,

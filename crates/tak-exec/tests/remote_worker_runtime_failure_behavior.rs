@@ -4,7 +4,9 @@ use std::env;
 use std::fs;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec, TaskLabel};
-use tak_exec::{RemoteWorkerExecutionSpec, execute_remote_worker_steps};
+use tak_exec::{
+    RemoteWorkerExecutionSpec, execute_remote_worker_steps_with_output_and_cancellation,
+};
 
 use crate::support;
 
@@ -40,9 +42,14 @@ async fn remote_worker_reports_injected_container_lifecycle_failure() {
         container_identity: None,
     };
 
-    let err = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect_err("runtime failure should surface");
+    let err = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect_err("runtime failure should surface");
 
     assert!(
         err.to_string()

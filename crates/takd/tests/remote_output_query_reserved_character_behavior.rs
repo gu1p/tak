@@ -2,7 +2,9 @@ use std::fs;
 
 use prost::Message;
 use tak_proto::ErrorResponse;
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
+
+use crate::support;
 
 #[test]
 fn remote_output_route_preserves_literal_plus_and_percent_sequences_when_query_is_encoded() {
@@ -23,11 +25,20 @@ fn remote_output_route_preserves_literal_plus_and_percent_sequences_when_query_i
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests().with_explicit_remote_exec_root(exec_root_base.clone()),
+        support::runtime_config::builder()
+            .with_explicit_remote_exec_root(exec_root_base.clone())
+            .build(),
     );
 
     let registration = store
-        .register_submit("run-1", Some(1), "builder-a", &exec_root_base)
+        .register_submit_with_execution_root_base(
+            "run-1",
+            Some(1),
+            "",
+            None,
+            "builder-a",
+            &exec_root_base,
+        )
         .expect("register submit");
     let idempotency_key = match registration {
         takd::SubmitRegistration::Created { idempotency_key }
@@ -47,8 +58,15 @@ fn remote_output_route_preserves_literal_plus_and_percent_sequences_when_query_i
         .append_pair("path", raw_path)
         .finish();
     let request_path = format!("/v1/tasks/run-1/outputs?{query}");
-    let response = handle_remote_v1_request(&context, &store, "GET", &request_path, None)
-        .expect("route response");
+    let response = takd::daemon::remote::handle_remote_v1_request(
+        &context,
+        &store,
+        "GET",
+        &request_path,
+        &[],
+        None,
+    )
+    .expect("route response");
 
     if response.status_code != 200 {
         let error = ErrorResponse::decode(response.body.as_slice()).expect("decode error");

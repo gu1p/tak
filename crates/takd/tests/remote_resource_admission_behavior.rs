@@ -21,7 +21,6 @@ use submit::submit;
 async fn remote_submit_queues_when_detected_resources_are_reserved() {
     let _env_lock = crate::support::env::env_lock();
     let mut env = crate::support::env::EnvGuard::default();
-    env.set("TAK_TEST_HOST_PLATFORM", "other");
     let temp = tempfile::tempdir().expect("tempdir");
     let tmpdir = temp.path().join("tmp-root");
     let daemon = FakeDockerDaemon::spawn(
@@ -34,8 +33,9 @@ async fn remote_submit_queues_when_detected_resources_are_reserved() {
         },
     );
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
-        .with_temp_dir(tmpdir)
-        .with_skip_exec_root_probe(true);
+        .with_explicit_remote_exec_root(tmpdir.join("takd-remote-exec"))
+        .with_skip_exec_root_probe(true)
+        .build();
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let limits = majority_memory_limits(&context, &store);

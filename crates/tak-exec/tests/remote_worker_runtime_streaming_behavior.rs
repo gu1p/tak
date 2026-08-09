@@ -4,7 +4,9 @@ use std::fs;
 use std::sync::Arc;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
-use tak_exec::{OutputStream, TaskOutputChunk, execute_remote_worker_steps_with_output};
+use tak_exec::{
+    OutputStream, TaskOutputChunk, execute_remote_worker_steps_with_output_and_cancellation,
+};
 use tokio::time::{Duration, timeout};
 
 use crate::support;
@@ -42,7 +44,13 @@ async fn remote_worker_container_runtime_streams_logs_to_output_observer_while_r
         let spec = spec.clone();
         let observer = observer.clone();
         async move {
-            execute_remote_worker_steps_with_output(&workspace_root, &spec, Some(observer)).await
+            execute_remote_worker_steps_with_output_and_cancellation(
+                &workspace_root,
+                &spec,
+                Some(observer),
+                &tak_exec::RunCancellation::default(),
+            )
+            .await
         }
     });
 

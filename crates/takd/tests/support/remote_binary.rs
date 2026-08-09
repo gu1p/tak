@@ -3,7 +3,7 @@
 use prost::Message;
 use std::{thread, time::Duration};
 use tak_proto::{CmdStep, NodeInfo, PollTaskEventsResponse, Step, SubmitTaskRequest, step};
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore, handle_remote_v1_request};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 pub fn streaming_context() -> RemoteNodeContext {
     RemoteNodeContext::new(
@@ -20,7 +20,9 @@ pub fn streaming_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests().with_skip_exec_root_probe(true),
+        super::runtime_config::builder()
+            .with_skip_exec_root_probe(true)
+            .build(),
     )
 }
 
@@ -75,7 +77,8 @@ pub fn wait_for_streaming_events_for_task(
     loop {
         let path = format!("/v1/tasks/{task_run_id}/events");
         let response =
-            handle_remote_v1_request(context, store, "GET", &path, None).expect("events response");
+            takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
+                .expect("events response");
         let events =
             PollTaskEventsResponse::decode(response.body.as_slice()).expect("decode events");
         if events.done {

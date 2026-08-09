@@ -49,7 +49,7 @@ async fn wait_resolves_once_a_peer_warms_up() {
 }
 
 fn manager() -> PeerManager {
-    PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]))
+    super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]))
 }
 
 fn select(peers: &PeerManager) -> Result<PeerSnapshot, PlacementFailure> {

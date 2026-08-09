@@ -1,7 +1,7 @@
 use std::fs;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef, RemoteRuntimeSpec};
-use tak_exec::execute_remote_worker_steps;
+use tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 
 use crate::support::{EnvGuard, configure_fake_docker_env, env_lock, shell_step, worker_spec};
 
@@ -29,9 +29,14 @@ async fn remote_worker_simulated_container_runtime_sets_expected_env() {
         "builder-a",
     );
 
-    let result = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect("simulated remote worker should succeed");
+    let result = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("simulated remote worker should succeed");
 
     assert!(result.success);
     assert_eq!(result.exit_code, Some(0));
@@ -74,9 +79,14 @@ async fn remote_worker_simulated_dockerfile_runtime_does_not_read_build_context(
         "builder-a",
     );
 
-    let result = execute_remote_worker_steps(&workspace_root, &spec)
-        .await
-        .expect("simulated dockerfile runtime should not require a Dockerfile");
+    let result = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("simulated dockerfile runtime should not require a Dockerfile");
 
     assert!(result.success);
     assert_eq!(result.exit_code, Some(0));

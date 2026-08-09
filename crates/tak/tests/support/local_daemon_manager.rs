@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 
+use std::sync::{Arc, Mutex};
+
 use tak_core::model::{LimiterDef, Scope, WorkspaceSpec};
-use takd::{SharedLeaseManager, new_shared_manager};
+use takd::{LeaseManager, SharedLeaseManager};
 
 pub fn manager_for(spec: &WorkspaceSpec) -> SharedLeaseManager {
-    let manager = new_shared_manager();
+    let manager = Arc::new(Mutex::new(LeaseManager::default()));
     {
         let mut guard = manager.lock().expect("lease manager lock");
         for (key, limiter) in &spec.limiters {

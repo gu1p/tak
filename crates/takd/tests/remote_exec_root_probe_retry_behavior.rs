@@ -20,8 +20,9 @@ async fn containerized_remote_tasks_retry_probe_after_transient_probe_failure() 
     let visible_root = tmpdir.join("takd-remote-exec");
     let socket_path = temp.path().join("docker.sock");
 
-    let runtime_config =
-        configure_fake_docker_env(temp.path(), &socket_path, &mut env).with_temp_dir(tmpdir);
+    let runtime_config = configure_fake_docker_env(temp.path(), &socket_path, &mut env)
+        .with_temp_dir(tmpdir)
+        .build();
     let context = test_context_with_runtime(runtime_config);
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
 

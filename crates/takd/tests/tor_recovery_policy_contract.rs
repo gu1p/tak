@@ -27,7 +27,4 @@ fn tor_recovery_backoff_doubles_until_the_cap() {
     assert_eq!(backoff.next_delay(), Duration::from_secs(40));
     assert_eq!(backoff.next_delay(), Duration::from_secs(60));
     assert_eq!(backoff.next_delay(), Duration::from_secs(60));
-
-    backoff.reset();
-    assert_eq!(backoff.next_delay(), Duration::from_secs(5));
 }

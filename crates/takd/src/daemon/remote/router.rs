@@ -1,24 +1,27 @@
 use super::*;
 
-/// Handles one remote V1 HTTP request and returns a fully formed daemon response.
+/// Handles one remote V1 HTTP request, including transport-provided headers.
 ///
-/// ```no_run
-/// # // Reason: This behavior depends on runtime request payloads and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
+/// ```rust
+/// # use takd::{RemoteNodeContext, SubmitAttemptStore};
+/// # use takd::daemon::remote::handle_remote_v1_request;
+/// # fn example(
+/// #     context: &RemoteNodeContext,
+/// #     store: &SubmitAttemptStore,
+/// # ) -> anyhow::Result<()> {
+/// let response = handle_remote_v1_request(
+///     context,
+///     store,
+///     "GET",
+///     "/v1/node/info",
+///     &[],
+///     None,
+/// )?;
+/// # let _ = response;
+/// # Ok(())
 /// # }
 /// ```
 pub fn handle_remote_v1_request(
-    context: &RemoteNodeContext,
-    store: &SubmitAttemptStore,
-    method: &str,
-    path: &str,
-    body: Option<&[u8]>,
-) -> Result<RemoteV1Response> {
-    handle_remote_v1_request_with_headers(context, store, method, path, &[], body)
-}
-
-pub(super) fn handle_remote_v1_request_with_headers(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
     method: &str,

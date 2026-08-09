@@ -37,7 +37,7 @@ async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
             "tor",
         )],
     );
-    let broker = LocalTorBroker::spawn(temp.path(), &server.bind_addr, &mut env).await;
+    let _broker = LocalTorBroker::spawn(temp.path(), &server.bind_addr, &mut env).await;
 
     let (spec, label) = remote_task_spec_with_outputs(
         &workspace_root,
@@ -61,5 +61,4 @@ async fn simulated_tor_remote_execution_uses_test_onion_dial_addr() {
         fs::read_to_string(workspace_root.join("dist/out.txt")).expect("tor output"),
         "tor\n"
     );
-    assert_eq!(broker.bootstrap_count(), 1);
 }

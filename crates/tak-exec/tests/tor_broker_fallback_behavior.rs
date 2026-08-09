@@ -28,7 +28,6 @@ async fn tor_remote_execution_requires_default_local_takd_serve() {
         temp.path().join("remote-exec").display().to_string(),
     );
 
-    env.set("TAK_TEST_TOR_ONION_DIAL_ADDR", "127.0.0.1:9");
     write_remote_inventory(
         &config_root,
         &[RemoteInventoryRecord::builder(

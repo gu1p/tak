@@ -1,10 +1,10 @@
 use tak_core::remote_inventory::{RemoteInventory, RemoteRecord};
 
-use super::super::{PeerManager, PeerState};
+use super::super::PeerState;
 
 #[test]
 fn peer_manager_loads_enabled_tor_remotes_only() {
-    let manager = PeerManager::from_inventory(inventory(vec![
+    let manager = super::fixtures::peer_manager(inventory(vec![
         record("builder-a", "tor", true, "secret"),
         record("builder-disabled", "tor", false, "secret"),
         record("builder-direct", "direct", true, "secret"),
@@ -20,7 +20,7 @@ fn peer_manager_loads_enabled_tor_remotes_only() {
 #[test]
 fn malformed_reload_preserves_last_good_peer_state() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
 
     manager.apply_inventory_result(Err(anyhow::anyhow!("invalid toml")));
 
@@ -30,7 +30,7 @@ fn malformed_reload_preserves_last_good_peer_state() {
 #[test]
 fn token_change_clears_sticky_auth_failed_state() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "old")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "old")]));
     manager.mark_auth_failed("builder-a", "unauthorized");
 
     manager.apply_inventory(inventory(vec![record("builder-a", "tor", true, "new")]));
@@ -42,7 +42,7 @@ fn token_change_clears_sticky_auth_failed_state() {
 
 #[test]
 fn removed_or_changed_inventory_reports_sessions_to_evict() {
-    let manager = PeerManager::from_inventory(inventory(vec![
+    let manager = super::fixtures::peer_manager(inventory(vec![
         record("builder-removed", "tor", true, "old-secret"),
         record("builder-changed", "tor", true, "old-secret"),
     ]));

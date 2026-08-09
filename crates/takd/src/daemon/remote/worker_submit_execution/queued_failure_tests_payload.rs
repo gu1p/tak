@@ -30,7 +30,7 @@ pub(super) fn remote_context() -> RemoteNodeContext {
             transport_detail: String::new(),
         },
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        RemoteRuntimeConfig::isolated_for_test(),
     )
 }
 

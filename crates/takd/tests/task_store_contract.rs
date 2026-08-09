@@ -7,10 +7,24 @@ fn active_attempts_exclude_completed_submits() {
     let root = temp.path().join("exec");
 
     store
-        .register_submit_with_task_label("active-run", Some(1), "//apps/web:build", "node-a", &root)
+        .register_submit_with_execution_root_base(
+            "active-run",
+            Some(1),
+            "//apps/web:build",
+            None,
+            "node-a",
+            &root,
+        )
         .expect("register active");
     store
-        .register_submit_with_task_label("done-run", Some(1), "//apps/web:test", "node-a", &root)
+        .register_submit_with_execution_root_base(
+            "done-run",
+            Some(1),
+            "//apps/web:test",
+            None,
+            "node-a",
+            &root,
+        )
         .expect("register done");
     let done_key = store
         .latest_submit_idempotency_key_for_task_run("done-run")
@@ -33,7 +47,14 @@ fn unfinished_attempts_can_be_marked_abandoned_after_restart() {
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let root = temp.path().join("exec");
     store
-        .register_submit_with_task_label("stale-run", Some(1), "//apps/web:build", "node-a", &root)
+        .register_submit_with_execution_root_base(
+            "stale-run",
+            Some(1),
+            "//apps/web:build",
+            None,
+            "node-a",
+            &root,
+        )
         .expect("register stale");
 
     let marked = store

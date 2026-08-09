@@ -18,7 +18,8 @@ async fn image_cache_janitor_waits_for_configured_sweep_interval() {
     let temp = tempfile::tempdir().expect("tempdir");
     let daemon = FakeDockerDaemon::spawn(temp.path(), FakeDockerConfig::default());
     let runtime_config = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
-        .with_remote_cleanup_interval(Duration::from_millis(10));
+        .with_remote_cleanup_interval(Duration::from_millis(10))
+        .build();
     let db_path = temp.path().join("agent.sqlite");
     let context = test_context_with_runtime(runtime_config).with_image_cache_config(
         RemoteImageCacheRuntimeConfig {

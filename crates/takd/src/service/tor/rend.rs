@@ -57,3 +57,6 @@ pub(crate) fn handle_accepted_stream_side_effects(
     // advance only from takd's self-probe so client requests cannot clear a
     // recovering state before `/v1/node/info` or `tak remote status` observes it.
 }
+
+#[path = "rend_tests.rs"]
+mod rend_tests;

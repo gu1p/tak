@@ -1,7 +1,10 @@
 use std::fs;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, RemoteRuntimeSpec};
-use tak_exec::{ImageCacheOptions, RemoteWorkerExecutionSpec, execute_remote_worker_steps};
+use tak_exec::{
+    ImageCacheOptions, RemoteWorkerExecutionSpec,
+    execute_remote_worker_steps_with_output_and_cancellation,
+};
 
 use crate::support::{
     EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock, shell_step, worker_spec,
@@ -68,8 +71,13 @@ fn mutable_image_spec(db_path: std::path::PathBuf) -> RemoteWorkerExecutionSpec 
 }
 
 async fn run_worker(workspace_root: &std::path::Path, spec: &RemoteWorkerExecutionSpec) {
-    let result = execute_remote_worker_steps(workspace_root, spec)
-        .await
-        .expect("mutable image runtime execution should succeed");
+    let result = execute_remote_worker_steps_with_output_and_cancellation(
+        workspace_root,
+        spec,
+        None,
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("mutable image runtime execution should succeed");
     assert!(result.success);
 }

@@ -4,7 +4,7 @@ use hyper::Request;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use prost::Message;
 use tak_proto::NodeInfo;
-use takd::{RemoteNodeContext, RemoteRuntimeConfig, SubmitAttemptStore};
+use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 #[path = "remote_v1_http2_server_contract/auth.rs"]
 mod auth;
@@ -20,7 +20,7 @@ async fn remote_v1_server_accepts_http2_requests_on_one_connection() {
     let context = RemoteNodeContext::new(
         node_info(),
         "secret".into(),
-        RemoteRuntimeConfig::for_tests(),
+        crate::support::runtime_config::isolated(),
     );
     let server = tokio::spawn(takd::run_remote_v1_http_server(listener, store, context));
 

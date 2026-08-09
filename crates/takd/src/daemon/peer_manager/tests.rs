@@ -2,6 +2,8 @@
 mod connection_keeper_tests;
 #[path = "tests/eligibility.rs"]
 mod eligibility;
+#[path = "tests/fixtures.rs"]
+mod fixtures;
 #[path = "tests/heartbeat.rs"]
 mod heartbeat;
 #[path = "tests/heartbeat_io.rs"]

@@ -1,12 +1,12 @@
 use tak_core::remote_inventory::{RemoteInventory, RemoteRecord};
 use tak_proto::NodePingResponse;
 
-use super::super::{PeerEligibility, PeerManager};
+use super::super::PeerEligibility;
 
 #[test]
 fn busy_but_feasible_peer_remains_placeable_so_worker_queue_can_admit() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
     ping.resource_summary =
         "cpu_available=0.00 cpu_total=8.00 memory_available_mb=0 memory_total_mb=16384".to_string();
@@ -26,7 +26,7 @@ fn busy_but_feasible_peer_remains_placeable_so_worker_queue_can_admit() {
 #[test]
 fn requirements_above_known_total_capacity_are_not_placeable() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
     ping.resource_summary =
         "cpu_available=8.00 cpu_total=8.00 memory_available_mb=16384 memory_total_mb=16384"
@@ -53,7 +53,7 @@ fn requirements_above_known_total_capacity_are_not_placeable() {
 #[test]
 fn placement_diagnostics_distinguish_auth_failed_peers() {
     let manager =
-        PeerManager::from_inventory(inventory(vec![record("builder-a", "tor", true, "secret")]));
+        super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     manager.mark_auth_failed("builder-a", "auth rejected");
 
     let err =

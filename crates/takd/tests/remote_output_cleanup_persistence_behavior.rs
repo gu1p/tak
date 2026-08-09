@@ -1,8 +1,6 @@
 use prost::Message;
 use tak_proto::GetTaskResultResponse;
-use takd::{
-    RemoteRuntimeConfig, SubmitAttemptStore, build_submit_idempotency_key, handle_remote_v1_request,
-};
+use takd::{SubmitAttemptStore, build_submit_idempotency_key};
 
 use crate::support;
 
@@ -19,9 +17,10 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
     let exec_root_base = temp.path().join("exec-root");
 
     let context = test_context_with_runtime(
-        RemoteRuntimeConfig::for_tests()
+        support::runtime_config::builder()
             .with_explicit_remote_exec_root(exec_root_base.clone())
-            .with_skip_exec_root_probe(true),
+            .with_skip_exec_root_probe(true)
+            .build(),
     );
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let submit_ack = submit_shell_task_with_outputs(
@@ -42,19 +41,26 @@ fn finished_remote_task_serves_outputs_after_execution_root_cleanup() {
     let execution_root = exec_root_base.join(submit_key.replace(':', "_"));
     assert!(!execution_root.exists(), "execution root should be removed");
 
-    let result =
-        handle_remote_v1_request(&context, &store, "GET", "/v1/tasks/task-run-1/result", None)
-            .expect("result response");
+    let result = takd::daemon::remote::handle_remote_v1_request(
+        &context,
+        &store,
+        "GET",
+        "/v1/tasks/task-run-1/result",
+        &[],
+        None,
+    )
+    .expect("result response");
     let result = GetTaskResultResponse::decode(result.body.as_slice()).expect("decode result");
     assert_eq!(result.outputs.len(), 1);
     assert_eq!(result.outputs[0].path, "dist/out.txt");
 
     for _ in 0..3 {
-        let output = handle_remote_v1_request(
+        let output = takd::daemon::remote::handle_remote_v1_request(
             &context,
             &store,
             "GET",
             "/v1/tasks/task-run-1/outputs?path=dist/out.txt",
+            &[],
             None,
         )
         .expect("output response");

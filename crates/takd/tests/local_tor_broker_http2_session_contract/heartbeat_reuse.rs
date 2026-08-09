@@ -2,7 +2,6 @@ use prost::Message;
 use std::time::Duration;
 use tak_core::remote_inventory::{RemoteInventory, RemoteRecord};
 use tak_proto::NodePingResponse;
-use takd::{PeerManager, TorBroker, new_shared_manager};
 
 use crate::support;
 use support::local_broker_http::send_broker_get_h2;
@@ -13,8 +12,8 @@ async fn peer_heartbeat_warms_http2_session_reused_by_later_broker_request() {
     let remote = support::http2_remote::Http2Remote::spawn(node_ping_body()).await;
     let socket_path = temp.path().join("run/takd.sock");
     let server_socket_path = socket_path.clone();
-    let broker = TorBroker::for_test_dial_addr(remote.addr.clone());
-    let peers = PeerManager::from_inventory(RemoteInventory {
+    let broker = crate::support::local_runtime::tor_broker(remote.addr.clone());
+    let peers = crate::support::local_runtime::peer_manager(RemoteInventory {
         version: 1,
         remotes: vec![RemoteRecord {
             node_id: "builder-h2".into(),
@@ -32,7 +31,7 @@ async fn peer_heartbeat_warms_http2_session_reused_by_later_broker_request() {
     let server = tokio::spawn(async move {
         takd::run_server_with_broker_and_peers(
             &server_socket_path,
-            new_shared_manager(),
+            crate::support::local_runtime::in_memory_lease_manager(),
             broker,
             peers,
         )

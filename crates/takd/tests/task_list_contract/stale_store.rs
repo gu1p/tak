@@ -1,20 +1,24 @@
 use crate::support;
 
 use tak_proto::ActiveJob;
-use takd::agent::{InitAgentOptions, init_agent, read_config};
+use takd::agent::read_config;
 use takd::daemon::remote::SubmitAttemptStore;
+
+#[path = "stale_store_agent.rs"]
+mod agent_fixture;
 
 #[test]
 fn tasks_uses_live_control_socket_not_unfinished_sqlite_rows() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = support::cli::roots(temp.path());
-    init_direct_agent(&config_root, &state_root);
+    agent_fixture::init_direct_agent(&config_root, &state_root);
     let store = SubmitAttemptStore::with_db_path(state_root.join("agent.sqlite")).expect("store");
     store
-        .register_submit_with_task_label(
+        .register_submit_with_execution_root_base(
             "stale-run",
             Some(1),
             "//apps/web:stale",
+            None,
             "node-a",
             temp.path(),
         )
@@ -44,7 +48,7 @@ fn tasks_uses_live_control_socket_not_unfinished_sqlite_rows() {
 fn tasks_prints_execution_label_for_live_jobs_when_available() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = support::cli::roots(temp.path());
-    init_direct_agent(&config_root, &state_root);
+    agent_fixture::init_direct_agent(&config_root, &state_root);
     let mut status = support::takd_tasks::empty_status("node-a");
     status.active_jobs.push(ActiveJob {
         task_run_id: "task-run-live".into(),
@@ -78,23 +82,4 @@ fn tasks_prints_execution_label_for_live_jobs_when_available() {
         !stdout.contains("task_label=//apps/web:fmt-check"),
         "raw task label should not be primary when execution label exists:\n{stdout}"
     );
-}
-
-fn init_direct_agent(config_root: &std::path::Path, state_root: &std::path::Path) {
-    init_agent(
-        config_root,
-        state_root,
-        InitAgentOptions {
-            node_id: Some("node-a"),
-            display_name: None,
-            transport: Some("direct"),
-            base_url: Some("http://127.0.0.1:43123"),
-            pools: &[],
-            tags: &[],
-            capabilities: &[],
-            image_cache_budget_percent: None,
-            image_cache_budget_gb: None,
-        },
-    )
-    .expect("init agent");
 }

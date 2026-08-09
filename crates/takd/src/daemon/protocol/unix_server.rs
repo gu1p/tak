@@ -1,23 +1,5 @@
 use super::*;
 
-pub async fn run_server(socket_path: &Path, manager: SharedLeaseManager) -> Result<()> {
-    run_server_with_broker(socket_path, manager, TorBroker::new()).await
-}
-
-pub async fn run_server_with_broker(
-    socket_path: &Path,
-    manager: SharedLeaseManager,
-    broker: TorBroker,
-) -> Result<()> {
-    run_server_with_broker_and_peers(
-        socket_path,
-        manager,
-        broker,
-        crate::daemon::peer_manager::PeerManager::default(),
-    )
-    .await
-}
-
 pub async fn run_server_with_broker_and_peers(
     socket_path: &Path,
     manager: SharedLeaseManager,

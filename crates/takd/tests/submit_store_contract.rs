@@ -8,7 +8,14 @@ fn submit_store_preserves_idempotency_events_and_result_contract() {
     let execution_root_base = temp.path().join("exec-root");
 
     let first = store
-        .register_submit("task-run-1", Some(1), "node-a", &execution_root_base)
+        .register_submit_with_execution_root_base(
+            "task-run-1",
+            Some(1),
+            "",
+            None,
+            "node-a",
+            &execution_root_base,
+        )
         .expect("register first submit");
     let key = match first {
         SubmitRegistration::Created { idempotency_key } => idempotency_key,
@@ -16,7 +23,14 @@ fn submit_store_preserves_idempotency_events_and_result_contract() {
     };
 
     let duplicate = store
-        .register_submit("task-run-1", Some(1), "node-a", &execution_root_base)
+        .register_submit_with_execution_root_base(
+            "task-run-1",
+            Some(1),
+            "",
+            None,
+            "node-a",
+            &execution_root_base,
+        )
         .expect("register duplicate submit");
     match duplicate {
         SubmitRegistration::Attached { idempotency_key } => {

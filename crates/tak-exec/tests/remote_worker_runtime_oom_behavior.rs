@@ -3,7 +3,7 @@
 use std::fs;
 use std::sync::Arc;
 
-use tak_exec::{TaskOutputObserver, execute_remote_worker_steps_with_output};
+use tak_exec::{TaskOutputObserver, execute_remote_worker_steps_with_output_and_cancellation};
 
 use crate::support;
 use support::{
@@ -30,10 +30,14 @@ async fn remote_worker_explains_137_with_container_oom_state() {
     let observer = Arc::new(CollectingStatusObserver::default());
     let output_observer: Arc<dyn TaskOutputObserver> = observer.clone();
 
-    let result =
-        execute_remote_worker_steps_with_output(&workspace_root, &spec, Some(output_observer))
-            .await
-            .expect("137 container exit should return a task result");
+    let result = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        Some(output_observer),
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect("137 container exit should return a task result");
 
     assert!(!result.success);
     assert_eq!(result.exit_code, Some(137));

@@ -2,7 +2,9 @@ use std::fs;
 use std::sync::Arc;
 
 use tak_core::model::{ContainerRuntimeSourceSpec, PathAnchor, PathRef, RemoteRuntimeSpec};
-use tak_exec::{OutputStream, TaskOutputObserver, execute_remote_worker_steps_with_output};
+use tak_exec::{
+    OutputStream, TaskOutputObserver, execute_remote_worker_steps_with_output_and_cancellation,
+};
 
 use crate::support::{
     CollectingObserver, EnvGuard, FakeDockerDaemon, configure_real_docker_env, env_lock,
@@ -47,10 +49,14 @@ async fn remote_worker_streams_dockerfile_build_logs_and_preserves_error_detail(
     let observer = Arc::new(CollectingObserver::default());
     let output_observer: Arc<dyn TaskOutputObserver> = observer.clone();
 
-    let error =
-        execute_remote_worker_steps_with_output(&workspace_root, &spec, Some(output_observer))
-            .await
-            .expect_err("dockerfile build failure should fail remote worker execution");
+    let error = execute_remote_worker_steps_with_output_and_cancellation(
+        &workspace_root,
+        &spec,
+        Some(output_observer),
+        &tak_exec::RunCancellation::default(),
+    )
+    .await
+    .expect_err("dockerfile build failure should fail remote worker execution");
     let error_message = format!("{error:#}");
     assert!(
         error_message.contains("infra error: container lifecycle build failed: failed to solve"),
