@@ -74,13 +74,3 @@ fn parse_component(component: &str, original: &str) -> Result<u64, VersionParseE
         .parse::<u64>()
         .map_err(|_| VersionParseError::NonNumeric(original.to_string()))
 }
-
-/// Render a version as a release tag string (`vX.Y.Z`).
-///
-/// ```rust
-/// use tak_update::version::{parse_version, tag_string};
-/// assert_eq!(tag_string(parse_version("0.1.7").unwrap()), "v0.1.7");
-/// ```
-pub fn tag_string(version: Version) -> String {
-    format!("v{version}")
-}
