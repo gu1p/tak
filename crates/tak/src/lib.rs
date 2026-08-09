@@ -1,7 +1,8 @@
-//! Tak command-line interface for project-local `TASKS.py` workspaces.
+//! Tak command-line interface for project-local task workspaces and Makefiles.
 //!
-//! The CLI loads the current directory's `TASKS.py`, resolves the workspace graph,
-//! and dispatches local, remote, and graph-inspection flows through one testable library.
+//! Graph commands load the current directory's `TASKS.py`; `tak make` instead resolves one
+//! annotated Makefile goal. Both paths dispatch local or remote execution through the same
+//! testable runtime boundary.
 
 #![recursion_limit = "256"]
 

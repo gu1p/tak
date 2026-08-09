@@ -6364,6 +6364,7 @@ dependencies = [
  "tak-core",
  "tak-exec",
  "tak-loader",
+ "tak-make",
  "tak-proto",
  "tak-update",
  "takd",
@@ -6449,6 +6450,15 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "toml 0.8.23",
+]
+
+[[package]]
+name = "tak-make"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

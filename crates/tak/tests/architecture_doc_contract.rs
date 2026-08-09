@@ -36,6 +36,7 @@ fn architecture_docs_cover_tor_first_peer_network_contract() {
     let combined = [
         "ARCHITECTURE.md",
         "crates/tak/ARCHITECTURE.md",
+        "crates/tak-make/ARCHITECTURE.md",
         "crates/tak-core/ARCHITECTURE.md",
         "crates/tak-exec/ARCHITECTURE.md",
         "crates/takd/ARCHITECTURE.md",

@@ -102,6 +102,7 @@ WORKSPACE_CRATES = [
             ("tak-core::endpoint", "endpoint/index.html"),
         ],
     ),
+    ("tak-make", "tak_make", []),
     ("tak-loader", "tak_loader", []),
     ("tak-proto", "tak_proto", []),
     ("tak-runner", "tak_runner", []),

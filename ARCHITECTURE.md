@@ -1,25 +1,28 @@
 # Tak Architecture
 
-Tak is a project-local task orchestrator. Every workspace starts from the current directory
-`TASKS.py`, can expand only through explicit `module_spec(includes=[...])` links, and ends as one
-validated dependency graph that `tak` executes locally or on remote `takd` agents.
+Tak is a project-local task orchestrator. A Tak-authored workspace starts from the current
+directory `TASKS.py`, expands only through explicit `module_spec(includes=[...])` links, and ends
+as one validated dependency graph. A Makefile workspace can instead use `tak make <goal>` to send
+one opaque Make invocation through the same local or remote execution boundary.
 
 This document describes the shipped system shape. Crate-level architecture docs carry the lower
 level implementation details.
 
 ## Runtime Boundaries
 
-Tak is organized around five runtime boundaries:
+Tak is organized around six runtime boundaries:
 
 1. CLI boundary (`tak`)
    - parses user intent, renders output, and owns local/remote command contracts
-2. Loader boundary (`tak-loader`)
+2. Make adapter boundary (`tak-make`)
+   - reads default Makefiles and resolves literal goal annotations through injected ports
+3. Loader boundary (`tak-loader`)
    - resolves the current directory workspace and builds one validated `WorkspaceSpec`
-3. Core boundary (`tak-core`)
+4. Core boundary (`tak-core`)
    - shared label/model/planner logic plus shared runtime path and remote inventory helpers
-4. Execution boundary (`tak-exec`)
+5. Execution boundary (`tak-exec`)
    - runs local tasks, enforces retries/timeouts, and sends Tor remote execution to the local daemon
-5. Agent/runtime boundary (`takd`)
+6. Agent/runtime boundary (`takd`)
    - hosts the unified local daemon, Tor peer manager, broker, and remote execution agent
 
 The `takd` crate contains one service command with related server-side capabilities:
@@ -46,7 +49,9 @@ Tak remote does not provide multi-user isolation.
 ```mermaid
 flowchart LR
     CLI[tak CLI] --> Loader[tak-loader]
+    CLI --> Make[tak-make]
     Loader --> Core[tak-core]
+    Make --> Exec[tak-exec]
     CLI --> Exec[tak-exec]
     Exec -->|local tasks| Local[local host/container runtime]
     Exec -->|Tor remote placement request| LocalTakd[local takd serve]
@@ -76,6 +81,13 @@ Important loader rules:
 - includes are explicit and relative to the including module
 - all merged task labels are canonical before execution
 - duplicate definitions fail during merge, not during task execution
+
+`tak make <goal>` bypasses this loader pipeline. `tak-make` reads GNU Make's default file-name
+order, accepts literal single-target headers, and passes one `make <goal>` process to `tak-exec`.
+Make remains responsible for its own prerequisite graph. Contiguous `# tak:` comments may select
+local/remote placement and a container image or Dockerfile; CLI execution flags take precedence.
+The initial adapter declares no output paths, so remote Make output streams and status return to
+the client while files created in the remote execution root do not.
 
 ## Execution and Placement Flow
 
@@ -185,6 +197,7 @@ System invariants:
 
 - the current directory is the only implicit workspace root
 - `TASKS.py` loading is explicit and bounded by includes
+- `tak make <goal>` never decomposes or reschedules Make's dependency graph
 - dependency graphs must validate before execution begins
 - labels are normalized before lookup and scheduling
 - lease coordination is optional, but when enabled it is all-or-none per request
@@ -193,6 +206,7 @@ System invariants:
 Common failure classes:
 
 - missing or invalid `TASKS.py`
+- missing Makefiles, unknown literal Make goals, or unsupported annotated Make rule syntax
 - include-cycle or duplicate-definition errors
 - unknown dependency labels or DAG cycles
 - step launch failures, non-zero exits, retry exhaustion, or timeouts
@@ -205,6 +219,7 @@ Common failure classes:
 ## Navigation
 
 - CLI contract details: [`crates/tak/ARCHITECTURE.md`](crates/tak/ARCHITECTURE.md)
+- Makefile adapter: [`crates/tak-make/ARCHITECTURE.md`](crates/tak-make/ARCHITECTURE.md)
 - Core model + algorithms: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)
 - Loader pipeline: [`crates/tak-loader/ARCHITECTURE.md`](crates/tak-loader/ARCHITECTURE.md)
 - Execution semantics: [`crates/tak-exec/ARCHITECTURE.md`](crates/tak-exec/ARCHITECTURE.md)

@@ -1,6 +1,6 @@
 # Tak
 
-Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the current directory's `TASKS.py`, follows explicit `module_spec(includes=[...])` links, builds one validated dependency graph, and executes local host work, local containerized work, and remote containerized work with consistent retry, timeout, and resource-coordination behavior.
+Tak is a task orchestrator for project-local `TASKS.py` workspaces and ordinary Makefiles. It can load a Tak-authored dependency graph, or wrap one `make <goal>` invocation so the existing Make build runs on the local host, in a local container, or on a remote agent.
 
 ## Why Teams Use Tak
 
@@ -12,6 +12,7 @@ Tak is a task orchestrator for project-local `TASKS.py` workspaces. It loads the
 ## Core Capabilities
 
 - Current-directory workspace loading with explicit `module_spec(includes=[...])` composition.
+- Makefile goal execution without requiring `TASKS.py`.
 - Strict label parsing for absolute and relative task references.
 - DAG validation (missing dependency and cycle detection) before execution.
 - Command and script step execution with explicit `cwd` and `env` control.
@@ -56,6 +57,10 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Print DOT graph for Graphviz or pipeline tooling.
 - `tak web [label]`
   - Serve an interactive dependency graph UI locally. This is a graph viewer, not a remote-operations client.
+- `tak make <goal>`
+  - Run one ordinary Makefile goal through Tak while Make retains ownership of its dependency graph.
+- `tak make --remote <goal>`
+  - Force the whole `make <goal>` invocation onto a remote container; the Makefile may also declare this with `# tak:` comments.
 - `tak run <label...>`
   - Execute targets and dependencies.
 - `tak run hello`
@@ -155,6 +160,36 @@ Key fields:
 - `runtime=` runtime kind resolved for remote execution.
 - `runtime_engine=` concrete runtime engine when applicable.
 
+## Makefile Mode
+
+`tak make <goal>` does not load or require `TASKS.py`. Tak reads the same default file name order
+as GNU Make (`GNUmakefile`, `makefile`, then `Makefile`), resolves a literal target header, and
+executes exactly one opaque `make <goal>` command. Make—not Tak—expands and schedules that goal's
+prerequisites. With no execution annotation or CLI override, Tak runs it on the local host.
+
+Contiguous comments immediately above a goal can select placement and a container:
+
+```make
+# tak: execution=remote
+# tak: container-dockerfile=docker/test.Dockerfile
+# tak: container-build-context=.
+test: build
+	./scripts/test.sh
+```
+
+Supported keys are `execution=local|remote`, `container-image=<reference>`,
+`container-dockerfile=<path>`, and `container-build-context=<path>`. The command accepts the same
+`--local`, `--local-no-container`, `--remote`, `--container`, `--container-image`,
+`--container-dockerfile`, and `--container-build-context` overrides as `tak exec`; command-line
+placement and runtime choices win over comments.
+
+The annotation reader intentionally supports only literal single-target `target: prerequisites`
+headers. It does not interpret includes, expanded target names, generated rules, multi-target rules,
+pattern rules, target-specific variable assignments, or double-colon rules. Unsupported annotated declarations fail clearly instead of
+silently selecting the wrong runtime. In this first version, remote Make runs stream output and
+status back, but generated files are not materialized locally because `tak make` has no declared
+output paths yet.
+
 ## Quickstart
 
 For the current ergonomics story and distributed execution roadmap, see [Ergonomics and Distributed Execution Phases](docs/ergonomics-and-distribution-phases.md).
@@ -253,9 +288,16 @@ tak graph //apps/web:test_ui --format dot
 tak run //apps/web:test_ui -j 4 --keep-going
 ```
 
+For an existing Make project with no `TASKS.py`, run a goal directly:
+
+```bash
+tak make test
+```
+
 Workspace rules:
 
-- Tak loads only the current directory's `TASKS.py`.
+- Workspace graph commands load only the current directory's `TASKS.py`; `tak make` uses the
+  current directory's default Makefile instead.
 - Tak never widens scope by scanning parent or child directories implicitly.
 - Multi-package projects compose extra modules explicitly with `module_spec(includes=[path("apps/web"), ...])`.
 - At a workspace root, `tak run hello` is shorthand for `tak run //:hello`.
@@ -288,6 +330,7 @@ SPEC
 ## Crate Map
 
 - `crates/tak-core`: canonical model types, labels, DAG planner.
+- `crates/tak-make`: injected Makefile reader, literal annotation resolver, and goal execution use case.
 - `crates/tak-loader`: `TASKS.py` discovery, evaluation, and merge.
 - `crates/tak-exec`: runtime executor, retry/timeout handling, and remote placement.
 - `crates/takd`: standalone execution agent and sqlite-backed remote submit store.

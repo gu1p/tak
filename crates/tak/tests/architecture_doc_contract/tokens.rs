@@ -1,6 +1,8 @@
-pub(super) const REQUIRED_TOKENS: [&str; 9] = [
+pub(super) const REQUIRED_TOKENS: [&str; 11] = [
     "current directory",
     "`TASKS.py`",
+    "`tak make <goal>`",
+    "`tak-make`",
     "`module_spec(includes=[...])`",
     "`takd init`",
     "`takd serve`",

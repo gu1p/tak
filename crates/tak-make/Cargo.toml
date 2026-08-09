@@ -1,0 +1,16 @@
+[package]
+name = "tak-make"
+version = "0.1.0"
+edition = "2024"
+autotests = false
+
+[[test]]
+name = "suite"
+path = "tests/mod.rs"
+
+[dependencies]
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio.workspace = true
