@@ -31,6 +31,8 @@ fn repo_root_tasks_surface_lists_tak_owned_workflow_targets() -> Result<()> {
         "//:workflow-contract-check",
         "//:generated-artifact-ignore-check",
         "//:lint",
+        "//:native-dead-code",
+        "//:native-dead-code-install",
         "//:test",
         "//:docs-check",
         "//:docs-wiki",

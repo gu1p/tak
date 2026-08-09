@@ -39,6 +39,7 @@ mod root_check_rust_contract;
 mod root_coverage_script_behavior_contract;
 mod root_coverage_script_contract;
 mod root_docs_check_contract;
+mod root_native_dead_code_contract;
 mod root_tasks_context_contract;
 mod root_tasks_contract;
 mod root_test_dockerfile_contract;

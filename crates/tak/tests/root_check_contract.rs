@@ -21,6 +21,7 @@ fn repo_root_check_runs_light_checks_then_shared_rust_lane() -> Result<()> {
         parse("//:src-test-separation-check"),
         parse("//:workflow-contract-check"),
         parse("//:generated-artifact-ignore-check"),
+        parse("//:native-dead-code"),
         parse("//:check-rust"),
     ]);
 

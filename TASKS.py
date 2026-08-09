@@ -164,6 +164,31 @@ SPEC = module_spec(
             steps=[cmd("bash", "scripts/check_generated_artifacts_ignore.sh")],
         ),
         task(
+            "native-dead-code-install",
+            doc="Install the pinned Rust toolchain and Hawk dead-code analyzer.",
+            needs=cargo_needs(),
+            steps=[
+                script(
+                    "scripts/native_dead_code.sh",
+                    "install",
+                    interpreter="bash",
+                )
+            ],
+        ),
+        task(
+            "native-dead-code",
+            doc="Find Rust declarations reachable only from tests.",
+            deps=[":native-dead-code-install"],
+            needs=cargo_needs(),
+            steps=[
+                script(
+                    "scripts/native_dead_code.sh",
+                    "check",
+                    interpreter="bash",
+                )
+            ],
+        ),
+        task(
             "lint",
             needs=cargo_needs(),
             steps=[cargo_cmd("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")],
@@ -243,6 +268,7 @@ SPEC = module_spec(
                 ":src-test-separation-check",
                 ":workflow-contract-check",
                 ":generated-artifact-ignore-check",
+                ":native-dead-code",
                 ":check-rust",
             ],
             execution=CHECK_WORKSPACE_POLICY,
