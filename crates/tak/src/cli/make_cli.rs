@@ -6,6 +6,7 @@ use tak_make::{FilesystemMakefileReader, RunMake, RunMakeRequest};
 use super::command_model::MakeArgs;
 
 mod executor;
+mod output;
 mod task;
 
 use executor::TakGoalExecutor;

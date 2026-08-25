@@ -38,8 +38,20 @@ async fn queued_remote_submit_can_be_cancelled_before_resource_admission() {
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let limits = majority_memory_limits(&context, &store);
 
-    submit(&context, &store, "task-run-active", "sleep 60", limits);
-    submit(&context, &store, "task-run-queued", "printf queued", limits);
+    submit(
+        &context,
+        &store,
+        "task-run-active",
+        "sleep 60",
+        Some(limits),
+    );
+    submit(
+        &context,
+        &store,
+        "task-run-queued",
+        "printf queued",
+        Some(limits),
+    );
 
     wait_for_status(&context, &store, |status| {
         status

@@ -39,6 +39,7 @@ fn make_help_exposes_the_goal_and_execution_controls() -> Result<()> {
         "--container-image",
         "--container-dockerfile",
         "--container-build-context",
+        "--parallel-output",
     ] {
         assert!(
             exposes(option),

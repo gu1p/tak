@@ -24,6 +24,16 @@ pub enum ContainerSource {
     },
 }
 
+/// How output from concurrently executing Make goals is presented.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ParallelOutputMode {
+    /// Write each logical line as soon as it arrives.
+    #[default]
+    Live,
+    /// Hold each goal's output until that goal completes.
+    Grouped,
+}
+
 /// Resolved Tak execution metadata after file defaults and goal overrides are merged.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GoalAnnotations {

@@ -4,7 +4,7 @@ mod run_make;
 
 pub use error::{MakefileReadError, RunMakeError};
 pub use ports::{
-    GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeRunOutcome, MakefileReader,
-    MakefileSource, RunMakeRequest,
+    GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeExecutionPlan, MakeGoalExecution,
+    MakeRunOutcome, MakefileReader, MakefileSource, RunMakeRequest,
 };
 pub use run_make::RunMake;

@@ -12,7 +12,7 @@ pub(super) fn submit(
     store: &SubmitAttemptStore,
     task_run_id: &str,
     command: &str,
-    limits: ContainerResourceLimits,
+    limits: Option<ContainerResourceLimits>,
 ) {
     let submit = SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
@@ -31,7 +31,7 @@ pub(super) fn submit(
                 image: Some("alpine:3.20".into()),
                 dockerfile: None,
                 build_context: None,
-                resource_limits: Some(limits),
+                resource_limits: limits,
             })),
         }),
         task_label: "//apps/web:build".to_string(),

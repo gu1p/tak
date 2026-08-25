@@ -62,13 +62,18 @@ fn resource_limits_from_runtime(
     runtime: Option<&RemoteRuntimeSpec>,
 ) -> Result<ContainerResourceLimitsSpec> {
     let Some(RemoteRuntimeSpec::Containerized {
-        resource_limits: Some(limits),
-        ..
+        resource_limits, ..
     }) = runtime
     else {
         return Err(anyhow!(
-            "invalid_submit_fields: execution.runtime.container.resource_limits is required"
+            "invalid_submit_fields: execution.runtime is required"
         ));
+    };
+    let Some(limits) = resource_limits else {
+        return Ok(ContainerResourceLimitsSpec {
+            cpu_cores: None,
+            memory_mb: None,
+        });
     };
     if limits.cpu_cores.is_none() || limits.memory_mb.is_none() {
         return Err(anyhow!(

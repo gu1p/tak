@@ -1,4 +1,19 @@
 use super::*;
+use crate::cli::run_override_runtime::explicit_container_runtime_override;
+
+#[test]
+fn explicit_cli_container_sources_do_not_add_resource_limits() {
+    for runtime in [
+        explicit_container_runtime_override(Some("alpine:3.20"), None, None),
+        explicit_container_runtime_override(None, Some("docker/Dockerfile"), Some("docker")),
+    ] {
+        let runtime = runtime.expect("valid source").expect("container runtime");
+        let RemoteRuntimeSpec::Containerized {
+            resource_limits, ..
+        } = runtime;
+        assert_eq!(resource_limits, None);
+    }
+}
 
 #[test]
 fn resolve_container_runtime_uses_workspace_default_when_task_has_no_declared_runtime() {

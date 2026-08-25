@@ -1,3 +1,9 @@
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub(in crate::cli) enum MakeParallelOutputArg {
+    Live,
+    Grouped,
+}
+
 #[derive(Debug, clap::Args)]
 pub(in crate::cli) struct MakeArgs {
     /// The Make goal to execute.
@@ -23,4 +29,7 @@ pub(in crate::cli) struct MakeArgs {
     /// Override the Dockerfile build context directory.
     #[arg(long = "container-build-context")]
     pub(in crate::cli) container_build_context: Option<String>,
+    /// Present concurrent goal output live or grouped by completed goal.
+    #[arg(long = "parallel-output", value_enum)]
+    pub(in crate::cli) parallel_output: Option<MakeParallelOutputArg>,
 }

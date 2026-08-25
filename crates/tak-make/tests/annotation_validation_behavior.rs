@@ -13,6 +13,10 @@ async fn invalid_annotation_forms_fail_clearly() {
         ),
         ("# tak: execution=nearby\ntest:\n", "local` or `remote"),
         (
+            "# tak: parallel-output=quiet\ntest:\n",
+            "expected `live` or `grouped`",
+        ),
+        (
             "# tak: container-build-context=.\ntest:\n",
             "requires `container-dockerfile`",
         ),

@@ -36,6 +36,9 @@ flowchart LR
 - Dependencies must reference existing tasks.
 - Module defaults apply consistently when task-local values are absent.
 - Scope keys are derived from scope type (`machine/user/project/worktree`).
+- Container CPU and memory resources are optional. When present, both values must come from the
+  typed `Container.Resources(...)` DSL value; omission means no implicit container limit or remote
+  admission reservation.
 
 ## Failure Classes
 

@@ -53,6 +53,7 @@ mod remote_worker_runtime_nonzero_exit_behavior;
 mod remote_worker_runtime_oom_behavior;
 mod remote_worker_runtime_streaming_behavior;
 mod run_jobs_parallel_behavior;
+mod run_keep_going_dependency_behavior;
 mod tor_broker_fallback_behavior;
 mod tor_broker_remote_failure_behavior;
 mod tor_broker_unavailable_behavior;

@@ -2,7 +2,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
-use crate::domain::GoalAnnotations;
+use crate::domain::{GoalAnnotations, ParallelOutputMode};
 
 use super::{MakefileReadError, RunMakeError};
 
@@ -56,6 +56,34 @@ pub struct GoalExecutionRequest {
     pub annotations: GoalAnnotations,
 }
 
+/// One node in an explicitly parallel Make execution graph.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MakeGoalExecution {
+    /// Literal Make target represented by this node.
+    pub goal: String,
+    /// Executable and arguments for this Make invocation.
+    pub argv: Vec<String>,
+    /// Tak placement and runtime metadata inherited by this node.
+    pub annotations: GoalAnnotations,
+    /// Immediate Tak-managed prerequisite goals.
+    pub dependencies: Vec<String>,
+    /// Output presentation selected for this node.
+    pub parallel_output: ParallelOutputMode,
+}
+
+/// Fully resolved graph handed to an execution adapter for one parallel Make run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MakeExecutionPlan {
+    /// Workspace in which all Make invocations execute.
+    pub workspace_root: PathBuf,
+    /// Makefile path selected by the reader.
+    pub makefile_path: PathBuf,
+    /// Requested root target.
+    pub root_goal: String,
+    /// Goals in stable recursive left-to-right completion order.
+    pub goals: Vec<MakeGoalExecution>,
+}
+
 /// Observable completion of a Make invocation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MakeRunOutcome {
@@ -94,4 +122,18 @@ pub trait GoalExecutor: Send + Sync {
     /// drop(pending);
     /// ```
     fn execute(&self, request: GoalExecutionRequest) -> GoalExecutionFuture<'_>;
+
+    /// Executes a Tak-managed graph of Make invocations.
+    ///
+    /// ```no_run
+    /// # // Reason: adapters execute external Make processes.
+    /// # fn accepts(_executor: &dyn tak_make::GoalExecutor, _plan: tak_make::MakeExecutionPlan) {}
+    /// ```
+    fn execute_plan(&self, _plan: MakeExecutionPlan) -> GoalExecutionFuture<'_> {
+        Box::pin(async {
+            Err(RunMakeError::execution(
+                "parallel Make execution is unsupported by this adapter",
+            ))
+        })
+    }
 }

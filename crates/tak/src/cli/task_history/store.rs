@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -7,6 +6,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use rusqlite::{Connection, OpenFlags, params};
 
 mod active;
+mod open;
 mod write;
 
 pub(in crate::cli) use active::ActiveTaskRow;
@@ -109,26 +109,6 @@ impl TaskHistoryStore {
         let mut stmt = conn.prepare("SELECT 1 FROM task_runs WHERE task_run_id = ?1 LIMIT 1")?;
         let mut rows = stmt.query(params![task_run_id.trim()])?;
         Ok(rows.next()?.is_some())
-    }
-}
-
-impl TaskHistoryWriter {
-    pub(in crate::cli::task_history) fn open_default() -> Result<Self> {
-        Self::open(default_db_path()?)
-    }
-
-    fn open(db_path: PathBuf) -> Result<Self> {
-        if let Some(parent) = db_path.parent() {
-            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
-        }
-        let conn = Connection::open_with_flags(
-            &db_path,
-            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-        )
-        .with_context(|| format!("open task history db {}", db_path.display()))?;
-        configure_write_connection(&conn)?;
-        ensure_schema(&conn)?;
-        Ok(Self { conn })
     }
 }
 

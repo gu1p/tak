@@ -122,6 +122,11 @@ Startup recovery:
 - Requests exceeding available capacity are returned as pending.
 - Pending queue position is surfaced to clients.
 - Releasing/expiring leases frees capacity for subsequent requests.
+- Remote container CPU/memory limits are optional. An omitted limit creates no CPU or memory
+  reservation and does not constrain the container; explicit limits retain admission and quota
+  behavior.
+- The emergency memory-pressure admission hold still queues new starts regardless of whether a
+  request declared limits.
 
 ## Failure Classes
 

@@ -106,6 +106,8 @@ fn load_fit_rank(load: &RemoteTargetLoad) -> u8 {
     }
 }
 
+// Preserve the complete structured diagnostic for each failed remote candidate.
+#[allow(clippy::result_large_err)]
 pub(crate) async fn preflight_strict_remote_target(
     target: &StrictRemoteTarget,
 ) -> std::result::Result<(), RemotePreflightFailure> {

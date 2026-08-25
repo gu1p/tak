@@ -38,7 +38,7 @@ High-level flow:
 | `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional guided label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
 | `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)`; Tor remotes require local `takd serve` placement | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
 | `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
-| `tak make <goal>` | "Run this existing Make build through Tak" | `tak-make` goal resolution + synthetic one-step task + `run_resolved_task(...)` | Streams `make <goal>` stdout/stderr live, reports an unconfigured local-host fallback on stderr, and exits with Make's exit code. |
+| `tak make <goal>` | "Run this existing Make build through Tak" | `tak-make` goal/parallel-plan resolution + synthetic Tak task graph + `run_resolved_task(...)` or `run_tasks(...)` | Preserves opaque Make behavior unless `parallel` is annotated; parallel lines are target-prefixed and may be live or grouped. |
 | `tak status [--node <id>...] [--watch] [--interval-ms N]` | "What is local Tak doing, and what are my daemon-managed remotes doing?" | XDG task history + local daemon `Status` + daemon `PeersList` when reachable | Local section plus remote node, container, and active-job sections; watch mode repeats snapshots. |
 | `tak local status [--watch] [--interval-ms N]` | "What is this local Tak client doing?" | XDG task history + local CPU/RAM/storage + optional `TAKD_SOCKET` status | Local resource line plus container and active-job sections. |
 | `tak remote add <token>` | "Add a remote execution agent" | secret invite/token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
@@ -98,16 +98,21 @@ High-level flow:
 - Does not require a `TASKS.py` workspace.
 - Searches `GNUmakefile`, `makefile`, then `Makefile` and resolves a literal single-target header.
 - Reads file-wide defaults from `# tak: default.<key>=<value>` comments.
-- Reads only contiguous `# tak:` comments directly above the goal; supported settings select
-  local/remote execution plus an image or Dockerfile container source.
-- Builds one synthetic `make <goal>` task. Make owns and schedules its prerequisite graph.
+- Reads only contiguous `# tak:` comments directly above a goal; supported settings select
+  local/remote execution, an image or Dockerfile container source, parallel direct prerequisites,
+  and live/grouped output.
+- Builds one synthetic `make <goal>` task by default. An explicit `parallel=a,b` annotation instead
+  builds a recursive Tak DAG and uses `--assume-old` join invocations after promoted children.
 - Resolves CLI flags over goal annotations over global defaults over the implicit local-host
   fallback.
 - Reports that implicit fallback on stderr and explains how to enable remote execution.
-- Streams Make stdout/stderr and preserves its process exit code.
+- Prefixes each parallel logical output line with its Make target and preserves deterministic
+  first-failure exit semantics while unrelated branches finish.
 - Rejects annotated multi-target, pattern, double-colon, target-specific-variable, expanded,
   included, or generated rule syntax rather than guessing.
 - Declares no output paths in the first version; a remote run does not copy generated files back.
+- CLI-created image and Dockerfile runtimes omit CPU/memory limits. Authored
+  `Container.Resources(...)` values remain explicit admission/container quotas.
 
 ### `web`
 

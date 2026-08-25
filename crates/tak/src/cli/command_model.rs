@@ -7,7 +7,7 @@ mod remote;
 mod task;
 
 pub(super) use local::LocalCommands;
-pub(super) use make::MakeArgs;
+pub(super) use make::{MakeArgs, MakeParallelOutputArg};
 pub(super) use remote::{RemoteCommands, RemoteTaskCommands};
 pub(super) use task::TaskCommands;
 

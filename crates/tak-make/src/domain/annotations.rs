@@ -1,11 +1,14 @@
 use std::collections::BTreeMap;
 
-use super::{ContainerSource, ExecutionPlacement, GoalAnnotations, MakefileParseError};
+use super::annotation_values::{parse_parallel, parse_parallel_output, parse_placement};
+use super::{
+    ContainerSource, ExecutionPlacement, GoalAnnotations, MakefileParseError, ParallelOutputMode,
+};
 
 pub(super) struct Annotation {
-    line: usize,
-    key: String,
-    value: String,
+    pub(super) line: usize,
+    pub(super) key: String,
+    pub(super) value: String,
 }
 
 pub(super) enum ParsedAnnotation {
@@ -13,12 +16,14 @@ pub(super) enum ParsedAnnotation {
     Goal(Annotation),
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct AnnotationSettings {
-    placement: Option<ExecutionPlacement>,
-    image: Option<String>,
-    dockerfile: Option<String>,
-    build_context: Option<String>,
+    pub(super) placement: Option<ExecutionPlacement>,
+    pub(super) image: Option<String>,
+    pub(super) dockerfile: Option<String>,
+    pub(super) build_context: Option<String>,
+    pub(super) parallel: Option<Vec<String>>,
+    pub(super) parallel_output: Option<ParallelOutputMode>,
 }
 
 pub(super) fn parse_annotation(
@@ -43,6 +48,9 @@ pub(super) fn parse_annotation(
         Some(key) => (true, key),
         None => (false, key),
     };
+    if is_default && key == "parallel" {
+        return Err(MakefileParseError::DefaultParallel { line: line_number });
+    }
     let annotation = Annotation {
         line: line_number,
         key: key.to_string(),
@@ -72,6 +80,8 @@ pub(super) fn resolve_annotation_block(
     let image = value(&values, "container-image");
     let dockerfile = value(&values, "container-dockerfile");
     let build_context = value(&values, "container-build-context");
+    let parallel = parse_parallel(values.get("parallel").copied())?;
+    let parallel_output = parse_parallel_output(values.get("parallel-output").copied())?;
     if image.is_some() && dockerfile.is_some() {
         return Err(MakefileParseError::ConflictingContainerSources);
     }
@@ -80,6 +90,8 @@ pub(super) fn resolve_annotation_block(
         image,
         dockerfile,
         build_context,
+        parallel,
+        parallel_output,
     })
 }
 
@@ -87,9 +99,35 @@ pub(super) fn resolve_annotations(
     defaults: &AnnotationSettings,
     goal: AnnotationSettings,
 ) -> Result<GoalAnnotations, MakefileParseError> {
-    let placement = goal.placement.or(defaults.placement);
-    let (image, dockerfile, build_context) = merge_container_settings(defaults, goal);
-    let container = parse_container(image, dockerfile, build_context)?;
+    resolve_goal_annotations(&inherit_annotations(defaults, &goal)?)
+}
+
+pub(super) fn inherit_annotations(
+    parent: &AnnotationSettings,
+    goal: &AnnotationSettings,
+) -> Result<AnnotationSettings, MakefileParseError> {
+    let placement = goal.placement.or(parent.placement);
+    let (image, dockerfile, build_context) = merge_container_settings(parent, goal.clone());
+    parse_container(image.clone(), dockerfile.clone(), build_context.clone())?;
+    Ok(AnnotationSettings {
+        placement,
+        image,
+        dockerfile,
+        build_context,
+        parallel: goal.parallel.clone(),
+        parallel_output: goal.parallel_output.or(parent.parallel_output),
+    })
+}
+
+pub(super) fn resolve_goal_annotations(
+    settings: &AnnotationSettings,
+) -> Result<GoalAnnotations, MakefileParseError> {
+    let placement = settings.placement;
+    let container = parse_container(
+        settings.image.clone(),
+        settings.dockerfile.clone(),
+        settings.build_context.clone(),
+    )?;
     Ok(GoalAnnotations {
         placement,
         container,
@@ -124,7 +162,12 @@ fn validate_keys(values: &BTreeMap<&str, &Annotation>) -> Result<(), MakefilePar
     for (key, annotation) in values {
         if !matches!(
             *key,
-            "execution" | "container-image" | "container-dockerfile" | "container-build-context"
+            "execution"
+                | "container-image"
+                | "container-dockerfile"
+                | "container-build-context"
+                | "parallel"
+                | "parallel-output"
         ) {
             return Err(MakefileParseError::UnknownAnnotation {
                 line: annotation.line,
@@ -133,22 +176,6 @@ fn validate_keys(values: &BTreeMap<&str, &Annotation>) -> Result<(), MakefilePar
         }
     }
     Ok(())
-}
-
-fn parse_placement(
-    annotation: Option<&Annotation>,
-) -> Result<Option<ExecutionPlacement>, MakefileParseError> {
-    let Some(annotation) = annotation else {
-        return Ok(None);
-    };
-    match annotation.value.as_str() {
-        "local" => Ok(Some(ExecutionPlacement::Local)),
-        "remote" => Ok(Some(ExecutionPlacement::Remote)),
-        value => Err(MakefileParseError::InvalidExecution {
-            line: annotation.line,
-            value: value.to_string(),
-        }),
-    }
 }
 
 fn parse_container(

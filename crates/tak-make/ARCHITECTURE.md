@@ -3,15 +3,17 @@
 ## Purpose
 
 `tak-make` is the Makefile-facing application boundary for `tak make <goal>`. It resolves a small,
-explicit annotation language and asks an injected executor to run one Make invocation. It never
-interprets Make prerequisites or turns them into Tak tasks; Make remains the build engine.
+explicit annotation language and asks an injected executor to run either one opaque Make invocation
+or an explicitly annotated graph of phony Make targets. Make remains the build engine for every
+individual node.
 
 ## Dependency Direction
 
 The crate separates pure Make-domain decisions from effects:
 
 1. Domain values describe placement, container source, Makefile source, and execution outcome.
-2. The application use case reads a Makefile, resolves one goal, and submits an execution request.
+2. The application use case reads a Makefile, resolves one goal, and submits one invocation or a
+   parallel execution plan.
 3. Ports (`MakefileReader` and `GoalExecutor`) own filesystem and process/runtime effects.
 4. The filesystem adapter implements default Makefile lookup.
 5. The `tak` CLI supplies the outer `GoalExecutor` adapter that lowers the request into `tak-exec`.
@@ -32,8 +34,9 @@ test: build
 	./scripts/test.sh
 ```
 
-File-wide defaults use the same keys with a `default.` prefix and may appear in top-level Makefile
-comments:
+File-wide defaults use common execution/container keys and `parallel-output` with a `default.`
+prefix and may appear in top-level Makefile comments. `default.parallel` is rejected because a
+file-wide graph would have no owning aggregate:
 
 ```make
 # tak: default.execution=remote
@@ -46,6 +49,8 @@ Supported keys are:
 - `container-image=<reference>`
 - `container-dockerfile=<workspace path>`
 - `container-build-context=<workspace path>`
+- `parallel=<direct-goal,direct-goal,...>`
+- `parallel-output=live|grouped`
 
 A blank line or ordinary comment breaks association. Image and Dockerfile sources are mutually
 exclusive within one scope. Resolution applies global defaults first, then compatible goal fields;
@@ -62,6 +67,9 @@ Target-specific variable assignments are also outside the annotation grammar. Th
 is deliberate: silently attaching remote/container policy to the wrong command would be worse than
 rejecting syntax Tak cannot identify safely.
 
-The executor receives `argv = ["make", goal]` and the selected default Makefile path for diagnostics.
-It runs the bare Make command so Make retains normal behavior. The first version declares no Tak
-output paths; remote stdout/stderr and exit status return, but remote-generated files do not.
+Without `parallel`, the executor receives `argv = ["make", goal]` and preserves the original opaque
+behavior. With `parallel`, the parser emits a recursive DAG in stable left-to-right order. Leaf nodes
+run `make child`; join nodes run `make --assume-old=child ... aggregate` after their promoted children
+finish. Every promoted target must be literal, direct, unique, and phony. Dynamic prerequisites,
+cycles, and conflicting inherited settings fail before execution. The graph declares no Tak output
+paths; remote stdout/stderr and exit status return, but remote-generated files do not.

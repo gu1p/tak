@@ -13,6 +13,8 @@ mod cancel;
 mod status;
 #[path = "remote_resource_admission_behavior/submit.rs"]
 mod submit;
+#[path = "remote_resource_admission_behavior/unlimited.rs"]
+mod unlimited;
 
 use status::{majority_memory_limits, status, task_events, wait_for_status, wait_for_task_event};
 use submit::submit;
@@ -40,8 +42,14 @@ async fn remote_submit_queues_when_detected_resources_are_reserved() {
     let store = SubmitAttemptStore::with_db_path(temp.path().join("agent.sqlite")).expect("store");
     let limits = majority_memory_limits(&context, &store);
 
-    submit(&context, &store, "task-run-1", "sleep 1", limits);
-    submit(&context, &store, "task-run-2", "printf queued", limits);
+    submit(&context, &store, "task-run-1", "sleep 1", Some(limits));
+    submit(
+        &context,
+        &store,
+        "task-run-2",
+        "printf queued",
+        Some(limits),
+    );
 
     thread::sleep(Duration::from_millis(100));
     let initial_status = status(&context, &store);

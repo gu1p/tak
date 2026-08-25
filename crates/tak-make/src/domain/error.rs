@@ -59,4 +59,60 @@ pub enum MakefileParseError {
         /// Repeated goal with incompatible metadata.
         goal: String,
     },
+    /// File defaults cannot define a target graph.
+    #[error("Tak annotation `default.parallel` is not supported at line {line}")]
+    DefaultParallel {
+        /// One-based source line.
+        line: usize,
+    },
+    /// A parallel member list is malformed or too small.
+    #[error("invalid `parallel` value at line {line}: {reason}")]
+    InvalidParallel {
+        /// One-based source line.
+        line: usize,
+        /// Human-readable violated invariant.
+        reason: String,
+    },
+    /// A parallel output mode is unknown.
+    #[error(
+        "invalid `parallel-output` value `{value}` at line {line}; expected `live` or `grouped`"
+    )]
+    InvalidParallelOutput {
+        /// One-based source line.
+        line: usize,
+        /// Invalid value.
+        value: String,
+    },
+    /// Every Tak-managed parallel goal must be explicitly phony.
+    #[error("parallel Make target `{goal}` must be declared in `.PHONY`")]
+    ParallelTargetNotPhony {
+        /// Goal missing from `.PHONY`.
+        goal: String,
+    },
+    /// An annotated member is not a direct prerequisite of its group.
+    #[error("parallel member `{member}` must be a direct prerequisite of `{goal}`")]
+    ParallelMemberNotDirect {
+        /// Annotated aggregate goal.
+        goal: String,
+        /// Invalid member.
+        member: String,
+    },
+    /// A recursively expanded group refers back to an ancestor.
+    #[error("parallel Make graph contains a cycle at `{goal}`")]
+    ParallelCycle {
+        /// Revisited goal.
+        goal: String,
+    },
+    /// A shared goal inherited incompatible settings through two parents.
+    #[error("parallel Make target `{goal}` inherits conflicting Tak annotations")]
+    ConflictingParallelAnnotations {
+        /// Shared goal.
+        goal: String,
+    },
+    /// Dynamic prerequisite syntax cannot be safely split into independent Make runs.
+    #[error("parallel Make target `{goal}` requires literal prerequisites on one line")]
+    UnsupportedParallelPrerequisites {
+        /// Annotated goal.
+        goal: String,
+    },
 }

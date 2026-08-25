@@ -44,18 +44,16 @@ fn repo_root_check_runs_light_checks_then_shared_rust_lane() -> Result<()> {
             ));
             match &placements[0] {
                 ExecutionPlacementSpec::Remote(remote) => {
-                    assert_eq!(remote.pool.as_deref(), Some("build"));
+                    assert_eq!(remote.pool, None);
                     assert_eq!(remote.required_tags.as_slice(), ["builder"]);
                     assert_eq!(remote.required_capabilities.as_slice(), ["linux"]);
                     let Some(RemoteRuntimeSpec::Containerized {
-                        resource_limits: Some(limits),
-                        ..
+                        resource_limits, ..
                     }) = &remote.runtime
                     else {
-                        panic!("//:check remote placement should use a sized container");
+                        panic!("//:check remote placement should use a container");
                     };
-                    // Mirrors TASKS.py CHECK_CONTAINER `memory_mb=8*1024` (8 GB).
-                    assert_eq!(limits.memory_mb, Some(8 * 1024));
+                    assert_eq!(*resource_limits, None);
                 }
                 _ => unreachable!("remote placement already asserted"),
             }

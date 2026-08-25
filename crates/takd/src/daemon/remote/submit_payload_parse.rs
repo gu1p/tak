@@ -8,7 +8,7 @@ mod fused_members;
 mod output_glob;
 mod resources;
 use output_glob::normalize_workspace_submit_glob;
-use resources::parse_required_container_resource_limits;
+use resources::parse_container_resource_limits;
 
 pub(super) fn parse_remote_worker_submit_payload(
     context: &RemoteNodeContext,
@@ -134,7 +134,7 @@ fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntime
                 source: ContainerRuntimeSourceSpec::Image {
                     image: image.to_string(),
                 },
-                resource_limits: Some(parse_required_container_resource_limits(container)?),
+                resource_limits: parse_container_resource_limits(container)?,
             }),
             (None, Some(dockerfile)) => {
                 let dockerfile = normalize_workspace_submit_path(
@@ -150,7 +150,7 @@ fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntime
                         dockerfile,
                         build_context,
                     },
-                    resource_limits: Some(parse_required_container_resource_limits(container)?),
+                    resource_limits: parse_container_resource_limits(container)?,
                 })
             }
         },

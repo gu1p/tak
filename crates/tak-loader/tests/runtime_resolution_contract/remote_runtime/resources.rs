@@ -41,7 +41,7 @@ SPEC
 }
 
 #[test]
-fn rejects_remote_runtime_without_complete_resources() {
+fn resolves_remote_runtime_without_resource_limits() {
     let temp = tempfile::tempdir().expect("tempdir");
     write_root_and_app_tasks(
         temp.path(),
@@ -55,13 +55,15 @@ SPEC
 "#,
     );
 
-    let err = load_workspace(temp.path(), &LoadOptions::default())
-        .expect_err("remote resources should be required");
-    assert!(
-        err.to_string()
-            .contains("remote container resources require cpu_cores and memory_mb"),
-        "{err:#}"
-    );
+    let spec = load_workspace(temp.path(), &LoadOptions::default()).expect("load workspace");
+    let task = spec.tasks.values().next().expect("remote task");
+    let TaskExecutionSpec::RemoteOnly(remote) = &task.execution else {
+        panic!("expected remote execution")
+    };
+    let RemoteRuntimeSpec::Containerized {
+        resource_limits, ..
+    } = remote.runtime.as_ref().expect("remote runtime");
+    assert_eq!(resource_limits, &None);
 }
 
 #[test]

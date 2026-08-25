@@ -11,9 +11,12 @@ mod domain;
 
 pub use adapters::FilesystemMakefileReader;
 pub use application::{
-    GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeRunOutcome, MakefileReadError,
-    MakefileReader, MakefileSource, RunMake, RunMakeError, RunMakeRequest,
+    GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeExecutionPlan, MakeGoalExecution,
+    MakeRunOutcome, MakefileReadError, MakefileReader, MakefileSource, RunMake, RunMakeError,
+    RunMakeRequest,
 };
-pub use domain::{ContainerSource, ExecutionPlacement, GoalAnnotations, MakefileParseError};
+pub use domain::{
+    ContainerSource, ExecutionPlacement, GoalAnnotations, MakefileParseError, ParallelOutputMode,
+};
 
 extern crate self as tak_make;

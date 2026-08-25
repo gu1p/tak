@@ -10,7 +10,7 @@
 2. Expand transitive dependency closure.
 3. Topologically sort required tasks.
 4. Resolve execution cascades and any fused container cascade candidates.
-5. Execute tasks in order.
+5. Execute ready tasks up to `RunOptions.jobs`; a successful task releases its dependents.
 6. For each normal task attempt:
    - acquire the task lease when the task has `needs` and a lease socket is configured
    - for local host or local container placement, run steps after the lease is granted
@@ -77,6 +77,12 @@
 - If overlapping cascades resolve to different executions/sessions, the run fails before work starts.
 - Containerized cascades can be fused into one per-run container for the dependency chain.
 - Fused cascades report one result for the root and cover the member tasks in the scheduler.
+
+## Keep-Going Semantics
+
+- A failed task never releases its dependents, so every descendant that requires it is skipped.
+- With `keep_going`, already-ready and otherwise independent branches continue to completion.
+- Without `keep_going`, the first task failure prevents any additional scheduling.
 
 ## Failure Classes
 

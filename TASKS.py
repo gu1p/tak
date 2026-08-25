@@ -37,7 +37,6 @@ CHECK_CONTEXT = CurrentState(
 CHECK_CONTAINER = Container.Dockerfile(
     path("docker/tak-tests/Dockerfile"),
     build_context=path("docker/tak-tests"),
-    resources=Container.Resources(cpu_cores=4.0, memory_mb=8*1024),
 )
 
 CHECK_SESSION = session(
@@ -49,7 +48,6 @@ CHECK_SESSION = session(
 CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
     placements=[
         Execution.Remote(
-            pool="build",
             required_tags=["builder"],
             required_capabilities=["linux"],
             container=CHECK_CONTAINER,

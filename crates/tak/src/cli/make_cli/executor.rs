@@ -1,19 +1,20 @@
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
-use tak_exec::{RunOptions, run_resolved_task};
+use tak_exec::{RunOptions, run_resolved_task, run_tasks};
 use tak_make::{
-    GoalAnnotations, GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeRunOutcome,
-    RunMakeError,
+    GoalAnnotations, GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeExecutionPlan,
+    MakeRunOutcome, ParallelOutputMode, RunMakeError,
 };
 
-use crate::cli::command_model::MakeArgs;
+use crate::cli::command_model::{MakeArgs, MakeParallelOutputArg};
 use crate::cli::run_output::StdStreamOutputObserver;
 use crate::cli::run_overrides::{
     RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
 };
 
-use super::task::make_workspace;
+use super::output::ParallelMakeOutputObserver;
+use super::task::{make_workspace, parallel_make_workspace};
 
 pub(super) struct TakGoalExecutor<'a> {
     args: &'a MakeArgs,
@@ -29,6 +30,14 @@ impl GoalExecutor for TakGoalExecutor<'_> {
     fn execute(&self, request: GoalExecutionRequest) -> GoalExecutionFuture<'_> {
         Box::pin(async move {
             execute_make_goal(request, self.args)
+                .await
+                .map_err(|error| RunMakeError::execution(error.to_string()))
+        })
+    }
+
+    fn execute_plan(&self, plan: MakeExecutionPlan) -> GoalExecutionFuture<'_> {
+        Box::pin(async move {
+            execute_parallel_make(plan, self.args)
                 .await
                 .map_err(|error| RunMakeError::execution(error.to_string()))
         })
@@ -67,6 +76,50 @@ async fn execute_make_goal(
     })
 }
 
+async fn execute_parallel_make(plan: MakeExecutionPlan, args: &MakeArgs) -> Result<MakeRunOutcome> {
+    let override_args = run_override_args(args);
+    let implicit_local_host = plan
+        .goals
+        .iter()
+        .all(|goal| goal.annotations == GoalAnnotations::default())
+        && !override_args.is_configured();
+    let root_goal = plan.root_goal.clone();
+    let workspace = parallel_make_workspace(plan)?;
+    warn_redundant_container_flag(args);
+    let spec = apply_run_execution_overrides(
+        &workspace.spec,
+        std::slice::from_ref(&workspace.root),
+        override_args,
+    )?;
+    if implicit_local_host {
+        print_implicit_local_host_notice(&root_goal);
+    }
+    let observer = Arc::new(ParallelMakeOutputObserver::new(
+        &workspace.goals,
+        parallel_output_override(args),
+    ));
+    let result = run_tasks(
+        &spec,
+        std::slice::from_ref(&workspace.root),
+        &RunOptions {
+            jobs: workspace.goals.len(),
+            keep_going: true,
+            output_observer: Some(observer.clone()),
+            ..RunOptions::default()
+        },
+    )
+    .await;
+    match result {
+        Ok(_) => Ok(MakeRunOutcome { exit_code: 0 }),
+        Err(error) => match observer.first_failure(&workspace.goals)? {
+            Some(code) => Ok(MakeRunOutcome {
+                exit_code: task_exit_code(false, Some(code)),
+            }),
+            None => Err(error),
+        },
+    }
+}
+
 fn print_implicit_local_host_notice(goal: &str) {
     eprintln!(
         "info: no Tak execution configuration found for Make goal `{goal}`; running locally outside \
@@ -94,6 +147,13 @@ fn warn_redundant_container_flag(args: &MakeArgs) {
             "warning: --container is redundant with --remote; remote execution already implies a container"
         );
     }
+}
+
+fn parallel_output_override(args: &MakeArgs) -> Option<ParallelOutputMode> {
+    args.parallel_output.map(|mode| match mode {
+        MakeParallelOutputArg::Live => ParallelOutputMode::Live,
+        MakeParallelOutputArg::Grouped => ParallelOutputMode::Grouped,
+    })
 }
 
 fn task_exit_code(success: bool, code: Option<i32>) -> i32 {

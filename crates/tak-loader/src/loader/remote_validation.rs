@@ -76,7 +76,7 @@ pub(crate) fn validate_remote_runtime_limits(
         resource_limits, ..
     } = runtime;
     let Some(limits) = resource_limits else {
-        bail!("{owner} remote container resources require cpu_cores and memory_mb");
+        return Ok(());
     };
     if limits.cpu_cores.is_none() || limits.memory_mb.is_none() {
         bail!("{owner} remote container resources require cpu_cores and memory_mb");

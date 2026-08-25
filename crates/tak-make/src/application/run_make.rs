@@ -1,8 +1,8 @@
-use crate::domain::annotations_for_goal;
+use crate::domain::{annotations_for_goal, parallel_plan_for_goal};
 
 use super::{
-    GoalExecutionRequest, GoalExecutor, MakeRunOutcome, MakefileReader, RunMakeError,
-    RunMakeRequest,
+    GoalExecutionRequest, GoalExecutor, MakeExecutionPlan, MakeGoalExecution, MakeRunOutcome,
+    MakefileReader, RunMakeError, RunMakeRequest,
 };
 
 /// Coordinates Makefile inspection and execution through injected ports.
@@ -43,6 +43,26 @@ impl<'a> RunMake<'a> {
     /// ```
     pub async fn execute(&self, request: RunMakeRequest) -> Result<MakeRunOutcome, RunMakeError> {
         let source = self.reader.read(&request.workspace_root)?;
+        if let Some(goals) = parallel_plan_for_goal(&source.contents, &request.goal)? {
+            return self
+                .executor
+                .execute_plan(MakeExecutionPlan {
+                    workspace_root: request.workspace_root,
+                    makefile_path: source.makefile_path,
+                    root_goal: request.goal,
+                    goals: goals
+                        .into_iter()
+                        .map(|goal| MakeGoalExecution {
+                            goal: goal.goal,
+                            argv: goal.argv,
+                            annotations: goal.annotations,
+                            dependencies: goal.dependencies,
+                            parallel_output: goal.parallel_output,
+                        })
+                        .collect(),
+                })
+                .await;
+        }
         let annotations = annotations_for_goal(&source.contents, &request.goal)?;
         self.executor
             .execute(GoalExecutionRequest {

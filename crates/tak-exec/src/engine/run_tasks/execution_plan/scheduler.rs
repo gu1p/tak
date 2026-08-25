@@ -93,9 +93,12 @@ fn handle_successful_unit(
     } = progress;
     let failed = !result.success;
     insert_unit_result(summary, &plan.units[unit_id], result.clone());
-    if failed && !options.keep_going && terminal_error.is_none() {
-        *terminal_error = Some(task_failed_error(&plan.units[unit_id], &result));
-        ready.clear();
+    if failed {
+        if !options.keep_going && terminal_error.is_none() {
+            *terminal_error = Some(task_failed_error(&plan.units[unit_id], &result));
+            ready.clear();
+        }
+        return;
     }
     release_dependents(unit_id, plan, remaining_deps, ready);
 }

@@ -1,6 +1,6 @@
 # Tak
 
-Tak is a task orchestrator for project-local `TASKS.py` workspaces and ordinary Makefiles. It can load a Tak-authored dependency graph, or wrap one `make <goal>` invocation so the existing Make build runs on the local host, in a local container, or on a remote agent.
+Tak is a task orchestrator for project-local `TASKS.py` workspaces and ordinary Makefiles. It can load a Tak-authored dependency graph, wrap one opaque `make <goal>` invocation, or promote explicitly annotated Make prerequisites into parallel Tak tasks.
 
 ## Why Teams Use Tak
 
@@ -58,7 +58,7 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `tak web [label]`
   - Serve an interactive dependency graph UI locally. This is a graph viewer, not a remote-operations client.
 - `tak make <goal>`
-  - Run one ordinary Makefile goal through Tak while Make retains ownership of its dependency graph.
+  - Run an ordinary Makefile goal through Tak; annotated phony prerequisites may fan out in parallel.
 - `tak make --remote <goal>`
   - Force the whole `make <goal>` invocation onto a remote container; the Makefile may also declare this with `# tak:` comments.
 - `tak run <label...>`
@@ -164,8 +164,8 @@ Key fields:
 
 `tak make <goal>` does not load or require `TASKS.py`. Tak reads the same default file name order
 as GNU Make (`GNUmakefile`, `makefile`, then `Makefile`), resolves a literal target header, and
-executes exactly one opaque `make <goal>` command. Make—not Tak—expands and schedules that goal's
-prerequisites.
+executes one opaque `make <goal>` command by default. Without a parallel annotation, Make—not
+Tak—expands and schedules that goal's prerequisites exactly as before.
 
 File-wide defaults avoid repeating the same execution settings above every goal. Prefix each
 default key with `default.`:
@@ -192,14 +192,51 @@ test: build
 ```
 
 Supported goal keys are `execution=local|remote`, `container-image=<reference>`,
-`container-dockerfile=<path>`, and `container-build-context=<path>`; the corresponding global keys
-use the `default.` prefix. Goal settings override compatible default fields, while unmentioned
-settings are inherited. A goal can override only the build context while inheriting a default
-Dockerfile. Selecting a goal image replaces a default Dockerfile and context, while selecting a
-goal Dockerfile replaces a default image.
+`container-dockerfile=<path>`, `container-build-context=<path>`,
+`parallel=<goal,goal,...>`, and `parallel-output=live|grouped`. All except `parallel` may use the
+`default.` prefix. Goal settings override compatible default fields, while unmentioned settings
+are inherited. A goal can override only the build context while inheriting a default Dockerfile.
+Selecting a goal image replaces a default Dockerfile and context, while selecting a goal Dockerfile
+replaces a default image.
 
-The complete precedence order is command-line flags, goal annotations, global defaults, then the
-implicit local-host fallback. The command accepts the same `--local`, `--local-no-container`,
+An aggregate may promote two or more direct phony prerequisites into Tak's execution graph:
+
+```make
+.PHONY: check lint test build
+
+# tak: parallel=lint,test,build
+# tak: parallel-output=grouped
+check: lint test build
+	./scripts/report-success.sh
+
+lint:
+	./scripts/lint.sh
+test:
+	./scripts/test.sh
+build:
+	./scripts/build.sh
+```
+
+Tak starts every ready promoted goal concurrently, waits for them, then invokes GNU Make for the
+aggregate with each completed child passed through `--assume-old`. This lets the aggregate recipe
+run without repeating phony children; prerequisites not named by `parallel` remain Make-owned.
+Groups may be nested. Common execution/container annotations on an aggregate flow recursively to
+its promoted children, and a child's own annotations override inherited values. CLI execution and
+`--parallel-output` flags override the entire graph.
+
+Every annotated group and listed member must be declared in `.PHONY`, members must be unique direct
+literal prerequisites, and at least two members are required. Tak rejects parallel cycles, dynamic
+or continued prerequisite declarations, and shared goals that inherit conflicting execution
+settings. GNU Make is required for annotated parallel groups.
+
+Live output is the default and prefixes each logical line with `[goal]`. Grouped output holds each
+goal's lines until it finishes and then emits them contiguously with the same prefix. After a child
+failure, unrelated branches finish, dependent aggregates are skipped, and Tak returns the first
+failed goal in recursive left-to-right annotation order.
+
+The complete precedence order is command-line flags, target annotations, enclosing aggregate
+annotations, global defaults, then the implicit local-host fallback. The command accepts the same
+`--local`, `--local-no-container`,
 `--remote`, `--container`, `--container-image`, `--container-dockerfile`, and
 `--container-build-context` overrides as `tak exec`. An inherited container remains selected when a
 goal only changes `execution`; use `--local-no-container` when an invocation must explicitly ignore
@@ -212,9 +249,10 @@ goal annotations, and CLI overrides that enable remote execution; Make's stdout 
 The annotation reader intentionally supports only literal single-target `target: prerequisites`
 headers. It does not interpret includes, expanded target names, generated rules, multi-target rules,
 pattern rules, target-specific variable assignments, or double-colon rules. Unsupported annotated declarations fail clearly instead of
-silently selecting the wrong runtime. In this first version, remote Make runs stream output and
-status back, but generated files are not materialized locally because `tak make` has no declared
-output paths yet.
+silently selecting the wrong runtime. Remote Make runs stream output and status back, but generated
+files are not materialized locally because `tak make` has no declared output paths yet. Consequently,
+parallel remote goals must be independent: one promoted goal cannot consume files generated by
+another promoted goal.
 
 ## Quickstart
 
@@ -256,6 +294,11 @@ REMOTE = Execution.Remote(
     container=Container.Image("alpine:3.20"),
 )
 ```
+
+Container runtimes have no implicit CPU or memory allocation: they may use the machine's available
+resources. Add `resources=Container.Resources(cpu_cores=..., memory_mb=...)` only when a task needs
+an explicit admission reservation and container limit. CLI-created runtimes from `tak exec`,
+`tak run` overrides, `tak make`, and `tak docker run` likewise add no limits.
 
 Runtime model:
 

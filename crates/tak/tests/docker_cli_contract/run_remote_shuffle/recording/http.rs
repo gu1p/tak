@@ -32,9 +32,26 @@ pub(super) fn read_request_head(stream: &mut impl Read) -> String {
         }
         request.extend_from_slice(&buf[..read]);
         if let Some(index) = request.windows(4).position(|window| window == b"\r\n\r\n") {
-            request.truncate(index + 4);
+            let head_len = index + 4;
+            let content_len = content_length(&request[..head_len]);
+            let buffered_body_len = request.len().saturating_sub(head_len);
+            let mut remaining_body = vec![0; content_len.saturating_sub(buffered_body_len)];
+            let _ = stream.read_exact(&mut remaining_body);
+            request.truncate(head_len);
             break;
         }
     }
     String::from_utf8(request).unwrap_or_default()
+}
+
+fn content_length(head: &[u8]) -> usize {
+    String::from_utf8_lossy(head)
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("content-length")
+                .then(|| value.trim().parse().ok())
+                .flatten()
+        })
+        .unwrap_or(0)
 }
