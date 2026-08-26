@@ -1,5 +1,9 @@
 use crate::engine::protocol_result_http::request::RemoteHttpResponse;
 
+pub(super) fn wormhole_path(upload_id: &str) -> String {
+    format!("/v2/workspaces/uploads/{upload_id}/wormhole")
+}
+
 pub(super) fn marks_wormhole_support(response: &RemoteHttpResponse) -> bool {
     has_wormhole_marker(response) || has_protobuf_content_type(response)
 }

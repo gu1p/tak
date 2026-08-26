@@ -72,6 +72,22 @@ impl TaskOutputObserver for RemoteWorkerEventObserver {
         }
         Ok(())
     }
+
+    fn observe_status(&self, event: TaskStatusEvent) -> Result<()> {
+        append_tail_bytes(&self.stderr_tail, event.message.as_bytes());
+        append_tail_bytes(&self.stderr_tail, b"\n");
+        self.store.append_event(
+            &self.idempotency_key,
+            self.claim_next_seq(),
+            &serde_json::json!({
+                "kind": "TASK_STATUS",
+                "timestamp_ms": unix_epoch_ms(),
+                "message": event.message,
+            })
+            .to_string(),
+        )?;
+        Ok(())
+    }
 }
 
 fn append_tail_bytes(buffer: &Mutex<Vec<u8>>, bytes: &[u8]) {

@@ -32,6 +32,10 @@ mod protocol_submit;
 mod protocol_submit_tests;
 mod public_types;
 pub(crate) mod remote_diagnostics;
+mod remote_failover;
+mod remote_failure;
+#[cfg(test)]
+mod remote_failure_tests;
 mod remote_http_exchange_error;
 pub(crate) mod remote_models;
 mod remote_result_fetch;

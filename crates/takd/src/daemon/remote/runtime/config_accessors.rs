@@ -58,6 +58,14 @@ impl RemoteRuntimeConfig {
         self.admission_oversubscribe_x
     }
 
+    pub(crate) fn default_container_cpu_cores(&self) -> f64 {
+        self.default_container_cpu_cores
+    }
+
+    pub(crate) fn default_container_memory_mb(&self) -> u64 {
+        self.default_container_memory_mb
+    }
+
     pub(crate) fn memory_pressure_enabled(&self) -> bool {
         self.memory_pressure_enabled
     }

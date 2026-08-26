@@ -30,6 +30,7 @@ async fn place_remote_refuses_an_auth_failed_peer() {
             preferred_node_id: None,
             task_run_id: "task-1".into(),
             attempt: 1,
+            excluded_node_ids: Vec::new(),
             submit_body: SubmitTaskRequest {
                 task_run_id: "task-1".into(),
                 ..SubmitTaskRequest::default()

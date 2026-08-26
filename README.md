@@ -295,10 +295,22 @@ REMOTE = Execution.Remote(
 )
 ```
 
-Container runtimes have no implicit CPU or memory allocation: they may use the machine's available
-resources. Add `resources=Container.Resources(cpu_cores=..., memory_mb=...)` only when a task needs
-an explicit admission reservation and container limit. CLI-created runtimes from `tak exec`,
-`tak run` overrides, `tak make`, and `tak docker run` likewise add no limits.
+Remote workers own the defaults for container resources. A remote container without authored
+limits reserves 4 logical CPU cores and 8192 MiB by default, clamped to the worker's logical core
+count and safe RAM admission capacity. CPU is enforced as a container quota and also caps common
+test/codegen thread pools. Memory is an admission reservation only: Tak does not install a Docker
+memory cap and retains its pause/backpressure policy instead of killing work under pressure.
+
+Operators can change the node defaults with `TAKD_DEFAULT_CONTAINER_CPU_CORES` and
+`TAKD_DEFAULT_CONTAINER_MEMORY_MB`. Aggregate reservations use strict 1x admission by default;
+`TAKD_ADMISSION_OVERSUBSCRIBE_X` is an explicit opt-in to oversubscription. Authored
+`Container.Resources(...)` values are preserved and evaluated by admission without clamping.
+Unsized local containers, including CLI-created local runtimes, remain unaffected.
+
+Remote infrastructure failures (including exit 137 and exhausted worker/container transport
+recovery) retry once on each distinct eligible worker without consuming the task's authored retry
+attempts. Ordinary nonzero task exits and authored timeouts remain terminal under the task's normal
+retry policy, and cancellation is never failed over.
 
 Runtime model:
 

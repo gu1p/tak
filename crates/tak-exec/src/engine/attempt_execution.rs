@@ -42,6 +42,7 @@ pub(crate) struct AttemptExecutionOutcome {
     pub(crate) remote_runtime_kind: Option<String>,
     pub(crate) remote_runtime_engine: Option<String>,
     pub(crate) remote_logs: Vec<RemoteLogChunk>,
+    pub(crate) remote_failure_kind: Option<super::remote_failure::RemoteFailureKind>,
 }
 
 pub(crate) async fn execute_task_attempt(
@@ -139,6 +140,7 @@ pub(crate) async fn execute_task_attempt(
         mut synced_outputs,
         remote_runtime_kind,
         remote_runtime_engine,
+        remote_failure_kind,
     ) = match protocol_result {
         Some(remote_result) => (
             remote_result.success,
@@ -147,8 +149,17 @@ pub(crate) async fn execute_task_attempt(
             remote_result.synced_outputs,
             remote_result.runtime_kind,
             remote_result.runtime_engine,
+            remote_result.failure_kind,
         ),
-        None => (run.success, run.exit_code, None, Vec::new(), None, None),
+        None => (
+            run.success,
+            run.exit_code,
+            None,
+            Vec::new(),
+            None,
+            None,
+            None,
+        ),
     };
 
     if !has_remote_protocol_result
@@ -181,5 +192,6 @@ pub(crate) async fn execute_task_attempt(
         remote_runtime_kind,
         remote_runtime_engine,
         remote_logs,
+        remote_failure_kind,
     })
 }

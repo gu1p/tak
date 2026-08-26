@@ -31,6 +31,17 @@ pub(super) fn u64_from_env(
         .unwrap_or(default)
 }
 
+pub(super) fn f64_from_env(
+    read_env: &impl Fn(&str) -> Option<String>,
+    name: &str,
+    default: f64,
+) -> f64 {
+    read_env(name)
+        .and_then(|value| value.trim().parse::<f64>().ok())
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(default)
+}
+
 pub(super) fn usize_from_env(
     read_env: &impl Fn(&str) -> Option<String>,
     name: &str,

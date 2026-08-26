@@ -3,7 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::{thread, time::Duration};
 
 use super::RecordingEvents;
-use super::remote_routes::{RecordingResponses, serve_remote_request};
+use super::remote_routes::{RecordingResponses, ResultBehavior, serve_remote_request};
 use super::submit_route::SubmitBehavior;
 use super::upload_config::UploadConfig;
 use tak_proto::NodeStatusResponse;
@@ -16,23 +16,14 @@ pub struct RecordingRemoteServer {
 }
 
 impl RecordingRemoteServer {
-    pub(super) fn spawn(
-        node_id: &str,
-        events: RecordingEvents,
-        submit: SubmitBehavior,
-        upload: UploadConfig,
-        status: Option<NodeStatusResponse>,
-    ) -> Self {
-        Self::spawn_with_result_delay(node_id, events, submit, upload, status, Duration::ZERO)
-    }
-
-    pub(super) fn spawn_with_result_delay(
+    pub(super) fn spawn_with_result(
         node_id: &str,
         events: RecordingEvents,
         submit: SubmitBehavior,
         upload: UploadConfig,
         status: Option<NodeStatusResponse>,
         result_delay: Duration,
+        result: ResultBehavior,
     ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind recording remote server");
         let port = listener
@@ -46,6 +37,7 @@ impl RecordingRemoteServer {
             upload,
             status,
             result_delay,
+            result,
         };
         let handle = thread::spawn(move || {
             loop {

@@ -94,6 +94,7 @@ pub(super) fn tor_target() -> StrictRemoteTarget {
         required_tags: vec!["linux".into()],
         required_capabilities: vec!["docker".into()],
         daemon_task_handle: None,
+        excluded_node_ids: Vec::new(),
     }
 }
 

@@ -52,6 +52,7 @@ pub fn result_response() -> GetTaskResultResponse {
         outputs: Vec::new(),
         stdout_tail: None,
         stderr_tail: None,
+        failure_kind: None,
     }
 }
 

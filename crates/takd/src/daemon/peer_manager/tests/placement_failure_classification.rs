@@ -76,6 +76,7 @@ fn select_failure(
             selection: PeerPlacementSelection::Sequential,
             task_run_id: "task-run-1",
             attempt: 1,
+            excluded_node_ids: &[],
         })
         .expect_err("placement should fail")
 }

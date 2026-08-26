@@ -131,6 +131,11 @@ pub(crate) fn parse_remote_protocol_result(
         )
     })?;
     let synced_outputs = parse_remote_result_outputs(target, &parsed)?;
+    let failure_kind = super::remote_failure::classify_remote_result_failure(
+        parsed.success,
+        parsed.exit_code,
+        parsed.failure_kind,
+    );
     Ok(RemoteProtocolResult {
         success: parsed.success,
         exit_code: parsed.exit_code,
@@ -144,5 +149,6 @@ pub(crate) fn parse_remote_protocol_result(
         runtime_engine: parsed.runtime_engine,
         stdout_tail: parsed.stdout_tail,
         stderr_tail: parsed.stderr_tail,
+        failure_kind,
     })
 }

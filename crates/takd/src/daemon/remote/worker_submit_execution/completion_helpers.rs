@@ -25,6 +25,7 @@ fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
             "outputs": serde_json::json!([]),
             "stdout_tail": json_tail_value(result.stdout_tail),
             "stderr_tail": result.stderr_tail,
+            "failure_kind": "cancellation",
         })
         .to_string(),
     ) {

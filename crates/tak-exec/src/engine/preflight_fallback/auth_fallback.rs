@@ -4,8 +4,14 @@ pub(crate) async fn fallback_after_auth_submit_failure(
     failed_node_id: &str,
     submit: RemoteSubmitContext<'_>,
     initial_failure: String,
+    infrastructure_failures: &mut Vec<RemoteInfrastructureFailure>,
     output_observer: Option<&std::sync::Arc<dyn TaskOutputObserver>>,
 ) -> Result<StrictRemoteTarget> {
+    record_infrastructure_failure(
+        infrastructure_failures,
+        failed_node_id,
+        initial_failure.clone(),
+    );
     let mut failures = vec![initial_failure.clone()];
     let mut preflight_failures = Vec::new();
     if candidates
@@ -33,7 +39,13 @@ pub(crate) async fn fallback_after_auth_submit_failure(
                 &candidate.node_id,
             )?,
             Err(err) => {
-                failures.push(err.message.clone());
+                let cause = err.failover_cause(&task.label.to_string());
+                record_infrastructure_failure(
+                    infrastructure_failures,
+                    &candidate.node_id,
+                    cause.clone(),
+                );
+                failures.push(cause);
                 preflight_failures.push(err);
                 if next_candidate_available(candidates, failed_node_id, index) {
                     emit_remote_unavailable(
@@ -80,7 +92,13 @@ pub(crate) async fn fallback_after_auth_submit_failure(
                 return Ok(selected_target);
             }
             Err(err) => {
-                failures.push(err.to_string());
+                let cause = err.to_string();
+                record_infrastructure_failure(
+                    infrastructure_failures,
+                    &candidate.node_id,
+                    cause.clone(),
+                );
+                failures.push(cause);
                 if next_candidate_available(candidates, failed_node_id, index) {
                     emit_remote_unavailable(
                         output_observer,
@@ -107,4 +125,18 @@ pub(crate) async fn fallback_after_auth_submit_failure(
         task.label,
         failures.join("; ")
     );
+}
+
+fn record_infrastructure_failure(
+    failures: &mut Vec<RemoteInfrastructureFailure>,
+    node_id: &str,
+    cause: String,
+) {
+    if failures.iter().any(|failure| failure.node_id == node_id) {
+        return;
+    }
+    failures.push(RemoteInfrastructureFailure {
+        node_id: node_id.to_string(),
+        cause,
+    });
 }

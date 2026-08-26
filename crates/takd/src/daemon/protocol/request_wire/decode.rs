@@ -30,6 +30,7 @@ impl TryFrom<RequestEnvelope> for Request {
             RequestType::PeersEligible => Ok(Self::PeersEligible(PeersEligibleRequest {
                 request_id: value.request_id,
                 requirements: value.requirements.unwrap_or_default(),
+                excluded_node_ids: value.excluded_node_ids.unwrap_or_default(),
             })),
             RequestType::PlaceRemote => Ok(Self::PlaceRemote(PlaceRemoteRequest {
                 request_id: value.request_id,
@@ -39,6 +40,7 @@ impl TryFrom<RequestEnvelope> for Request {
                 task_run_id: required(value.task_run_id, "PlaceRemote requires task_run_id")?,
                 attempt: value.attempt.unwrap_or(1),
                 submit_body: value.submit_body.unwrap_or_default(),
+                excluded_node_ids: value.excluded_node_ids.unwrap_or_default(),
             })),
             RequestType::ForwardRemoteHttp => {
                 Ok(Self::ForwardRemoteHttp(ForwardRemoteHttpRequest {

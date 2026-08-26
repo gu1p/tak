@@ -60,6 +60,7 @@ pub(crate) fn remote_task_candidate(
         session: remote.session.clone(),
         local: None,
         remote: Some(remote.clone()),
+        infrastructure_failures: Vec::new(),
     })))
 }
 
@@ -74,6 +75,7 @@ fn daemon_tor_placement(remote: &RemoteSpec, reason: Option<String>) -> TaskPlac
         session: remote.session.clone(),
         local: None,
         remote: Some(remote.clone()),
+        infrastructure_failures: Vec::new(),
     }
 }
 

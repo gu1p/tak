@@ -10,6 +10,7 @@ pub(crate) struct RemoteHttpExchangeError {
     pub(crate) kind: RemoteHttpExchangeErrorKind,
     pub(crate) message: String,
     retryable: bool,
+    failed_node_id: Option<String>,
 }
 
 impl RemoteHttpExchangeError {
@@ -18,6 +19,7 @@ impl RemoteHttpExchangeError {
             kind: RemoteHttpExchangeErrorKind::Timeout,
             message,
             retryable: true,
+            failed_node_id: None,
         }
     }
 
@@ -26,6 +28,7 @@ impl RemoteHttpExchangeError {
             kind: RemoteHttpExchangeErrorKind::Connect,
             message,
             retryable: true,
+            failed_node_id: None,
         }
     }
 
@@ -34,6 +37,7 @@ impl RemoteHttpExchangeError {
             kind: RemoteHttpExchangeErrorKind::Other,
             message,
             retryable: false,
+            failed_node_id: None,
         }
     }
 
@@ -42,11 +46,21 @@ impl RemoteHttpExchangeError {
             kind: RemoteHttpExchangeErrorKind::Other,
             message,
             retryable: true,
+            failed_node_id: None,
         }
     }
 
     pub(crate) fn is_retryable(&self) -> bool {
         self.retryable
+    }
+
+    pub(crate) fn with_failed_node_id(mut self, node_id: impl Into<String>) -> Self {
+        self.failed_node_id = Some(node_id.into());
+        self
+    }
+
+    pub(crate) fn failed_node_id(&self) -> Option<&str> {
+        self.failed_node_id.as_deref()
     }
 }
 

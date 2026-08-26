@@ -62,6 +62,7 @@ pub(super) fn direct_target(addr: &str) -> StrictRemoteTarget {
         required_tags: Vec::new(),
         required_capabilities: Vec::new(),
         daemon_task_handle: None,
+        excluded_node_ids: Vec::new(),
     }
 }
 

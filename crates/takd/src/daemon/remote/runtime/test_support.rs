@@ -2,9 +2,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use super::{
-    DEFAULT_REMOTE_CLEANUP_INTERVAL_MS, DEFAULT_REMOTE_CLEANUP_TTL_MS,
-    DEFAULT_REMOTE_CLIENT_STALE_TTL_MS, DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS,
-    MemoryPressureSettings, RemoteRuntimeConfig,
+    DEFAULT_CONTAINER_CPU_CORES, DEFAULT_CONTAINER_MEMORY_MB, DEFAULT_REMOTE_CLEANUP_INTERVAL_MS,
+    DEFAULT_REMOTE_CLEANUP_TTL_MS, DEFAULT_REMOTE_CLIENT_STALE_TTL_MS,
+    DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS, MemoryPressureSettings, RemoteRuntimeConfig,
 };
 
 impl RemoteRuntimeConfig {
@@ -26,6 +26,8 @@ impl RemoteRuntimeConfig {
             ),
             memory_pressure: MemoryPressureSettings::defaults(),
             admission_oversubscribe_x: 1,
+            default_container_cpu_cores: DEFAULT_CONTAINER_CPU_CORES,
+            default_container_memory_mb: DEFAULT_CONTAINER_MEMORY_MB,
             memory_pressure_enabled: false,
         }
     }

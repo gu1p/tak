@@ -9,6 +9,8 @@ use crate::support::remote_output::test_context_with_runtime;
 
 #[path = "remote_resource_admission_behavior/cancel.rs"]
 mod cancel;
+#[path = "remote_resource_admission_behavior/defaults_queue.rs"]
+mod defaults_queue;
 #[path = "remote_resource_admission_behavior/status.rs"]
 mod status;
 #[path = "remote_resource_admission_behavior/submit.rs"]

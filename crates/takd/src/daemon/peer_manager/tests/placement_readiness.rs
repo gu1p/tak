@@ -58,5 +58,6 @@ fn select(peers: &PeerManager) -> Result<PeerSnapshot, PlacementFailure> {
         selection: PeerPlacementSelection::Sequential,
         task_run_id: "task-1",
         attempt: 1,
+        excluded_node_ids: &[],
     })
 }

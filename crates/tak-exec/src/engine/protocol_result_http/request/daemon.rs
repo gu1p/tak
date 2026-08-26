@@ -71,6 +71,7 @@ fn daemon_request_for(
             task_run_id: submit.task_run_id,
             attempt: submit.attempt,
             submit_body: body.to_vec(),
+            excluded_node_ids: target.excluded_node_ids.clone(),
         });
     }
     if let Some(request) = lifecycle_request(target, method, path, extra_headers)? {

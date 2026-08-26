@@ -8,6 +8,7 @@ use super::active_executions::SharedActiveExecutions;
 use super::resource_admission::{
     ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
 };
+use super::resource_policy::RemoteResourcePolicy;
 use super::tak_container_usage::SharedTakContainerUsage;
 
 #[path = "types_tests.rs"]
@@ -35,6 +36,7 @@ pub struct RemoteNodeContext {
     status_state: SharedNodeStatusState,
     active_executions: SharedActiveExecutions,
     resource_admission: SharedResourceAdmission,
+    resource_policy: RemoteResourcePolicy,
     tak_container_usage: SharedTakContainerUsage,
     runtime_state: Arc<RemoteRuntimeState>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
@@ -45,15 +47,19 @@ impl RemoteNodeContext {
     pub fn new(node: NodeInfo, bearer_token: String, runtime_config: RemoteRuntimeConfig) -> Self {
         let tak_container_usage = SharedTakContainerUsage::default();
         let oversubscribe_x = runtime_config.admission_oversubscribe_x();
+        let resource_policy = RemoteResourcePolicy::detected(&runtime_config);
+        let resource_admission = SharedResourceAdmission::new(
+            tak_container_usage.clone(),
+            resource_policy.capacity(),
+            oversubscribe_x,
+        );
         Self {
             node: Arc::new(Mutex::new(node)),
             bearer_token,
             status_state: new_shared_node_status_state(tak_container_usage.clone()),
             active_executions: SharedActiveExecutions::default(),
-            resource_admission: SharedResourceAdmission::new_detected(
-                tak_container_usage.clone(),
-                oversubscribe_x,
-            ),
+            resource_admission,
+            resource_policy,
             tak_container_usage,
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
             image_cache: None,
@@ -124,6 +130,13 @@ impl RemoteNodeContext {
         request: ResourceRequest,
     ) -> Result<ResourceAdmissionDecision> {
         self.resource_admission.admit_or_queue(request)
+    }
+
+    pub(crate) fn resolve_remote_resource_limits(
+        &self,
+        authored: Option<tak_core::model::ContainerResourceLimitsSpec>,
+    ) -> tak_core::model::ContainerResourceLimitsSpec {
+        self.resource_policy.resolve(authored)
     }
 
     pub(crate) fn wait_until_resources_admitted(

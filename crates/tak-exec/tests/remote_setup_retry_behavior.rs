@@ -14,7 +14,7 @@ use support::{
 };
 
 #[tokio::test]
-async fn tor_setup_retries_retryable_upload_failure_on_next_public_attempt() {
+async fn tor_setup_failure_fails_over_without_consuming_an_authored_attempt() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -39,13 +39,13 @@ async fn tor_setup_retries_retryable_upload_failure_on_next_public_attempt() {
         },
     )
     .await
-    .expect("retryable setup failure should retry and succeed");
+    .expect("retryable setup failure should fail over and succeed");
 
     let result = summary.results.get(&label).expect("task result");
     assert!(result.success);
-    assert_eq!(result.attempts, 2);
-    assert_eq!(result.remote_node_id.as_deref(), Some("builder-retry"));
-    assert_eq!(daemon.submit_attempts().await, vec![2]);
+    assert_eq!(result.attempts, 1);
+    assert_eq!(result.remote_node_id.as_deref(), Some("builder-b"));
+    assert_eq!(daemon.submit_attempts().await, vec![1]);
     assert_eq!(daemon.distinct_upload_ids().await, 1);
     assert!(
         daemon.stream_offsets().await.contains(&8),
@@ -53,9 +53,13 @@ async fn tor_setup_retries_retryable_upload_failure_on_next_public_attempt() {
     );
     assert!(observer.snapshot().iter().any(|event| {
         event.phase == TaskStatusPhase::RetryWait
-            && event.attempt == 2
-            && event.message.contains("retrying remote setup")
+            && event.attempt == 1
+            && event.message.contains("another eligible worker")
     }));
+    assert_eq!(
+        daemon.placement_exclusions().await,
+        vec![vec!["builder-a".to_string()]]
+    );
 }
 
 #[tokio::test]

@@ -10,6 +10,8 @@ use crate::engine::attempt_execution::{
 };
 use crate::engine::attempt_submit::{AttemptSubmitState, resolve_attempt_submit_state};
 use crate::engine::fused_cascade::FusedCascade;
+use crate::engine::remote_failover::prepare_remote_failover;
+use crate::engine::remote_failure::RemoteFailureKind;
 use crate::engine::remote_models::{RemoteWorkspaceStage, TaskPlacement};
 use crate::engine::remote_selection::SharedRemoteSelectionState;
 use crate::engine::session_workspaces::PreparedTaskSession;
@@ -29,53 +31,76 @@ pub(super) struct RemoteFusedAttemptContext<'a> {
 }
 
 pub(super) async fn run_remote_fused_attempt(
-    context: RemoteFusedAttemptContext<'_>,
+    mut context: RemoteFusedAttemptContext<'_>,
 ) -> Result<(u32, AttemptExecutionOutcome)> {
-    let RemoteFusedAttemptContext {
-        cascade,
-        workspace_root,
-        options,
-        task_run_id,
-        placement,
-        remote_selection_state,
-        remote_workspace,
-        workspace_content_hash,
-        session,
-        execution_label,
-        member_execution_labels,
-    } = context;
+    loop {
+        let result = run_physical_fused_attempt(&mut context).await;
+        match result {
+            Ok(outcome)
+                if outcome.remote_failure_kind == Some(RemoteFailureKind::Infrastructure) =>
+            {
+                let cause = outcome.failure_detail.clone().unwrap_or_else(|| {
+                    format!(
+                        "remote fused task failed with exit code {:?}",
+                        outcome.last_exit_code
+                    )
+                });
+                prepare_remote_failover(
+                    context.placement,
+                    cause,
+                    context.remote_selection_state,
+                    context.options.output_observer.as_ref(),
+                    &context.cascade.task.label,
+                    1,
+                )?;
+            }
+            Ok(outcome) => return Ok((1, outcome)),
+            Err(error) if crate::engine::is_run_cancelled_error(&error) => return Err(error),
+            Err(error) => prepare_remote_failover(
+                context.placement,
+                error.to_string(),
+                context.remote_selection_state,
+                context.options.output_observer.as_ref(),
+                &context.cascade.task.label,
+                1,
+            )?,
+        }
+    }
+}
+
+async fn run_physical_fused_attempt(
+    context: &mut RemoteFusedAttemptContext<'_>,
+) -> Result<AttemptExecutionOutcome> {
     resolve_attempt_submit_state(
-        &cascade.task,
-        workspace_root,
-        placement,
+        &context.cascade.task,
+        context.workspace_root,
+        context.placement,
         AttemptSubmitState {
-            remote_workspace,
-            workspace_content_hash,
-            task_run_id,
+            remote_workspace: context.remote_workspace,
+            workspace_content_hash: context.workspace_content_hash,
+            task_run_id: context.task_run_id,
             attempt: 1,
-            session,
-            fused_members: Some(&cascade.members),
-            execution_label,
-            fused_member_execution_labels: Some(member_execution_labels),
+            session: context.session,
+            fused_members: Some(&context.cascade.members),
+            execution_label: context.execution_label,
+            fused_member_execution_labels: Some(context.member_execution_labels),
         },
-        options.output_observer.as_ref(),
-        &options.cancellation,
-        remote_selection_state,
+        context.options.output_observer.as_ref(),
+        &context.options.cancellation,
+        context.remote_selection_state,
     )
     .await?;
-    let context = AttemptExecutionContext {
-        task: &cascade.task,
-        workspace_root,
-        run_root: workspace_root,
-        placement,
+    execute_task_attempt(&AttemptExecutionContext {
+        task: &context.cascade.task,
+        workspace_root: context.workspace_root,
+        run_root: context.workspace_root,
+        placement: context.placement,
         runtime_metadata: None,
-        remote_workspace,
-        task_run_id,
+        remote_workspace: context.remote_workspace,
+        task_run_id: context.task_run_id,
         attempt: 1,
-        output_observer: options.output_observer.as_ref(),
-        cancellation: &options.cancellation,
-    };
-    execute_task_attempt(&context)
-        .await
-        .map(|outcome| (1, outcome))
+        output_observer: context.options.output_observer.as_ref(),
+        cancellation: &context.options.cancellation,
+    })
+    .await
 }

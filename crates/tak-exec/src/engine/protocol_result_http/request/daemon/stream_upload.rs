@@ -54,7 +54,9 @@ pub(crate) async fn stream_workspace_upload_via_daemon(
         let peer = select_upload_peer(target).await?;
         let mut progress =
             progress_input.map(|input| ActiveStreamUploadProgress::new(input, plan.size_bytes()));
-        let response = retry::stream_until_complete(&plan, &peer, progress.as_mut()).await?;
+        let response = retry::stream_until_complete(&plan, &peer, progress.as_mut())
+            .await
+            .map_err(|err| errors::peer_error(&peer.node_id, err))?;
         Ok(DaemonStreamUploadResponse {
             response,
             peer_node_id: peer.node_id,
@@ -70,6 +72,7 @@ pub(super) async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<Da
     let request = DaemonRequest::PeersEligible {
         request_id: request_id("upload-peers", target, "/v2/workspaces/uploads"),
         requirements: node_requirements(target),
+        excluded_node_ids: target.excluded_node_ids.clone(),
     };
     match send_daemon_request(&transport::broker_socket_path(), request).await? {
         DaemonResponse::PeersSnapshot { peers } => peers

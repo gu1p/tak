@@ -15,6 +15,8 @@ pub struct RuntimeConfigBuilder {
     pub(super) remote_cleanup_interval: Option<Duration>,
     pub(super) remote_client_stale_ttl: Option<Duration>,
     pub(super) remote_client_watchdog_interval: Option<Duration>,
+    pub(super) default_container_cpu_cores: Option<f64>,
+    pub(super) default_container_memory_mb: Option<u64>,
 }
 
 impl RuntimeConfigBuilder {
@@ -55,6 +57,12 @@ impl RuntimeConfigBuilder {
 
     pub fn with_remote_client_watchdog_interval(mut self, interval: Duration) -> Self {
         self.remote_client_watchdog_interval = Some(interval);
+        self
+    }
+
+    pub fn with_default_container_resources(mut self, cpu_cores: f64, memory_mb: u64) -> Self {
+        self.default_container_cpu_cores = Some(cpu_cores);
+        self.default_container_memory_mb = Some(memory_mb);
         self
     }
 

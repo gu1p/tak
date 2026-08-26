@@ -114,6 +114,7 @@ pub(crate) fn configured_remote_targets(remote: &RemoteSpec) -> Result<RemoteTar
                 required_tags: remote.required_tags.clone(),
                 required_capabilities: remote.required_capabilities.clone(),
                 daemon_task_handle: None,
+                excluded_node_ids: Vec::new(),
             });
         }
 

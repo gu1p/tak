@@ -2,20 +2,19 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use tak_core::model::{
-    ContainerResourceLimitsSpec, ContainerRuntimeSourceSpec, LocalSpec, RemoteRuntimeSpec,
-    RemoteSelectionSpec, RemoteSpec, RemoteTransportKind, ResolvedTask, SessionUseSpec, TaskLabel,
+    LocalSpec, RemoteRuntimeSpec, RemoteSelectionSpec, RemoteSpec, RemoteTransportKind,
+    ResolvedTask, SessionUseSpec, TaskLabel,
 };
-
-use crate::ImageCacheOptions;
-use crate::container_engine::ContainerEngine;
 
 use super::{PlacementMode, RemoteCandidateDiagnostic, SyncedOutput};
 
 mod container_lifecycle;
 mod remote_events;
+mod runtime_models;
 
 pub(crate) use container_lifecycle::ContainerLifecycleStage;
 pub(crate) use remote_events::{ParsedRemoteEvents, RemoteStatusUpdate};
+pub(crate) use runtime_models::{ContainerExecutionPlan, ImageCachePlan, RuntimeExecutionMetadata};
 
 const DAEMON_TOR_PLACEMENT_NODE_ID: &str = "__takd_daemon_tor__";
 const DAEMON_TOR_PLACEMENT_ENDPOINT: &str = "http://takd-daemon-placement.onion";
@@ -32,6 +31,7 @@ pub(crate) struct StrictRemoteTarget {
     pub(crate) required_tags: Vec<String>,
     pub(crate) required_capabilities: Vec<String>,
     pub(crate) daemon_task_handle: Option<String>,
+    pub(crate) excluded_node_ids: Vec<String>,
 }
 
 impl StrictRemoteTarget {
@@ -47,6 +47,7 @@ impl StrictRemoteTarget {
             required_tags: remote.required_tags.clone(),
             required_capabilities: remote.required_capabilities.clone(),
             daemon_task_handle: None,
+            excluded_node_ids: Vec::new(),
         }
     }
 
@@ -122,6 +123,13 @@ pub(crate) struct TaskPlacement {
     pub(crate) local: Option<LocalSpec>,
     pub(crate) remote: Option<RemoteSpec>,
     pub(crate) session: Option<SessionUseSpec>,
+    pub(crate) infrastructure_failures: Vec<RemoteInfrastructureFailure>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RemoteInfrastructureFailure {
+    pub(crate) node_id: String,
+    pub(crate) cause: String,
 }
 
 #[derive(Debug, Clone)]
@@ -134,6 +142,7 @@ pub(crate) struct RemoteProtocolResult {
     pub(crate) runtime_engine: Option<String>,
     pub(crate) stdout_tail: Option<String>,
     pub(crate) stderr_tail: Option<String>,
+    pub(crate) failure_kind: Option<super::remote_failure::RemoteFailureKind>,
 }
 
 #[derive(Debug)]
@@ -152,38 +161,6 @@ impl RemoteWorkspaceStage {
 
 pub(crate) fn format_upload_size_mb(byte_len: u64) -> String {
     format!("{:.2} MB", byte_len as f64 / 1_000_000.0)
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RuntimeExecutionMetadata {
-    pub(crate) kind: String,
-    pub(crate) engine: Option<String>,
-    pub(crate) env_overrides: BTreeMap<String, String>,
-    pub(crate) container_plan: Option<ContainerExecutionPlan>,
-    pub(crate) container_identity: Option<super::ContainerExecutionIdentity>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ContainerExecutionPlan {
-    pub(crate) engine: ContainerEngine,
-    pub(crate) source: ContainerRuntimeSourceSpec,
-    pub(crate) image: String,
-    pub(crate) container_user: Option<String>,
-    pub(crate) image_cache: Option<ImageCachePlan>,
-    /// Declared CPU/memory reservations for the task. Threaded to the container
-    /// runtime to enforce CPU as a real cgroup quota (`nano_cpus`) and to cap
-    /// test/codegen parallelism. Memory is NEVER applied as a hard cgroup cap:
-    /// that would let the kernel OOM-kill the container for over-using memory,
-    /// which Tak must not do. Memory pressure is handled by throttling and
-    /// admission, not by killing containers.
-    pub(crate) resource_limits: Option<ContainerResourceLimitsSpec>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct ImageCachePlan {
-    pub(crate) options: ImageCacheOptions,
-    pub(crate) cache_key: String,
-    pub(crate) source_kind: String,
 }
 
 #[derive(Debug, Clone, Copy)]

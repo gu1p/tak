@@ -28,6 +28,7 @@ impl From<Request> for RequestEnvelope {
             Request::PeersEligible(payload) => {
                 let mut envelope = base(RequestType::PeersEligible, payload.request_id);
                 envelope.requirements = Some(payload.requirements);
+                envelope.excluded_node_ids = Some(payload.excluded_node_ids);
                 envelope
             }
             Request::PlaceRemote(payload) => {
@@ -38,6 +39,7 @@ impl From<Request> for RequestEnvelope {
                 envelope.task_run_id = Some(payload.task_run_id);
                 envelope.attempt = Some(payload.attempt);
                 envelope.submit_body = Some(payload.submit_body);
+                envelope.excluded_node_ids = Some(payload.excluded_node_ids);
                 envelope
             }
             Request::ForwardRemoteHttp(payload) => forward_remote_envelope(payload),
@@ -86,6 +88,7 @@ fn base(request_type: RequestType, request_id: String) -> RequestEnvelope {
         after_seq: None,
         attempt: None,
         range: None,
+        excluded_node_ids: None,
     }
 }
 

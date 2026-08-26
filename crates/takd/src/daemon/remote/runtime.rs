@@ -7,7 +7,9 @@ mod memory_pressure_settings;
 #[cfg(test)]
 mod test_support;
 
-use env_parse::{bool_from_env, duration_from_env, optional_trimmed_env, u64_from_env};
+use env_parse::{
+    bool_from_env, duration_from_env, f64_from_env, optional_trimmed_env, u64_from_env,
+};
 pub(crate) use memory_pressure_settings::MemoryPressureSettings;
 
 const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
@@ -16,9 +18,11 @@ const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 600 * 1000;
 const DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS: u64 = 1000;
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
 
-const DEFAULT_ADMISSION_OVERSUBSCRIBE_X: u64 = 16;
+const DEFAULT_ADMISSION_OVERSUBSCRIBE_X: u64 = 1;
+const DEFAULT_CONTAINER_CPU_CORES: f64 = 4.0;
+const DEFAULT_CONTAINER_MEMORY_MB: u64 = 8192;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RemoteRuntimeConfig {
     explicit_remote_exec_root: Option<PathBuf>,
     temp_dir: PathBuf,
@@ -34,6 +38,8 @@ pub struct RemoteRuntimeConfig {
     remote_client_watchdog_interval: Duration,
     memory_pressure: MemoryPressureSettings,
     admission_oversubscribe_x: u64,
+    default_container_cpu_cores: f64,
+    default_container_memory_mb: u64,
     memory_pressure_enabled: bool,
 }
 
@@ -103,6 +109,16 @@ impl RemoteRuntimeConfig {
                 DEFAULT_ADMISSION_OVERSUBSCRIBE_X,
             )
             .max(1),
+            default_container_cpu_cores: f64_from_env(
+                &read_env,
+                "TAKD_DEFAULT_CONTAINER_CPU_CORES",
+                DEFAULT_CONTAINER_CPU_CORES,
+            ),
+            default_container_memory_mb: u64_from_env(
+                &read_env,
+                "TAKD_DEFAULT_CONTAINER_MEMORY_MB",
+                DEFAULT_CONTAINER_MEMORY_MB,
+            ),
             memory_pressure_enabled: bool_from_env(&read_env, "TAKD_MEMORY_PRESSURE_ENABLED", true),
         }
     }

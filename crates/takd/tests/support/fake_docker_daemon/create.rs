@@ -17,6 +17,8 @@ struct CreateContainerPayload {
     user: Option<String>,
     working_dir: Option<String>,
     labels: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    env: Vec<String>,
     host_config: Option<HostConfigPayload>,
 }
 
@@ -24,6 +26,7 @@ struct CreateContainerPayload {
 #[serde(rename_all = "PascalCase")]
 struct HostConfigPayload {
     binds: Option<Vec<String>>,
+    nano_cpus: Option<i64>,
 }
 
 pub(super) struct CreatedContainer {
@@ -37,10 +40,9 @@ pub(super) fn create_container(
 ) -> io::Result<CreatedContainer> {
     let payload = parse_create_payload(request)?;
     let container_id = state.next_container_id();
-    let binds = payload
-        .host_config
-        .and_then(|config| config.binds)
-        .unwrap_or_default();
+    let (binds, nano_cpus) = payload.host_config.map_or((Vec::new(), None), |config| {
+        (config.binds.unwrap_or_default(), config.nano_cpus)
+    });
     let exit_code = exit_code_for_payload(state, &payload.cmd, &binds);
     Ok(CreatedContainer {
         record: CreateRecord {
@@ -51,6 +53,8 @@ pub(super) fn create_container(
             working_dir: payload.working_dir,
             binds,
             labels: payload.labels.unwrap_or_default(),
+            env: payload.env,
+            nano_cpus,
             state: "running".to_string(),
         },
         exit_code,
@@ -78,6 +82,9 @@ fn exit_code_for_payload(state: &FakeDockerDaemonState, cmd: &[String], binds: &
         return if visible && sentinel.is_file() { 0 } else { 1 };
     }
 
+    if cmd.iter().any(|value| value.contains("exit 137")) {
+        return 137;
+    }
     if cmd.iter().any(|value| value.contains("exit 1")) {
         return 1;
     }

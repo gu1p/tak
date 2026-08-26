@@ -145,3 +145,7 @@ pub(crate) fn spawn_memory_pressure_controller(context: RemoteNodeContext) {
         }
     });
 }
+
+pub(super) fn resume_headroom_bytes(settings: &MemoryPressureSettings, total_bytes: u64) -> u64 {
+    pressure::thresholds(settings, total_bytes).resume
+}

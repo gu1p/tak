@@ -42,6 +42,7 @@ fn persist_queued_failed_submit(
             "outputs": serde_json::json!([]),
             "stdout_tail": serde_json::Value::Null,
             "stderr_tail": message,
+            "failure_kind": "infrastructure",
         })
         .to_string(),
     ) {

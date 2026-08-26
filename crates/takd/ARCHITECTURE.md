@@ -122,9 +122,16 @@ Startup recovery:
 - Requests exceeding available capacity are returned as pending.
 - Pending queue position is surfaced to clients.
 - Releasing/expiring leases frees capacity for subsequent requests.
-- Remote container CPU/memory limits are optional. An omitted limit creates no CPU or memory
-  reservation and does not constrain the container; explicit limits retain admission and quota
-  behavior.
+- Remote containers omitted by the author receive node-owned defaults (4 CPU cores and 8192 MiB),
+  clamped to logical cores and total RAM minus the memory-pressure resume headroom. Operators may
+  override them with `TAKD_DEFAULT_CONTAINER_CPU_CORES` and
+  `TAKD_DEFAULT_CONTAINER_MEMORY_MB`.
+- CPU reservations become real container quotas and thread-pool caps. Memory remains an admission
+  reservation and never becomes a Docker hard cap; the never-kill pause/backpressure controller
+  remains the runtime backstop.
+- Aggregate CPU and memory reservations admit at 1x capacity by default.
+  `TAKD_ADMISSION_OVERSUBSCRIBE_X` is an explicit operator opt-in. Explicitly authored limits are
+  never clamped and are rejected if they exceed the node's safe admission capacity.
 - The emergency memory-pressure admission hold still queues new starts regardless of whether a
   request declared limits.
 

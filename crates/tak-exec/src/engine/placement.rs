@@ -117,6 +117,7 @@ pub(super) fn local_task_placement(
         session: local.session.clone(),
         local: Some(local),
         remote: None,
+        infrastructure_failures: Vec::new(),
     }
 }
 

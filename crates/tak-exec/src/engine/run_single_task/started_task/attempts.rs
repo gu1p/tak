@@ -5,10 +5,7 @@ use tak_core::model::ResolvedTask;
 
 use crate::lease_client::{TaskLease, acquire_task_lease, release_task_lease};
 
-use super::super::super::attempt_execution::{
-    AttemptExecutionContext, AttemptExecutionOutcome, execute_task_attempt,
-};
-use super::super::super::attempt_submit::{AttemptSubmitState, resolve_attempt_submit_state};
+use super::super::super::attempt_execution::AttemptExecutionOutcome;
 use super::super::super::remote_models::{
     RemoteWorkspaceStage, RuntimeExecutionMetadata, TaskPlacement,
 };
@@ -20,10 +17,13 @@ use super::super::events::emit_finished;
 use setup_retry::{can_retry_remote_setup, wait_before_remote_setup_retry};
 use task_retry::{can_retry, wait_before_retry};
 
+#[path = "attempts/physical.rs"]
+mod physical;
 #[path = "attempts/setup_retry.rs"]
 mod setup_retry;
 #[path = "attempts/task_retry.rs"]
 mod task_retry;
+use physical::run_physical_attempts;
 
 pub(super) struct StartedAttemptContext<'a> {
     pub(super) task_run_id: &'a str,
@@ -52,18 +52,14 @@ pub(super) async fn run_attempts(
         *context.attempt += 1;
         let current_attempt = *context.attempt;
         let mut lease = acquire_task_lease(task, current_attempt, options, lease_context).await?;
-        let attempt_result = async {
-            submit_remote_attempt_if_needed(
-                task,
-                workspace_root,
-                options,
-                current_attempt,
-                &mut context,
-                remote_selection_state,
-            )
-            .await?;
-            run_one_attempt(task, workspace_root, options, current_attempt, &context).await
-        }
+        let attempt_result = run_physical_attempts(
+            task,
+            workspace_root,
+            options,
+            current_attempt,
+            &mut context,
+            remote_selection_state,
+        )
         .await;
         release_attempt_lease(lease.as_mut(), task, options).await?;
         let outcome = match attempt_result {
@@ -75,7 +71,12 @@ pub(super) async fn run_attempts(
             }
             Err(err) => return Err(err),
         };
-        if outcome.attempt_success || !can_retry(task, current_attempt, outcome.last_exit_code) {
+        if outcome.attempt_success
+            || !super::super::super::remote_failure::permits_authored_retry(
+                outcome.remote_failure_kind,
+            )
+            || !can_retry(task, current_attempt, outcome.last_exit_code)
+        {
             let result = build_task_result(current_attempt, outcome, &context);
             sessions.finish_task(context.session, result.success)?;
             emit_finished(options, task, &result)?;
@@ -83,57 +84,6 @@ pub(super) async fn run_attempts(
         }
         wait_before_retry(task, options, current_attempt, &context).await?;
     }
-}
-
-async fn submit_remote_attempt_if_needed(
-    task: &ResolvedTask,
-    workspace_root: &Path,
-    options: &RunOptions,
-    attempt: u32,
-    context: &mut StartedAttemptContext<'_>,
-    remote_selection_state: &SharedRemoteSelectionState,
-) -> Result<()> {
-    resolve_attempt_submit_state(
-        task,
-        workspace_root,
-        &mut *context.placement,
-        AttemptSubmitState {
-            remote_workspace: context.remote_workspace,
-            workspace_content_hash: context.workspace_content_hash,
-            task_run_id: context.task_run_id,
-            attempt,
-            session: context.session,
-            fused_members: None,
-            execution_label: context.execution_label,
-            fused_member_execution_labels: None,
-        },
-        options.output_observer.as_ref(),
-        &options.cancellation,
-        remote_selection_state,
-    )
-    .await
-}
-
-async fn run_one_attempt(
-    task: &ResolvedTask,
-    workspace_root: &Path,
-    options: &RunOptions,
-    attempt: u32,
-    context: &StartedAttemptContext<'_>,
-) -> Result<AttemptExecutionOutcome> {
-    let attempt_context = AttemptExecutionContext {
-        task,
-        workspace_root,
-        run_root: context.run_root,
-        placement: &*context.placement,
-        runtime_metadata: context.runtime_metadata,
-        remote_workspace: context.remote_workspace,
-        task_run_id: context.task_run_id,
-        attempt,
-        output_observer: options.output_observer.as_ref(),
-        cancellation: &options.cancellation,
-    };
-    execute_task_attempt(&attempt_context).await
 }
 
 async fn release_attempt_lease(

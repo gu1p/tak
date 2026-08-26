@@ -117,6 +117,17 @@ impl PeerManager {
             .collect()
     }
 
+    pub fn placeable_excluding(
+        &self,
+        requirements: &PeerEligibility,
+        excluded_node_ids: &[String],
+    ) -> Vec<PeerSnapshot> {
+        self.placeable(requirements)
+            .into_iter()
+            .filter(|peer| !excluded_node_ids.contains(&peer.node_id))
+            .collect()
+    }
+
     pub fn connection_target(&self, node_id: &str) -> Option<PeerConnectionTarget> {
         let state = self.lock_state();
         state.peers.get(node_id).map(PeerEntry::connection_target)

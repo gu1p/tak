@@ -8,23 +8,14 @@ use super::EnvGuard;
 
 mod io;
 mod responses;
+mod state;
+
+pub(super) use state::State;
 
 pub struct RetryableTorDaemon {
     state: Arc<Mutex<State>>,
     _temp: tempfile::TempDir,
     task: tokio::task::JoinHandle<()>,
-}
-
-#[derive(Default)]
-pub(super) struct State {
-    pub(super) non_retryable_peers: bool,
-    pub(super) peer_requests: u32,
-    pub(super) committed: u64,
-    pub(super) size: u64,
-    pub(super) drops_at_committed_offset: u8,
-    pub(super) upload_ids: Vec<String>,
-    pub(super) stream_offsets: Vec<u64>,
-    pub(super) submit_attempts: Vec<u32>,
 }
 
 impl RetryableTorDaemon {
@@ -33,7 +24,10 @@ impl RetryableTorDaemon {
         let socket_path = temp.path().join("takd.sock");
         env.set("TAKD_SOCKET", socket_path.display().to_string());
         let listener = UnixListener::bind(&socket_path).expect("bind retryable fake daemon");
-        let state = Arc::new(Mutex::new(State::default()));
+        let state = Arc::new(Mutex::new(State {
+            upload_failover: true,
+            ..State::default()
+        }));
         Self::with_listener(temp, listener, state)
     }
 
@@ -44,6 +38,18 @@ impl RetryableTorDaemon {
         let listener = UnixListener::bind(&socket_path).expect("bind fake daemon");
         let state = Arc::new(Mutex::new(State {
             non_retryable_peers: true,
+            ..State::default()
+        }));
+        Self::with_listener(temp, listener, state)
+    }
+
+    pub async fn spawn_failover(root: &Path, env: &mut EnvGuard) -> Self {
+        let temp = tempfile::tempdir_in(root).expect("failover daemon tempdir");
+        let socket_path = temp.path().join("takd.sock");
+        env.set("TAKD_SOCKET", socket_path.display().to_string());
+        let listener = UnixListener::bind(&socket_path).expect("bind failover daemon");
+        let state = Arc::new(Mutex::new(State {
+            failover_results: true,
             ..State::default()
         }));
         Self::with_listener(temp, listener, state)
@@ -79,6 +85,10 @@ impl RetryableTorDaemon {
 
     pub async fn peer_requests(&self) -> u32 {
         self.state.lock().await.peer_requests
+    }
+
+    pub async fn placement_exclusions(&self) -> Vec<Vec<String>> {
+        self.state.lock().await.placement_exclusions.clone()
     }
 }
 

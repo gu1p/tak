@@ -66,6 +66,7 @@ pub(crate) fn empty_task_result() -> TaskRunResult {
         local: None,
         remote: None,
         session: None,
+        infrastructure_failures: Vec::new(),
     };
     build_task_run_result(
         TaskRunResultContext {
@@ -85,6 +86,7 @@ pub(crate) fn empty_task_result() -> TaskRunResult {
             remote_runtime_kind: None,
             remote_runtime_engine: None,
             remote_logs: Vec::new(),
+            remote_failure_kind: None,
         },
     )
 }

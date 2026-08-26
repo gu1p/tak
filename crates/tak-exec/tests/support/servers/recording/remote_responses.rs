@@ -1,6 +1,7 @@
 use tak_proto::{
     AppendWorkspaceUploadResponse, BeginWorkspaceUploadResponse, ErrorResponse,
-    FinishWorkspaceUploadResponse, GetTaskResultResponse, NodeInfo, SubmitTaskResponse,
+    FinishWorkspaceUploadResponse, GetTaskResultResponse, NodeInfo, RemoteFailureKind,
+    SubmitTaskResponse,
 };
 
 pub(super) fn error_response(message: &str) -> ErrorResponse {
@@ -71,5 +72,23 @@ pub(super) fn success_result(node_id: &str) -> GetTaskResultResponse {
         outputs: Vec::new(),
         stdout_tail: None,
         stderr_tail: None,
+        failure_kind: None,
+    }
+}
+
+pub(super) fn failed_result(
+    node_id: &str,
+    exit_code: i32,
+    kind: RemoteFailureKind,
+) -> GetTaskResultResponse {
+    GetTaskResultResponse {
+        success: false,
+        exit_code: Some(exit_code),
+        status: "failure".into(),
+        node_id: node_id.into(),
+        transport_kind: "direct".into(),
+        stderr_tail: Some(format!("{node_id} failed with exit {exit_code}")),
+        failure_kind: Some(kind as i32),
+        ..GetTaskResultResponse::default()
     }
 }

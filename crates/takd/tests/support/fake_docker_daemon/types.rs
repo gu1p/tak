@@ -11,6 +11,8 @@ pub struct CreateRecord {
     pub working_dir: Option<String>,
     pub binds: Vec<String>,
     pub labels: BTreeMap<String, String>,
+    pub env: Vec<String>,
+    pub nano_cpus: Option<i64>,
     /// Engine state reported in the container list (`running`/`paused`).
     pub state: String,
 }

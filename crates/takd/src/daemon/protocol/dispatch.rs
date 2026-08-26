@@ -90,7 +90,7 @@ pub(super) async fn dispatch_request(
                 .await;
             Ok(Response::PeersSnapshot {
                 request_id: payload.request_id,
-                peers: peers.placeable(&payload.requirements),
+                peers: peers.placeable_excluding(&payload.requirements, &payload.excluded_node_ids),
             })
         }
         Request::PlaceRemote(payload) => {
@@ -102,7 +102,7 @@ pub(super) async fn dispatch_request(
                 .await;
             let preferred_peer = payload.preferred_node_id.as_ref().and_then(|node_id| {
                 peers
-                    .placeable(&payload.requirements)
+                    .placeable_excluding(&payload.requirements, &payload.excluded_node_ids)
                     .into_iter()
                     .find(|peer| &peer.node_id == node_id)
             });
@@ -112,6 +112,7 @@ pub(super) async fn dispatch_request(
                     selection: payload.selection,
                     task_run_id: &payload.task_run_id,
                     attempt: payload.attempt,
+                    excluded_node_ids: &payload.excluded_node_ids,
                 })
             });
             match selected_peer {

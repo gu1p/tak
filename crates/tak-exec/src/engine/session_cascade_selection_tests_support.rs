@@ -62,6 +62,7 @@ pub(super) fn placement_with_session(
         local: None,
         remote: None,
         session,
+        infrastructure_failures: Vec::new(),
     }
 }
 
@@ -89,6 +90,7 @@ pub(super) fn targets() -> Vec<StrictRemoteTarget> {
             required_tags: Vec::new(),
             required_capabilities: Vec::new(),
             daemon_task_handle: None,
+            excluded_node_ids: Vec::new(),
         })
         .collect()
 }

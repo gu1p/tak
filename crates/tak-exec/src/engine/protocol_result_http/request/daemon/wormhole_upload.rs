@@ -42,8 +42,12 @@ pub(crate) async fn send_workspace_wormhole_via_daemon(
     let timeout = request.timeout;
     let exchange = async move {
         let peer = select_upload_peer(target).await?;
-        preflight_wormhole_route(target, &peer, request.upload_id).await?;
-        let response = send_wormhole_file(target, &peer, &request).await?;
+        preflight_wormhole_route(target, &peer, request.upload_id)
+            .await
+            .map_err(|err| super::errors::peer_error(&peer.node_id, err))?;
+        let response = send_wormhole_file(target, &peer, &request)
+            .await
+            .map_err(|err| super::errors::peer_error(&peer.node_id, err))?;
         Ok(DaemonWormholeUploadResponse {
             response,
             peer_node_id: peer.node_id,
@@ -60,9 +64,8 @@ async fn preflight_wormhole_route(
     peer: &DaemonPeerSnapshot,
     upload_id: &str,
 ) -> Result<()> {
-    let response =
-        forward_wormhole_request(target, peer, "GET", &wormhole_path(upload_id), Vec::new())
-            .await?;
+    let path = support::wormhole_path(upload_id);
+    let response = forward_wormhole_request(target, peer, "GET", &path, Vec::new()).await?;
     if response.status != 200 {
         bail!(
             "workspace wormhole upload route unavailable on remote node {} with HTTP {}",
@@ -95,7 +98,7 @@ async fn send_wormhole_file(
         size_bytes: request.size_bytes,
     }
     .encode_to_vec();
-    let path = wormhole_path(request.upload_id);
+    let path = support::wormhole_path(request.upload_id);
     let remote_receive = forward_wormhole_request(target, peer, "POST", &path, body);
     let local_send = send_file_to_wormhole(mailbox, request.archive_path, request.size_bytes);
     let (send_result, receive_result) = tokio::join!(local_send, remote_receive);
@@ -190,8 +193,4 @@ fn transfer_abilities(env_name: &str) -> Abilities {
         "relay" => Abilities::FORCE_RELAY,
         _ => Abilities::ALL,
     }
-}
-
-fn wormhole_path(upload_id: &str) -> String {
-    format!("/v2/workspaces/uploads/{upload_id}/wormhole")
 }

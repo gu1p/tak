@@ -44,6 +44,7 @@ fn select_many(manager: &PeerManager, count: usize) -> Vec<String> {
                     selection: PeerPlacementSelection::RoundRobin,
                     task_run_id: &format!("task-run-{index}"),
                     attempt: 1,
+                    excluded_node_ids: &[],
                 })
                 .expect("round-robin placement")
                 .node_id

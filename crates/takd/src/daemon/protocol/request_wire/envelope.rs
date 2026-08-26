@@ -43,6 +43,8 @@ pub(in crate::daemon::protocol) struct RequestEnvelope {
     pub(super) attempt: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) range: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) excluded_node_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

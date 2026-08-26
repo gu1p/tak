@@ -38,6 +38,14 @@ pub(in crate::support::retryable_tor_daemon) fn record_stream(
     state.size = header_value(headers, "x-tak-upload-size")
         .and_then(|value| value.parse().ok())
         .unwrap_or(state.size);
+    if state.upload_failover && header_value(headers, "x-tak-remote-node") == Some("builder-b") {
+        state.committed = state.size;
+        return true;
+    }
+    if state.failover_results {
+        state.committed = state.size;
+        return true;
+    }
     if state.committed == 0 && offset == 0 {
         state.committed = state.size.min(8);
         return false;

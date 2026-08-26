@@ -130,5 +130,6 @@ fn failed_member_outcome(member: &ResolvedTask, exit_code: Option<i32>) -> Attem
         remote_runtime_kind: None,
         remote_runtime_engine: None,
         remote_logs: Vec::new(),
+        remote_failure_kind: None,
     }
 }

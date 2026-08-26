@@ -1,5 +1,5 @@
 use super::*;
-use tak_proto::{GetTaskResultResponse, OutputFile};
+use tak_proto::{GetTaskResultResponse, OutputFile, RemoteFailureKind};
 
 pub(super) fn handle_remote_result_route(
     store: &SubmitAttemptStore,
@@ -105,6 +105,20 @@ pub(super) fn handle_remote_result_route(
                 .get("stderr_tail")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
+            failure_kind: payload_value
+                .get("failure_kind")
+                .and_then(serde_json::Value::as_str)
+                .and_then(parse_failure_kind)
+                .map(|kind| kind as i32),
         },
     )))
+}
+
+fn parse_failure_kind(value: &str) -> Option<RemoteFailureKind> {
+    match value {
+        "task" => Some(RemoteFailureKind::Task),
+        "infrastructure" => Some(RemoteFailureKind::Infrastructure),
+        "cancellation" => Some(RemoteFailureKind::Cancellation),
+        _ => None,
+    }
 }

@@ -124,6 +124,18 @@ impl std::fmt::Display for RemotePreflightFailure {
     }
 }
 
+impl RemotePreflightFailure {
+    pub(crate) fn failover_cause(&self, task_label: &str) -> String {
+        match self.kind {
+            RemotePreflightFailureKind::Timeout => format!(
+                "Remote node info probe timed out for {task_label}: {}",
+                self.message
+            ),
+            _ => self.message.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemotePreflightExhaustedError {
     pub task_label: String,

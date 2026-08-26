@@ -48,5 +48,6 @@ pub(super) fn target() -> StrictRemoteTarget {
         required_tags: Vec::new(),
         required_capabilities: Vec::new(),
         daemon_task_handle: None,
+        excluded_node_ids: Vec::new(),
     }
 }

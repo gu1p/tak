@@ -217,6 +217,14 @@ message GetTaskResultResponse {
   repeated OutputFile outputs = 11;
   optional string stdout_tail = 12;
   optional string stderr_tail = 13;
+  optional RemoteFailureKind failure_kind = 14;
+}
+
+enum RemoteFailureKind {
+  REMOTE_FAILURE_KIND_UNSPECIFIED = 0;
+  TASK = 1;
+  INFRASTRUCTURE = 2;
+  CANCELLATION = 3;
 }
 
 message CancelTaskResponse {

@@ -30,7 +30,7 @@ pub(super) fn parse_remote_worker_submit_payload(
                 .runtime
                 .as_ref()
                 .ok_or_else(|| anyhow!("invalid_submit_fields: execution.runtime is required"))
-                .and_then(parse_remote_worker_runtime_spec)?,
+                .and_then(|runtime| parse_remote_worker_runtime_spec(context, runtime))?,
         ),
         needs: request.needs.clone(),
         outputs: request
@@ -110,50 +110,59 @@ pub(super) fn parse_remote_worker_step(step: &Step) -> Result<StepDef> {
     }
 }
 
-fn parse_remote_worker_runtime_spec(value: &RuntimeSpec) -> Result<RemoteRuntimeSpec> {
+fn parse_remote_worker_runtime_spec(
+    context: &RemoteNodeContext,
+    value: &RuntimeSpec,
+) -> Result<RemoteRuntimeSpec> {
     match value.kind.as_ref() {
-        Some(runtime_spec::Kind::Container(container)) => match (
-            container
-                .image
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty()),
-            container
-                .dockerfile
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty()),
-        ) {
-            (Some(_), Some(_)) => bail!(
-                "invalid_submit_fields: execution.runtime.container must specify exactly one source"
-            ),
-            (None, None) => bail!(
-                "invalid_submit_fields: execution.runtime.container must specify exactly one source"
-            ),
-            (Some(image), None) => Ok(RemoteRuntimeSpec::Containerized {
-                source: ContainerRuntimeSourceSpec::Image {
-                    image: image.to_string(),
-                },
-                resource_limits: parse_container_resource_limits(container)?,
-            }),
-            (None, Some(dockerfile)) => {
-                let dockerfile = normalize_workspace_submit_path(
-                    dockerfile,
-                    "execution.runtime.container.dockerfile",
-                )?;
-                let build_context = normalize_workspace_submit_path(
-                    container.build_context.as_deref().unwrap_or("."),
-                    "execution.runtime.container.build_context",
-                )?;
-                Ok(RemoteRuntimeSpec::Containerized {
-                    source: ContainerRuntimeSourceSpec::Dockerfile {
-                        dockerfile,
-                        build_context,
+        Some(runtime_spec::Kind::Container(container)) => {
+            match (
+                container
+                    .image
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty()),
+                container
+                    .dockerfile
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty()),
+            ) {
+                (Some(_), Some(_)) => bail!(
+                    "invalid_submit_fields: execution.runtime.container must specify exactly one source"
+                ),
+                (None, None) => bail!(
+                    "invalid_submit_fields: execution.runtime.container must specify exactly one source"
+                ),
+                (Some(image), None) => Ok(RemoteRuntimeSpec::Containerized {
+                    source: ContainerRuntimeSourceSpec::Image {
+                        image: image.to_string(),
                     },
-                    resource_limits: parse_container_resource_limits(container)?,
-                })
+                    resource_limits: Some(context.resolve_remote_resource_limits(
+                        parse_container_resource_limits(container)?,
+                    )),
+                }),
+                (None, Some(dockerfile)) => {
+                    let dockerfile = normalize_workspace_submit_path(
+                        dockerfile,
+                        "execution.runtime.container.dockerfile",
+                    )?;
+                    let build_context = normalize_workspace_submit_path(
+                        container.build_context.as_deref().unwrap_or("."),
+                        "execution.runtime.container.build_context",
+                    )?;
+                    Ok(RemoteRuntimeSpec::Containerized {
+                        source: ContainerRuntimeSourceSpec::Dockerfile {
+                            dockerfile,
+                            build_context,
+                        },
+                        resource_limits: Some(context.resolve_remote_resource_limits(
+                            parse_container_resource_limits(container)?,
+                        )),
+                    })
+                }
             }
-        },
+        }
         None => bail!("invalid_submit_fields: execution.runtime.kind is required"),
     }
 }

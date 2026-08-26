@@ -17,6 +17,7 @@ pub struct PeerPlacementRequest<'a> {
     pub selection: PeerPlacementSelection,
     pub task_run_id: &'a str,
     pub attempt: u32,
+    pub excluded_node_ids: &'a [String],
 }
 
 impl PeerManager {
@@ -75,6 +76,7 @@ impl PeerManager {
                     !identity.matches_peer(&entry.snapshot.node_id, &entry.snapshot.endpoint)
                 })
             })
+            .filter(|entry| !request.excluded_node_ids.contains(&entry.snapshot.node_id))
             .map(|entry| entry.snapshot.clone())
             .collect::<Vec<_>>();
         let selected = match request.selection {

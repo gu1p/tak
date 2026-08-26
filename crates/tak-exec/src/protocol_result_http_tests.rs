@@ -12,6 +12,22 @@ use crate::engine::protocol_result_http::{
 };
 use crate::engine::remote_models::{StrictRemoteTarget, StrictRemoteTransportKind};
 
+fn direct_target(endpoint: String) -> StrictRemoteTarget {
+    StrictRemoteTarget {
+        node_id: "builder-a".into(),
+        endpoint,
+        transport_kind: StrictRemoteTransportKind::Direct,
+        bearer_token: "secret".into(),
+        runtime: None,
+        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
+        required_pool: None,
+        required_tags: Vec::new(),
+        required_capabilities: Vec::new(),
+        daemon_task_handle: None,
+        excluded_node_ids: Vec::new(),
+    }
+}
+
 #[tokio::test]
 async fn remote_protocol_http_request_reads_a_complete_http_body_without_waiting_for_eof() {
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -32,18 +48,7 @@ async fn remote_protocol_http_request_reads_a_complete_http_body_without_waiting
         stream.flush().await.expect("flush body");
         tokio::time::sleep(Duration::from_millis(200)).await;
     });
-    let target = StrictRemoteTarget {
-        node_id: "builder-a".into(),
-        endpoint: format!("http://{addr}"),
-        transport_kind: StrictRemoteTransportKind::Direct,
-        bearer_token: "secret".into(),
-        runtime: None,
-        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
-        required_pool: None,
-        required_tags: Vec::new(),
-        required_capabilities: Vec::new(),
-        daemon_task_handle: None,
-    };
+    let target = direct_target(format!("http://{addr}"));
 
     let (_, body) = remote_protocol_http_request(
         &target,
@@ -61,18 +66,7 @@ async fn remote_protocol_http_request_reads_a_complete_http_body_without_waiting
 
 #[test]
 fn parse_remote_protocol_result_preserves_failure_stderr_tail() {
-    let target = StrictRemoteTarget {
-        node_id: "builder-a".into(),
-        endpoint: "http://127.0.0.1:65535".into(),
-        transport_kind: StrictRemoteTransportKind::Direct,
-        bearer_token: "secret".into(),
-        runtime: None,
-        remote_selection: tak_core::model::RemoteSelectionSpec::Sequential,
-        required_pool: None,
-        required_tags: Vec::new(),
-        required_capabilities: Vec::new(),
-        daemon_task_handle: None,
-    };
+    let target = direct_target("http://127.0.0.1:65535".into());
     let response = GetTaskResultResponse {
         success: false,
         exit_code: Some(1),
@@ -87,6 +81,7 @@ fn parse_remote_protocol_result_preserves_failure_stderr_tail() {
         outputs: Vec::new(),
         stdout_tail: None,
         stderr_tail: Some("declared output path `out/missing.txt` was not created".into()),
+        failure_kind: None,
     };
 
     let parsed = parse_remote_protocol_result(&target, &response.encode_to_vec())

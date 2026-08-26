@@ -15,5 +15,6 @@ pub fn success_result(node_id: &str) -> GetTaskResultResponse {
         outputs: Vec::new(),
         stdout_tail: None,
         stderr_tail: None,
+        failure_kind: None,
     }
 }

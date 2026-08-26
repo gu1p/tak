@@ -16,6 +16,12 @@ pub(super) fn build(options: RuntimeConfigBuilder) -> RemoteRuntimeConfig {
     );
     values.insert("TAKD_MEMORY_PRESSURE_ENABLED", "false".to_string());
     values.insert("TAKD_ADMISSION_OVERSUBSCRIBE_X", "1".to_string());
+    if let Some(cpu_cores) = options.default_container_cpu_cores {
+        values.insert("TAKD_DEFAULT_CONTAINER_CPU_CORES", cpu_cores.to_string());
+    }
+    if let Some(memory_mb) = options.default_container_memory_mb {
+        values.insert("TAKD_DEFAULT_CONTAINER_MEMORY_MB", memory_mb.to_string());
+    }
 
     set_path(
         &mut values,

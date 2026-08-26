@@ -5,6 +5,8 @@ use tak_core::model::{Hold, Scope};
 
 use crate::support::root_task_contracts::{load_root_spec, parse};
 
+const NATIVE_DEAD_CODE_SCRIPT: &str = include_str!("../../../scripts/native_dead_code.sh");
+
 #[test]
 fn repo_root_native_dead_code_uses_install_dependency_and_cargo_lock() -> Result<()> {
     let spec = load_root_spec()?;
@@ -32,4 +34,15 @@ fn repo_root_native_dead_code_uses_install_dependency_and_cargo_lock() -> Result
     );
 
     Ok(())
+}
+
+#[test]
+fn native_dead_code_exposes_the_pinned_rustc_driver_library() {
+    assert!(
+        NATIVE_DEAD_CODE_SCRIPT.contains("rustc +\"${RUST_TOOLCHAIN}\" --print sysroot"),
+        "native dead-code check must resolve the pinned toolchain sysroot",
+    );
+    assert!(NATIVE_DEAD_CODE_SCRIPT.contains("DYLD_LIBRARY_PATH"));
+    assert!(NATIVE_DEAD_CODE_SCRIPT.contains("LD_LIBRARY_PATH"));
+    assert!(NATIVE_DEAD_CODE_SCRIPT.contains("CARGO_BUILD_RUSTC_WRAPPER=\"\""));
 }

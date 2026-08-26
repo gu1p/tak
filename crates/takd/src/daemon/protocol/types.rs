@@ -63,6 +63,8 @@ pub struct PeersEligibleRequest {
     pub request_id: String,
     #[serde(default)]
     pub requirements: PeerEligibility,
+    #[serde(default)]
+    pub excluded_node_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +81,8 @@ pub struct PlaceRemoteRequest {
     pub attempt: u32,
     #[serde(default)]
     pub submit_body: Vec<u8>,
+    #[serde(default)]
+    pub excluded_node_ids: Vec<String>,
 }
 
 fn default_place_remote_attempt() -> u32 {

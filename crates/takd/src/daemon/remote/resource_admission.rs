@@ -3,7 +3,6 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 mod fit;
 mod request;
@@ -59,21 +58,11 @@ pub(crate) enum ResourceAdmissionDecision {
 }
 
 impl SharedResourceAdmission {
-    pub(crate) fn new_detected(
+    pub(crate) fn new(
         _tak_container_usage: SharedTakContainerUsage,
+        capacity: ResourceCapacity,
         oversubscribe_x: u64,
     ) -> Self {
-        let mut system = System::new_with_specifics(
-            RefreshKind::nothing()
-                .with_cpu(CpuRefreshKind::everything())
-                .with_memory(MemoryRefreshKind::everything()),
-        );
-        system.refresh_memory();
-        system.refresh_cpu_all();
-        let capacity = ResourceCapacity {
-            cpu_cores: system.cpus().len().max(1) as f64,
-            memory_mb: (system.total_memory() / 1024 / 1024).max(1),
-        };
         Self {
             inner: Arc::new(ResourceAdmissionLock {
                 state: Mutex::new(ResourceAdmissionState {

@@ -58,8 +58,23 @@ install_tools() {
     install_hawk
 }
 
+configure_rustc_driver_library_path() {
+    local rustc_sysroot
+    rustc_sysroot="$(rustc +"${RUST_TOOLCHAIN}" --print sysroot)"
+
+    case "$(uname -s)" in
+        Darwin)
+            export DYLD_LIBRARY_PATH="${rustc_sysroot}/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}"
+            ;;
+        *)
+            export LD_LIBRARY_PATH="${rustc_sysroot}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+            ;;
+    esac
+}
+
 check_dead_code() {
-    cargo +"${RUST_TOOLCHAIN}" hawk check \
+    configure_rustc_driver_library_path
+    CARGO_BUILD_RUSTC_WRAPPER="" cargo +"${RUST_TOOLCHAIN}" hawk check \
         --only test-only \
         -D hawk::test_only
 }

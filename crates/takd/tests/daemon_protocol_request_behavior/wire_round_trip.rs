@@ -14,6 +14,7 @@ fn daemon_lifecycle_requests_round_trip_through_wire_contract() {
             task_run_id: "task-1".into(),
             attempt: 1,
             submit_body: vec![1, 2, 3],
+            excluded_node_ids: vec!["builder-failed".into()],
         }),
         Request::StreamTaskEvents(StreamTaskEventsRequest {
             request_id: "events".into(),
@@ -42,6 +43,17 @@ fn daemon_lifecycle_requests_round_trip_through_wire_contract() {
         let encoded = serde_json::to_string(&request).expect("encode request");
         let decoded: Request = serde_json::from_str(&encoded).expect("decode request");
         assert_eq!(format!("{decoded:?}"), format!("{request:?}"));
+    }
+}
+
+#[test]
+fn older_placement_request_defaults_exclusions_to_empty() {
+    let json = r#"{"type":"PlaceRemote","request_id":"place","task_run_id":"task-1"}"#;
+    let decoded: Request = serde_json::from_str(json).expect("legacy request");
+
+    match decoded {
+        Request::PlaceRemote(request) => assert!(request.excluded_node_ids.is_empty()),
+        other => panic!("expected placement request, got {other:?}"),
     }
 }
 

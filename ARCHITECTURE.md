@@ -216,6 +216,9 @@ Common failure classes:
 - lease transport/protocol failures on the unix socket path
 - remote probe/auth/connectivity failures on the remote v1 HTTP path
 - remote result or artifact materialization failures
+- remote infrastructure failures are classified separately from task failure and cancellation;
+  the executor excludes each failed physical node and tries every distinct eligible worker once
+  without consuming authored retry attempts
 - missing local `takd serve` when Tor remote execution is requested
 - no configured Tor peers, no eligible peer match, unreachable peers, or `auth_failed` peers
 

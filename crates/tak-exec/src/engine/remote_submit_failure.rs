@@ -13,6 +13,7 @@ pub(crate) struct RemoteSubmitFailure {
     pub(crate) kind: RemoteSubmitFailureKind,
     pub(crate) message: String,
     pub(crate) retryable: bool,
+    pub(crate) failed_node_id: Option<String>,
 }
 
 impl RemoteSubmitFailure {
@@ -21,6 +22,7 @@ impl RemoteSubmitFailure {
             kind: RemoteSubmitFailureKind::Other,
             message,
             retryable: false,
+            failed_node_id: None,
         }
     }
 
@@ -29,6 +31,7 @@ impl RemoteSubmitFailure {
             kind: RemoteSubmitFailureKind::Other,
             message,
             retryable: true,
+            failed_node_id: None,
         }
     }
 
@@ -37,6 +40,7 @@ impl RemoteSubmitFailure {
             kind: RemoteSubmitFailureKind::Auth,
             message,
             retryable: false,
+            failed_node_id: None,
         }
     }
 
@@ -45,6 +49,7 @@ impl RemoteSubmitFailure {
             kind: RemoteSubmitFailureKind::MissingUpload,
             message,
             retryable: false,
+            failed_node_id: None,
         }
     }
 
@@ -54,6 +59,11 @@ impl RemoteSubmitFailure {
 
     pub(crate) fn is_missing_upload(&self) -> bool {
         self.kind == RemoteSubmitFailureKind::MissingUpload
+    }
+
+    pub(crate) fn with_failed_node_id(mut self, node_id: impl Into<String>) -> Self {
+        self.failed_node_id = Some(node_id.into());
+        self
     }
 }
 

@@ -17,6 +17,7 @@ async fn tasks_lists_live_jobs_from_running_agent_control_socket() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
     env.set("TAK_TEST_HOST_PLATFORM", "other");
+    env.set("TAKD_MEMORY_PRESSURE_ENABLED", "false");
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = support::cli::roots(temp.path());
     init_agent(

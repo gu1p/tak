@@ -40,4 +40,8 @@ async fn containerized_remote_task_nonzero_exit_stays_a_task_failure() {
     assert_eq!(result.exit_code, Some(1));
     assert_eq!(result.runtime.as_deref(), Some("containerized"));
     assert_eq!(result.runtime_engine.as_deref(), Some("docker"));
+    assert_eq!(
+        result.failure_kind,
+        Some(tak_proto::RemoteFailureKind::Task as i32)
+    );
 }

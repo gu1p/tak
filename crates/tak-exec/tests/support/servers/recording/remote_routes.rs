@@ -4,7 +4,9 @@ use std::time::Duration;
 use tak_proto::{NodeStatusResponse, PollTaskEventsResponse};
 
 use super::RecordingEvents;
-use super::remote_responses::{error_response, node_info, submit_response, success_result};
+use super::remote_responses::{
+    error_response, failed_result, node_info, submit_response, success_result,
+};
 use super::submit_route::{SubmitBehavior, handle_submit};
 use super::upload_config::UploadConfig;
 use super::upload_routes::{UPLOAD_PREFIX, handle_workspace_upload};
@@ -16,6 +18,14 @@ pub(super) struct RecordingResponses {
     pub(super) upload: UploadConfig,
     pub(super) status: Option<NodeStatusResponse>,
     pub(super) result_delay: Duration,
+    pub(super) result: ResultBehavior,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ResultBehavior {
+    Success,
+    Infrastructure137,
+    TaskExit1,
 }
 
 pub(super) fn serve_remote_request(
@@ -68,7 +78,16 @@ pub(super) fn serve_remote_request(
     }
     if request.path.contains("/result") {
         std::thread::sleep(responses.result_delay);
-        write_protobuf_response(stream, "200 OK", &success_result(node_id));
+        let result = match responses.result {
+            ResultBehavior::Success => success_result(node_id),
+            ResultBehavior::Infrastructure137 => {
+                failed_result(node_id, 137, tak_proto::RemoteFailureKind::Infrastructure)
+            }
+            ResultBehavior::TaskExit1 => {
+                failed_result(node_id, 1, tak_proto::RemoteFailureKind::Task)
+            }
+        };
+        write_protobuf_response(stream, "200 OK", &result);
         return true;
     }
     write_protobuf_response(stream, "404 Not Found", &error_response("not found"));

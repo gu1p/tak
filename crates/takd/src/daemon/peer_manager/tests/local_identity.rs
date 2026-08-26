@@ -55,6 +55,7 @@ fn select_placeable_skips_the_local_node() {
             selection: PeerPlacementSelection::Sequential,
             task_run_id: "task-1",
             attempt: 1,
+            excluded_node_ids: &[],
         })
         .expect_err("local node must never be placeable");
     assert!(format!("{err:#}").contains("no configured Tor peers"));

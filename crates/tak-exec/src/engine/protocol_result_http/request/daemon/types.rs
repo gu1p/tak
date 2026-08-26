@@ -27,10 +27,12 @@ pub(super) enum DaemonRequest {
         task_run_id: String,
         attempt: u32,
         submit_body: Vec<u8>,
+        excluded_node_ids: Vec<String>,
     },
     PeersEligible {
         request_id: String,
         requirements: PeerEligibility,
+        excluded_node_ids: Vec<String>,
     },
     ForwardRemoteHttp {
         request_id: String,

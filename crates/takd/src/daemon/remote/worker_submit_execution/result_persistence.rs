@@ -82,6 +82,13 @@ fn persist_successful_worker_result(
         "TASK_FAILED"
     };
     let exit_code = result.exit_code.unwrap_or(if result.success { 0 } else { 1 });
+    let failure_kind = if result.success {
+        serde_json::Value::Null
+    } else if exit_code == 137 {
+        serde_json::json!("infrastructure")
+    } else {
+        serde_json::json!("task")
+    };
     tracing::info!(
         idempotency_key = input.idempotency_key,
         task_run_id = %execution.payload.task_run_id,
@@ -108,6 +115,7 @@ fn persist_successful_worker_result(
             "runtime_engine": result.runtime_engine,
             "stdout_tail": json_tail_value(stdout_tail),
             "stderr_tail": json_tail_value(stderr_tail),
+            "failure_kind": failure_kind,
         })
         .to_string(),
     ) {
@@ -162,6 +170,7 @@ fn persist_failed_worker_result(
             "outputs": serde_json::json!([]),
             "stdout_tail": json_tail_value(stdout_tail),
             "stderr_tail": json_tail_value(&stderr_tail),
+            "failure_kind": "infrastructure",
         })
         .to_string(),
     ) {

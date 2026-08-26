@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use tak_core::label::parse_label;
 use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef, normalize_path_ref};
 use tak_runner::{
-    OutputStream, RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver,
+    OutputStream, RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver, TaskStatusEvent,
     execute_remote_worker_steps_with_output_and_cancellation,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -34,6 +34,9 @@ mod memory_pressure_controller;
 mod orphan_watchdog;
 mod query_helpers;
 mod resource_admission;
+mod resource_policy;
+#[cfg(test)]
+mod resource_policy_tests;
 mod route_events;
 mod route_logs;
 mod route_node;

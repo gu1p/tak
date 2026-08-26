@@ -22,21 +22,57 @@ pub(super) fn daemon_error(
     target: &StrictRemoteTarget,
     err: anyhow::Error,
 ) -> RemoteHttpExchangeError {
-    if let Some(local_error) = daemon_local_error(&err) {
-        return local_error_to_exchange_error(target, local_error);
-    }
+    let failed_node_id = daemon_peer_error(&err).map(|error| error.node_id.clone());
     let original_error = format!("{err:#}");
-    if target.is_daemon_tor_placement() {
-        return RemoteHttpExchangeError::other(placement_error_message(
+    let exchange_error = if let Some(local_error) = daemon_local_error(&err) {
+        local_error_to_exchange_error(target, local_error)
+    } else if target.is_daemon_tor_placement() {
+        RemoteHttpExchangeError::other(placement_error_message(
             &DaemonLocalError::response(original_error, None, Some(false)),
             false,
-        ));
+        ))
+    } else {
+        RemoteHttpExchangeError::other(format!(
+            "infra error: local takd daemon rejected request at {} while contacting remote node {}: {err:#}",
+            transport::broker_socket_path().display(),
+            target.node_id
+        ))
+    };
+    if let Some(node_id) = failed_node_id {
+        return exchange_error.with_failed_node_id(node_id);
     }
-    RemoteHttpExchangeError::other(format!(
-        "infra error: local takd daemon rejected request at {} while contacting remote node {}: {original_error}",
-        transport::broker_socket_path().display(),
-        target.node_id
-    ))
+    exchange_error
+}
+
+#[derive(Debug)]
+struct DaemonPeerError {
+    node_id: String,
+    source: anyhow::Error,
+}
+
+impl std::fmt::Display for DaemonPeerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#}", self.source)
+    }
+}
+
+impl std::error::Error for DaemonPeerError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.source.as_ref())
+    }
+}
+
+pub(super) fn peer_error(node_id: &str, source: anyhow::Error) -> anyhow::Error {
+    DaemonPeerError {
+        node_id: node_id.to_string(),
+        source,
+    }
+    .into()
+}
+
+fn daemon_peer_error(err: &anyhow::Error) -> Option<&DaemonPeerError> {
+    err.chain()
+        .find_map(|cause| cause.downcast_ref::<DaemonPeerError>())
 }
 
 fn daemon_local_error(err: &anyhow::Error) -> Option<&DaemonLocalError> {

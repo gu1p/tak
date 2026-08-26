@@ -14,7 +14,7 @@ use super::{
     },
     protocol_detection::detect_remote_protocol_mode,
     protocol_submit::{RemoteProtocolSubmit, remote_protocol_submit},
-    remote_models::{RemoteSubmitContext, StrictRemoteTarget},
+    remote_models::{RemoteInfrastructureFailure, RemoteSubmitContext, StrictRemoteTarget},
     remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind},
     transport,
 };
