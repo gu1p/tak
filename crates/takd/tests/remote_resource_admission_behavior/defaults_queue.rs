@@ -9,7 +9,7 @@ use crate::support::remote_output::test_context_with_runtime;
 use super::{submit, wait_for_status};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn aggregate_worker_defaults_queue_at_safe_capacity() {
+async fn configured_startup_estimates_do_not_become_task_reservations() {
     let _env_lock = crate::support::env::env_lock();
     let mut env = crate::support::env::EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -35,8 +35,18 @@ async fn aggregate_worker_defaults_queue_at_safe_capacity() {
     submit(&context, &store, "default-2", "sleep 1", None);
 
     let status = wait_for_status(&context, &store, |status| {
-        status.active_jobs.len() == 1 && status.queued_jobs.len() == 1
+        status.active_jobs.len() + status.queued_jobs.len() == 2
     });
-    assert_eq!(status.active_jobs[0].task_run_id, "default-1");
-    assert_eq!(status.queued_jobs[0].task_run_id, "default-2");
+    assert!(
+        status
+            .active_jobs
+            .iter()
+            .all(|job| job.resource_limits.is_none())
+    );
+    assert!(
+        status
+            .queued_jobs
+            .iter()
+            .all(|job| job.resource_limits.is_none())
+    );
 }

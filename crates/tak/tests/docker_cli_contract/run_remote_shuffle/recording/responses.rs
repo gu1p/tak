@@ -24,6 +24,8 @@ pub(super) fn status_response(node_id: &str, base_url: &str) -> NodeStatusRespon
         active_jobs: Vec::new(),
         image_cache: None,
         queued_jobs: Vec::new(),
+        resource_envelope: None,
+        resource_pressure: None,
     }
 }
 

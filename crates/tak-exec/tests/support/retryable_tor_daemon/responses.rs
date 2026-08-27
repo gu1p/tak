@@ -1,6 +1,7 @@
 use prost::Message;
 use tak_proto::{GetTaskResultResponse, PollTaskEventsResponse, SubmitTaskResponse};
 
+pub(super) mod placement;
 pub(super) mod stream;
 
 pub(super) fn peers(failover: bool, excluded: &[String]) -> serde_json::Value {
@@ -32,12 +33,12 @@ pub(super) fn upload_status(upload_id: &str, offset: u64, complete: bool) -> ser
     })
 }
 
-pub(super) fn placed(node_id: &str) -> serde_json::Value {
+pub(super) fn placed(node_id: &str, status: u16) -> serde_json::Value {
     serde_json::json!({
         "type": "RemotePlaced",
         "task_handle": "daemon-task-retry",
         "peer": {"node_id": node_id, "endpoint": format!("http://{node_id}.onion")},
-        "status": 200,
+        "status": status,
         "headers": [],
         "body": SubmitTaskResponse {
             accepted: true,
@@ -77,7 +78,7 @@ pub(super) fn result(node_id: &str, failover: bool) -> serde_json::Value {
         stdout_tail: None,
         stderr_tail: infrastructure_failure.then(|| "builder-a exited 137".into()),
         failure_kind: infrastructure_failure
-            .then_some(tak_proto::RemoteFailureKind::Infrastructure as i32),
+            .then_some(tak_proto::RemoteFailureKind::ContainerOom as i32),
     })
 }
 

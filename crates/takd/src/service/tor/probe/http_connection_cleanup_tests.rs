@@ -43,8 +43,11 @@ async fn startup_probe_timeout_closes_the_connection() {
         let mut eof = [0_u8; 1];
         timeout(Duration::from_millis(500), async {
             loop {
-                if stream.read(&mut eof).await.expect("read eof") == 0 {
-                    break;
+                match stream.read(&mut eof).await {
+                    Ok(0) => break,
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::ConnectionReset => break,
+                    Err(error) => panic!("read connection close: {error}"),
                 }
             }
         })

@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 
 use super::State;
 mod json;
+mod placement;
 mod stream;
 
 pub(super) async fn serve(listener: UnixListener, state: Arc<Mutex<State>>) {

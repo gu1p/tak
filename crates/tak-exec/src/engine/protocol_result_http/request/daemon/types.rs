@@ -89,6 +89,8 @@ pub(super) enum DaemonResponse {
         code: Option<String>,
         #[serde(default)]
         retryable: Option<bool>,
+        #[serde(default)]
+        node_id: Option<String>,
     },
 }
 

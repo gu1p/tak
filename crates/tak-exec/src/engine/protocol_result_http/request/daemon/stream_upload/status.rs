@@ -35,6 +35,7 @@ pub(super) async fn upload_status(
             message,
             code,
             retryable,
+            ..
         } => Err(DaemonLocalError::response(message, code, retryable).into()),
         _ => bail!("local takd returned unexpected response for upload status"),
     }

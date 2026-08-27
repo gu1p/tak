@@ -1,61 +1,115 @@
 use std::collections::VecDeque;
+use std::time::{Duration, Instant};
 
-use super::{ResourceAdmissionState, ResourceCapacity, ResourceRequest};
+use super::super::resource_envelope::{ElasticAdmissionClaim, ElasticClaimPolicy};
+use super::{ResourceAdmissionSnapshot, ResourceAdmissionState, ResourceCapacity, ResourceRequest};
 
-pub(super) fn promote_queued(state: &mut ResourceAdmissionState) {
-    loop {
-        let Some(next) = state.queue.front().cloned() else {
-            return;
-        };
-        if !can_fit(state, &next) {
-            return;
-        }
-        let next = state.queue.pop_front().expect("queued request");
-        state
-            .reservations
-            .insert(next.idempotency_key.clone(), next);
+mod capacity;
+mod claims;
+
+use capacity::{effective_capacity, zero};
+use claims::claim_summary;
+
+const BYTES_PER_MB: u64 = 1024 * 1024;
+
+pub(super) fn promote_queued(state: &mut ResourceAdmissionState) -> bool {
+    let Some(next) = state.queue.front().cloned() else {
+        return false;
+    };
+    if can_fit(state, &next)
+        && let Some(next) = state.queue.pop_front()
+    {
+        reserve(state, next);
+        return true;
     }
+    false
 }
 
-pub(super) fn can_fit(state: &mut ResourceAdmissionState, request: &ResourceRequest) -> bool {
-    // Emergency hold: admit nothing new until the controller clears it.
-    if state.held {
+pub(super) fn reserve(state: &mut ResourceAdmissionState, request: ResourceRequest) {
+    state
+        .admitted_at
+        .insert(request.idempotency_key.clone(), Instant::now());
+    state
+        .reservations
+        .insert(request.idempotency_key.clone(), request);
+}
+
+pub(super) fn can_fit(state: &ResourceAdmissionState, request: &ResourceRequest) -> bool {
+    let Some(host_usage) = state.host_usage else {
+        return false;
+    };
+    let capacity = effective_capacity(state, host_usage.non_tak_usage);
+    if state.held || capacity.cpu_cores <= 0.0 || capacity.memory_mb == 0 {
         return false;
     }
-    let used = reserved_totals(state);
-    let requested_cpu = request.resource_limits.cpu_cores.unwrap_or(0.0);
-    let requested_memory = request.resource_limits.memory_mb.unwrap_or(0);
-    // Tolerant admission: oversubscribe capacity by the configured factor. The
-    // memory-pressure controller (pause/unpause) is the runtime backstop; we do
-    // NOT reject on cumulative reservation pressure here.
-    let cpu_budget = state.capacity.cpu_cores * state.oversubscribe_x as f64;
-    let mem_budget = state
-        .capacity
-        .memory_mb
-        .saturating_mul(state.oversubscribe_x);
-    used.cpu_cores + requested_cpu <= cpu_budget
-        && used.memory_mb.saturating_add(requested_memory) <= mem_budget
+    let used = claim_summary(state).total;
+    let requested = request_claim(
+        request,
+        state.capacity,
+        state.elastic_startup,
+        Duration::ZERO,
+        None,
+    );
+    let cpu_budget = capacity.cpu_cores * state.oversubscribe_x as f64;
+    let memory_budget = capacity.memory_mb.saturating_mul(state.oversubscribe_x);
+    let available_cpu = (cpu_budget - used.cpu_cores).max(0.0);
+    let available_memory = memory_budget
+        .saturating_sub(used.memory_mb)
+        .min(host_usage.available_memory_mb);
+    requested.cpu_cores <= available_cpu && requested.memory_mb <= available_memory
 }
 
-fn reserved_totals(state: &ResourceAdmissionState) -> ResourceCapacity {
-    state.reservations.values().fold(
+pub(super) fn admission_snapshot(
+    state: &ResourceAdmissionState,
+    non_tak: ResourceCapacity,
+    host_available_memory_mb: u64,
+) -> ResourceAdmissionSnapshot {
+    let claims = claim_summary(state);
+    let capacity = state
+        .host_usage
+        .map(|_| effective_capacity(state, non_tak))
+        .unwrap_or_else(zero);
+    let admittable = if state.held {
+        zero()
+    } else {
         ResourceCapacity {
-            cpu_cores: 0.0,
-            memory_mb: 0,
-        },
-        |mut totals, request| {
-            totals.cpu_cores += request.resource_limits.cpu_cores.unwrap_or(0.0);
-            totals.memory_mb = totals
+            cpu_cores: (capacity.cpu_cores - claims.total.cpu_cores).max(0.0),
+            memory_mb: capacity
                 .memory_mb
-                .saturating_add(request.resource_limits.memory_mb.unwrap_or(0));
-            totals
-        },
-    )
+                .saturating_sub(claims.total.memory_mb)
+                .min(host_available_memory_mb),
+        }
+    };
+    ResourceAdmissionSnapshot {
+        reserved: claims.reserved,
+        pending_startup: claims.pending_startup,
+        actual: claims.actual,
+        admittable,
+    }
+}
+
+pub(super) fn request_claim(
+    request: &ResourceRequest,
+    capacity: ResourceCapacity,
+    elastic_startup: ResourceCapacity,
+    elapsed: Duration,
+    measured: Option<ResourceCapacity>,
+) -> ResourceCapacity {
+    if authored(request) {
+        return ResourceCapacity {
+            cpu_cores: request.resource_limits.cpu_cores.unwrap_or(0.0),
+            memory_mb: request.resource_limits.memory_mb.unwrap_or(0),
+        };
+    }
+    match ElasticClaimPolicy::new(elastic_startup).claim_at(elapsed, measured, capacity) {
+        ElasticAdmissionClaim::Startup(claim) | ElasticAdmissionClaim::Measured(claim) => claim,
+    }
 }
 
 pub(super) fn fits_total_capacity(capacity: &ResourceCapacity, request: &ResourceRequest) -> bool {
-    request.resource_limits.cpu_cores.unwrap_or(0.0) <= capacity.cpu_cores
-        && request.resource_limits.memory_mb.unwrap_or(0) <= capacity.memory_mb
+    !authored(request)
+        || (request.resource_limits.cpu_cores.unwrap_or(0.0) <= capacity.cpu_cores
+            && request.resource_limits.memory_mb.unwrap_or(0) <= capacity.memory_mb)
 }
 
 pub(super) fn rejection_reason(capacity: &ResourceCapacity, request: &ResourceRequest) -> String {
@@ -75,4 +129,8 @@ pub(super) fn queue_position(
         .iter()
         .position(|request| request.idempotency_key == idempotency_key)
         .map(|index| index + 1)
+}
+
+pub(super) fn authored(request: &ResourceRequest) -> bool {
+    request.resource_limits.cpu_cores.is_some() || request.resource_limits.memory_mb.is_some()
 }

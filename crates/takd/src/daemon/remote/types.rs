@@ -6,9 +6,11 @@ use tak_proto::NodeInfo;
 
 use super::active_executions::SharedActiveExecutions;
 use super::resource_admission::{
-    ResourceAdmissionDecision, ResourceRequest, SharedResourceAdmission,
+    HostUsageSample, ResourceAdmissionDecision, ResourceCapacity, ResourceRequest,
+    SharedResourceAdmission,
 };
 use super::resource_policy::RemoteResourcePolicy;
+use super::resource_pressure_controller::ResourcePressureSnapshot;
 use super::tak_container_usage::SharedTakContainerUsage;
 
 #[path = "types_tests.rs"]
@@ -18,6 +20,7 @@ use super::runtime_state::RemoteRuntimeState;
 use super::status_state::{SharedNodeStatusState, new_shared_node_status_state};
 
 mod context_active_executions;
+mod context_new;
 mod context_status;
 mod records;
 mod worker_payload;
@@ -38,40 +41,13 @@ pub struct RemoteNodeContext {
     resource_admission: SharedResourceAdmission,
     resource_policy: RemoteResourcePolicy,
     tak_container_usage: SharedTakContainerUsage,
+    resource_pressure: Arc<Mutex<ResourcePressureSnapshot>>,
     runtime_state: Arc<RemoteRuntimeState>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
     state_root: Option<PathBuf>,
 }
 
 impl RemoteNodeContext {
-    pub fn new(node: NodeInfo, bearer_token: String, runtime_config: RemoteRuntimeConfig) -> Self {
-        let tak_container_usage = SharedTakContainerUsage::default();
-        let oversubscribe_x = runtime_config.admission_oversubscribe_x();
-        let resource_policy = RemoteResourcePolicy::detected(&runtime_config);
-        let resource_admission = SharedResourceAdmission::new(
-            tak_container_usage.clone(),
-            resource_policy.capacity(),
-            oversubscribe_x,
-        );
-        Self {
-            node: Arc::new(Mutex::new(node)),
-            bearer_token,
-            status_state: new_shared_node_status_state(tak_container_usage.clone()),
-            active_executions: SharedActiveExecutions::default(),
-            resource_admission,
-            resource_policy,
-            tak_container_usage,
-            runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
-            image_cache: None,
-            state_root: None,
-        }
-    }
-
-    pub fn with_image_cache_config(mut self, config: RemoteImageCacheRuntimeConfig) -> Self {
-        self.image_cache = Some(config);
-        self
-    }
-
     pub fn with_state_root(mut self, state_root: &std::path::Path) -> Self {
         self.state_root = Some(state_root.to_path_buf());
         self
@@ -166,5 +142,27 @@ impl RemoteNodeContext {
 
     pub(crate) fn tak_container_usage(&self) -> SharedTakContainerUsage {
         self.tak_container_usage.clone()
+    }
+
+    pub(crate) fn resource_admission(&self) -> SharedResourceAdmission {
+        self.resource_admission.clone()
+    }
+
+    pub(crate) fn set_resource_pressure_snapshot(
+        &self,
+        snapshot: ResourcePressureSnapshot,
+    ) -> Result<()> {
+        *self
+            .resource_pressure
+            .lock()
+            .map_err(|_| anyhow!("resource pressure status lock poisoned"))? = snapshot;
+        Ok(())
+    }
+
+    pub(crate) fn resource_pressure_snapshot(&self) -> Result<ResourcePressureSnapshot> {
+        self.resource_pressure
+            .lock()
+            .map(|snapshot| snapshot.clone())
+            .map_err(|_| anyhow!("resource pressure status lock poisoned"))
     }
 }

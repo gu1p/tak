@@ -64,6 +64,7 @@ pub(crate) async fn execute_task_attempt(
         Ok(StepRunResult {
             success: true,
             exit_code: Some(0),
+            container_oom_killed: None,
         })
     };
 

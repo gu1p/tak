@@ -10,6 +10,9 @@ pub(in super::super) struct State {
     pub(super) submit_attempts: Vec<u32>,
     pub(super) upload_failover: bool,
     pub(super) failover_results: bool,
+    pub(super) submit_failover: bool,
+    pub(super) submit_transport_failover: bool,
+    pub(super) submit_always_fails: bool,
     pub(super) selected_node: String,
     pub(super) placement_exclusions: Vec<Vec<String>>,
 }

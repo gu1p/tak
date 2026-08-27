@@ -3,13 +3,21 @@ use std::sync::Arc;
 
 use tokio::net::UnixStream;
 
-use super::build::parse_build_request;
 use super::create::parse_create_request;
 use super::image_delete::write_image_delete_response;
 use super::request::read_request;
-use super::response::{write_empty_response, write_logs_response, write_response};
+use super::response::write_response;
 use super::state::FakeDockerDaemonState;
 use super::{CONTAINER_ID, PullRecord};
+
+mod build;
+mod container;
+
+use build::write_build_response;
+use container::{
+    write_container_logs_response, write_container_remove_response, write_container_start_response,
+    write_container_wait_response,
+};
 
 pub(super) async fn handle_connection(
     mut stream: UnixStream,
@@ -35,28 +43,7 @@ pub(super) async fn handle_connection(
             }
         }
         "POST" if path.ends_with("/build") => {
-            state.record_build(parse_build_request(&request)?);
-            if let Some(message) = state.build_failure_message() {
-                let body = format!(
-                    "{}\n{}\n",
-                    serde_json::json!({ "stream": "Step 1/1 : RUN failing build step\n" }),
-                    serde_json::json!({
-                        "error": message,
-                        "errorDetail": {
-                            "message": message,
-                        },
-                    })
-                );
-                write_response(&mut stream, "200 OK", "application/json", body.as_bytes()).await?;
-                return Ok(());
-            }
-            write_response(
-                &mut stream,
-                "200 OK",
-                "application/json",
-                br#"{"stream":"Successfully built sha256:test-image\n"}"#,
-            )
-            .await?;
+            write_build_response(&mut stream, &state, &request).await?
         }
         "POST" if path.ends_with("/images/create") => {
             let image = request.pull_image_name().unwrap_or_default();
@@ -81,49 +68,16 @@ pub(super) async fn handle_connection(
             .await?;
         }
         "POST" if path.ends_with("/start") => {
-            if let Some(message) = state.start_failure_message() {
-                write_response(
-                    &mut stream,
-                    "500 Internal Server Error",
-                    "application/json",
-                    format!(r#"{{"message":"{message}"}}"#).as_bytes(),
-                )
-                .await?;
-            } else {
-                write_empty_response(&mut stream, "204 No Content").await?
-            }
+            write_container_start_response(&mut stream, &state).await?
         }
         "GET" if path.ends_with("/logs") => {
-            if let Some(message) = state.logs_failure_message() {
-                write_response(
-                    &mut stream,
-                    "500 Internal Server Error",
-                    "application/json",
-                    format!(r#"{{"message":"{message}"}}"#).as_bytes(),
-                )
-                .await?;
-            } else {
-                write_logs_response(&mut stream, &state).await?
-            }
+            write_container_logs_response(&mut stream, &state).await?
         }
         "POST" if path.ends_with("/wait") => {
-            state.wait_until_released().await;
-            write_response(
-                &mut stream,
-                "200 OK",
-                "application/json",
-                br#"{"StatusCode":0}"#,
-            )
-            .await?;
+            write_container_wait_response(&mut stream, &state).await?
         }
         "DELETE" if path.contains("/containers/") => {
-            if let Some(container_id) = path
-                .split_once("/containers/")
-                .and_then(|(_, tail)| tail.split('/').next())
-            {
-                state.record_remove(container_id.to_string());
-            }
-            write_empty_response(&mut stream, "204 No Content").await?
+            write_container_remove_response(&mut stream, &state, path).await?
         }
         "DELETE" if path.contains("/images/") => {
             write_image_delete_response(&mut stream, &state, &request).await?

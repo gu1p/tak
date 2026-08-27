@@ -12,7 +12,7 @@ use tak_proto::StartWorkspaceWormholeUploadRequest;
 
 use super::errors::DaemonLocalError;
 use super::lifecycle::request_id;
-use super::stream_upload::select_upload_peer;
+use super::stream_upload::select_eligible_peer;
 use super::types::{DaemonPeerSnapshot, DaemonRequest, DaemonResponse, RemoteHeader};
 use super::{RemoteHttpResponse, ResponseHeader, send_daemon_request};
 use crate::engine::RemoteHttpExchangeError;
@@ -41,7 +41,7 @@ pub(crate) async fn send_workspace_wormhole_via_daemon(
     let target = request.target;
     let timeout = request.timeout;
     let exchange = async move {
-        let peer = select_upload_peer(target).await?;
+        let peer = select_eligible_peer(target, "workspace wormhole upload").await?;
         preflight_wormhole_route(target, &peer, request.upload_id)
             .await
             .map_err(|err| super::errors::peer_error(&peer.node_id, err))?;
@@ -164,6 +164,7 @@ async fn forward_wormhole_request(
             message,
             code,
             retryable,
+            ..
         } => Err(DaemonLocalError::response(message, code, retryable).into()),
         _ => bail!("local takd returned unexpected response for workspace wormhole upload"),
     }

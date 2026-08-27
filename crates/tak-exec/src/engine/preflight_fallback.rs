@@ -13,6 +13,7 @@ use super::{
         emit_remote_unavailable, next_candidate_available,
     },
     protocol_detection::detect_remote_protocol_mode,
+    protocol_result_http::ensure_eligible_remote_peer,
     protocol_submit::{RemoteProtocolSubmit, remote_protocol_submit},
     remote_models::{RemoteInfrastructureFailure, RemoteSubmitContext, StrictRemoteTarget},
     remote_submit_failure::{RemoteSubmitFailure, RemoteSubmitFailureKind},
@@ -112,7 +113,9 @@ pub(crate) async fn preflight_strict_remote_target(
     target: &StrictRemoteTarget,
 ) -> std::result::Result<(), RemotePreflightFailure> {
     if target.is_daemon_tor_placement() {
-        return Ok(());
+        return ensure_eligible_remote_peer(target).await.map_err(|err| {
+            remote_preflight_error_failure(target, RemoteNodeInfoFailure::other(format!("{err:#}")))
+        });
     }
     if let Err(err) = transport::socket_addr(target).with_context(|| {
         format!(

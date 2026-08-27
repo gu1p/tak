@@ -64,19 +64,25 @@ fn daemon_error_responses_carry_structured_retry_metadata() {
         message: "all Tor peers are unreachable".into(),
         code: Some("all_tor_peers_unreachable".into()),
         retryable: Some(true),
+        node_id: Some("builder-a".into()),
     };
 
     let encoded = serde_json::to_string(&response).expect("encode response");
     assert!(encoded.contains("\"code\":\"all_tor_peers_unreachable\""));
     assert!(encoded.contains("\"retryable\":true"));
+    assert!(encoded.contains("\"node_id\":\"builder-a\""));
 
     let decoded: Response = serde_json::from_str(&encoded).expect("decode response");
     match decoded {
         Response::Error {
-            code, retryable, ..
+            code,
+            retryable,
+            node_id,
+            ..
         } => {
             assert_eq!(code.as_deref(), Some("all_tor_peers_unreachable"));
             assert_eq!(retryable, Some(true));
+            assert_eq!(node_id.as_deref(), Some("builder-a"));
         }
         other => panic!("expected error response, got {other:?}"),
     }

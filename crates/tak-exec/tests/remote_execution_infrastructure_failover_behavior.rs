@@ -7,8 +7,10 @@ use crate::support::{
     remote_builder_spec, remote_task_spec, shell_step, write_remote_inventory,
 };
 
+mod legacy_137;
+
 #[tokio::test]
-async fn exit_137_fails_over_without_consuming_authored_attempts() {
+async fn confirmed_container_oom_fails_over_without_consuming_authored_attempts() {
     let (_env, workspace, _temp, first_events, _first, _second_events, _second) = setup(false);
     let (spec, label) = remote_task_spec(
         &workspace,
@@ -65,7 +67,7 @@ fn setup(
     let first = if task_failure {
         RecordingRemoteServer::spawn_task_exit_1("builder-a", first_events.clone())
     } else {
-        RecordingRemoteServer::spawn_infrastructure_137("builder-a", first_events.clone())
+        RecordingRemoteServer::spawn_confirmed_container_oom_137("builder-a", first_events.clone())
     };
     let second = RecordingRemoteServer::spawn_success("builder-b", second_events.clone());
     write_remote_inventory(

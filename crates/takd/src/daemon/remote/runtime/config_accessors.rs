@@ -70,6 +70,22 @@ impl RemoteRuntimeConfig {
         self.memory_pressure_enabled
     }
 
+    pub(crate) fn resource_sample_interval(&self) -> Duration {
+        self.resource_sample_interval
+    }
+
+    pub(crate) fn host_baseline_sample_duration(&self) -> Duration {
+        self.host_baseline_sample_duration
+    }
+
+    pub(crate) fn ignore_host_usage_for_tests(&self) -> bool {
+        self.ignore_host_usage_for_tests
+    }
+
+    pub(crate) fn test_memory_signal_path(&self) -> Option<&PathBuf> {
+        self.test_memory_signal_path.as_ref()
+    }
+
     pub(crate) fn default_remote_execution_root_base(&self) -> PathBuf {
         if cfg!(unix) && !self.use_temp_dir_default_exec_root {
             return PathBuf::from("/var/tmp").join(REMOTE_EXEC_ROOT_DIR);

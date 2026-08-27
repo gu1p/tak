@@ -10,6 +10,9 @@ use crate::support::{
     worker_spec,
 };
 
+#[path = "remote_worker_container_cleanup_behavior/timeout.rs"]
+mod timeout;
+
 #[tokio::test]
 async fn remote_worker_removes_container_after_start_failure() {
     let (temp, daemon, workspace_root, spec, mut locked_env) = cleanup_case();

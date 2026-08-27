@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
-use super::super::CreateRecord;
+use super::super::{CreateRecord, DockerOperation};
 use super::FakeDockerDaemonState;
+
+mod transitions;
 
 impl FakeDockerDaemonState {
     pub(in super::super) fn create_records(&self) -> Vec<CreateRecord> {
@@ -58,6 +60,10 @@ impl FakeDockerDaemonState {
     }
 
     pub(in super::super) fn record_create(&self, record: CreateRecord, exit_code: i64) {
+        self.operations
+            .lock()
+            .expect("operations lock")
+            .push(DockerOperation::Created(record.container_id.clone()));
         self.container_exit_codes
             .lock()
             .expect("container exit codes lock")

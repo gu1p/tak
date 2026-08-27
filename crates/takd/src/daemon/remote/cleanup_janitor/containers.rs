@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use anyhow::{Context, Result};
 use bollard::container::{ListContainersOptions, RemoveContainerOptions};
 use bollard::errors::Error as BollardError;
+use bollard::models::ContainerStateStatusEnum;
 use bollard::{API_DEFAULT_VERSION, Docker};
 
 use super::*;
@@ -16,16 +17,11 @@ pub(super) async fn cleanup_inactive_takd_containers(
         .context("connect container engine for remote container cleanup")?;
     let containers = list_takd_containers(&docker).await?;
     for container in containers {
-        // Never force-remove a paused container: pausing is the memory-pressure
-        // controller's non-lethal hold, so reaping it would turn a pause into a
-        // kill (violating the never-kill policy) — notably on a daemon restart
-        // when the active set is empty. The controller owns resuming it; once it
-        // is running again, normal orphan cleanup applies.
-        if container.state.as_deref() == Some("paused") {
-            continue;
-        }
         let labels = container.labels.unwrap_or_default();
         if labels.get("tak.owner").map(String::as_str) != Some("takd") {
+            continue;
+        }
+        if container.state.as_deref() == Some("paused") {
             continue;
         }
         if container_belongs_to_active_job(&labels, active_jobs) {
@@ -39,6 +35,9 @@ pub(super) async fn cleanup_inactive_takd_containers(
         // freshly created container would then look orphaned. Re-read the active
         // set immediately before removing so an in-flight job is never reaped.
         if container_belongs_to_active_job(&labels, &cleanup_protected_job_keys(context)?) {
+            continue;
+        }
+        if container_is_paused(&docker, &container_id).await? {
             continue;
         }
         remove_takd_container(&docker, &container_id).await?;
@@ -83,6 +82,19 @@ fn container_belongs_to_active_job(
         .get("tak.submit_key")
         .map(|submit_key| active_jobs.contains(&sanitize_submit_idempotency_key(submit_key)))
         .unwrap_or(false)
+}
+
+async fn container_is_paused(docker: &Docker, container_id: &str) -> Result<bool> {
+    match docker.inspect_container(container_id, None).await {
+        Ok(container) => Ok(container
+            .state
+            .and_then(|state| state.status)
+            .is_some_and(|status| status == ContainerStateStatusEnum::PAUSED)),
+        Err(error) if container_was_already_removed(&error) => Ok(true),
+        Err(error) => {
+            Err(error).with_context(|| format!("re-inspect inactive takd container {container_id}"))
+        }
+    }
 }
 
 async fn remove_takd_container(docker: &Docker, container_id: &str) -> Result<()> {

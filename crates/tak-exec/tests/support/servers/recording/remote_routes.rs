@@ -24,7 +24,8 @@ pub(super) struct RecordingResponses {
 #[derive(Clone, Copy)]
 pub(super) enum ResultBehavior {
     Success,
-    Infrastructure137,
+    ContainerOom137,
+    LegacyInfrastructure137,
     TaskExit1,
 }
 
@@ -80,7 +81,10 @@ pub(super) fn serve_remote_request(
         std::thread::sleep(responses.result_delay);
         let result = match responses.result {
             ResultBehavior::Success => success_result(node_id),
-            ResultBehavior::Infrastructure137 => {
+            ResultBehavior::ContainerOom137 => {
+                failed_result(node_id, 137, tak_proto::RemoteFailureKind::ContainerOom)
+            }
+            ResultBehavior::LegacyInfrastructure137 => {
                 failed_result(node_id, 137, tak_proto::RemoteFailureKind::Infrastructure)
             }
             ResultBehavior::TaskExit1 => {

@@ -10,22 +10,18 @@ use super::handlers::{
 use super::request::{FakeDockerRequest, read_request};
 use super::response::{write_empty_response, write_logs_response, write_response};
 use super::state::FakeDockerDaemonState;
+use super::stats::write_stats_response;
 use super::version::write_version_response;
 
-pub(super) async fn run_fake_docker_daemon(
-    listener: UnixListener,
-    state: Arc<FakeDockerDaemonState>,
-) {
-    loop {
-        let Ok((stream, _)) = listener.accept().await else {
-            break;
-        };
-        let state = Arc::clone(&state);
-        tokio::spawn(async move {
-            let _ = handle_connection(stream, state).await;
-        });
-    }
-}
+mod accept;
+mod container_routes;
+mod image_routes;
+
+pub(super) use accept::run_fake_docker_daemon;
+use container_routes::{
+    write_container_inspect_response, write_container_list_response, write_unpause_failure_response,
+};
+use image_routes::requested_image_name;
 
 async fn handle_connection(
     mut stream: UnixStream,
@@ -36,11 +32,15 @@ async fn handle_connection(
 
     match request.method.as_str() {
         "GET" if path.ends_with("/_ping") => {
+            tokio::time::sleep(state.ping_response_delay).await;
             write_response(&mut stream, "200 OK", "text/plain", b"OK").await?
         }
         "GET" if path.ends_with("/version") => write_version_response(&mut stream, &state).await?,
         "GET" if path.ends_with("/containers/json") => {
-            write_container_list_response(&mut stream, &state).await?
+            write_container_list_response(&mut stream, &state, &request).await?
+        }
+        "GET" if path.contains("/containers/") && path.ends_with("/json") => {
+            write_container_inspect_response(&mut stream, &state, path).await?
         }
         "GET" if path.contains("/images/") && path.ends_with("/json") => {
             let Some(image) = requested_image_name(&request) else {
@@ -61,13 +61,27 @@ async fn handle_connection(
         "POST" if path.ends_with("/start") => {
             write_empty_response(&mut stream, "204 No Content").await?
         }
+        "POST" if path.ends_with("/unpause") => {
+            write_unpause_failure_response(&mut stream, &state, path).await?
+        }
         "GET" if path.ends_with("/logs") => write_logs_response(&mut stream).await?,
+        "GET" if path.ends_with("/stats") => write_stats_response(&mut stream, &state).await?,
         "POST" if path.ends_with("/wait") => write_wait_response(&mut stream, &state, path).await?,
         "DELETE" if path.contains("/containers/") => {
             if let Some(container_id) = path
                 .split_once("/containers/")
                 .and_then(|(_, tail)| tail.split('/').next())
             {
+                if !state.record_container_removal_attempt(container_id) {
+                    write_response(
+                        &mut stream,
+                        "500 Internal Server Error",
+                        "application/json",
+                        br#"{"message":"injected removal failure"}"#,
+                    )
+                    .await?;
+                    return Ok(());
+                }
                 state.record_container_removed(container_id);
             }
             write_empty_response(&mut stream, "204 No Content").await?
@@ -76,46 +90,4 @@ async fn handle_connection(
     }
 
     Ok(())
-}
-
-async fn write_container_list_response(
-    stream: &mut UnixStream,
-    state: &FakeDockerDaemonState,
-) -> io::Result<()> {
-    let containers = state
-        .container_summaries()
-        .into_iter()
-        .map(|record| {
-            serde_json::json!({
-                "Id": record.container_id,
-                "Names": [format!("/{}", record.container_id)],
-                "Image": record.image.unwrap_or_default(),
-                "Command": record.cmd.join(" "),
-                "Labels": record.labels,
-                "State": record.state,
-                "Status": "Up",
-            })
-        })
-        .collect::<Vec<_>>();
-    write_response(
-        stream,
-        "200 OK",
-        "application/json",
-        serde_json::to_string(&containers)
-            .expect("serialize fake container list")
-            .as_bytes(),
-    )
-    .await
-}
-
-fn requested_image_name(request: &FakeDockerRequest) -> Option<String> {
-    let path = request.path_without_query();
-    let tail = path.split("/images/").nth(1)?;
-    let image = tail.strip_suffix("/json")?;
-    Some(
-        image
-            .replace("%3A", ":")
-            .replace("%2F", "/")
-            .replace("%40", "@"),
-    )
 }

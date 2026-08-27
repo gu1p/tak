@@ -11,7 +11,7 @@ use crate::engine::attempt_execution::{
 use crate::engine::attempt_submit::{AttemptSubmitState, resolve_attempt_submit_state};
 use crate::engine::fused_cascade::FusedCascade;
 use crate::engine::remote_failover::prepare_remote_failover;
-use crate::engine::remote_failure::RemoteFailureKind;
+use crate::engine::remote_failure::requires_worker_failover;
 use crate::engine::remote_models::{RemoteWorkspaceStage, TaskPlacement};
 use crate::engine::remote_selection::SharedRemoteSelectionState;
 use crate::engine::session_workspaces::PreparedTaskSession;
@@ -36,9 +36,7 @@ pub(super) async fn run_remote_fused_attempt(
     loop {
         let result = run_physical_fused_attempt(&mut context).await;
         match result {
-            Ok(outcome)
-                if outcome.remote_failure_kind == Some(RemoteFailureKind::Infrastructure) =>
-            {
+            Ok(outcome) if requires_worker_failover(outcome.remote_failure_kind) => {
                 let cause = outcome.failure_detail.clone().unwrap_or_else(|| {
                     format!(
                         "remote fused task failed with exit code {:?}",
@@ -48,6 +46,7 @@ pub(super) async fn run_remote_fused_attempt(
                 prepare_remote_failover(
                     context.placement,
                     cause,
+                    outcome.remote_failure_kind,
                     context.remote_selection_state,
                     context.options.output_observer.as_ref(),
                     &context.cascade.task.label,
@@ -59,6 +58,7 @@ pub(super) async fn run_remote_fused_attempt(
             Err(error) => prepare_remote_failover(
                 context.placement,
                 error.to_string(),
+                Some(crate::engine::remote_failure::RemoteFailureKind::Infrastructure),
                 context.remote_selection_state,
                 context.options.output_observer.as_ref(),
                 &context.cascade.task.label,

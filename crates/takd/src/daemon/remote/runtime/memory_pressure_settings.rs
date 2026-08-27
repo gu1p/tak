@@ -1,4 +1,4 @@
-//! Tunables for the never-kill memory-pressure controller.
+//! Tunables for admission hold and teardown-confirmed memory-pressure recovery.
 
 use std::time::Duration;
 
@@ -11,10 +11,10 @@ const DEFAULT_MEMORY_PRESSURE_RESUME_PCT: u64 = 25;
 const DEFAULT_MEMORY_PRESSURE_EMERGENCY_PCT: u64 = 7;
 const DEFAULT_MEMORY_PRESSURE_MIN_RUNNING: usize = 1;
 
-/// Tunables for the never-kill memory-pressure controller. Percentages are of
-/// host total memory. `pause_floor_mb` is an absolute MemAvailable floor: the
-/// controller pauses when available drops below the LARGER of `pause_pct`% of
-/// total or this floor, so the threshold stays sane on both large nodes (where a
+/// Percentages are of host total memory. `pause_floor_mb` is an absolute
+/// MemAvailable floor: the controller holds admission and starts controlled
+/// teardown when available drops below the LARGER of `pause_pct`% of total or
+/// this floor, so the threshold stays sane on both large nodes (where a
 /// percentage is many GiB) and small ones (where it is too tight). Invariant
 /// `emergency_pct < pause_pct < resume_pct` (the resume/pause gap is the
 /// hysteresis dead-band); a misconfigured set falls back to defaults.

@@ -21,12 +21,9 @@ pub(crate) struct ContainerExecutionPlan {
     pub(crate) image: String,
     pub(crate) container_user: Option<String>,
     pub(crate) image_cache: Option<ImageCachePlan>,
-    /// Declared CPU/memory reservations for the task. Threaded to the container
-    /// runtime to enforce CPU as a real cgroup quota (`nano_cpus`) and to cap
-    /// test/codegen parallelism. Memory is NEVER applied as a hard cgroup cap:
-    /// that would let the kernel OOM-kill the container for over-using memory,
-    /// which Tak must not do. Memory pressure is handled by throttling and
-    /// admission, not by killing containers.
+    /// Authored CPU/memory reservations used for aggregate worker admission.
+    /// They are estimates, not per-container CPU or memory caps; worker-wide
+    /// cgroup fencing and pressure recovery protect the host as a whole.
     pub(crate) resource_limits: Option<ContainerResourceLimitsSpec>,
 }
 

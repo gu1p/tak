@@ -19,6 +19,8 @@ use lifecycle::{lifecycle_request, request_id};
 pub(super) mod errors;
 #[path = "daemon/resource_limits.rs"]
 mod resource_limits;
+#[path = "daemon/response.rs"]
+mod response;
 #[path = "daemon/stream_upload.rs"]
 mod stream_upload;
 #[path = "daemon/wormhole_upload.rs"]
@@ -26,11 +28,21 @@ mod wormhole_upload;
 
 use errors::{DaemonLocalError, daemon_error, daemon_timeout};
 use resource_limits::runtime_resource_limits;
+use response::daemon_response_to_http;
 pub(crate) use stream_upload::DaemonWorkspaceUploadStreamRequest;
 pub(crate) use stream_upload::{StreamUploadProgress, stream_workspace_upload_via_daemon};
 pub(crate) use wormhole_upload::{
     DaemonWorkspaceWormholeUploadRequest, send_workspace_wormhole_via_daemon,
 };
+
+pub(crate) async fn ensure_eligible_remote_peer(
+    target: &StrictRemoteTarget,
+) -> std::result::Result<(), RemoteHttpExchangeError> {
+    stream_upload::select_eligible_peer(target, "remote preflight")
+        .await
+        .map(|_| ())
+        .map_err(|err| daemon_error(target, err))
+}
 
 pub(super) async fn request_via_daemon(
     target: &StrictRemoteTarget,
@@ -125,45 +137,6 @@ async fn send_daemon_request(socket_path: &Path, request: DaemonRequest) -> Resu
     serde_json::from_str(line.trim_end()).context("failed to decode daemon response")
 }
 
-fn daemon_response_to_http(response: DaemonResponse) -> Result<RemoteHttpResponse> {
-    match response {
-        DaemonResponse::RemotePlaced {
-            task_handle,
-            peer,
-            status,
-            headers,
-            body,
-        } => Ok(RemoteHttpResponse {
-            status,
-            headers: response_headers(headers),
-            body,
-            daemon_task_handle: Some(task_handle),
-            daemon_peer_node_id: Some(peer.node_id),
-            daemon_peer_endpoint: Some(peer.endpoint),
-        }),
-        DaemonResponse::RemoteHttpResponse {
-            status,
-            headers,
-            body,
-        } => Ok(RemoteHttpResponse {
-            status,
-            headers: response_headers(headers),
-            body,
-            daemon_task_handle: None,
-            daemon_peer_node_id: None,
-            daemon_peer_endpoint: None,
-        }),
-        DaemonResponse::Error {
-            message,
-            code,
-            retryable,
-        } => Err(DaemonLocalError::response(message, code, retryable).into()),
-        DaemonResponse::PeersSnapshot { .. } => {
-            bail!("local takd daemon returned peer list for remote HTTP request")
-        }
-    }
-}
-
 fn node_requirements(target: &StrictRemoteTarget) -> PeerEligibility {
     let (cpu_cores, memory_mb) = runtime_resource_limits(target);
     PeerEligibility {
@@ -174,16 +147,6 @@ fn node_requirements(target: &StrictRemoteTarget) -> PeerEligibility {
         cpu_cores,
         memory_mb,
     }
-}
-
-fn response_headers(headers: Vec<RemoteHeader>) -> Vec<ResponseHeader> {
-    headers
-        .into_iter()
-        .map(|header| ResponseHeader {
-            name: header.name,
-            value: header.value,
-        })
-        .collect()
 }
 
 fn request_headers(headers: &[(&str, String)]) -> Vec<RemoteHeader> {

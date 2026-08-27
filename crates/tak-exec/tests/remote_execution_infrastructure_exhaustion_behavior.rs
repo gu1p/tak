@@ -19,8 +19,8 @@ async fn infrastructure_exhaustion_lists_each_distinct_worker_once() {
     env.set("XDG_CONFIG_HOME", config.display().to_string());
     let a_events = RecordingEvents::default();
     let b_events = RecordingEvents::default();
-    let a = RecordingRemoteServer::spawn_infrastructure_137("builder-a", a_events.clone());
-    let b = RecordingRemoteServer::spawn_infrastructure_137("builder-b", b_events.clone());
+    let a = RecordingRemoteServer::spawn_confirmed_container_oom_137("builder-a", a_events.clone());
+    let b = RecordingRemoteServer::spawn_confirmed_container_oom_137("builder-b", b_events.clone());
     write_remote_inventory(
         &config,
         &[

@@ -33,7 +33,10 @@ done
     assert!(output.status.success(), "status: {:?}", output.status);
     assert_eq!(
         fs::read_to_string(invocation_log)?,
-        format!("cwd={}\narg=test\n", workspace.path().display())
+        format!(
+            "cwd={}\narg=test\n",
+            workspace.path().canonicalize()?.display()
+        )
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert_eq!(

@@ -1,55 +1,47 @@
-use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+use std::time::Duration;
+
 use tak_core::model::ContainerResourceLimitsSpec;
 
-use super::memory_pressure_controller::resume_headroom_bytes;
 use super::resource_admission::ResourceCapacity;
+use super::resource_baseline::detect_host_resource_baseline;
+use super::resource_envelope::{
+    ElasticAdmissionClaim, ElasticClaimPolicy, calculate_resource_envelope,
+};
 use super::runtime::RemoteRuntimeConfig;
 
 #[derive(Debug, Clone)]
 pub(super) struct RemoteResourcePolicy {
     capacity: ResourceCapacity,
+    envelope: super::resource_envelope::ResourceEnvelope,
     default_cpu_cores: f64,
     default_memory_mb: u64,
 }
 
 impl RemoteResourcePolicy {
     pub(super) fn detected(config: &RemoteRuntimeConfig) -> Self {
-        let mut system = System::new_with_specifics(
-            RefreshKind::nothing()
-                .with_cpu(CpuRefreshKind::everything())
-                .with_memory(MemoryRefreshKind::everything()),
-        );
-        system.refresh_memory();
-        system.refresh_cpu_all();
-        let total_bytes = system.total_memory();
-        let safe_memory_bytes = total_bytes.saturating_sub(resume_headroom_bytes(
-            &config.memory_pressure(),
-            total_bytes,
-        ));
-        Self::new(
-            ResourceCapacity {
-                cpu_cores: system.cpus().len().max(1) as f64,
-                memory_mb: (safe_memory_bytes / 1024 / 1024).max(1),
-            },
+        let envelope = calculate_resource_envelope(detect_host_resource_baseline(config));
+        Self::with_envelope(
+            envelope,
             config.default_container_cpu_cores(),
             config.default_container_memory_mb(),
         )
     }
 
-    pub(super) fn new(
-        capacity: ResourceCapacity,
+    pub(super) fn with_envelope(
+        envelope: super::resource_envelope::ResourceEnvelope,
         default_cpu_cores: f64,
         default_memory_mb: u64,
     ) -> Self {
         Self {
-            capacity,
+            capacity: envelope.workload,
+            envelope,
             default_cpu_cores,
             default_memory_mb,
         }
     }
 
-    pub(super) fn capacity(&self) -> ResourceCapacity {
-        self.capacity
+    pub(super) fn envelope(&self) -> super::resource_envelope::ResourceEnvelope {
+        self.envelope
     }
 
     pub(super) fn resolve(
@@ -57,8 +49,24 @@ impl RemoteResourcePolicy {
         authored: Option<ContainerResourceLimitsSpec>,
     ) -> ContainerResourceLimitsSpec {
         authored.unwrap_or(ContainerResourceLimitsSpec {
-            cpu_cores: Some(self.default_cpu_cores.min(self.capacity.cpu_cores)),
-            memory_mb: Some(self.default_memory_mb.min(self.capacity.memory_mb)),
+            cpu_cores: None,
+            memory_mb: None,
         })
+    }
+
+    pub(super) fn startup_claim(&self, authored: &ContainerResourceLimitsSpec) -> ResourceCapacity {
+        if authored.cpu_cores.is_some() || authored.memory_mb.is_some() {
+            return ResourceCapacity {
+                cpu_cores: authored.cpu_cores.unwrap_or(self.default_cpu_cores),
+                memory_mb: authored.memory_mb.unwrap_or(self.default_memory_mb),
+            };
+        }
+        let policy = ElasticClaimPolicy::new(ResourceCapacity {
+            cpu_cores: self.default_cpu_cores,
+            memory_mb: self.default_memory_mb,
+        });
+        match policy.claim_at(Duration::ZERO, Some(self.capacity), self.capacity) {
+            ElasticAdmissionClaim::Startup(claim) | ElasticAdmissionClaim::Measured(claim) => claim,
+        }
     }
 }

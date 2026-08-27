@@ -34,6 +34,8 @@ pub fn spawn_auth_rejecting_submit_server(node_id: &str) -> (String, thread::Joi
         active_jobs: Vec::new(),
         image_cache: None,
         queued_jobs: Vec::new(),
+        resource_envelope: None,
+        resource_pressure: None,
     }
     .encode_to_vec();
     let handle = thread::spawn(move || {
@@ -48,13 +50,15 @@ pub fn spawn_timeout_node_info_server(node_id: &str) -> (String, thread::JoinHan
     let base_url = format!("http://{}", listener.local_addr().expect("timeout addr"));
     let node_id = node_id.to_string();
     let handle = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept timeout probe");
-        let request = read_request_head(&mut stream);
-        assert!(
-            request.starts_with("GET /v1/node/info HTTP/1.1\r\n"),
-            "unexpected request for {node_id}: {request}"
-        );
-        thread::sleep(Duration::from_millis(750));
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().expect("accept timeout probe");
+            let request = read_request_head(&mut stream);
+            assert!(
+                request.starts_with("GET /v1/node/info HTTP/1.1\r\n"),
+                "unexpected request for {node_id}: {request}"
+            );
+            thread::sleep(Duration::from_millis(750));
+        }
     });
     (base_url, handle)
 }

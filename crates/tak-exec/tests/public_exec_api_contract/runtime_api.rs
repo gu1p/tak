@@ -32,4 +32,7 @@ fn remote_worker_public_api_stays_available() {
         runtime_kind: None,
         runtime_engine: None,
     };
+    let outcome = tak_exec::RemoteWorkerExecutionOutcome::new(_remote_worker_result, None);
+    assert!(outcome.success);
+    let _execute = tak_exec::execute_remote_worker_steps_with_output_and_cancellation;
 }

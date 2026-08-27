@@ -18,8 +18,8 @@ use response::{malformed_response, read_response_with_headers, timeout_error};
 
 pub(crate) use daemon::DaemonWorkspaceUploadStreamRequest;
 pub(crate) use daemon::{
-    DaemonWorkspaceWormholeUploadRequest, StreamUploadProgress, send_workspace_wormhole_via_daemon,
-    stream_workspace_upload_via_daemon,
+    DaemonWorkspaceWormholeUploadRequest, StreamUploadProgress, ensure_eligible_remote_peer,
+    send_workspace_wormhole_via_daemon, stream_workspace_upload_via_daemon,
 };
 
 #[derive(Debug, Clone)]

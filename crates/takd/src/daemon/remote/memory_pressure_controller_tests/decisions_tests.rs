@@ -4,8 +4,6 @@ use super::{paused, run};
 
 #[test]
 fn forced_progress_unpauses_when_below_min_running_even_in_emergency() {
-    // Nothing running, work paused, memory critical: must still unpause to drain,
-    // otherwise the node freezes forever (paused RSS never frees).
     let frozen = vec![paused("a", 10), paused("b", 30)];
     assert_eq!(
         decide(PressureState::Emergency, &[], &frozen, 1),

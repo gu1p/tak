@@ -122,18 +122,18 @@ Startup recovery:
 - Requests exceeding available capacity are returned as pending.
 - Pending queue position is surfaced to clients.
 - Releasing/expiring leases frees capacity for subsequent requests.
-- Remote containers omitted by the author receive node-owned defaults (4 CPU cores and 8192 MiB),
-  clamped to logical cores and total RAM minus the memory-pressure resume headroom. Operators may
-  override them with `TAKD_DEFAULT_CONTAINER_CPU_CORES` and
-  `TAKD_DEFAULT_CONTAINER_MEMORY_MB`.
-- CPU reservations become real container quotas and thread-pool caps. Memory remains an admission
-  reservation and never becomes a Docker hard cap; the never-kill pause/backpressure controller
-  remains the runtime backstop.
+- Remote containers omitted by the author remain elastic. Admission applies a temporary startup
+  claim (4 CPU cores and 8192 MiB by default) for five seconds, clamped to the workload envelope,
+  then uses measured Tak-container usage. Operators may override the startup estimate with
+  `TAKD_DEFAULT_CONTAINER_CPU_CORES` and `TAKD_DEFAULT_CONTAINER_MEMORY_MB`.
+- Authored resources remain scheduling reservations; they do not become per-container CPU/memory
+  limits or thread-pool caps.
 - Aggregate CPU and memory reservations admit at 1x capacity by default.
   `TAKD_ADMISSION_OVERSUBSCRIBE_X` is an explicit operator opt-in. Explicitly authored limits are
   never clamped and are rejected if they exceed the node's safe admission capacity.
-- The emergency memory-pressure admission hold still queues new starts regardless of whether a
-  request declared limits.
+- Memory pressure holds new admission and pauses eligible newer containers while preserving the
+  oldest runner for forward progress. Paused work resumes after recovery; pressure management
+  never force-removes a running task.
 
 ## Failure Classes
 

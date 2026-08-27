@@ -31,8 +31,9 @@ pub(super) async fn place_remote_task(
     {
         Ok(forwarded) => forwarded,
         Err(err) => {
-            return Ok(Response::classified_error(
+            return Ok(Response::classified_peer_error(
                 request_id,
+                &peer.node_id,
                 format!("remote node {} unavailable: {err:#}", peer.node_id),
                 "remote_placement_transport_failed",
                 true,

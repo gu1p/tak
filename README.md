@@ -295,11 +295,17 @@ REMOTE = Execution.Remote(
 )
 ```
 
-Remote workers own the defaults for container resources. A remote container without authored
-limits reserves 4 logical CPU cores and 8192 MiB by default, clamped to the worker's logical core
-count and safe RAM admission capacity. CPU is enforced as a container quota and also caps common
-test/codegen thread pools. Memory is an admission reservation only: Tak does not install a Docker
-memory cap and retains its pause/backpressure policy instead of killing work under pressure.
+Remote workers own the startup estimate for containers without authored resources. Such work stays
+elastic; during its first five seconds admission temporarily claims 4 logical CPU cores and 8192
+MiB by default, clamped to the worker's workload envelope, then relies on measured usage. Authored
+`Container.Resources(...)` values remain scheduling reservations. Neither kind becomes a
+per-container CPU/memory limit or a test/codegen thread-pool override.
+
+Memory pressure holds new admission and pauses eligible newer containers while preserving at least
+one running task for forward progress. Tak resumes paused work after recovery; it does not
+force-remove task containers as a pressure-management shortcut. A container-engine-confirmed OOM
+is reported distinctly, while unattributed exit 137 remains unknown rather than being reported as
+OOM or infrastructure failure.
 
 Operators can change the node defaults with `TAKD_DEFAULT_CONTAINER_CPU_CORES` and
 `TAKD_DEFAULT_CONTAINER_MEMORY_MB`. Aggregate reservations use strict 1x admission by default;
@@ -307,10 +313,10 @@ Operators can change the node defaults with `TAKD_DEFAULT_CONTAINER_CPU_CORES` a
 `Container.Resources(...)` values are preserved and evaluated by admission without clamping.
 Unsized local containers, including CLI-created local runtimes, remain unaffected.
 
-Remote infrastructure failures (including exit 137 and exhausted worker/container transport
-recovery) retry once on each distinct eligible worker without consuming the task's authored retry
-attempts. Ordinary nonzero task exits and authored timeouts remain terminal under the task's normal
-retry policy, and cancellation is never failed over.
+Evidenced remote infrastructure and resource-capacity failures retry on distinct eligible workers
+without consuming the task's authored retry attempts. Ordinary nonzero task exits, unattributed
+exit 137, and authored timeouts remain terminal under the task's normal retry policy, and
+cancellation is never failed over.
 
 Runtime model:
 

@@ -15,7 +15,7 @@ pub(super) async fn serve(
     let response = match value.get("type").and_then(|value| value.as_str()) {
         Some("PeersEligible") => peers(&value, state).await,
         Some("ForwardRemoteHttp") => upload_status(&value, state).await,
-        Some("PlaceRemote") => place_remote(&value, state).await,
+        Some("PlaceRemote") => super::placement::place_remote(&value, state).await,
         Some("StreamTaskEvents") => responses::events(),
         Some("GetTaskResult") => result(state).await,
         _ => responses::error("unexpected daemon request"),
@@ -37,7 +37,7 @@ async fn peers(request: &serde_json::Value, state: Arc<Mutex<State>>) -> serde_j
     }
     responses::peers(
         state.failover_results || state.upload_failover,
-        &excluded_node_ids(request),
+        &super::placement::excluded_node_ids(request),
     )
 }
 
@@ -53,42 +53,7 @@ async fn upload_status(request: &serde_json::Value, state: Arc<Mutex<State>>) ->
     responses::upload_status(&upload_id, state.committed, state.committed == state.size)
 }
 
-async fn place_remote(request: &serde_json::Value, state: Arc<Mutex<State>>) -> serde_json::Value {
-    let excluded = excluded_node_ids(request);
-    let preferred = request
-        .get("preferred_node_id")
-        .and_then(|value| value.as_str());
-    let selected_node = if preferred.is_some_and(|node| !excluded.iter().any(|value| value == node))
-    {
-        preferred.expect("checked preferred node")
-    } else if excluded.iter().any(|node| node == "builder-a") {
-        "builder-b"
-    } else if state.lock().await.failover_results {
-        "builder-a"
-    } else {
-        "builder-retry"
-    };
-    let mut state = state.lock().await;
-    if let Some(attempt) = request.get("attempt").and_then(|value| value.as_u64()) {
-        state.submit_attempts.push(attempt as u32);
-    }
-    state.selected_node = selected_node.to_string();
-    state.placement_exclusions.push(excluded);
-    responses::placed(selected_node)
-}
-
 async fn result(state: Arc<Mutex<State>>) -> serde_json::Value {
     let state = state.lock().await;
     responses::result(&state.selected_node, state.failover_results)
-}
-
-fn excluded_node_ids(request: &serde_json::Value) -> Vec<String> {
-    request
-        .get("excluded_node_ids")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(serde_json::Value::as_str)
-        .map(str::to_string)
-        .collect()
 }

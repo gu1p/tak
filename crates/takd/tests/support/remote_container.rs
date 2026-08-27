@@ -1,13 +1,17 @@
 use super::remote_output::empty_workspace_zip;
 use prost::Message;
 use tak_proto::{
-    CmdStep, ContainerResourceLimits, ContainerRuntime, RuntimeSpec, Step, SubmitTaskRequest,
-    SubmitTaskResponse, runtime_spec, step,
+    ContainerResourceLimits, ContainerRuntime, FusedTaskMember, RuntimeSpec, SubmitTaskRequest,
+    SubmitTaskResponse, runtime_spec,
 };
 use takd::{RemoteNodeContext, SubmitAttemptStore};
 
+mod command;
+mod fused;
 mod result;
 mod runtime_config;
+use command::command_step;
+pub use fused::submit_fused_container_task_with_retry;
 pub use result::fetch_result;
 pub use runtime_config::configure_fake_docker_env;
 
@@ -36,17 +40,29 @@ pub fn submit_container_task_with_limits(
     command: &str,
     resource_limits: ContainerResourceLimits,
 ) -> SubmitTaskResponse {
+    submit_container_task_with_members(
+        context,
+        store,
+        task_run_id,
+        command,
+        resource_limits,
+        Vec::new(),
+    )
+}
+
+pub(super) fn submit_container_task_with_members(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+    command: &str,
+    resource_limits: ContainerResourceLimits,
+    fused_members: Vec<FusedTaskMember>,
+) -> SubmitTaskResponse {
     let submit = SubmitTaskRequest {
         task_run_id: task_run_id.to_string(),
         attempt: 1,
         workspace_zip: empty_workspace_zip(),
-        steps: vec![Step {
-            kind: Some(step::Kind::Cmd(CmdStep {
-                argv: vec!["sh".to_string(), "-c".to_string(), command.to_string()],
-                cwd: None,
-                env: Default::default(),
-            })),
-        }],
+        steps: vec![command_step(command)],
         timeout_s: None,
         runtime: Some(RuntimeSpec {
             kind: Some(runtime_spec::Kind::Container(ContainerRuntime {
@@ -63,7 +79,7 @@ pub fn submit_container_task_with_limits(
         origin: Some("task".into()),
         runtime_source: Some("image:alpine:3.20".into()),
         command: Some(format!("sh -c '{}'", command.replace('\'', "'\\''"))),
-        fused_members: Vec::new(),
+        fused_members,
         execution_label: None,
         workspace_upload: None,
     };

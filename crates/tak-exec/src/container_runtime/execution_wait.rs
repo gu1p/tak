@@ -119,7 +119,7 @@ async fn wait_for_container_exit_code_via_cli(
 }
 
 pub(super) async fn cleanup_container(docker: &Docker, container_name: &str) -> Result<()> {
-    let _ = docker
+    let result = docker
         .remove_container(
             container_name,
             Some(RemoveContainerOptions {
@@ -128,5 +128,20 @@ pub(super) async fn cleanup_container(docker: &Docker, container_name: &str) -> 
             }),
         )
         .await;
-    Ok(())
+    container_removal_result(result, container_name)
+}
+
+pub(super) fn container_removal_result(
+    result: std::result::Result<(), BollardError>,
+    container_name: &str,
+) -> Result<()> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(BollardError::DockerResponseServerError {
+            status_code: 404, ..
+        }) => Ok(()),
+        Err(error) => Err(error).with_context(|| {
+            format!("infra error: failed to confirm removal of container {container_name}")
+        }),
+    }
 }

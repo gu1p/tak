@@ -13,6 +13,7 @@ const _TOR_HIDDEN_SERVICE_CONTRACT_MARKER: &str = "arti_client::TorClient launch
 pub mod agent;
 mod auto_update;
 pub mod daemon;
+pub mod log_tail;
 pub mod service;
 #[cfg(test)]
 mod test_env;

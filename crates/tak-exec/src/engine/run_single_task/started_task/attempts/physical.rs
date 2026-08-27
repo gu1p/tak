@@ -8,7 +8,7 @@ use crate::engine::attempt_execution::{
 };
 use crate::engine::attempt_submit::{AttemptSubmitState, resolve_attempt_submit_state};
 use crate::engine::remote_failover::prepare_remote_failover;
-use crate::engine::remote_failure::RemoteFailureKind;
+use crate::engine::remote_failure::requires_worker_failover;
 use crate::engine::remote_selection::SharedRemoteSelectionState;
 use crate::engine::{RunOptions, is_run_cancelled_error};
 
@@ -33,9 +33,7 @@ pub(super) async fn run_physical_attempts(
         )
         .await;
         match result {
-            Ok(outcome)
-                if outcome.remote_failure_kind == Some(RemoteFailureKind::Infrastructure) =>
-            {
+            Ok(outcome) if requires_worker_failover(outcome.remote_failure_kind) => {
                 let cause = outcome.failure_detail.clone().unwrap_or_else(|| {
                     format!(
                         "remote task failed with exit code {:?}",
@@ -49,6 +47,7 @@ pub(super) async fn run_physical_attempts(
                     context,
                     selection_state,
                     cause,
+                    outcome.remote_failure_kind,
                 )?;
             }
             Ok(outcome) => return Ok(outcome),
@@ -60,6 +59,7 @@ pub(super) async fn run_physical_attempts(
                 context,
                 selection_state,
                 error.to_string(),
+                Some(crate::engine::remote_failure::RemoteFailureKind::Infrastructure),
             )?,
         }
     }
@@ -114,10 +114,12 @@ fn fail_over(
     context: &mut StartedAttemptContext<'_>,
     selection_state: &SharedRemoteSelectionState,
     cause: String,
+    failure_kind: Option<crate::engine::remote_failure::RemoteFailureKind>,
 ) -> Result<()> {
     prepare_remote_failover(
         context.placement,
         cause,
+        failure_kind,
         selection_state,
         options.output_observer.as_ref(),
         &task.label,

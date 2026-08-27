@@ -3,6 +3,14 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DockerOperation {
+    Created(String),
+    RemovalAttempted(String),
+    Removed(String),
+    UnpauseAttempted(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateRecord {
     pub container_id: String,
     pub image: Option<String>,
@@ -39,6 +47,10 @@ pub struct FakeDockerConfig {
     pub arch: String,
     pub version_fails: bool,
     pub wait_response_delay: Duration,
+    pub ping_response_delay: Duration,
+    pub memory_usage_bytes: u64,
+    pub removal_failures: usize,
+    pub oom_killed: bool,
 }
 
 impl Default for FakeDockerConfig {
@@ -49,6 +61,10 @@ impl Default for FakeDockerConfig {
             arch: "x86_64".to_string(),
             version_fails: false,
             wait_response_delay: Duration::ZERO,
+            ping_response_delay: Duration::ZERO,
+            memory_usage_bytes: 0,
+            removal_failures: 0,
+            oom_killed: false,
         }
     }
 }

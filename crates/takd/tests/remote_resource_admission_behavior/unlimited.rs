@@ -6,10 +6,10 @@ use crate::support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
 use crate::support::remote_container::configure_fake_docker_env;
 use crate::support::remote_output::test_context_with_runtime;
 
-use super::{status, submit, wait_for_status};
+use super::{submit, wait_for_status};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn remote_container_without_limits_uses_worker_defaults() {
+async fn remote_container_without_authored_resources_stays_elastic() {
     let _env_lock = crate::support::env::env_lock();
     let mut env = crate::support::env::EnvGuard::default();
     env.set("TAKD_DEFAULT_CONTAINER_CPU_CORES", "1.25");
@@ -37,12 +37,10 @@ async fn remote_container_without_limits_uses_worker_defaults() {
 
     let snapshot = wait_for_status(&context, &store, |value| !value.active_jobs.is_empty());
     assert_eq!(snapshot.active_jobs[0].task_run_id, "unlimited");
-    let limits = snapshot.active_jobs[0]
-        .resource_limits
-        .as_ref()
-        .expect("effective worker defaults");
-    assert_eq!(limits.cpu_cores, 1.25);
-    assert_eq!(limits.memory_mb, 768);
+    assert!(
+        snapshot.active_jobs[0].resource_limits.is_none(),
+        "worker startup estimates must not become authored task reservations"
+    );
     let deadline = Instant::now() + Duration::from_secs(5);
     let create = loop {
         if let Some(create) = daemon
@@ -54,12 +52,12 @@ async fn remote_container_without_limits_uses_worker_defaults() {
         }
         assert!(
             Instant::now() < deadline,
-            "timed out waiting for worker container create"
+            "worker container was not created"
         );
         std::thread::sleep(Duration::from_millis(10));
     };
-    assert_eq!(create.nano_cpus, Some(1_250_000_000));
-    assert!(create.env.contains(&"RUST_TEST_THREADS=1".to_string()));
-    assert!(create.env.contains(&"RAYON_NUM_THREADS=1".to_string()));
-    assert!(status(&context, &store).queued_jobs.is_empty());
+    assert_eq!(
+        create.nano_cpus, None,
+        "an elastic task must be free to burst within the worker envelope"
+    );
 }

@@ -9,6 +9,7 @@ use super::EnvGuard;
 mod io;
 mod responses;
 mod state;
+mod submit_failover;
 
 pub(super) use state::State;
 

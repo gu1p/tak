@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use super::protocol_submit::remote_submit_timeout;
+use super::protocol_submit::response::remote_submit_timeout;
 
 #[path = "protocol_submit_tests/daemon_submit.rs"]
 mod daemon_submit;

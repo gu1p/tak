@@ -51,9 +51,17 @@ fn container_log_output_chunk(output: LogOutput) -> Option<(OutputStream, Vec<u8
     }
 }
 
-pub(super) async fn finish_container_log_task(task: ContainerLogTask) -> Result<()> {
+pub(super) async fn finish_container_log_task(
+    task: ContainerLogTask,
+    wait_for_stream: bool,
+) -> Result<()> {
     let Some(task) = task else {
         return Ok(());
     };
+    if !wait_for_stream {
+        task.abort();
+        let _ = task.await;
+        return Ok(());
+    }
     task.await.context("container log task failed to join")?
 }

@@ -9,7 +9,7 @@ struct WorkerExecutionResultPersistence<'a> {
 
 fn persist_worker_execution_result(
     input: WorkerExecutionResultPersistence<'_>,
-    execution_result: Result<(tak_runner::RemoteWorkerExecutionResult, Vec<RemoteWorkerOutputRecord>)>,
+    execution_result: Result<(RemoteWorkerExecutionOutcome, Vec<RemoteWorkerOutputRecord>)>,
 ) {
     let execution = input.execution;
     let stdout_tail = input.output_observer.stdout_tail();
@@ -71,9 +71,11 @@ fn persist_successful_worker_result(
     input: &WorkerExecutionResultPersistence<'_>,
     stdout_tail: &str,
     stderr_tail: &str,
-    result: tak_runner::RemoteWorkerExecutionResult,
+    outcome: RemoteWorkerExecutionOutcome,
     outputs: Vec<RemoteWorkerOutputRecord>,
 ) {
+    let container_oom_killed = outcome.container_oom_killed();
+    let result = outcome.into_result();
     let execution = input.execution;
     let store = &execution.store;
     let terminal_kind = if result.success {
@@ -84,8 +86,13 @@ fn persist_successful_worker_result(
     let exit_code = result.exit_code.unwrap_or(if result.success { 0 } else { 1 });
     let failure_kind = if result.success {
         serde_json::Value::Null
+    } else if exit_code == 137 && container_oom_killed == Some(true) {
+        serde_json::json!("container_oom")
     } else if exit_code == 137 {
-        serde_json::json!("infrastructure")
+        // `task` is deliberately used on the wire for unattributed 137 exits.
+        // Older clients do not know the newer `unknown` enum and would fall
+        // back to treating exit 137 as infrastructure, causing unsafe failover.
+        serde_json::json!("task")
     } else {
         serde_json::json!("task")
     };
@@ -113,6 +120,7 @@ fn persist_successful_worker_result(
             "outputs": outputs,
             "runtime": result.runtime_kind,
             "runtime_engine": result.runtime_engine,
+            "container_oom_killed": container_oom_killed,
             "stdout_tail": json_tail_value(stdout_tail),
             "stderr_tail": json_tail_value(stderr_tail),
             "failure_kind": failure_kind,
@@ -134,65 +142,6 @@ fn persist_successful_worker_result(
     ) {
         tracing::error!(
             "failed to append terminal event for submit {}: {error:#}",
-            input.idempotency_key
-        );
-    }
-}
-
-fn persist_failed_worker_result(
-    input: &WorkerExecutionResultPersistence<'_>,
-    stdout_tail: &str,
-    stderr_tail: &str,
-    error: anyhow::Error,
-) {
-    let stderr_tail = failure_stderr_tail(&error, stderr_tail);
-    let execution = input.execution;
-    let store = &execution.store;
-    tracing::warn!(
-        idempotency_key = input.idempotency_key,
-        task_run_id = %execution.payload.task_run_id,
-        attempt = execution.payload.attempt,
-        task_label = %execution.payload.task_label,
-        duration_ms = input.duration_ms,
-        error = %format!("{error:#}"),
-        "remote worker task failed"
-    );
-    if let Err(persist_error) = store.set_result_payload(
-        input.idempotency_key,
-        &serde_json::json!({
-            "success": false,
-            "exit_code": 1,
-            "started_at": input.started_at,
-            "finished_at": input.finished_at,
-            "duration_ms": input.duration_ms,
-            "transport_kind": execution.transport_kind.as_str(),
-            "sync_mode": "OUTPUTS_AND_LOGS",
-            "outputs": serde_json::json!([]),
-            "stdout_tail": json_tail_value(stdout_tail),
-            "stderr_tail": json_tail_value(&stderr_tail),
-            "failure_kind": "infrastructure",
-        })
-        .to_string(),
-    ) {
-        tracing::error!(
-            "failed to persist failure submit result {}: {persist_error:#}",
-            input.idempotency_key
-        );
-    }
-    if let Err(append_error) = store.append_event(
-        input.idempotency_key,
-        input.output_observer.claim_next_seq(),
-        &serde_json::json!({
-            "kind": "TASK_FAILED",
-            "timestamp_ms": input.finished_at,
-            "success": false,
-            "exit_code": 1,
-            "message": format!("{error:#}"),
-        })
-        .to_string(),
-    ) {
-        tracing::error!(
-            "failed to append TASK_FAILED event for submit {}: {append_error:#}",
             input.idempotency_key
         );
     }

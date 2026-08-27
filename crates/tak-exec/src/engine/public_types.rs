@@ -6,6 +6,7 @@ use tak_core::model::{RemoteRuntimeSpec, StepDef, TaskLabel};
 use super::cancellation::RunCancellation;
 
 mod observer;
+mod remote_worker_outcome;
 
 pub use observer::{
     OutputStream, TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskStartedEvent,
@@ -128,6 +129,13 @@ pub struct RemoteWorkerExecutionResult {
     pub exit_code: Option<i32>,
     pub runtime_kind: Option<String>,
     pub runtime_engine: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RemoteWorkerExecutionOutcome {
+    result: RemoteWorkerExecutionResult,
+    container_oom_killed: Option<bool>,
 }
 
 #[derive(Debug, Clone)]

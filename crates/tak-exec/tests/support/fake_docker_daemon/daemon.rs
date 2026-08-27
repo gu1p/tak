@@ -9,6 +9,8 @@ use super::server::run_fake_docker_daemon;
 use super::state::FakeDockerDaemonState;
 use super::{BuildRecord, CreateRecord, PullRecord, RemoveRecord};
 
+mod cleanup;
+
 pub struct FakeDockerDaemon {
     socket_path: PathBuf,
     state: Arc<FakeDockerDaemonState>,
@@ -69,6 +71,10 @@ impl FakeDockerDaemon {
         self.state.fail_build(message);
     }
 
+    pub fn fail_container_removal(&self, message: &str) {
+        self.state.fail_container_removal(message);
+    }
+
     pub fn fail_start(&self, message: &str) {
         self.state.fail_start(message);
     }
@@ -87,13 +93,5 @@ impl FakeDockerDaemon {
 
     pub fn set_image(&self, image_ref: &str, image_id: &str, size: u64) {
         self.state.set_image(image_ref, image_id, size);
-    }
-}
-
-impl Drop for FakeDockerDaemon {
-    fn drop(&mut self) {
-        self.release_container_exit();
-        self.accept_task.abort();
-        let _ = std::fs::remove_file(&self.socket_path);
     }
 }

@@ -25,6 +25,7 @@ pub(super) async fn run_remote_command(command: RemoteCommands) -> Result<()> {
             run_remote_scan().await?;
         }
         RemoteCommands::List => {
+            println!("Configured remote inventory (reachability not checked)");
             for remote in list_remotes()? {
                 println!(
                     "{} alias={} {} pools={} tags={} capabilities={} enabled={}",

@@ -2,8 +2,7 @@
 
 use crate::support;
 
-use std::collections::BTreeMap;
-use std::fs;
+use std::{collections::BTreeMap, fs};
 
 use anyhow::Result;
 use support::container_runtime::simulated_container_runtime_env;
@@ -57,7 +56,8 @@ fn exec_honors_cwd_and_env_overrides() -> Result<()> {
     assert!(output.status.success(), "status: {:?}", output.status);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut lines = stdout.lines();
-    assert_eq!(lines.next(), Some(workdir.display().to_string().as_str()));
+    let actual = lines.next().expect("working directory output");
+    assert_eq!(fs::canonicalize(actual)?, workdir.canonicalize()?);
     assert_eq!(lines.next(), Some("world"));
     assert_eq!(lines.next(), None);
     Ok(())

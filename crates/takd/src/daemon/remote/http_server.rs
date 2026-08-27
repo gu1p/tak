@@ -17,7 +17,11 @@ pub async fn run_remote_v1_http_server(
 ) -> Result<()> {
     spawn_remote_cleanup_janitor(context.clone(), store.clone());
     spawn_remote_orphan_watchdog(context.clone());
-    spawn_tak_container_usage_sampler(context.runtime_config(), context.tak_container_usage());
+    spawn_tak_container_usage_sampler(
+        context.runtime_config(),
+        context.tak_container_usage(),
+        context.resource_admission(),
+    );
     spawn_memory_pressure_controller(context.clone());
     loop {
         let (stream, _) = listener.accept().await.context("accept failed")?;

@@ -15,7 +15,13 @@ pub(super) fn handle_node_logs_route(
         return Some(error_response(404, "service_log_not_available"));
     };
     let log_path = state_root.join("service.log");
-    let contents = match fs::read_to_string(&log_path) {
+    let all = query_param_string(query, "all").as_deref() == Some("true");
+    let contents = match if all {
+        fs::read_to_string(&log_path)
+    } else {
+        let lines = query_param_u64(query, "lines").unwrap_or(200);
+        crate::log_tail::read_log_tail(&log_path, usize::try_from(lines).unwrap_or(usize::MAX))
+    } {
         Ok(contents) => contents,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             return Some(error_response(404, "service_log_not_found"));
@@ -28,25 +34,5 @@ pub(super) fn handle_node_logs_route(
             return Some(error_response(500, "service_log_unavailable"));
         }
     };
-    if query_param_string(query, "all").as_deref() == Some("true") {
-        return Some(text_response(200, contents));
-    }
-    Some(text_response(
-        200,
-        tail_lines(&contents, query_param_u64(query, "lines").unwrap_or(200)),
-    ))
-}
-
-fn tail_lines(contents: &str, lines: u64) -> String {
-    if lines == 0 || contents.is_empty() {
-        return String::new();
-    }
-    let lines = usize::try_from(lines).unwrap_or(usize::MAX);
-    let all_lines = contents.lines().collect::<Vec<_>>();
-    let start = all_lines.len().saturating_sub(lines);
-    let mut tail = all_lines[start..].join("\n");
-    if !tail.is_empty() && contents.ends_with('\n') {
-        tail.push('\n');
-    }
-    tail
+    Some(text_response(200, contents))
 }

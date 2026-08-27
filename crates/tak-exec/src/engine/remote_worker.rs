@@ -7,8 +7,8 @@ use tak_core::model::{
 };
 
 use super::{
-    ImageCachePlan, RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RunCancellation,
-    TaskOutputObserver,
+    ImageCachePlan, RemoteWorkerExecutionOutcome, RemoteWorkerExecutionResult,
+    RemoteWorkerExecutionSpec, RunCancellation, TaskOutputObserver,
 };
 
 use super::runtime_metadata::resolve_runtime_execution_metadata_for_node_runtime_with_workspace;
@@ -19,13 +19,14 @@ pub async fn execute_remote_worker_steps_with_cancellation(
     spec: &RemoteWorkerExecutionSpec,
     cancellation: &RunCancellation,
 ) -> Result<RemoteWorkerExecutionResult> {
-    execute_remote_worker_steps_with_output_and_cancellation(
+    Ok(execute_remote_worker_steps_with_output_and_cancellation(
         workspace_root,
         spec,
         None,
         cancellation,
     )
-    .await
+    .await?
+    .into_result())
 }
 
 pub async fn execute_remote_worker_steps_with_output_and_cancellation(
@@ -33,7 +34,7 @@ pub async fn execute_remote_worker_steps_with_output_and_cancellation(
     spec: &RemoteWorkerExecutionSpec,
     output_observer: Option<std::sync::Arc<dyn TaskOutputObserver>>,
     cancellation: &RunCancellation,
-) -> Result<RemoteWorkerExecutionResult> {
+) -> Result<RemoteWorkerExecutionOutcome> {
     let task = ResolvedTask {
         label: spec.task_label.clone(),
         doc: String::new(),
@@ -90,7 +91,7 @@ pub async fn execute_remote_worker_steps_with_output_and_cancellation(
         cancellation,
     )
     .await?;
-    Ok(RemoteWorkerExecutionResult {
+    let execution_result = RemoteWorkerExecutionResult {
         success: result.success,
         exit_code: result.exit_code,
         runtime_kind: runtime_metadata
@@ -99,7 +100,11 @@ pub async fn execute_remote_worker_steps_with_output_and_cancellation(
         runtime_engine: runtime_metadata
             .as_ref()
             .and_then(|metadata| metadata.engine.clone()),
-    })
+    };
+    Ok(RemoteWorkerExecutionOutcome::new(
+        execution_result,
+        result.container_oom_killed,
+    ))
 }
 
 fn image_cache_plan(

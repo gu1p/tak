@@ -225,6 +225,9 @@ enum RemoteFailureKind {
   TASK = 1;
   INFRASTRUCTURE = 2;
   CANCELLATION = 3;
+  RESOURCE_CAPACITY = 4;
+  UNKNOWN = 5;
+  CONTAINER_OOM = 6;
 }
 
 message CancelTaskResponse {
@@ -303,6 +306,31 @@ message QueuedJob {
   optional string execution_label = 11;
 }
 
+message ResourceEnvelopeStatus {
+  double host_cpu_total_cores = 1;
+  double reserve_cpu_cores = 2;
+  double workload_cpu_cores = 3;
+  double tak_usage_cpu_cores = 4;
+  double non_tak_cpu_cores = 5;
+  double reserved_cpu_cores = 6;
+  double admittable_cpu_cores = 7;
+  uint64 host_memory_total_bytes = 8;
+  uint64 reserve_memory_bytes = 9;
+  uint64 workload_memory_bytes = 10;
+  uint64 tak_usage_memory_bytes = 11;
+  uint64 non_tak_memory_bytes = 12;
+  uint64 reserved_memory_bytes = 13;
+  uint64 admittable_memory_bytes = 14;
+  uint64 swap_total_bytes = 15;
+  uint64 swap_available_bytes = 16;
+}
+
+message ResourcePressureStatus {
+  string state = 1;
+  optional int64 episode_started_at_ms = 2;
+  uint32 healthy_samples = 3;
+}
+
 message TaskAttemptSummary {
   string task_run_id = 1;
   uint32 attempt = 2;
@@ -328,6 +356,8 @@ message NodeStatusResponse {
   repeated ActiveJob active_jobs = 7;
   ImageCacheStatus image_cache = 8;
   repeated QueuedJob queued_jobs = 9;
+  ResourceEnvelopeStatus resource_envelope = 10;
+  ResourcePressureStatus resource_pressure = 11;
 }
 
 message NodePingResponse {

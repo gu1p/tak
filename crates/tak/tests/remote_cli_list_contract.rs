@@ -55,6 +55,10 @@ fn remote_add_imports_tor_invite_and_lists_remote_with_full_url() {
     let stdout = String::from_utf8_lossy(&list.stdout);
     assert!(list.status.success(), "tak remote list should succeed");
     assert!(
+        stdout.contains("Configured remote inventory (reachability not checked)"),
+        "remote list must identify inventory without implying live reachability:\n{stdout}"
+    );
+    assert!(
         stdout.contains("builder-a"),
         "missing node id in list: {stdout}"
     );

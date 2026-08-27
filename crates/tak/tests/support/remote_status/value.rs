@@ -45,6 +45,8 @@ pub(super) fn status_value(
         active_jobs: active_jobs(with_job),
         image_cache: None,
         queued_jobs: vec![],
+        resource_envelope: None,
+        resource_pressure: None,
     }
 }
 

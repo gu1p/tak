@@ -41,13 +41,13 @@ fn linux_installer_streams_verbose_readiness_diagnostics_before_token_ready() {
 }
 
 #[test]
-fn linux_installer_service_runs_takd_with_trace_logging_by_default() {
+fn linux_installer_service_uses_info_logging_by_default() {
     let (_temp, home, output) = run_installer(fake_systemctl(), &[]);
 
     assert!(output.status.success(), "installer should succeed");
     let unit = fs::read_to_string(home.join(".config/systemd/user/takd.service"))
         .expect("read takd.service");
-    assert!(unit.contains("Environment=RUST_LOG=trace"), "{unit}");
+    assert!(unit.contains("Environment=RUST_LOG=info"), "{unit}");
     assert!(unit.contains("Environment=RUST_BACKTRACE=1"), "{unit}");
 }
 

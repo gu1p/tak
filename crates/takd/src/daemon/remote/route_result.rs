@@ -118,7 +118,10 @@ fn parse_failure_kind(value: &str) -> Option<RemoteFailureKind> {
     match value {
         "task" => Some(RemoteFailureKind::Task),
         "infrastructure" => Some(RemoteFailureKind::Infrastructure),
+        "resource_capacity" => Some(RemoteFailureKind::ResourceCapacity),
         "cancellation" => Some(RemoteFailureKind::Cancellation),
+        "unknown" => Some(RemoteFailureKind::Unknown),
+        "container_oom" => Some(RemoteFailureKind::ContainerOom),
         _ => None,
     }
 }

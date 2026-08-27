@@ -31,3 +31,36 @@ fn remote_resource_defaults_are_safe_and_operator_overridable() {
     assert_eq!(overridden.default_container_memory_mb(), 3072);
     assert_eq!(overridden.admission_oversubscribe_x(), 3);
 }
+
+#[test]
+fn host_baseline_sampling_runs_on_real_nodes_and_skips_test_roots() {
+    let production = RemoteRuntimeConfig::from_environment(|_| None, std::env::temp_dir(), false);
+    let test_root = RemoteRuntimeConfig::from_environment(|_| None, std::env::temp_dir(), true);
+    let overridden = RemoteRuntimeConfig::from_environment(
+        |name| (name == "TAKD_HOST_BASELINE_SAMPLE_MS").then(|| "1250".into()),
+        std::env::temp_dir(),
+        false,
+    );
+
+    assert_eq!(
+        production.host_baseline_sample_duration(),
+        Duration::from_secs(5)
+    );
+    assert_eq!(test_root.host_baseline_sample_duration(), Duration::ZERO);
+    assert_eq!(
+        overridden.host_baseline_sample_duration(),
+        Duration::from_millis(1250)
+    );
+}
+
+#[test]
+fn simulated_host_defaults_to_deterministic_resource_accounting() {
+    let runtime = RemoteRuntimeConfig::from_environment(
+        |name| (name == "TAK_TEST_HOST_PLATFORM").then(|| "other".into()),
+        std::env::temp_dir(),
+        false,
+    );
+
+    assert_eq!(runtime.host_baseline_sample_duration(), Duration::ZERO);
+    assert!(runtime.ignore_host_usage_for_tests());
+}

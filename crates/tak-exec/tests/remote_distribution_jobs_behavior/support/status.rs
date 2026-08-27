@@ -29,6 +29,8 @@ pub(crate) fn node_status(
         queued_jobs: (0..queued_jobs)
             .map(|index| queued_job(node_id, index))
             .collect(),
+        resource_envelope: None,
+        resource_pressure: None,
     }
 }
 

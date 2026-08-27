@@ -1,19 +1,15 @@
 use std::collections::BTreeMap;
-use std::time::Duration;
 
-use prost::Message;
 use tak_core::model::{ResolvedTask, TaskLabel};
-use tak_proto::{SubmitTaskResponse, WorkspaceUploadRef};
 
 use super::{RemoteWorkspaceStage, StrictRemoteTarget};
 
-use crate::remote_protocol_codec::{RemoteSubmitPayloadInput, build_remote_submit_payload};
-
-use super::protocol_result_http::{
-    RemoteHttpResponse, remote_protocol_http_request_with_extra_headers,
-};
 use super::remote_submit_failure::RemoteSubmitFailure;
 use super::workspace_upload_cache::{CachedUpload, SharedWorkspaceUploadCache, UploadClaim};
+
+#[path = "protocol_submit/response.rs"]
+pub(super) mod response;
+use response::post_submit;
 
 /// Submits one remote attempt, reusing a per-job cached workspace upload when possible.
 ///
@@ -176,111 +172,4 @@ pub(crate) async fn remote_protocol_submit(
         "infra error: remote node {} workspace upload reuse did not converge",
         submit.target.node_id
     )))
-}
-
-async fn post_submit(
-    post: &SubmitPost<'_>,
-    workspace_upload: Option<&WorkspaceUploadRef>,
-    preferred_node_id: Option<&str>,
-    inline_stage: Option<&RemoteWorkspaceStage>,
-) -> std::result::Result<StrictRemoteTarget, RemoteSubmitFailure> {
-    let preferred_node_header = preferred_node_id
-        .map(|node_id| ("x-tak-preferred-node", node_id.to_string()))
-        .into_iter()
-        .collect::<Vec<_>>();
-    let body = build_remote_submit_payload(RemoteSubmitPayloadInput {
-        target: post.target,
-        task_run_id: post.task_run_id,
-        attempt: post.attempt,
-        task: post.task,
-        remote_workspace: inline_stage,
-        session: post.session,
-        execution_label: post.execution_label,
-        fused_members: post.fused_members,
-        fused_member_execution_labels: post.fused_member_execution_labels,
-        workspace_upload,
-    })
-    .map_err(|err| RemoteSubmitFailure::other(format!("{err:#}")))?
-    .encode_to_vec();
-    let response = remote_protocol_http_request_with_extra_headers(
-        post.target,
-        "POST",
-        "/v1/tasks/submit",
-        Some(&body),
-        "submit",
-        remote_submit_timeout(),
-        &preferred_node_header,
-    )
-    .await
-    .map_err(|err| {
-        if err.is_retryable() {
-            RemoteSubmitFailure::retryable_other(err.to_string())
-        } else {
-            RemoteSubmitFailure::other(err.to_string())
-        }
-    })?;
-    let status = response.status;
-    let response_body = &response.body;
-
-    if status == 401 || status == 403 {
-        return Err(RemoteSubmitFailure::auth(format!(
-            "infra error: remote node {} auth failed during submit with HTTP {}",
-            post.target.node_id, status
-        )));
-    }
-    if status == 409 {
-        // The referenced workspace upload was reaped on the node; re-upload and resubmit.
-        return Err(RemoteSubmitFailure::missing_upload(format!(
-            "remote node {} reports referenced workspace upload missing (HTTP 409)",
-            post.target.node_id
-        )));
-    }
-    if status != 200 {
-        return Err(RemoteSubmitFailure::other(format!(
-            "infra error: remote node {} submit failed with HTTP {}",
-            post.target.node_id, status
-        )));
-    }
-
-    let parsed = SubmitTaskResponse::decode(response_body.as_slice()).map_err(|_| {
-        RemoteSubmitFailure::other(format!(
-            "infra error: remote node {} returned invalid protobuf for submit",
-            post.target.node_id
-        ))
-    })?;
-    if !parsed.accepted {
-        return Err(RemoteSubmitFailure::other(format!(
-            "infra error: remote node {} rejected submit for task {} attempt {}",
-            post.target.node_id, post.task.label, post.attempt
-        )));
-    }
-    if !parsed.remote_worker {
-        return Err(RemoteSubmitFailure::other(format!(
-            "infra error: remote node {} returned submit acknowledgement without remote worker support",
-            post.target.node_id
-        )));
-    }
-
-    Ok(target_after_submit(post.target, &response))
-}
-
-pub(super) fn remote_submit_timeout() -> Duration {
-    Duration::from_secs(30)
-}
-
-fn target_after_submit(
-    target: &StrictRemoteTarget,
-    response: &RemoteHttpResponse,
-) -> StrictRemoteTarget {
-    let mut selected = target.clone();
-    if let Some(task_handle) = response.daemon_task_handle.clone() {
-        selected.daemon_task_handle = Some(task_handle);
-    }
-    if let Some(node_id) = response.daemon_peer_node_id.clone() {
-        selected.node_id = node_id;
-    }
-    if let Some(endpoint) = response.daemon_peer_endpoint.clone() {
-        selected.endpoint = endpoint;
-    }
-    selected
 }

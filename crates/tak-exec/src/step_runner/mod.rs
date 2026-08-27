@@ -26,6 +26,7 @@ pub(crate) use command::resolve_cwd;
 pub(crate) struct StepRunResult {
     pub(crate) success: bool,
     pub(crate) exit_code: Option<i32>,
+    pub(crate) container_oom_killed: Option<bool>,
 }
 
 pub(crate) struct StepRunContext<'a> {
@@ -93,6 +94,7 @@ pub(crate) async fn run_step(
             return Ok(StepRunResult {
                 success: false,
                 exit_code: None,
+                container_oom_killed: None,
             });
         }
         Err(error) => {
@@ -105,5 +107,6 @@ pub(crate) async fn run_step(
     Ok(StepRunResult {
         success: wait_result.success(),
         exit_code: wait_result.code(),
+        container_oom_killed: None,
     })
 }

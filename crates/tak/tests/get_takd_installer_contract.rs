@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 use support::installer::{failing_systemctl, fake_systemctl, run_installer};
 
+mod manual_fallback;
+
 #[test]
 fn linux_installer_bootstraps_takd_user_service_and_prints_token() {
     let (_temp, home, output) = run_installer(fake_systemctl(), &[("TAKD_INSTALL_TEST_MODE", "1")]);
@@ -34,6 +36,20 @@ fn linux_installer_bootstraps_takd_user_service_and_prints_token() {
     assert!(
         !unit.contains("StandardOutput=") && !unit.contains("StandardError="),
         "installer should not rely on systemd log redirection:\n{unit}"
+    );
+    assert!(
+        unit.contains("Environment=RUST_LOG=info"),
+        "installed services must not fill disks with trace logging by default:\n{unit}"
+    );
+    assert!(
+        unit.contains("OOMPolicy=continue"),
+        "one workload failure must not let systemd terminate the worker service:\n{unit}"
+    );
+    assert!(
+        !unit.contains("TAKD_REQUIRE_WORKLOAD_FENCE")
+            && !unit.contains("ManagedOOMPreference=")
+            && !unit.contains("Delegate="),
+        "the default service must not install a cgroup memory cap that can kill task containers:\n{unit}"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -67,33 +83,4 @@ fn linux_installer_download_uses_visible_progress() {
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-#[test]
-fn linux_installer_falls_back_to_manual_start_without_usable_systemctl_user() {
-    let (_temp, home, output) = run_installer(failing_systemctl(), &[]);
-
-    assert!(
-        output.status.success(),
-        "installer should succeed with manual fallback\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        home.join(".local/bin/takd").exists(),
-        "takd should be installed"
-    );
-    assert!(home.join(".config/systemd/user/takd.service").exists());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("automatic service startup is unavailable"));
-    assert!(stdout.contains("takd serve --config-root"));
-    assert!(stdout.contains("takd token show --state-root"));
-    assert!(
-        !stdout.contains("token: "),
-        "manual fallback should not print a token:\n{stdout}"
-    );
-    assert!(
-        !stdout.contains("Scan this QR code"),
-        "manual fallback should stay plain text:\n{stdout}"
-    );
 }

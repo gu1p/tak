@@ -1,3 +1,5 @@
+#[cfg(unix)]
+pub mod bounded_log;
 pub mod cli;
 pub mod env;
 pub mod fake_docker;
@@ -8,6 +10,7 @@ pub mod live_tor_cli;
 pub mod live_tor_http;
 pub mod local_broker_http;
 pub mod local_runtime;
+pub mod pressure;
 pub mod protocol;
 pub mod protocol_server;
 pub mod recording_remote;
@@ -18,6 +21,7 @@ pub mod remote_session;
 pub mod remote_v1_http;
 pub mod remote_v1_http_submit;
 pub mod runtime_config;
+pub mod synthetic_memory_signal;
 pub mod takd_tasks;
 pub mod tor_secret_warning;
 pub mod transport_health;

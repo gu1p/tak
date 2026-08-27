@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 
 use super::server::run_fake_docker_daemon;
 use super::state::FakeDockerDaemonState;
-use super::{CreateRecord, FakeDockerConfig};
+use super::{CreateRecord, DockerOperation, FakeDockerConfig};
 
 pub struct FakeDockerDaemon {
     socket_path: PathBuf,
@@ -29,6 +29,10 @@ impl FakeDockerDaemon {
             config.arch,
             config.version_fails,
             config.wait_response_delay,
+            config.ping_response_delay,
+            config.memory_usage_bytes,
+            config.removal_failures,
+            config.oom_killed,
         ));
         let accept_task = tokio::spawn(run_fake_docker_daemon(listener, Arc::clone(&state)));
 
@@ -55,6 +59,10 @@ impl FakeDockerDaemon {
         self.state.removed_containers()
     }
 
+    pub fn operations(&self) -> Vec<DockerOperation> {
+        self.state.operations()
+    }
+
     pub fn add_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
         self.state.add_container(container_id, labels);
     }
@@ -62,6 +70,10 @@ impl FakeDockerDaemon {
     pub fn add_paused_container(&self, container_id: &str, labels: BTreeMap<String, String>) {
         self.state
             .add_container_with_state(container_id, labels, "paused");
+    }
+
+    pub fn pause_container_after_next_list(&self, container_id: &str) {
+        self.state.pause_container_after_next_list(container_id);
     }
 }
 

@@ -16,6 +16,24 @@ pub(super) fn build(options: RuntimeConfigBuilder) -> RemoteRuntimeConfig {
     );
     values.insert("TAKD_MEMORY_PRESSURE_ENABLED", "false".to_string());
     values.insert("TAKD_ADMISSION_OVERSUBSCRIBE_X", "1".to_string());
+    values.insert(
+        "TAK_TEST_IGNORE_HOST_USAGE",
+        options.ignore_host_usage_for_tests.to_string(),
+    );
+    if let Some(path) = options.test_memory_signal_path {
+        values.insert("TAK_TEST_MEMORY_SIGNAL_PATH", path.display().to_string());
+        values.insert("TAKD_MEMORY_PRESSURE_ENABLED", "true".to_string());
+    }
+    if let Some(interval) = options.test_resource_sample_interval {
+        values.insert(
+            "TAK_TEST_RESOURCE_SAMPLE_MS",
+            interval.as_millis().to_string(),
+        );
+        values.insert(
+            "TAKD_MEMORY_PRESSURE_INTERVAL_MS",
+            interval.as_millis().to_string(),
+        );
+    }
     if let Some(cpu_cores) = options.default_container_cpu_cores {
         values.insert("TAKD_DEFAULT_CONTAINER_CPU_CORES", cpu_cores.to_string());
     }

@@ -62,5 +62,5 @@ fn managed_containers_treats_zero_or_missing_timeout_as_pausable() {
         ..Default::default()
     };
     let parsed = managed_containers(&[zero, missing]);
-    assert!(parsed.iter().all(|c| !c.has_timeout), "{parsed:?}");
+    assert!(parsed.iter().all(|container| !container.has_timeout));
 }

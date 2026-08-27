@@ -130,8 +130,16 @@ fn available_bytes_for_path_with_disks(path: &Path, disks: &[DiskCandidate]) -> 
         .with_context(|| format!("canonicalize state root {}", path.display()))?;
     let selected = disks
         .iter()
-        .filter(|disk| path.starts_with(&disk.mount_point))
-        .max_by_key(|disk| disk.mount_point.display().to_string().len())
+        .filter_map(|disk| {
+            let mount_point = disk
+                .mount_point
+                .canonicalize()
+                .unwrap_or_else(|_| disk.mount_point.clone());
+            path.starts_with(&mount_point)
+                .then_some((disk, mount_point))
+        })
+        .max_by_key(|(_, mount_point)| mount_point.as_os_str().len())
+        .map(|(disk, _)| disk)
         .or_else(|| disks.first())
         .ok_or_else(|| anyhow!("failed to inspect available storage for image cache budget"))?;
     Ok(selected.available_bytes)

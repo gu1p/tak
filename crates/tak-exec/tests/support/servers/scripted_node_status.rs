@@ -53,6 +53,8 @@ pub(super) fn node_status(node_id: &str, port: u16) -> NodeStatusResponse {
         }],
         image_cache: None,
         queued_jobs: vec![],
+        resource_envelope: None,
+        resource_pressure: None,
     }
 }
 

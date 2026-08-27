@@ -75,10 +75,5 @@ fn resource_limits_from_runtime(
             memory_mb: None,
         });
     };
-    if limits.cpu_cores.is_none() || limits.memory_mb.is_none() {
-        return Err(anyhow!(
-            "invalid_submit_fields: execution.runtime.container.resource_limits is required"
-        ));
-    }
     Ok(limits.clone())
 }

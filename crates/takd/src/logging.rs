@@ -43,22 +43,9 @@ pub fn read_service_log(state_root: &Path) -> Result<String> {
 }
 
 pub fn read_service_log_tail(state_root: &Path, lines: usize) -> Result<String> {
-    let contents = read_service_log(state_root)?;
-    Ok(tail_lines(&contents, lines))
-}
-
-fn tail_lines(contents: &str, lines: usize) -> String {
-    if lines == 0 || contents.is_empty() {
-        return String::new();
-    }
-
-    let all_lines = contents.lines().collect::<Vec<_>>();
-    let start = all_lines.len().saturating_sub(lines);
-    let mut tail = all_lines[start..].join("\n");
-    if !tail.is_empty() && contents.ends_with('\n') {
-        tail.push('\n');
-    }
-    tail
+    let log_path = service_log_path(state_root);
+    takd::log_tail::read_log_tail(&log_path, lines)
+        .with_context(|| format!("service log not found at {}", log_path.display()))
 }
 
 #[derive(Clone)]

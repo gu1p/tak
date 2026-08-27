@@ -1,23 +1,36 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::Instant;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bollard::container::{ListContainersOptions, Stats, StatsOptions};
 use bollard::{API_DEFAULT_VERSION, Docker};
 use futures::StreamExt;
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
+use super::resource_admission::{ResourceCapacity, SharedResourceAdmission};
 use super::runtime::RemoteRuntimeConfig;
+use super::status_resources::{host_cpu_cores_used, non_tak_cpu_cores, non_tak_memory_bytes};
 
-const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
-
+mod stats;
 #[path = "tak_container_usage_tests.rs"]
 mod tests;
 
+use stats::sample_container_usage;
+
 #[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct TakTaskUsageSnapshot {
+    pub(crate) cpu_cores: f64,
+    pub(crate) memory_bytes: u64,
+}
+
+#[derive(Debug, Clone, Default)]
 pub(crate) struct TakContainerUsageSnapshot {
     pub(crate) cpu_cores: f64,
     pub(crate) memory_bytes: u64,
+    pub(crate) sampled_at: Option<Instant>,
+    pub(crate) task_usage: HashMap<String, TakTaskUsageSnapshot>,
+    pub(crate) attribution_complete: bool,
 }
 
 #[derive(Clone, Default)]
@@ -27,10 +40,14 @@ pub(crate) struct SharedTakContainerUsage {
 
 impl SharedTakContainerUsage {
     pub(crate) fn latest(&self) -> TakContainerUsageSnapshot {
-        self.inner.lock().map(|guard| *guard).unwrap_or_default()
+        self.inner
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
     }
 
-    fn update(&self, snapshot: TakContainerUsageSnapshot) {
+    fn update(&self, mut snapshot: TakContainerUsageSnapshot) {
+        snapshot.sampled_at = Some(Instant::now());
         if let Ok(mut guard) = self.inner.lock() {
             *guard = snapshot;
         }
@@ -40,37 +57,106 @@ impl SharedTakContainerUsage {
 pub(crate) fn spawn_tak_container_usage_sampler(
     runtime_config: RemoteRuntimeConfig,
     usage: SharedTakContainerUsage,
+    admission: SharedResourceAdmission,
 ) {
     if tak_core::mock::mock_container_enabled() {
         return;
     }
     tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(SAMPLE_INTERVAL);
+        let mut host = System::new_with_specifics(
+            RefreshKind::nothing()
+                .with_cpu(CpuRefreshKind::everything())
+                .with_memory(MemoryRefreshKind::everything()),
+        );
+        host.refresh_memory();
+        host.refresh_cpu_all();
+        let mut ticker = tokio::time::interval(runtime_config.resource_sample_interval());
         loop {
             ticker.tick().await;
-            let sample = sample_tak_container_usage(&runtime_config)
-                .await
-                .unwrap_or_default();
-            usage.update(sample);
+            match sample_tak_container_usage(&runtime_config).await {
+                Ok(sample) => {
+                    usage.update(sample);
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        "Tak container resource sample failed; retaining prior sample: {error:#}"
+                    )
+                }
+            }
+            if let Err(error) = update_host_usage(&runtime_config, &mut host, &usage, &admission) {
+                tracing::warn!(
+                    "host resource sample failed; retaining prior admission sample: {error:#}"
+                );
+            }
+            if let Err(error) = admission.reconcile() {
+                tracing::warn!("resource admission reconcile failed: {error:#}");
+            }
         }
     });
+}
+
+fn update_host_usage(
+    runtime_config: &RemoteRuntimeConfig,
+    host: &mut System,
+    usage: &SharedTakContainerUsage,
+    admission: &SharedResourceAdmission,
+) -> Result<()> {
+    if runtime_config.ignore_host_usage_for_tests() {
+        return admission.update_host_usage(
+            ResourceCapacity {
+                cpu_cores: 0.0,
+                memory_mb: 0,
+            },
+            u64::MAX,
+        );
+    }
+    host.refresh_memory();
+    host.refresh_cpu_usage();
+    let tak = usage.latest();
+    let logical_cores = u32::try_from(host.cpus().len()).unwrap_or(u32::MAX);
+    let host_cpu = host_cpu_cores_used(f64::from(host.global_cpu_usage()), logical_cores);
+    let host_used_memory = host.total_memory().saturating_sub(host.available_memory());
+    admission.update_host_usage(
+        ResourceCapacity {
+            cpu_cores: non_tak_cpu_cores(host_cpu, tak.cpu_cores),
+            memory_mb: non_tak_memory_bytes(host_used_memory, tak.memory_bytes)
+                .div_ceil(1024 * 1024),
+        },
+        host.available_memory().div_ceil(1024 * 1024),
+    )
 }
 
 async fn sample_tak_container_usage(
     runtime_config: &RemoteRuntimeConfig,
 ) -> Result<TakContainerUsageSnapshot> {
     let docker = connect_docker_client(runtime_config).await?;
-    let containers = list_running_takd_containers(&docker).await?;
-    let mut total = TakContainerUsageSnapshot::default();
+    let containers = list_active_takd_containers(&docker).await?;
+    let mut total = TakContainerUsageSnapshot {
+        attribution_complete: true,
+        ..TakContainerUsageSnapshot::default()
+    };
     for container in containers {
+        let submit_key = container
+            .labels
+            .as_ref()
+            .and_then(|labels| labels.get("tak.submit_key"))
+            .cloned();
         let Some(container_id) = container.id else {
+            total.attribution_complete = false;
             continue;
         };
         let usage = sample_container_usage(&docker, &container_id)
             .await
-            .unwrap_or_default();
+            .with_context(|| format!("sample Tak container {container_id}"))?;
         total.cpu_cores += usage.cpu_cores;
         total.memory_bytes = total.memory_bytes.saturating_add(usage.memory_bytes);
+        if let Some(submit_key) = submit_key {
+            let task = total.task_usage.entry(submit_key).or_default();
+            task.cpu_cores += usage.cpu_cores;
+            task.memory_bytes = task.memory_bytes.saturating_add(usage.memory_bytes);
+        } else {
+            total.attribution_complete = false;
+        }
     }
     Ok(total)
 }
@@ -91,12 +177,15 @@ pub(super) async fn connect_docker_client(runtime_config: &RemoteRuntimeConfig) 
     Ok(docker)
 }
 
-async fn list_running_takd_containers(
+async fn list_active_takd_containers(
     docker: &Docker,
 ) -> Result<Vec<bollard::models::ContainerSummary>> {
     let mut filters = HashMap::new();
     filters.insert("label".to_string(), vec!["tak.owner=takd".to_string()]);
-    filters.insert("status".to_string(), vec!["running".to_string()]);
+    filters.insert(
+        "status".to_string(),
+        vec!["running".to_string(), "paused".to_string()],
+    );
     docker
         .list_containers(Some(ListContainersOptions {
             all: true,
@@ -104,70 +193,5 @@ async fn list_running_takd_containers(
             ..Default::default()
         }))
         .await
-        .context("list running takd-owned containers")
-}
-
-async fn sample_container_usage(
-    docker: &Docker,
-    container_id: &str,
-) -> Result<TakContainerUsageSnapshot> {
-    let mut stream = docker
-        .stats(
-            container_id,
-            Some(StatsOptions {
-                stream: false,
-                one_shot: false,
-            }),
-        )
-        .take(1);
-    let Some(stats) = stream.next().await else {
-        return Ok(TakContainerUsageSnapshot::default());
-    };
-    Ok(usage_from_stats(&stats?))
-}
-
-fn usage_from_stats(stats: &Stats) -> TakContainerUsageSnapshot {
-    TakContainerUsageSnapshot {
-        cpu_cores: cpu_cores_from_stats(stats),
-        memory_bytes: stats.memory_stats.usage.unwrap_or(0),
-    }
-}
-
-fn cpu_cores_from_stats(stats: &Stats) -> f64 {
-    let per_cpu_count = stats
-        .cpu_stats
-        .cpu_usage
-        .percpu_usage
-        .as_ref()
-        .map(Vec::len);
-    cpu_cores_from_deltas(
-        stats.cpu_stats.cpu_usage.total_usage,
-        stats.precpu_stats.cpu_usage.total_usage,
-        stats.cpu_stats.system_cpu_usage,
-        stats.precpu_stats.system_cpu_usage,
-        stats.cpu_stats.online_cpus,
-        per_cpu_count,
-    )
-}
-
-fn cpu_cores_from_deltas(
-    cpu_total: u64,
-    pre_cpu_total: u64,
-    system_total: Option<u64>,
-    pre_system_total: Option<u64>,
-    online_cpus: Option<u64>,
-    per_cpu_count: Option<usize>,
-) -> f64 {
-    let cpu_delta = cpu_total.saturating_sub(pre_cpu_total);
-    let system_delta = system_total
-        .zip(pre_system_total)
-        .map(|(current, previous)| current.saturating_sub(previous))
-        .unwrap_or(0);
-    if cpu_delta == 0 || system_delta == 0 {
-        return 0.0;
-    }
-    let cpu_count = online_cpus
-        .or_else(|| per_cpu_count.and_then(|count| u64::try_from(count).ok()))
-        .unwrap_or(1);
-    (cpu_delta as f64 / system_delta as f64) * cpu_count as f64
+        .context("list active takd-owned containers")
 }

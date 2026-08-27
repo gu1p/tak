@@ -167,6 +167,7 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
 include!("worker_submit_execution/submit_status.rs");
 include!("worker_submit_execution/output_observer.rs");
 include!("worker_submit_execution/result_persistence.rs");
+include!("worker_submit_execution/result_persistence_failure.rs");
 include!("worker_submit_execution/session_paths.rs");
 include!("worker_submit_execution/queued_terminal.rs");
 include!("worker_submit_execution/member_status.rs");

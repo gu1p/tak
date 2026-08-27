@@ -26,6 +26,7 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
     let config_root = temp.path().join("config");
     fs::create_dir_all(&workspace_root).expect("create workspace");
     env.set("XDG_CONFIG_HOME", config_root.display().to_string());
+    env.set("TAK_TEST_HOST_PLATFORM", "other");
     let bind_addr = {
         let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind free port");
         let addr = listener.local_addr().expect("free addr").to_string();
@@ -77,9 +78,13 @@ async fn simulated_tor_remote_execution_retries_until_the_hidden_service_listene
         remote_builder_spec(RemoteTransportKind::Tor),
         vec![workspace_output_path("dist/out.txt")],
     );
-    let summary = run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default())
-        .await
-        .expect("tor remote run should retry until the listener is ready");
+    let summary = tokio::time::timeout(
+        Duration::from_secs(10),
+        run_tasks(&spec, std::slice::from_ref(&label), &RunOptions::default()),
+    )
+    .await
+    .expect("tor remote run should not hang while the listener starts")
+    .expect("tor remote run should retry until the listener is ready");
     assert_eq!(
         summary
             .results

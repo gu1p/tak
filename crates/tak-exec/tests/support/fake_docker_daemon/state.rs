@@ -1,3 +1,5 @@
+#[path = "state/failures.rs"]
+mod failures;
 #[path = "state/image.rs"]
 mod image;
 #[path = "state/query.rs"]
@@ -24,6 +26,7 @@ pub(super) struct FakeDockerDaemonState {
     pub(super) pulls: Mutex<Vec<PullRecord>>,
     pub(super) image_removal_attempts: Mutex<Vec<String>>,
     build_failure_message: Mutex<Option<String>>,
+    container_removal_failure_message: Mutex<Option<String>>,
     image_removal_failure_status: Mutex<Option<u16>>,
     start_failure_message: Mutex<Option<String>>,
     logs_failure_message: Mutex<Option<String>>,
@@ -46,6 +49,7 @@ impl FakeDockerDaemonState {
             pulls: Mutex::new(Vec::new()),
             image_removal_attempts: Mutex::new(Vec::new()),
             build_failure_message: Mutex::new(None),
+            container_removal_failure_message: Mutex::new(None),
             image_removal_failure_status: Mutex::new(None),
             start_failure_message: Mutex::new(None),
             logs_failure_message: Mutex::new(None),
@@ -87,44 +91,5 @@ impl FakeDockerDaemonState {
             self.set_image(&pull.image, super::IMAGE_ID, 1024);
         }
         self.pulls.lock().expect("pull records lock").push(pull);
-    }
-
-    pub(super) fn fail_build(&self, message: &str) {
-        *self
-            .build_failure_message
-            .lock()
-            .expect("build failure lock") = Some(message.to_string());
-    }
-
-    pub(super) fn build_failure_message(&self) -> Option<String> {
-        self.build_failure_message
-            .lock()
-            .expect("build failure lock")
-            .clone()
-    }
-
-    pub(super) fn fail_start(&self, message: &str) {
-        *self
-            .start_failure_message
-            .lock()
-            .expect("start failure lock") = Some(message.to_string());
-    }
-
-    pub(super) fn start_failure_message(&self) -> Option<String> {
-        self.start_failure_message
-            .lock()
-            .expect("start failure lock")
-            .clone()
-    }
-
-    pub(super) fn fail_logs(&self, message: &str) {
-        *self.logs_failure_message.lock().expect("logs failure lock") = Some(message.to_string());
-    }
-
-    pub(super) fn logs_failure_message(&self) -> Option<String> {
-        self.logs_failure_message
-            .lock()
-            .expect("logs failure lock")
-            .clone()
     }
 }

@@ -104,9 +104,10 @@ mod workspace_wormhole_transfer_tests;
 pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
 pub use public_types::{
     ContainerExecutionIdentity, ImageCacheOptions, OutputStream, PlacementMode, RemoteLogChunk,
-    RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec, RunOptions, RunSummary, SyncedOutput,
-    TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent,
-    TaskStatusEvent, TaskStatusEventKind, TaskStatusPhase, TaskStructuredStatusEvent,
+    RemoteWorkerExecutionOutcome, RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec,
+    RunOptions, RunSummary, SyncedOutput, TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver,
+    TaskRunResult, TaskStartedEvent, TaskStatusEvent, TaskStatusEventKind, TaskStatusPhase,
+    TaskStructuredStatusEvent,
 };
 pub use remote_diagnostics::{
     NoMatchingRemoteError, RemoteCandidateDiagnostic, RemoteCandidateRejection,

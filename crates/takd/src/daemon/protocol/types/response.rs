@@ -59,6 +59,8 @@ pub enum Response {
         code: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         retryable: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        node_id: Option<String>,
     },
 }
 
@@ -69,6 +71,7 @@ impl Response {
             message: message.into(),
             code: None,
             retryable: Some(false),
+            node_id: None,
         }
     }
 
@@ -83,6 +86,23 @@ impl Response {
             message: message.into(),
             code: Some(code.into()),
             retryable: Some(retryable),
+            node_id: None,
+        }
+    }
+
+    pub fn classified_peer_error(
+        request_id: impl Into<String>,
+        node_id: impl Into<String>,
+        message: impl Into<String>,
+        code: impl Into<String>,
+        retryable: bool,
+    ) -> Self {
+        Self::Error {
+            request_id: request_id.into(),
+            message: message.into(),
+            code: Some(code.into()),
+            retryable: Some(retryable),
+            node_id: Some(node_id.into()),
         }
     }
 }

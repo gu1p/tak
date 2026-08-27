@@ -8,6 +8,10 @@ use super::CreateRecord;
 use super::request::FakeDockerRequest;
 use super::state::FakeDockerDaemonState;
 
+mod exit_code;
+
+use exit_code::exit_code_for_payload;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct CreateContainerPayload {
@@ -64,30 +68,4 @@ pub(super) fn create_container(
 fn parse_create_payload(request: &FakeDockerRequest) -> io::Result<CreateContainerPayload> {
     serde_json::from_slice(&request.body)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
-}
-
-fn exit_code_for_payload(state: &FakeDockerDaemonState, cmd: &[String], binds: &[String]) -> i64 {
-    let Some(bind_source) = binds
-        .first()
-        .and_then(|bind| bind.split(':').next())
-        .map(Path::new)
-    else {
-        return 1;
-    };
-    let visible = state.path_is_visible(bind_source);
-    let is_probe = cmd.iter().any(|value| value.contains(".tak-mount-visible"));
-
-    if is_probe {
-        let sentinel = bind_source.join(".tak-mount-visible");
-        return if visible && sentinel.is_file() { 0 } else { 1 };
-    }
-
-    if cmd.iter().any(|value| value.contains("exit 137")) {
-        return 137;
-    }
-    if cmd.iter().any(|value| value.contains("exit 1")) {
-        return 1;
-    }
-
-    if visible { 0 } else { 1 }
 }

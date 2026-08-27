@@ -29,6 +29,7 @@ mod execution_wait;
 mod foundation;
 mod log_stream;
 mod tar_archive;
+mod types;
 
 pub(crate) use build_context::deterministic_dockerfile_image_tag;
 use build_context::ensure_container_runtime_source;
@@ -37,38 +38,9 @@ use execution_wait::{cleanup_container, wait_for_container_step};
 pub(crate) use foundation::connect_container_engine;
 use log_stream::{ContainerLogTask, finish_container_log_task, spawn_container_log_task};
 use tar_archive::{append_tar_entry, tar_builder};
+use types::{ContainerStepExecutor, ContainerStepRunContext, ContainerStepSpec};
 
 use foundation::ensure_container_image;
-
-#[derive(Debug)]
-pub(crate) struct ContainerStepSpec {
-    pub(crate) argv: Vec<String>,
-    pub(crate) cwd: PathBuf,
-    pub(crate) env: BTreeMap<String, String>,
-}
-
-struct ContainerStepRunContext<'a> {
-    workspace_root: &'a Path,
-    task_label: &'a TaskLabel,
-    task_run_id: &'a str,
-    attempt: u32,
-    output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
-    container_user: Option<&'a str>,
-    cancellation: &'a RunCancellation,
-    container_identity: Option<&'a crate::ContainerExecutionIdentity>,
-    /// Wall-clock step timeout, surfaced as a `tak.timeout_s` container label so
-    /// the daemon's memory-pressure controller can avoid pausing a container
-    /// whose timeout keeps counting while frozen (which would fail the step).
-    timeout_s: Option<u64>,
-}
-
-struct ContainerStepExecutor<'a> {
-    docker: &'a Docker,
-    engine: ContainerEngine,
-    podman_wait_socket: Option<&'a str>,
-    image: &'a str,
-    resource_limits: Option<&'a ContainerResourceLimitsSpec>,
-}
 
 pub(crate) async fn run_task_steps_in_container(
     task: &ResolvedTask,
@@ -120,6 +92,7 @@ pub(crate) async fn run_task_steps_in_container(
     Ok(StepRunResult {
         success: true,
         exit_code: Some(0),
+        container_oom_killed: None,
     })
 }
 
@@ -197,6 +170,9 @@ fn container_user_uses_numeric_uid(container_user: &str) -> bool {
 
 #[cfg(test)]
 mod execution_wait_tests;
+
+#[cfg(test)]
+mod execution_tests;
 
 #[cfg(test)]
 mod container_user_tests;

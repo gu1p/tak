@@ -1,4 +1,5 @@
 use super::*;
+use std::time::Duration;
 
 impl SubmitAttemptStore {
     /// Creates a SQLite-backed submit idempotency store and ensures schema is present.
@@ -25,6 +26,8 @@ impl SubmitAttemptStore {
         }
         let conn = Connection::open(&self.db_path)
             .with_context(|| format!("failed to open sqlite db at {:?}", self.db_path))?;
+        conn.busy_timeout(Duration::from_secs(5))
+            .context("configure sqlite busy timeout")?;
         Ok(conn)
     }
 

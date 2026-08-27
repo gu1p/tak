@@ -11,8 +11,10 @@ use support::{
     configure_real_docker_env, env_lock,
 };
 
+mod confirmed_oom;
+
 #[tokio::test]
-async fn remote_worker_explains_137_with_container_oom_state() {
+async fn remote_worker_reports_unattributed_137_without_inventing_an_oom_cause() {
     let _env_lock = env_lock();
     let mut env_guard = EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -50,8 +52,10 @@ async fn remote_worker_explains_137_with_container_oom_state() {
         messages.iter().any(|message| {
             message.contains("exit code 137")
                 && message.contains("OOMKilled=false")
-                && message.contains("never kills a container for over-using")
-                && message.contains("systemd-oomd")
+                && message.contains("cause is unknown")
+                && !message.contains("host-level SIGKILL")
+                && !message.contains("kernel OOM")
+                && !message.contains("systemd-oomd")
         }),
         "missing 137 diagnostic: {messages:?}"
     );

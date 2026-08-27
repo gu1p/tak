@@ -74,10 +74,14 @@ pub(super) async fn write_wait_response(
         .split_once("/containers/")
         .and_then(|(_, tail)| tail.split('/').next())
         .unwrap_or_default();
-    state.wait_for_exit_or_remove(container_id).await;
+    let force_removed = state.wait_for_exit_or_remove(container_id).await;
     let body = format!(
         r#"{{"StatusCode":{}}}"#,
-        state.container_exit_code(container_id)
+        if force_removed {
+            137
+        } else {
+            state.container_exit_code(container_id)
+        }
     );
     write_response(stream, "200 OK", "application/json", body.as_bytes()).await
 }

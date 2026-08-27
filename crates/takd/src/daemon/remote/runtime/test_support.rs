@@ -29,6 +29,12 @@ impl RemoteRuntimeConfig {
             default_container_cpu_cores: DEFAULT_CONTAINER_CPU_CORES,
             default_container_memory_mb: DEFAULT_CONTAINER_MEMORY_MB,
             memory_pressure_enabled: false,
+            resource_sample_interval: Duration::from_millis(
+                super::DEFAULT_RESOURCE_SAMPLE_INTERVAL_MS,
+            ),
+            host_baseline_sample_duration: Duration::ZERO,
+            ignore_host_usage_for_tests: true,
+            test_memory_signal_path: None,
         }
     }
 

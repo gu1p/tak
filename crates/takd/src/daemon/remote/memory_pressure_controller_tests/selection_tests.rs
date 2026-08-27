@@ -21,7 +21,6 @@ fn never_pauses_the_oldest_running_container() {
         select_pause_victims(&running, 1, 8),
         vec!["new".to_string()]
     );
-    // Once only the oldest is left running, nothing else is pausable.
     assert!(select_pause_victims(&[run("old", 10, false)], 1, 8).is_empty());
 }
 
@@ -32,8 +31,10 @@ fn respects_min_running() {
         run("b", 20, false),
         run("c", 30, false),
     ];
-    // min_running=2 with 3 running -> at most one pause (newest).
-    assert_eq!(select_pause_victims(&running, 2, 8), vec!["c".to_string()]);
+    assert_eq!(
+        select_pause_victims(&running, 2, 8),
+        vec!["c".to_string()]
+    );
 }
 
 #[test]
@@ -43,7 +44,6 @@ fn skips_timeout_bearing_container() {
         run("timeout", 30, true),
         run("mid", 20, false),
     ];
-    // Newest is timeout-bearing -> skipped; next-newest non-oldest is "mid".
     assert_eq!(
         select_pause_victims(&running, 1, 1),
         vec!["mid".to_string()]

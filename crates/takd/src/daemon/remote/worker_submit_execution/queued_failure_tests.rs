@@ -61,12 +61,15 @@ fn cancelled_run_records_cancelled_even_when_container_exited_nonzero() {
             duration_ms: 1,
         },
         Ok((
-            tak_runner::RemoteWorkerExecutionResult {
-                success: false,
-                exit_code: Some(1),
-                runtime_kind: None,
-                runtime_engine: None,
-            },
+            tak_runner::RemoteWorkerExecutionOutcome::new(
+                tak_runner::RemoteWorkerExecutionResult {
+                    success: false,
+                    exit_code: Some(1),
+                    runtime_kind: None,
+                    runtime_engine: None,
+                },
+                None,
+            ),
             Vec::new(),
         )),
     );

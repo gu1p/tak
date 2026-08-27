@@ -44,6 +44,8 @@ pub(super) fn node_status_payload(
         active_jobs,
         image_cache: None,
         queued_jobs: vec![],
+        resource_envelope: None,
+        resource_pressure: None,
     }
     .encode_to_vec()
 }

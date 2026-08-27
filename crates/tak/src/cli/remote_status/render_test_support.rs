@@ -119,6 +119,8 @@ fn status(node_id: &str, transport_state: &str, with_job: bool) -> NodeStatusRes
         active_jobs: active_jobs(with_job),
         image_cache: None,
         queued_jobs: vec![],
+        resource_envelope: None,
+        resource_pressure: None,
     }
 }
 

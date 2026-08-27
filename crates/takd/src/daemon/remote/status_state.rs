@@ -48,6 +48,10 @@ pub(crate) fn new_shared_node_status_state(
 }
 
 impl NodeStatusState {
+    pub(crate) fn swap_status(&self) -> (u64, u64) {
+        (self.system.total_swap(), self.system.free_swap())
+    }
+
     pub(crate) fn register_job(&mut self, idempotency_key: String, job: ActiveJobMetadata) {
         self.active_jobs.insert(idempotency_key, job);
     }
@@ -171,6 +175,8 @@ impl NodeStatusState {
                 .enumerate()
                 .map(|(index, job)| super::status_state_helpers::queued_job_value(job, index + 1))
                 .collect(),
+            resource_envelope: None,
+            resource_pressure: None,
         })
     }
 }

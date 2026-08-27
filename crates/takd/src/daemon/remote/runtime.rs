@@ -16,6 +16,8 @@ const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
 const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
 const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 600 * 1000;
 const DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS: u64 = 1000;
+const DEFAULT_RESOURCE_SAMPLE_INTERVAL_MS: u64 = 250;
+const DEFAULT_HOST_BASELINE_SAMPLE_MS: u64 = 5_000;
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
 
 const DEFAULT_ADMISSION_OVERSUBSCRIBE_X: u64 = 1;
@@ -41,6 +43,10 @@ pub struct RemoteRuntimeConfig {
     default_container_cpu_cores: f64,
     default_container_memory_mb: u64,
     memory_pressure_enabled: bool,
+    resource_sample_interval: Duration,
+    host_baseline_sample_duration: Duration,
+    ignore_host_usage_for_tests: bool,
+    test_memory_signal_path: Option<PathBuf>,
 }
 
 impl RemoteRuntimeConfig {
@@ -70,6 +76,12 @@ impl RemoteRuntimeConfig {
         temp_dir: PathBuf,
         use_temp_dir_default_exec_root: bool,
     ) -> Self {
+        let simulated_host = read_env("TAK_TEST_HOST_PLATFORM").is_some();
+        let host_baseline_default_ms = if use_temp_dir_default_exec_root || simulated_host {
+            0
+        } else {
+            DEFAULT_HOST_BASELINE_SAMPLE_MS
+        };
         Self {
             explicit_remote_exec_root: optional_trimmed_env(&read_env, "TAKD_REMOTE_EXEC_ROOT")
                 .map(PathBuf::from),
@@ -79,7 +91,7 @@ impl RemoteRuntimeConfig {
             runtime_dir: optional_trimmed_env(&read_env, "XDG_RUNTIME_DIR"),
             uid: optional_trimmed_env(&read_env, "UID"),
             use_temp_dir_default_exec_root,
-            skip_exec_root_probe: read_env("TAK_TEST_HOST_PLATFORM").is_some()
+            skip_exec_root_probe: simulated_host
                 || read_env("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_some()
                 || bool_from_env(&read_env, "MOCK_CONTAINER", false),
             remote_cleanup_ttl: Duration::from_millis(duration_from_env(
@@ -120,6 +132,23 @@ impl RemoteRuntimeConfig {
                 DEFAULT_CONTAINER_MEMORY_MB,
             ),
             memory_pressure_enabled: bool_from_env(&read_env, "TAKD_MEMORY_PRESSURE_ENABLED", true),
+            resource_sample_interval: Duration::from_millis(duration_from_env(
+                &read_env,
+                "TAK_TEST_RESOURCE_SAMPLE_MS",
+                DEFAULT_RESOURCE_SAMPLE_INTERVAL_MS,
+            )),
+            host_baseline_sample_duration: Duration::from_millis(duration_from_env(
+                &read_env,
+                "TAKD_HOST_BASELINE_SAMPLE_MS",
+                host_baseline_default_ms,
+            )),
+            ignore_host_usage_for_tests: bool_from_env(
+                &read_env,
+                "TAK_TEST_IGNORE_HOST_USAGE",
+                simulated_host,
+            ),
+            test_memory_signal_path: optional_trimmed_env(&read_env, "TAK_TEST_MEMORY_SIGNAL_PATH")
+                .map(PathBuf::from),
         }
     }
 }

@@ -16,8 +16,10 @@ async fn fused_cascade_fails_over_as_one_logical_attempt() {
     let config = temp.path().join("config");
     std::fs::create_dir_all(&workspace).expect("workspace");
     env.set("XDG_CONFIG_HOME", config.display().to_string());
-    let a =
-        RecordingRemoteServer::spawn_infrastructure_137("builder-a", RecordingEvents::default());
+    let a = RecordingRemoteServer::spawn_confirmed_container_oom_137(
+        "builder-a",
+        RecordingEvents::default(),
+    );
     let b = RecordingRemoteServer::spawn_success("builder-b", RecordingEvents::default());
     write_remote_inventory(
         &config,

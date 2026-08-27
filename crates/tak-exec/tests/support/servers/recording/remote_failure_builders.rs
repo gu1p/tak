@@ -5,7 +5,7 @@ use super::submit_route::SubmitBehavior;
 use super::upload_config::UploadConfig;
 
 impl RecordingRemoteServer {
-    pub fn spawn_infrastructure_137(node_id: &str, events: RecordingEvents) -> Self {
+    pub fn spawn_confirmed_container_oom_137(node_id: &str, events: RecordingEvents) -> Self {
         Self::spawn_with_result(
             node_id,
             events,
@@ -13,7 +13,19 @@ impl RecordingRemoteServer {
             UploadConfig::protocol(),
             None,
             std::time::Duration::ZERO,
-            ResultBehavior::Infrastructure137,
+            ResultBehavior::ContainerOom137,
+        )
+    }
+
+    pub fn spawn_legacy_infrastructure_137(node_id: &str, events: RecordingEvents) -> Self {
+        Self::spawn_with_result(
+            node_id,
+            events,
+            SubmitBehavior::Success,
+            UploadConfig::protocol(),
+            None,
+            std::time::Duration::ZERO,
+            ResultBehavior::LegacyInfrastructure137,
         )
     }
 

@@ -51,7 +51,7 @@ pub(crate) async fn stream_workspace_upload_via_daemon(
     let plan = StreamUploadPlan::from_request(&request);
     let progress_input = request.progress;
     let exchange = async move {
-        let peer = select_upload_peer(target).await?;
+        let peer = select_eligible_peer(target, "workspace upload").await?;
         let mut progress =
             progress_input.map(|input| ActiveStreamUploadProgress::new(input, plan.size_bytes()));
         let response = retry::stream_until_complete(&plan, &peer, progress.as_mut())
@@ -68,7 +68,10 @@ pub(crate) async fn stream_workspace_upload_via_daemon(
         .map_err(|err| errors::daemon_error(target, err))
 }
 
-pub(super) async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<DaemonPeerSnapshot> {
+pub(super) async fn select_eligible_peer(
+    target: &StrictRemoteTarget,
+    phase: &str,
+) -> Result<DaemonPeerSnapshot> {
     let request = DaemonRequest::PeersEligible {
         request_id: request_id("upload-peers", target, "/v2/workspaces/uploads"),
         requirements: node_requirements(target),
@@ -78,11 +81,12 @@ pub(super) async fn select_upload_peer(target: &StrictRemoteTarget) -> Result<Da
         DaemonResponse::PeersSnapshot { peers } => peers
             .into_iter()
             .next()
-            .ok_or_else(|| anyhow!("all Tor peers are unreachable for workspace upload")),
+            .ok_or_else(|| anyhow!("all Tor peers are unreachable for {phase}")),
         DaemonResponse::Error {
             message,
             code,
             retryable,
+            ..
         } => Err(DaemonLocalError::response(message, code, retryable).into()),
         _ => bail!("local takd returned unexpected response for peer selection"),
     }

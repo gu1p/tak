@@ -27,7 +27,26 @@ pub(crate) async fn preflight_task_placement(
             }
         };
         if placement.ordered_remote_targets.is_empty() {
-            return Ok(placement);
+            let Some(target) = placement.strict_remote_target.clone() else {
+                return Ok(placement);
+            };
+            match preflight_ordered_remote_target(
+                task,
+                std::slice::from_ref(&target),
+                placement.remote_selection,
+                output_observer,
+            )
+            .await
+            {
+                Ok(selected) => {
+                    placement.strict_remote_target = Some(selected);
+                    return Ok(placement);
+                }
+                Err(err) => {
+                    failures.push(err);
+                    continue;
+                }
+            }
         }
         let ordered = remote_selection_state.reserve_ordered_targets_for_attempt(
             &placement.ordered_remote_targets,

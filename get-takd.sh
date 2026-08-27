@@ -140,7 +140,7 @@ state_home() {
 }
 
 default_service_rust_log() {
-  printf '%s' "${TAKD_SERVICE_RUST_LOG:-trace}"
+  printf '%s' "${TAKD_SERVICE_RUST_LOG:-info}"
 }
 
 default_service_backtrace() {
@@ -210,6 +210,7 @@ After=default.target
 Environment=RUST_LOG=${service_rust_log}
 Environment=RUST_BACKTRACE=${service_backtrace}
 ExecStart=${takd_bin} serve --config-root ${config_root} --state-root ${state_root}
+OOMPolicy=continue
 Restart=always
 RestartSec=2
 WorkingDirectory=%h

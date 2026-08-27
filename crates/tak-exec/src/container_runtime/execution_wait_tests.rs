@@ -1,4 +1,7 @@
-use super::{BollardError, execution_wait::docker_wait_result_exit_code};
+use super::{
+    BollardError,
+    execution_wait::{container_removal_result, docker_wait_result_exit_code},
+};
 
 #[test]
 fn docker_wait_result_exit_code_accepts_zero_status() {
@@ -34,4 +37,23 @@ fn docker_wait_result_exit_code_preserves_wait_error_message() {
         err.to_string(),
         "infra error: container lifecycle runtime failed: docker wait failed (status 1): context canceled"
     );
+}
+
+#[test]
+fn container_cleanup_only_ignores_an_already_removed_container() {
+    let missing = BollardError::DockerResponseServerError {
+        status_code: 404,
+        message: "no such container".to_string(),
+    };
+    container_removal_result(Err(missing), "gone").expect("404 is idempotent cleanup");
+
+    let failure = BollardError::DockerResponseServerError {
+        status_code: 500,
+        message: "engine refused removal".to_string(),
+    };
+    let error = container_removal_result(Err(failure), "still-running")
+        .expect_err("unconfirmed teardown must be visible");
+    let detail = format!("{error:#}");
+    assert!(detail.contains("still-running"));
+    assert!(detail.contains("engine refused removal"));
 }
