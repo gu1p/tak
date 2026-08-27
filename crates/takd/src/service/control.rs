@@ -11,18 +11,38 @@ use crate::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, handle_remote
 
 const CONTROL_SOCKET_FILE: &str = "agent-control.sock";
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Default)]
 pub(crate) struct AgentControlState {
     context: Arc<Mutex<Option<RemoteNodeContext>>>,
 }
 
 impl AgentControlState {
-    pub(crate) fn set_context(&self, context: RemoteNodeContext) -> Result<()> {
+    pub(crate) fn set_context(&self, context: RemoteNodeContext) -> Result<RemoteNodeContext> {
+        let incoming_node = context.node_info()?;
         let mut guard = self
             .context
             .lock()
             .map_err(|_| anyhow!("agent control state lock poisoned"))?;
-        *guard = Some(context);
+        if let Some(existing) = guard.as_ref() {
+            let current_node = existing.node_info()?;
+            if current_node.node_id == incoming_node.node_id
+                && current_node.transport == incoming_node.transport
+            {
+                existing.replace_node_info(incoming_node)?;
+                return Ok(existing.clone());
+            }
+        }
+        *guard = Some(context.clone());
+        Ok(context)
+    }
+
+    pub(crate) fn mark_transport_recovering(&self, detail: &str) -> Result<()> {
+        if let Some(context) = self.context()? {
+            context.set_transport_state("recovering", Some(detail))?;
+        }
         Ok(())
     }
 

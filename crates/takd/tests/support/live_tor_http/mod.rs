@@ -8,24 +8,28 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
-use tak_proto::NodeInfo;
+use tak_proto::NodeStatusResponse;
 use tokio::time::{sleep, timeout};
 
 use self::endpoint::{endpoint_host_port, endpoint_socket_addr};
-use self::response::fetch_node_info;
+use self::response::fetch_node_status;
 pub use self::timeout::{format_live_tor_wait_timeout, live_tor_test_timeout};
 
-pub async fn wait_for_onion_node_info(root: &Path, base_url: &str, bearer_token: &str) -> NodeInfo {
-    wait_for_node_info_result(root, base_url, bearer_token)
-        .await
-        .expect("wait for onion node info")
-}
-
-async fn wait_for_node_info_result(
+pub async fn wait_for_onion_node_status(
     root: &Path,
     base_url: &str,
     bearer_token: &str,
-) -> Result<NodeInfo> {
+) -> NodeStatusResponse {
+    wait_for_node_status_result(root, base_url, bearer_token)
+        .await
+        .expect("wait for onion node status")
+}
+
+async fn wait_for_node_status_result(
+    root: &Path,
+    base_url: &str,
+    bearer_token: &str,
+) -> Result<NodeStatusResponse> {
     let deadline = Instant::now() + live_tor_test_timeout();
     let client = bootstrap_client(root, deadline)
         .await
@@ -41,9 +45,11 @@ async fn wait_for_node_info_result(
         .await
         {
             Ok(Ok(stream)) => {
-                match fetch_node_info(stream, &authority, bearer_token, base_url).await {
-                    Ok(node) => return Ok(node),
-                    Err(err) => err.context("fetch onion node info from separate test Arti client"),
+                match fetch_node_status(stream, &authority, bearer_token, base_url).await {
+                    Ok(status) => return Ok(status),
+                    Err(err) => {
+                        err.context("fetch onion node status from separate test Arti client")
+                    }
                 }
             }
             Ok(Err(err)) => {

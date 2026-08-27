@@ -42,6 +42,7 @@ pub(super) struct ResourceAdmissionSnapshot {
     pub(super) pending_startup: ResourceCapacity,
     pub(super) actual: ResourceCapacity,
     pub(super) admittable: ResourceCapacity,
+    pub(super) host_usage: Option<HostUsageSample>,
 }
 
 #[derive(Clone)]

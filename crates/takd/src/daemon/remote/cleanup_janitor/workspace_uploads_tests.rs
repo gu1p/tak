@@ -3,10 +3,10 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-use super::{
-    WORKSPACE_UPLOADS_DIR_NAME, cleanup_stale_remote_entries_with,
-    cleanup_stale_workspace_uploads_with, remove_stale_remote_entry,
-    remove_stale_workspace_upload_file,
+use super::WORKSPACE_UPLOADS_DIR_NAME;
+use super::storage::{
+    cleanup_stale_remote_entries_with, cleanup_stale_workspace_uploads_with,
+    remove_stale_remote_entry, remove_stale_workspace_upload_file,
 };
 
 fn write_blob_with_age(path: &Path, age: Duration) {

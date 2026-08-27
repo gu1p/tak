@@ -15,6 +15,8 @@ mod defaults_queue;
 mod initial_sample;
 #[path = "remote_resource_admission_behavior/live_usage.rs"]
 mod live_usage;
+#[path = "remote_resource_admission_behavior/mock_container.rs"]
+mod mock_container;
 #[path = "remote_resource_admission_behavior/queue.rs"]
 mod queue;
 #[path = "remote_resource_admission_behavior/reservations.rs"]

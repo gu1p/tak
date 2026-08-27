@@ -2,13 +2,13 @@
 
 use super::policy::ManagedContainer;
 
-#[path = "memory_pressure_controller_tests/decisions_tests.rs"]
+#[path = "../memory_pressure_controller_tests/decisions_tests.rs"]
 mod decisions;
-#[path = "memory_pressure_controller_tests/engine_mapping_tests.rs"]
+#[path = "../memory_pressure_controller_tests/engine_mapping_tests.rs"]
 mod engine_mapping;
-#[path = "memory_pressure_controller_tests/selection_tests.rs"]
+#[path = "../memory_pressure_controller_tests/selection_tests.rs"]
 mod selection;
-#[path = "memory_pressure_controller_tests/thresholds_tests.rs"]
+#[path = "../memory_pressure_controller_tests/thresholds_tests.rs"]
 mod thresholds;
 
 fn run(id: &str, created: i64, has_timeout: bool) -> ManagedContainer {

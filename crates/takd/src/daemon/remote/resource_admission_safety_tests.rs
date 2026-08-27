@@ -33,9 +33,7 @@ fn pending_startup_is_added_after_actual_usage_overrides_reservations() {
         .admit_or_queue(elastic_request("starting"))
         .expect("elastic admission");
 
-    let snapshot = admission
-        .resource_snapshot(capacity(0.0, 0), u64::MAX)
-        .expect("resource snapshot");
+    let snapshot = admission.resource_snapshot().expect("resource snapshot");
 
     assert_eq!(snapshot.admittable, capacity(2.0, 2));
 }
@@ -62,9 +60,7 @@ fn authored_commitment_and_elastic_usage_are_both_claimed_at_strict_capacity() {
     usage.set_task_snapshots_for_tests(&[("authored", 2.0, 2 * MIB), ("elastic", 3.0, 3 * MIB)]);
     admission.age_admission_for_tests("elastic", Duration::from_secs(6));
 
-    let snapshot = admission
-        .resource_snapshot(capacity(0.0, 0), u64::MAX)
-        .expect("resource snapshot");
+    let snapshot = admission.resource_snapshot().expect("resource snapshot");
 
     assert_eq!(snapshot.reserved, capacity(4.0, 4));
     assert_eq!(snapshot.pending_startup, capacity(0.0, 0));

@@ -20,6 +20,16 @@ pub(super) fn duration_from_env(
         .unwrap_or(default_ms)
 }
 
+pub(super) fn nonnegative_duration_from_env(
+    read_env: &impl Fn(&str) -> Option<String>,
+    name: &str,
+    default_ms: u64,
+) -> u64 {
+    read_env(name)
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or(default_ms)
+}
+
 pub(super) fn u64_from_env(
     read_env: &impl Fn(&str) -> Option<String>,
     name: &str,

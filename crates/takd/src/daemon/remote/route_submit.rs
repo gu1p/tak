@@ -8,6 +8,10 @@ pub(super) fn handle_remote_submit_route(
     store: &SubmitAttemptStore,
     body: Option<&[u8]>,
 ) -> Result<RemoteV1Response> {
+    let node = context.node_info()?;
+    if node.transport == "tor" && node.transport_state != "ready" {
+        return Ok(error_response(503, "transport_not_ready"));
+    }
     let Some(body) = body else {
         return Ok(error_response(400, "missing_body"));
     };
@@ -45,7 +49,6 @@ pub(super) fn handle_remote_submit_route(
     );
     let execution_root_base =
         ensure_remote_execution_root_base(context, worker_payload.runtime.as_ref());
-    let node = context.node_info()?;
     let selected_node_id = node.node_id.clone();
     let registration = store.register_submit_with_execution_root_base(
         task_run_id,

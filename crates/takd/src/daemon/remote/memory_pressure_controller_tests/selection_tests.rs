@@ -31,10 +31,7 @@ fn respects_min_running() {
         run("b", 20, false),
         run("c", 30, false),
     ];
-    assert_eq!(
-        select_pause_victims(&running, 2, 8),
-        vec!["c".to_string()]
-    );
+    assert_eq!(select_pause_victims(&running, 2, 8), vec!["c".to_string()]);
 }
 
 #[test]

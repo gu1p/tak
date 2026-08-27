@@ -9,6 +9,9 @@ use crate::engine::protocol_result_http::{
 };
 use crate::remote_protocol_codec::{RemoteSubmitPayloadInput, build_remote_submit_payload};
 
+#[cfg(test)]
+mod response_tests;
+
 pub(super) async fn post_submit(
     post: &SubmitPost<'_>,
     workspace_upload: Option<&WorkspaceUploadRef>,
@@ -85,10 +88,16 @@ fn validate_response(
             node_id
         )))),
         200 => validate_acknowledgement(post, response),
-        status => Err(failure(RemoteSubmitFailure::other(format!(
-            "infra error: remote node {node_id} submit failed with HTTP {status}"
-        )))),
+        status => Err(failure(submit_status_failure(status, &node_id))),
     }
+}
+
+fn submit_status_failure(status: u16, node_id: &str) -> RemoteSubmitFailure {
+    let message = format!("infra error: remote node {node_id} submit failed with HTTP {status}");
+    if matches!(status, 408 | 429 | 500..=599) {
+        return RemoteSubmitFailure::retryable_other(message);
+    }
+    RemoteSubmitFailure::other(message)
 }
 
 fn validate_acknowledgement(

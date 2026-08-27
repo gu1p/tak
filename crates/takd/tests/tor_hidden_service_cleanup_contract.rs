@@ -1,10 +1,15 @@
-//! Contract test for remote cleanup startup on the live Tor readiness path.
+//! Contract test for remote runtime-service startup on the live Tor path.
 
 #[test]
-fn live_tor_readiness_starts_remote_cleanup_janitor() {
-    let source = include_str!("../src/service/tor/live_readiness.rs");
+fn live_tor_starts_the_shared_remote_runtime_services() {
+    let live = include_str!("../src/service/tor/live.rs");
+    let services = include_str!("../src/daemon/remote/runtime_services.rs");
     assert!(
-        source.contains("spawn_remote_cleanup_janitor"),
-        "the live Tor readiness path must start the remote cleanup janitor"
+        live.contains("spawn_remote_runtime_services"),
+        "the live Tor path must start the shared remote runtime services"
+    );
+    assert!(
+        services.contains("spawn_remote_cleanup_janitor"),
+        "the shared remote runtime services must include the cleanup janitor"
     );
 }

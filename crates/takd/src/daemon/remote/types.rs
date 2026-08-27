@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
@@ -43,6 +44,7 @@ pub struct RemoteNodeContext {
     tak_container_usage: SharedTakContainerUsage,
     resource_pressure: Arc<Mutex<ResourcePressureSnapshot>>,
     runtime_state: Arc<RemoteRuntimeState>,
+    runtime_services_started: Arc<AtomicBool>,
     image_cache: Option<RemoteImageCacheRuntimeConfig>,
     state_root: Option<PathBuf>,
 }
@@ -62,6 +64,18 @@ impl RemoteNodeContext {
             .lock()
             .map(|guard| guard.clone())
             .map_err(|_| anyhow!("remote node lock poisoned"))
+    }
+
+    pub(crate) fn replace_node_info(&self, node: NodeInfo) -> Result<()> {
+        *self
+            .node
+            .lock()
+            .map_err(|_| anyhow!("remote node lock poisoned"))? = node;
+        Ok(())
+    }
+
+    pub(crate) fn claim_remote_runtime_services(&self) -> bool {
+        !self.runtime_services_started.swap(true, Ordering::AcqRel)
     }
 
     pub fn mark_transport_ready(&self) -> Result<()> {

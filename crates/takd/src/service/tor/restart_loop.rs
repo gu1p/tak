@@ -40,6 +40,9 @@ pub(super) async fn run_test_bind_loop(
         .await
         {
             Ok(exit) => {
+                context
+                    .control_state
+                    .mark_transport_recovering(&exit.reason)?;
                 write_transport_health(
                     context.state_root,
                     &TransportHealth::recovering(
@@ -63,6 +66,7 @@ pub(super) async fn run_test_bind_loop(
                     return Err(err);
                 }
                 let detail = format!("{err:#}");
+                context.control_state.mark_transport_recovering(&detail)?;
                 write_transport_health(
                     context.state_root,
                     &TransportHealth::recovering(last_base_url.clone(), Some(detail.clone())),
@@ -89,6 +93,9 @@ pub(super) async fn run_live_loop(
         match serve_live_tor_session(&context, recovery).await {
             Ok(exit) => {
                 last_base_url = Some(exit.base_url.clone());
+                context
+                    .control_state
+                    .mark_transport_recovering(&exit.reason)?;
                 write_transport_health(
                     context.state_root,
                     &TransportHealth::recovering(
@@ -106,6 +113,7 @@ pub(super) async fn run_live_loop(
             }
             Err(err) => {
                 let detail = format!("{err:#}");
+                context.control_state.mark_transport_recovering(&detail)?;
                 write_transport_health(
                     context.state_root,
                     &TransportHealth::recovering(last_base_url.clone(), Some(detail.clone())),

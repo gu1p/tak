@@ -54,6 +54,17 @@ fn host_baseline_sampling_runs_on_real_nodes_and_skips_test_roots() {
 }
 
 #[test]
+fn host_baseline_sampling_can_be_disabled_explicitly() {
+    let runtime = RemoteRuntimeConfig::from_environment(
+        |name| (name == "TAKD_HOST_BASELINE_SAMPLE_MS").then(|| "0".into()),
+        std::env::temp_dir(),
+        false,
+    );
+
+    assert_eq!(runtime.host_baseline_sample_duration(), Duration::ZERO);
+}
+
+#[test]
 fn simulated_host_defaults_to_deterministic_resource_accounting() {
     let runtime = RemoteRuntimeConfig::from_environment(
         |name| (name == "TAK_TEST_HOST_PLATFORM").then(|| "other".into()),

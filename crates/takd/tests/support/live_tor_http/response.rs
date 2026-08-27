@@ -3,26 +3,41 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Empty};
 use hyper::Request;
 use prost::Message;
-use tak_proto::NodeInfo;
+use tak_proto::NodeStatusResponse;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-pub async fn fetch_node_info<S>(
+pub async fn fetch_node_status<S>(
     stream: S,
     authority: &str,
     bearer_token: &str,
     base_url: &str,
-) -> Result<NodeInfo>
+) -> Result<NodeStatusResponse>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let (status, body) = send_node_info_request(stream, authority, bearer_token, base_url).await?;
+    let (status, body) =
+        send_node_status_request(stream, authority, bearer_token, base_url).await?;
     if status != 200 {
         bail!("node probe failed with HTTP {status}");
     }
-    NodeInfo::decode(body.as_slice()).context("decode onion node info")
+    let status = NodeStatusResponse::decode(body.as_slice()).context("decode onion node status")?;
+    let has_cpu = status
+        .cpu
+        .as_ref()
+        .and_then(|cpu| cpu.tak_admission_available_cores)
+        .is_some_and(|cores| cores > 0.0);
+    let has_memory = status
+        .memory
+        .as_ref()
+        .and_then(|memory| memory.tak_admission_available_bytes)
+        .is_some_and(|bytes| bytes > 0);
+    if !has_cpu || !has_memory {
+        bail!("node status has not published remote admission capacity");
+    }
+    Ok(status)
 }
 
-async fn send_node_info_request<S>(
+async fn send_node_status_request<S>(
     stream: S,
     authority: &str,
     bearer_token: &str,
@@ -41,7 +56,7 @@ where
     let result = async {
         let request = Request::builder()
             .method("GET")
-            .uri("/v1/node/info")
+            .uri("/v1/node/status")
             .header(hyper::header::HOST, authority)
             .header(
                 hyper::header::AUTHORIZATION,

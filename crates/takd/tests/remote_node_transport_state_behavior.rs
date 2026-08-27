@@ -1,5 +1,5 @@
 use prost::Message;
-use tak_proto::{NodeInfo, NodeStatusResponse};
+use tak_proto::{ErrorResponse, NodeInfo, NodeStatusResponse};
 use takd::{RemoteNodeContext, SubmitAttemptStore};
 
 #[test]
@@ -51,4 +51,21 @@ fn node_routes_follow_live_transport_state() {
     .expect("node status");
     let status = NodeStatusResponse::decode(status.body.as_slice()).expect("decode status");
     assert_eq!(status.node.expect("node").transport_state, "recovering");
+
+    context
+        .set_transport_state("pending", Some("starting onion service"))
+        .expect("set pending");
+    let submit = crate::support::remote_v1_http_submit::submit_request("pending-work", Vec::new());
+    let response = takd::daemon::remote::handle_remote_v1_request(
+        &context,
+        &store,
+        "POST",
+        "/v1/tasks/submit",
+        &[],
+        Some(&submit.encode_to_vec()),
+    )
+    .expect("submit response");
+    assert_eq!(response.status_code, 503);
+    let error = ErrorResponse::decode(response.body.as_slice()).expect("decode submit error");
+    assert_eq!(error.message, "transport_not_ready");
 }

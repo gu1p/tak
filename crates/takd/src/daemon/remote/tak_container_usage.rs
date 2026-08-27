@@ -58,10 +58,9 @@ pub(crate) fn spawn_tak_container_usage_sampler(
     runtime_config: RemoteRuntimeConfig,
     usage: SharedTakContainerUsage,
     admission: SharedResourceAdmission,
-) {
-    if tak_core::mock::mock_container_enabled() {
-        return;
-    }
+) -> tokio::task::JoinHandle<()> {
+    let sample_containers = !tak_core::mock::mock_container_enabled();
+    let ignore_host_usage = runtime_config.ignore_host_usage_for_tests() || !sample_containers;
     tokio::spawn(async move {
         let mut host = System::new_with_specifics(
             RefreshKind::nothing()
@@ -73,35 +72,35 @@ pub(crate) fn spawn_tak_container_usage_sampler(
         let mut ticker = tokio::time::interval(runtime_config.resource_sample_interval());
         loop {
             ticker.tick().await;
-            match sample_tak_container_usage(&runtime_config).await {
-                Ok(sample) => {
-                    usage.update(sample);
-                }
-                Err(error) => {
-                    tracing::warn!(
-                        "Tak container resource sample failed; retaining prior sample: {error:#}"
-                    )
+            if sample_containers {
+                match sample_tak_container_usage(&runtime_config).await {
+                    Ok(sample) => {
+                        usage.update(sample);
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            "Tak container resource sample failed; retaining prior sample: {error:#}"
+                        )
+                    }
                 }
             }
-            if let Err(error) = update_host_usage(&runtime_config, &mut host, &usage, &admission) {
+            if let Err(error) = update_host_usage(ignore_host_usage, &mut host, &usage, &admission)
+            {
                 tracing::warn!(
                     "host resource sample failed; retaining prior admission sample: {error:#}"
                 );
             }
-            if let Err(error) = admission.reconcile() {
-                tracing::warn!("resource admission reconcile failed: {error:#}");
-            }
         }
-    });
+    })
 }
 
 fn update_host_usage(
-    runtime_config: &RemoteRuntimeConfig,
+    ignore_host_usage: bool,
     host: &mut System,
     usage: &SharedTakContainerUsage,
     admission: &SharedResourceAdmission,
 ) -> Result<()> {
-    if runtime_config.ignore_host_usage_for_tests() {
+    if ignore_host_usage {
         return admission.update_host_usage(
             ResourceCapacity {
                 cpu_cores: 0.0,

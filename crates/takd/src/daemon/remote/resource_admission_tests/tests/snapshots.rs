@@ -34,16 +34,17 @@ fn snapshot_reports_effective_capacity_from_live_usage_and_reservations() {
     admission
         .admit_or_queue(request("reserved", 1.0, 512))
         .expect("reservation admission");
-
-    let snapshot = admission
-        .resource_snapshot(
+    admission
+        .update_host_usage(
             ResourceCapacity {
                 cpu_cores: 1.0,
                 memory_mb: 1024,
             },
             5000,
         )
-        .expect("resource snapshot");
+        .expect("host usage update");
+
+    let snapshot = admission.resource_snapshot().expect("resource snapshot");
 
     assert_eq!(
         snapshot.reserved,

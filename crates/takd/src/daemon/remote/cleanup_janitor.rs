@@ -1,9 +1,8 @@
 use std::collections::BTreeSet;
-use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::PathBuf;
+use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use super::*;
 
@@ -13,15 +12,31 @@ mod cleanup_janitor_permission_tests;
 mod containers;
 #[path = "cleanup_janitor/image_cache.rs"]
 mod image_cache;
+#[path = "cleanup_janitor/storage.rs"]
+mod storage;
 #[cfg(test)]
 mod workspace_uploads_tests;
 
-pub(crate) fn spawn_remote_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
-    spawn_remote_execution_cleanup_janitor(context.clone(), store);
-    spawn_remote_image_cache_janitor(context);
+use storage::{cleanup_stale_remote_entries, cleanup_stale_workspace_uploads};
+
+pub(crate) fn spawn_remote_cleanup_janitor(
+    context: RemoteNodeContext,
+    store: SubmitAttemptStore,
+) -> Vec<tokio::task::JoinHandle<()>> {
+    let mut handles = vec![spawn_remote_execution_cleanup_janitor(
+        context.clone(),
+        store,
+    )];
+    if let Some(handle) = spawn_remote_image_cache_janitor(context) {
+        handles.push(handle);
+    }
+    handles
 }
 
-fn spawn_remote_execution_cleanup_janitor(context: RemoteNodeContext, store: SubmitAttemptStore) {
+fn spawn_remote_execution_cleanup_janitor(
+    context: RemoteNodeContext,
+    store: SubmitAttemptStore,
+) -> tokio::task::JoinHandle<()> {
     let interval = context.runtime_config().remote_cleanup_interval();
     tokio::spawn(async move {
         if let Err(err) = run_remote_cleanup_once(&context, &store).await {
@@ -35,22 +50,22 @@ fn spawn_remote_execution_cleanup_janitor(context: RemoteNodeContext, store: Sub
                 tracing::warn!("remote cleanup janitor sweep failed: {err:#}");
             }
         }
-    });
+    })
 }
 
-fn spawn_remote_image_cache_janitor(context: RemoteNodeContext) {
-    let Some(image_cache) = context.image_cache_config() else {
-        return;
-    };
+fn spawn_remote_image_cache_janitor(
+    context: RemoteNodeContext,
+) -> Option<tokio::task::JoinHandle<()>> {
+    let image_cache = context.image_cache_config()?;
     let interval = Duration::from_secs(image_cache.sweep_interval_secs.max(1));
-    tokio::spawn(async move {
+    Some(tokio::spawn(async move {
         loop {
             tokio::time::sleep(interval).await;
             if let Err(err) = image_cache::run_remote_image_cache_cleanup_once(&context).await {
                 tracing::warn!("image cache janitor sweep failed: {err:#}");
             }
         }
-    });
+    }))
 }
 
 pub(crate) async fn run_remote_cleanup_once(
@@ -106,164 +121,4 @@ fn cleanup_roots(context: &RemoteNodeContext, store: &SubmitAttemptStore) -> Res
         }
     }
     Ok(roots)
-}
-
-fn cleanup_stale_remote_entries(
-    root: &Path,
-    active_jobs: &BTreeSet<String>,
-    ttl: Duration,
-) -> Result<()> {
-    cleanup_stale_remote_entries_with(root, active_jobs, ttl, remove_stale_remote_entry)
-}
-
-fn cleanup_stale_remote_entries_with<F>(
-    root: &Path,
-    active_jobs: &BTreeSet<String>,
-    ttl: Duration,
-    mut remove_stale: F,
-) -> Result<()>
-where
-    F: FnMut(&Path) -> Result<()>,
-{
-    let read_dir = match std::fs::read_dir(root) {
-        Ok(read_dir) => read_dir,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(err) => {
-            return Err(err)
-                .with_context(|| format!("failed to read cleanup root {}", root.display()));
-        }
-    };
-
-    for entry in read_dir {
-        let entry = entry
-            .with_context(|| format!("failed to read cleanup entry under {}", root.display()))?;
-        let path = entry.path();
-        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        // The workspace-upload blob cache is reaped per-blob by
-        // `cleanup_stale_workspace_uploads` (it is shared across a job's tasks and
-        // refreshed on every resolve), so it must never be removed as a whole
-        // directory by this generic per-job sweep.
-        if name == WORKSPACE_UPLOADS_DIR_NAME {
-            continue;
-        }
-        if active_jobs.contains(name) || !is_stale(&path, ttl)? {
-            continue;
-        }
-        if let Err(err) = remove_stale(&path) {
-            if is_permission_denied(&err) {
-                tracing::warn!(
-                    "remote cleanup janitor skipped stale entry {}: {err:#}",
-                    path.display()
-                );
-                continue;
-            }
-            return Err(err);
-        }
-    }
-
-    Ok(())
-}
-
-fn is_stale(path: &Path, ttl: Duration) -> Result<bool> {
-    let metadata = std::fs::symlink_metadata(path)
-        .with_context(|| format!("failed to stat cleanup path {}", path.display()))?;
-    let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-    let age = SystemTime::now()
-        .duration_since(modified)
-        .unwrap_or_else(|_| Duration::from_secs(0));
-    Ok(age >= ttl)
-}
-
-fn remove_stale_remote_entry(path: &Path) -> Result<()> {
-    let metadata = std::fs::symlink_metadata(path)
-        .with_context(|| format!("failed to stat stale cleanup path {}", path.display()))?;
-    let file_type = metadata.file_type();
-    if file_type.is_dir() && !file_type.is_symlink() {
-        std::fs::remove_dir_all(path)
-            .with_context(|| format!("failed to remove stale directory {}", path.display()))?;
-    } else {
-        std::fs::remove_file(path)
-            .with_context(|| format!("failed to remove stale file {}", path.display()))?;
-    }
-    Ok(())
-}
-
-/// Reaps individual stale workspace-upload blobs under `.workspace-uploads`.
-///
-/// This directory is excluded from the generic per-job directory sweep (see
-/// `cleanup_stale_remote_entries_with`) because a single blob is referenced by every
-/// task of a job that shares the same workspace content, and `touch_upload_files`
-/// refreshes each blob's mtime on resolve. So we clean per FILE by file mtime: a blob
-/// no longer referenced for `ttl` is removed, but actively-reused blobs survive.
-///
-/// ```no_run
-/// # // Reason: This helper mutates daemon-owned workspace-upload storage and is compile-checked only.
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// #     Ok(())
-/// # }
-/// ```
-fn cleanup_stale_workspace_uploads(upload_dir: &Path, ttl: Duration) -> Result<()> {
-    cleanup_stale_workspace_uploads_with(upload_dir, ttl, remove_stale_workspace_upload_file)
-}
-
-fn cleanup_stale_workspace_uploads_with<F>(
-    upload_dir: &Path,
-    ttl: Duration,
-    mut remove_stale: F,
-) -> Result<()>
-where
-    F: FnMut(&Path) -> Result<()>,
-{
-    let read_dir = match std::fs::read_dir(upload_dir) {
-        Ok(read_dir) => read_dir,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(err) => {
-            return Err(err).with_context(|| {
-                format!(
-                    "failed to read workspace upload dir {}",
-                    upload_dir.display()
-                )
-            });
-        }
-    };
-
-    for entry in read_dir {
-        let entry = entry.with_context(|| {
-            format!(
-                "failed to read workspace upload entry under {}",
-                upload_dir.display()
-            )
-        })?;
-        let path = entry.path();
-        if !path.is_file() || !is_stale(&path, ttl)? {
-            continue;
-        }
-        if let Err(err) = remove_stale(&path) {
-            if is_permission_denied(&err) {
-                tracing::warn!(
-                    "remote cleanup janitor skipped stale workspace upload {}: {err:#}",
-                    path.display()
-                );
-                continue;
-            }
-            return Err(err);
-        }
-    }
-
-    Ok(())
-}
-
-fn remove_stale_workspace_upload_file(path: &Path) -> Result<()> {
-    std::fs::remove_file(path)
-        .with_context(|| format!("failed to remove stale workspace upload {}", path.display()))
-}
-
-fn is_permission_denied(err: &anyhow::Error) -> bool {
-    err.chain().any(|cause| {
-        cause
-            .downcast_ref::<std::io::Error>()
-            .is_some_and(|err| err.kind() == ErrorKind::PermissionDenied)
-    })
 }

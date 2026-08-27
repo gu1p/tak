@@ -4,7 +4,7 @@ pub(super) const BYTES_PER_MB: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PressureState {
-    /// Plenty of headroom — no action; ensure no admission hold.
+    /// Inside the healthy/pressure dead-band — preserve the current episode.
     Normal,
     /// Low memory — pause one newest container this tick.
     Pause,

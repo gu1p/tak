@@ -11,7 +11,7 @@ use super::health::{TorRecoveryConfig, startup_session_timeout};
 use super::live_readiness::{LiveReadinessContext, StartupReadiness, wait_until_live_tor_ready};
 use super::live_readiness_support::{current_problem, log_tor_client_bootstrap_status};
 use super::live_startup::{bootstrap_tor_client, launch_live_onion_service, record_startup_detail};
-use super::live_state::{mark_transport_ready, mark_transport_recovering, pending_context};
+use super::live_state::{mark_transport_ready, pending_context, recovering_exit};
 use super::monitor::{TorHealthTransition, handle_health_event, run_periodic_self_probe};
 use super::rend::spawn_rend_request;
 use super::restart_loop::TorLoopContext;
@@ -63,7 +63,7 @@ pub(super) async fn serve_live_tor_session(
             .map(|value| format!("http://{}", value.display_unredacted()))
             .ok_or_else(|| anyhow!("takd onion service did not expose an onion address"))?;
         let context = pending_context(config, &base_url, state_root)?;
-        control_state.set_context(context.clone())?;
+        let context = control_state.set_context(context)?;
         let ready = wait_until_live_tor_ready(
             LiveReadinessContext {
                 config_root,
@@ -89,6 +89,7 @@ pub(super) async fn serve_live_tor_session(
                 return Ok(TorSessionExit { base_url, reason });
             }
         };
+        crate::daemon::remote::spawn_remote_runtime_services(context.clone(), store.clone());
         let _running_service = ready._running_service;
         let mut rend_requests = ready.rend_requests;
         let mut service_status_events = ready.service_status_events;
@@ -116,11 +117,14 @@ pub(super) async fn serve_live_tor_session(
             tokio::select! {
                 maybe_rend_request = rend_requests.next() => {
                     let Some(rend_request) = maybe_rend_request else {
+                        let exit = recovering_exit(
+                            &context,
+                            state_root,
+                            &base_url,
+                            "takd onion service request stream ended",
+                        )?;
                         health_task.abort();
-                        return Ok(TorSessionExit {
-                            base_url,
-                            reason: "takd onion service request stream ended".to_string(),
-                        });
+                        return Ok(exit);
                     };
                     spawn_rend_request(
                         rend_request,
@@ -131,11 +135,14 @@ pub(super) async fn serve_live_tor_session(
                 }
                 maybe_event = health_rx.recv() => {
                     let Some(event) = maybe_event else {
+                        let exit = recovering_exit(
+                            &context,
+                            state_root,
+                            &base_url,
+                            "takd onion service health monitor stopped",
+                        )?;
                         health_task.abort();
-                        return Ok(TorSessionExit {
-                            base_url,
-                            reason: "takd onion service health monitor stopped".to_string(),
-                        });
+                        return Ok(exit);
                     };
                     match handle_health_event(&mut tracker, event) {
                         TorHealthTransition::Ready => {
@@ -144,14 +151,14 @@ pub(super) async fn serve_live_tor_session(
                         }
                         TorHealthTransition::KeepReady => {}
                         TorHealthTransition::Recovering(reason) => {
-                            mark_transport_recovering(
+                            let exit = recovering_exit(
                                 &context,
                                 state_root,
                                 &base_url,
-                                reason.clone(),
+                                reason,
                             )?;
                             health_task.abort();
-                            return Ok(TorSessionExit { base_url, reason });
+                            return Ok(exit);
                         }
                     }
                 }
@@ -170,11 +177,14 @@ pub(super) async fn serve_live_tor_session(
                         )
                     );
                     if hidden_service_probe_gate(state).requires_relaunch() {
+                        let exit = recovering_exit(
+                            &context,
+                            state_root,
+                            &base_url,
+                            format!("Arti onion-service state={state:?}"),
+                        )?;
                         health_task.abort();
-                        return Ok(TorSessionExit {
-                            base_url,
-                            reason: format!("Arti onion-service state={state:?}"),
-                        });
+                        return Ok(exit);
                     }
                 }
             }

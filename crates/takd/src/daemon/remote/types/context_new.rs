@@ -35,6 +35,7 @@ impl RemoteNodeContext {
             tak_container_usage,
             resource_pressure: Arc::new(Mutex::new(ResourcePressureSnapshot::healthy())),
             runtime_state: Arc::new(RemoteRuntimeState::new(runtime_config)),
+            runtime_services_started: Arc::new(AtomicBool::new(false)),
             image_cache: None,
             state_root: None,
         }

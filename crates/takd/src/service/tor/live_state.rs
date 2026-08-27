@@ -7,6 +7,8 @@ use crate::agent::{
 };
 use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 
+use super::TorSessionExit;
+
 pub(super) fn pending_context(
     config: &crate::agent::AgentConfig,
     base_url: &str,
@@ -66,6 +68,20 @@ pub(super) fn mark_transport_recovering(
         state_root,
         &TransportHealth::recovering(Some(base_url.to_string()), Some(detail)),
     )
+}
+
+pub(super) fn recovering_exit(
+    context: &RemoteNodeContext,
+    state_root: &Path,
+    base_url: &str,
+    reason: impl Into<String>,
+) -> Result<TorSessionExit> {
+    let reason = reason.into();
+    mark_transport_recovering(context, state_root, base_url, reason.clone())?;
+    Ok(TorSessionExit {
+        base_url: base_url.to_string(),
+        reason,
+    })
 }
 
 #[path = "live_state_tests.rs"]

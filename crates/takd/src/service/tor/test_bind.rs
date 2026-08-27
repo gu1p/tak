@@ -10,6 +10,7 @@ use crate::service::control::AgentControlState;
 
 use super::TorSessionExit;
 use super::health::{take_test_force_recovery_after, take_test_startup_failure};
+use super::live_state::recovering_exit;
 use super::ready_config;
 
 #[derive(Debug)]
@@ -44,16 +45,18 @@ pub(super) async fn serve_test_bind_session(
     write_transport_health(state_root, &TransportHealth::ready(Some(base_url.clone())))?;
     tracing::info!("takd remote v1 onion service ready at {}", base_url);
     let context = ready_context_with_state_root(&ready_config(config, &base_url), state_root)?;
-    control_state.set_context(context.clone())?;
+    let context = control_state.set_context(context)?;
 
     if let Some(delay) = take_test_force_recovery_after(state_root) {
-        let mut server = tokio::spawn(run_remote_v1_http_server(listener, store, context));
+        let mut server = tokio::spawn(run_remote_v1_http_server(listener, store, context.clone()));
         tokio::select! {
             result = &mut server => match result {
-                Ok(Ok(())) => Ok(TorSessionExit {
-                    base_url,
-                    reason: "takd tor test-bind server stopped".to_string(),
-                }),
+                Ok(Ok(())) => recovering_exit(
+                    &context,
+                    state_root,
+                    &base_url,
+                    "takd tor test-bind server stopped",
+                ),
                 Ok(Err(err)) => Err(err),
                 Err(join_err) => Err(join_err).context("takd tor test-bind task failed"),
             },
@@ -62,19 +65,24 @@ pub(super) async fn serve_test_bind_session(
                     "forcing takd tor recovery in test-bind mode after {}ms",
                     delay.as_millis()
                 );
+                let exit = recovering_exit(
+                    &context,
+                    state_root,
+                    &base_url,
+                    "test recovery hook triggered",
+                )?;
                 server.abort();
                 let _ = server.await;
-                Ok(TorSessionExit {
-                    base_url,
-                    reason: "test recovery hook triggered".to_string(),
-                })
+                Ok(exit)
             }
         }
     } else {
-        run_remote_v1_http_server(listener, store, context).await?;
-        Ok(TorSessionExit {
-            base_url,
-            reason: "takd tor test-bind server stopped".to_string(),
-        })
+        run_remote_v1_http_server(listener, store, context.clone()).await?;
+        recovering_exit(
+            &context,
+            state_root,
+            &base_url,
+            "takd tor test-bind server stopped",
+        )
     }
 }

@@ -59,16 +59,15 @@ pub(super) fn can_fit(state: &ResourceAdmissionState, request: &ResourceRequest)
     requested.cpu_cores <= available_cpu && requested.memory_mb <= available_memory
 }
 
-pub(super) fn admission_snapshot(
-    state: &ResourceAdmissionState,
-    non_tak: ResourceCapacity,
-    host_available_memory_mb: u64,
-) -> ResourceAdmissionSnapshot {
+pub(super) fn admission_snapshot(state: &ResourceAdmissionState) -> ResourceAdmissionSnapshot {
     let claims = claim_summary(state);
-    let capacity = state
-        .host_usage
-        .map(|_| effective_capacity(state, non_tak))
+    let host_usage = state.host_usage;
+    let capacity = host_usage
+        .map(|sample| effective_capacity(state, sample.non_tak_usage))
         .unwrap_or_else(zero);
+    let host_available_memory_mb = host_usage
+        .map(|sample| sample.available_memory_mb)
+        .unwrap_or(0);
     let admittable = if state.held {
         zero()
     } else {
@@ -85,6 +84,7 @@ pub(super) fn admission_snapshot(
         pending_startup: claims.pending_startup,
         actual: claims.actual,
         admittable,
+        host_usage,
     }
 }
 

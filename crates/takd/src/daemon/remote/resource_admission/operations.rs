@@ -95,25 +95,21 @@ impl SharedResourceAdmission {
         Ok(())
     }
 
-    pub(crate) fn reconcile(&self) -> Result<bool> {
-        let mut state = self.lock_state()?;
-        let promoted = promote_queued(&mut state);
-        drop(state);
-        if promoted {
-            self.inner.changed.notify_all();
-        }
-        Ok(promoted)
-    }
-
     pub(in crate::daemon::remote) fn update_host_usage(
         &self,
         non_tak_usage: ResourceCapacity,
         available_memory_mb: u64,
     ) -> Result<()> {
-        self.lock_state()?.host_usage = Some(HostUsageSample {
+        let mut state = self.lock_state()?;
+        state.host_usage = Some(HostUsageSample {
             non_tak_usage,
             available_memory_mb,
         });
+        let promoted = promote_queued(&mut state);
+        drop(state);
+        if promoted {
+            self.inner.changed.notify_all();
+        }
         Ok(())
     }
 
@@ -121,17 +117,9 @@ impl SharedResourceAdmission {
         Ok(self.lock_state()?.queue.iter().cloned().collect())
     }
 
-    pub(in crate::daemon::remote) fn resource_snapshot(
-        &self,
-        non_tak: ResourceCapacity,
-        host_available_memory_mb: u64,
-    ) -> Result<ResourceAdmissionSnapshot> {
+    pub(in crate::daemon::remote) fn resource_snapshot(&self) -> Result<ResourceAdmissionSnapshot> {
         let state = self.lock_state()?;
-        Ok(admission_snapshot(
-            &state,
-            non_tak,
-            host_available_memory_mb,
-        ))
+        Ok(admission_snapshot(&state))
     }
 
     fn lock_state(&self) -> Result<std::sync::MutexGuard<'_, ResourceAdmissionState>> {

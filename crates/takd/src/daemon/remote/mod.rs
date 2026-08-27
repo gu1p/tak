@@ -54,6 +54,9 @@ mod route_tasks;
 mod route_uploads;
 mod router;
 mod runtime;
+mod runtime_services;
+#[cfg(test)]
+mod runtime_services_tests;
 mod runtime_state;
 #[cfg(test)]
 mod runtime_tests;
@@ -105,6 +108,7 @@ use route_uploads::{
     WORKSPACE_UPLOADS_DIR_NAME, WorkspaceUploadMissing, handle_workspace_upload_route,
     receive_workspace_wormhole_upload, resolve_workspace_upload_zip, stream_workspace_upload,
 };
+pub(crate) use runtime_services::spawn_remote_runtime_services;
 use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tak_container_usage::spawn_tak_container_usage_sampler;
 use types::{

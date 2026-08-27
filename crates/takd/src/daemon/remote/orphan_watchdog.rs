@@ -1,6 +1,8 @@
 use super::RemoteNodeContext;
 
-pub(crate) fn spawn_remote_orphan_watchdog(context: RemoteNodeContext) {
+pub(crate) fn spawn_remote_orphan_watchdog(
+    context: RemoteNodeContext,
+) -> tokio::task::JoinHandle<()> {
     let interval = context.runtime_config().remote_client_watchdog_interval();
     tokio::spawn(async move {
         loop {
@@ -18,5 +20,5 @@ pub(crate) fn spawn_remote_orphan_watchdog(context: RemoteNodeContext) {
                 Err(error) => tracing::warn!("remote orphan watchdog sweep failed: {error:#}"),
             }
         }
-    });
+    })
 }

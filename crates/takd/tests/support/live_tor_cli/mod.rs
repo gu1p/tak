@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-
 mod command_assert;
 
 use std::path::{Path, PathBuf};
@@ -64,6 +63,9 @@ pub fn spawn_tor_agent(roots: &LiveTorRoots) -> ChildGuard {
             "--state-root",
             &roots.state_root.display().to_string(),
         ])
+        .env("MOCK_CONTAINER", "true")
+        .env("TAK_TEST_IGNORE_HOST_USAGE", "true")
+        .env("TAKD_HOST_BASELINE_SAMPLE_MS", "0")
         .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_SESSION_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")

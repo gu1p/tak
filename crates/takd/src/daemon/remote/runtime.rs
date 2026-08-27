@@ -8,7 +8,8 @@ mod memory_pressure_settings;
 mod test_support;
 
 use env_parse::{
-    bool_from_env, duration_from_env, f64_from_env, optional_trimmed_env, u64_from_env,
+    bool_from_env, duration_from_env, f64_from_env, nonnegative_duration_from_env,
+    optional_trimmed_env, u64_from_env,
 };
 pub(crate) use memory_pressure_settings::MemoryPressureSettings;
 
@@ -137,7 +138,7 @@ impl RemoteRuntimeConfig {
                 "TAK_TEST_RESOURCE_SAMPLE_MS",
                 DEFAULT_RESOURCE_SAMPLE_INTERVAL_MS,
             )),
-            host_baseline_sample_duration: Duration::from_millis(duration_from_env(
+            host_baseline_sample_duration: Duration::from_millis(nonnegative_duration_from_env(
                 &read_env,
                 "TAKD_HOST_BASELINE_SAMPLE_MS",
                 host_baseline_default_ms,

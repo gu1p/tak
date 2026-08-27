@@ -64,29 +64,14 @@ impl RemoteNodeContext {
         let (swap_total_bytes, swap_available_bytes) = guard.swap_status();
         drop(guard);
 
-        let non_tak = super::super::resource_admission::ResourceCapacity {
-            cpu_cores: status
-                .cpu
-                .as_ref()
-                .and_then(|cpu| cpu.non_tak_used_cores)
-                .unwrap_or(0.0),
-            memory_mb: status
-                .memory
-                .as_ref()
-                .and_then(|memory| memory.non_tak_used_bytes)
-                .unwrap_or(0)
-                .div_ceil(1024 * 1024),
-        };
-        let host_available_memory_mb = status
-            .memory
-            .as_ref()
-            .and_then(|memory| memory.available_bytes)
-            .unwrap_or(0)
-            / 1024
-            / 1024;
-        let admission = self
-            .resource_admission
-            .resource_snapshot(non_tak, host_available_memory_mb)?;
+        let admission = self.resource_admission.resource_snapshot()?;
+        let non_tak = admission.host_usage.map_or(
+            super::super::resource_admission::ResourceCapacity {
+                cpu_cores: 0.0,
+                memory_mb: 0,
+            },
+            |sample| sample.non_tak_usage,
+        );
         if let Some(cpu) = status.cpu.as_mut() {
             cpu.tak_admission_available_cores = Some(admission.admittable.cpu_cores);
         }

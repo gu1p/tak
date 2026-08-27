@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind};
 use std::path::Path;
 use std::time::Duration;
 
-use super::cleanup_stale_remote_entries_with;
+use super::storage::cleanup_stale_remote_entries_with;
 
 #[test]
 fn cleanup_janitor_skips_permission_denied_entry_and_continues_other_roots() {
