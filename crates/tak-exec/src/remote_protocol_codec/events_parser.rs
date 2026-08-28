@@ -59,9 +59,41 @@ pub(crate) fn parse_remote_events_response(
 }
 
 fn event_status_update(event: &tak_proto::RemoteEvent) -> Option<RemoteStatusUpdate> {
+    if matches!(event.kind.as_str(), "TASK_QUEUED" | "TASK_QUEUE_POSITION") {
+        let queue_position = event
+            .queue_position
+            .and_then(|position| usize::try_from(position).ok())
+            .or_else(|| {
+                event
+                    .message
+                    .as_deref()
+                    .and_then(queue_position_from_message)
+            });
+        let message = event
+            .message
+            .clone()
+            .filter(|message| !message.is_empty())
+            .unwrap_or_else(|| queue_message(queue_position));
+        return Some(RemoteStatusUpdate {
+            message,
+            kind: event_status_kind(event.kind.as_str()),
+            queue_position,
+        });
+    }
+    if event.kind == "TASK_STARTED" {
+        return Some(RemoteStatusUpdate {
+            message: event
+                .message
+                .clone()
+                .filter(|message| !message.is_empty())
+                .unwrap_or_else(|| "remote worker started task".into()),
+            kind: TaskStatusEventKind::RemoteExecutionStart,
+            queue_position: None,
+        });
+    }
     if matches!(
         event.kind.as_str(),
-        "TASK_QUEUED" | "TASK_QUEUE_POSITION" | "TASK_FAILED" | "TASK_CANCELLED" | "TASK_TERMINAL"
+        "TASK_FAILED" | "TASK_CANCELLED" | "TASK_TERMINAL"
     ) && let Some(message) = event
         .message
         .as_deref()
@@ -70,7 +102,7 @@ fn event_status_update(event: &tak_proto::RemoteEvent) -> Option<RemoteStatusUpd
         return Some(RemoteStatusUpdate {
             message: message.to_string(),
             kind: event_status_kind(event.kind.as_str()),
-            queue_position: queue_position_from_message(message),
+            queue_position: None,
         });
     }
     let failure_verb = terminal_failure_verb(event.kind.as_str())?;
@@ -84,6 +116,18 @@ fn event_status_update(event: &tak_proto::RemoteEvent) -> Option<RemoteStatusUpd
         });
     }
     None
+}
+
+fn queue_message(queue_position: Option<usize>) -> String {
+    queue_position.map_or_else(
+        || "queued: waiting for remote capacity".into(),
+        |position| {
+            format!(
+                "queued: waiting for remote capacity (queue position: {position}; {} tasks ahead)",
+                position.saturating_sub(1)
+            )
+        },
+    )
 }
 
 fn event_status_kind(kind: &str) -> TaskStatusEventKind {

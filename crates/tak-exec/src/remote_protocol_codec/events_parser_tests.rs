@@ -16,6 +16,7 @@ fn parser_surfaces_terminal_failure_messages_as_status_messages() {
             message: Some("worker exited before returning a result".into()),
             chunk: None,
             chunk_bytes: Vec::new(),
+            queue_position: None,
         }],
         done: true,
     }
@@ -42,6 +43,7 @@ fn parser_synthesizes_terminal_failure_status_from_exit_code() {
             message: None,
             chunk: None,
             chunk_bytes: Vec::new(),
+            queue_position: None,
         }],
         done: true,
     }
@@ -68,6 +70,7 @@ fn parser_synthesizes_terminal_cancelled_status_from_exit_code() {
             message: None,
             chunk: None,
             chunk_bytes: Vec::new(),
+            queue_position: None,
         }],
         done: true,
     }

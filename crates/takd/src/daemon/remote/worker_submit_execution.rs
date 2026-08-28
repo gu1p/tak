@@ -1,17 +1,6 @@
 use super::*;
 use std::sync::Arc;
 
-#[derive(Clone, Copy)]
-pub(super) enum PreparedResourceAdmission {
-    Admitted {
-        started_at: i64,
-    },
-    Queued {
-        queue_position: usize,
-        queued_at_ms: i64,
-    },
-}
-
 pub(super) struct RemoteWorkerSubmitExecution {
     pub(super) store: SubmitAttemptStore,
     pub(super) context: RemoteNodeContext,
@@ -39,8 +28,7 @@ pub(super) fn spawn_remote_worker_submit_execution(
 fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
     let store = &execution.store;
     let idempotency_key = execution.idempotency_key.as_str();
-    let mut started_seq = 1;
-    let mut next_output_seq = 2;
+    let events = RemoteWorkerEventWriter::new(store.clone(), idempotency_key.to_string(), 1);
     let started_at = match execution.admission {
         PreparedResourceAdmission::Admitted { started_at } => started_at,
         PreparedResourceAdmission::Queued {
@@ -55,22 +43,41 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
                 queue_position,
                 "remote worker task queued"
             );
-            append_queue_event(store, idempotency_key, queue_position, queued_at_ms);
-            started_seq = 2;
-            next_output_seq = 3;
+            append_queue_event(&events, queue_position, queued_at_ms, true);
+            let mut last_position = Some(queue_position);
             if let Err(error) = execution
                 .context
-                .wait_until_resources_admitted(idempotency_key, &execution.cancellation)
+                .wait_until_resources_admitted_with_positions(
+                    idempotency_key,
+                    &execution.cancellation,
+                    |position| {
+                        if last_position != Some(position) {
+                            append_queue_event(&events, position, unix_epoch_ms(), false);
+                            last_position = Some(position);
+                        }
+                    },
+                )
             {
                 if tak_runner::is_run_cancelled_error(&error)
                     || execution.cancellation.is_cancelled()
                 {
-                    persist_queued_cancelled_submit(execution, idempotency_key, queued_at_ms);
+                    persist_queued_cancelled_submit(
+                        execution,
+                        &events,
+                        idempotency_key,
+                        queued_at_ms,
+                    );
                 } else {
                     tracing::error!(
                         "resource admission wait failed for {idempotency_key}: {error:#}"
                     );
-                    persist_queued_failed_submit(execution, idempotency_key, queued_at_ms, error);
+                    persist_queued_failed_submit(
+                        execution,
+                        &events,
+                        idempotency_key,
+                        queued_at_ms,
+                        error,
+                    );
                 }
                 finish_queued_submit_without_run(execution, idempotency_key);
                 return;
@@ -80,27 +87,24 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
                 tracing::error!(
                     "failed to register active job for submit {idempotency_key}: {error:#}"
                 );
-                persist_queued_failed_submit(execution, idempotency_key, started_at, error);
+                persist_queued_failed_submit(
+                    execution,
+                    &events,
+                    idempotency_key,
+                    started_at,
+                    error,
+                );
                 finish_queued_submit_without_run(execution, idempotency_key);
                 return;
             }
             started_at
         }
     };
-    let output_observer = Arc::new(RemoteWorkerEventObserver::new_with_next_seq(
-        store.clone(),
-        idempotency_key.to_string(),
-        next_output_seq,
-    ));
-    if let Err(error) = store.append_event(
-        idempotency_key,
-        started_seq,
-        &serde_json::json!({
-            "kind": "TASK_STARTED",
-            "timestamp_ms": started_at,
-        })
-        .to_string(),
-    ) {
+    let output_observer = Arc::new(RemoteWorkerEventObserver::new(events.clone()));
+    if let Err(error) = events.append(serde_json::json!({
+        "kind": "TASK_STARTED",
+        "timestamp_ms": started_at,
+    })) {
         tracing::error!(
             "failed to append TASK_STARTED event for submit {idempotency_key}: {error:#}"
         );
@@ -164,6 +168,7 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
     }
 }
 
+include!("worker_submit_execution/event_writer.rs");
 include!("worker_submit_execution/submit_status.rs");
 include!("worker_submit_execution/output_observer.rs");
 include!("worker_submit_execution/result_persistence.rs");
@@ -181,3 +186,6 @@ mod completion_helpers_tests;
 
 #[path = "worker_submit_execution/queued_failure_tests.rs"]
 mod queued_failure_tests;
+
+#[cfg(test)]
+mod event_sequence_tests;

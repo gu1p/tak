@@ -1,9 +1,6 @@
 use crate::support;
 
-use std::io::Write;
-use std::net::TcpListener;
-use std::process::Command as StdCommand;
-use std::thread;
+use std::{io::Write, net::TcpListener, process::Command as StdCommand, thread};
 
 use prost::Message;
 use support::remote_cli::read_request;
@@ -37,6 +34,7 @@ fn remote_task_logs_streams_persisted_stdout_and_stderr() {
                     message: None,
                     chunk: Some("remote stdout\n".into()),
                     chunk_bytes: b"remote stdout\n".to_vec(),
+                    queue_position: None,
                 },
                 RemoteEvent {
                     seq: 2,
@@ -47,6 +45,7 @@ fn remote_task_logs_streams_persisted_stdout_and_stderr() {
                     message: None,
                     chunk: Some("remote stderr\n".into()),
                     chunk_bytes: b"remote stderr\n".to_vec(),
+                    queue_position: None,
                 },
                 RemoteEvent {
                     seq: 3,
@@ -57,6 +56,7 @@ fn remote_task_logs_streams_persisted_stdout_and_stderr() {
                     message: None,
                     chunk: None,
                     chunk_bytes: Vec::new(),
+                    queue_position: None,
                 },
             ],
             done: true,

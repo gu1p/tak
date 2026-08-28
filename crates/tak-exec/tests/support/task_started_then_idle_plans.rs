@@ -16,6 +16,7 @@ pub fn task_started_then_idle_plans() -> Vec<EventPollPlan> {
             message: None,
             chunk: None,
             chunk_bytes: Vec::new(),
+            queue_position: None,
         }],
         done: false,
     }];

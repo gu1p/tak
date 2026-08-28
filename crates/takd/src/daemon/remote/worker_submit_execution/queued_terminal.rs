@@ -1,5 +1,6 @@
 fn persist_queued_cancelled_submit(
     execution: &RemoteWorkerSubmitExecution,
+    events: &RemoteWorkerEventWriter,
     idempotency_key: &str,
     queued_at_ms: i64,
 ) {
@@ -17,12 +18,13 @@ fn persist_queued_cancelled_submit(
         duration_ms: finished_at.saturating_sub(queued_at_ms),
         stdout_tail: "",
         stderr_tail: cancellation_message(reason),
-        seq: 2,
+        events,
     });
 }
 
 fn persist_queued_failed_submit(
     execution: &RemoteWorkerSubmitExecution,
+    events: &RemoteWorkerEventWriter,
     idempotency_key: &str,
     started_at: i64,
     error: anyhow::Error,
@@ -50,18 +52,13 @@ fn persist_queued_failed_submit(
             "failed to persist queued failure submit result {idempotency_key}: {error:#}"
         );
     }
-    if let Err(error) = execution.store.append_event(
-        idempotency_key,
-        2,
-        &serde_json::json!({
+    if let Err(error) = events.append(serde_json::json!({
             "kind": "TASK_FAILED",
             "timestamp_ms": finished_at,
             "success": false,
             "exit_code": 1,
             "message": message,
-        })
-        .to_string(),
-    ) {
+        })) {
         tracing::error!(
             "failed to append queued TASK_FAILED event for submit {idempotency_key}: {error:#}"
         );

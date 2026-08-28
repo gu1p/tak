@@ -46,6 +46,7 @@ fn stdout_event(node_id: &str) -> RemoteEvent {
         message: None,
         chunk: Some(format!("{node_id}\n")),
         chunk_bytes: format!("{node_id}\n").into_bytes(),
+        queue_position: None,
     }
 }
 
@@ -59,6 +60,7 @@ fn completed_event() -> RemoteEvent {
         message: None,
         chunk: None,
         chunk_bytes: Vec::new(),
+        queue_position: None,
     }
 }
 

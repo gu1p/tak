@@ -50,6 +50,12 @@ pub(super) fn emit_event_batch(
             update.message.clone(),
             TaskStatusDetails {
                 kind: Some(update.kind),
+                queue_id: matches!(
+                    update.kind,
+                    crate::engine::TaskStatusEventKind::QueueAdmission
+                        | crate::engine::TaskStatusEventKind::QueuePositionChanged
+                )
+                .then(|| "worker".to_string()),
                 queue_position: update.queue_position,
                 transport: Some(target.transport_kind.as_result_value().to_string()),
                 ..TaskStatusDetails::default()

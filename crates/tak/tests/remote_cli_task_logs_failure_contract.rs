@@ -44,6 +44,7 @@ fn terminal_event(kind: &str, message: Option<&str>, exit_code: Option<i32>) -> 
         message: message.map(str::to_string),
         chunk: None,
         chunk_bytes: Vec::new(),
+        queue_position: None,
     }
 }
 
@@ -82,10 +83,7 @@ fn assert_remote_task_log_stderr(event: RemoteEvent, expected_stderr: &str) {
         .output()
         .expect("run tak remote task logs");
 
-    assert!(
-        output.status.success(),
-        "tak remote task logs should succeed"
-    );
+    assert!(output.status.success(), "task logs should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "");
     assert_eq!(String::from_utf8_lossy(&output.stderr), expected_stderr);
     server.join().expect("task logs server should exit");

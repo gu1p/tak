@@ -63,7 +63,7 @@ fn persist_cancelled_worker_result(input: &WorkerExecutionResultPersistence<'_>,
         duration_ms: input.duration_ms,
         stdout_tail,
         stderr_tail: cancellation_message(reason),
-        seq: input.output_observer.claim_next_seq(),
+        events: &input.output_observer.events,
     });
 }
 
@@ -129,17 +129,12 @@ fn persist_successful_worker_result(
     ) {
         tracing::error!("failed to persist submit result {}: {error:#}", input.idempotency_key);
     }
-    if let Err(error) = store.append_event(
-        input.idempotency_key,
-        input.output_observer.claim_next_seq(),
-        &serde_json::json!({
+    if let Err(error) = input.output_observer.events.append(serde_json::json!({
             "kind": terminal_kind,
             "timestamp_ms": input.finished_at,
             "success": result.success,
             "exit_code": exit_code,
-        })
-        .to_string(),
-    ) {
+        })) {
         tracing::error!(
             "failed to append terminal event for submit {}: {error:#}",
             input.idempotency_key

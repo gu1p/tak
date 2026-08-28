@@ -41,6 +41,7 @@ async fn recovers_missing_stdout_from_remote_result_tail() {
                 message: None,
                 chunk: None,
                 chunk_bytes: Vec::new(),
+                queue_position: None,
             }],
             done: true,
         }],

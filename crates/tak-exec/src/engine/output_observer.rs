@@ -21,6 +21,7 @@ pub(crate) struct TaskStatusDetails {
     pub(crate) retryable: Option<bool>,
     pub(crate) bytes_total: Option<u64>,
     pub(crate) bytes_sent: Option<u64>,
+    pub(crate) execution_unit_members: Vec<TaskLabel>,
 }
 
 pub(crate) fn emit_task_output(
@@ -106,6 +107,17 @@ pub(crate) fn emit_task_status_message_with_details(
     details: TaskStatusDetails,
 ) -> Result<()> {
     let message = message.into();
+    if details.kind.is_some() {
+        return emit_structured_task_status(
+            output_observer,
+            task_label,
+            attempt,
+            phase,
+            remote_node_id,
+            message,
+            details,
+        );
+    }
     emit_task_status(
         output_observer,
         TaskStatusEvent {
@@ -113,17 +125,8 @@ pub(crate) fn emit_task_status_message_with_details(
             attempt,
             phase,
             remote_node_id: remote_node_id.map(str::to_string),
-            message: message.clone(),
+            message,
         },
-    )?;
-    emit_structured_task_status(
-        output_observer,
-        task_label,
-        attempt,
-        phase,
-        remote_node_id,
-        message,
-        details,
     )
 }
 
@@ -163,6 +166,7 @@ fn emit_structured_task_status(
         retryable: details.retryable,
         bytes_total: details.bytes_total,
         bytes_sent: details.bytes_sent,
+        execution_unit_members: details.execution_unit_members,
     })
 }
 

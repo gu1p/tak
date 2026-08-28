@@ -61,18 +61,29 @@ impl SharedResourceAdmission {
         })
     }
 
-    pub(crate) fn wait_until_admitted(
+    pub(crate) fn wait_until_admitted_with_positions(
         &self,
         idempotency_key: &str,
         cancellation: &tak_runner::RunCancellation,
+        mut on_position: impl FnMut(usize),
     ) -> Result<()> {
         let mut state = self.lock_state()?;
+        let mut last_position = None;
         loop {
             if cancellation.is_cancelled() {
                 return Err(anyhow!("task cancelled"));
             }
             if state.reservations.contains_key(idempotency_key) {
                 return Ok(());
+            }
+            let position = queue_position(&state.queue, idempotency_key)
+                .ok_or_else(|| anyhow!("queued resource request disappeared"))?;
+            if last_position != Some(position) {
+                last_position = Some(position);
+                drop(state);
+                on_position(position);
+                state = self.lock_state()?;
+                continue;
             }
             state = self
                 .inner

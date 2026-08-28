@@ -190,6 +190,7 @@ message RemoteEvent {
   optional string message = 6;
   optional string chunk = 7;
   bytes chunk_bytes = 8;
+  optional uint32 queue_position = 9;
 }
 
 message PollTaskEventsResponse {

@@ -33,6 +33,7 @@ mod run_overrides_remote_tests;
 mod run_overrides_support;
 #[cfg(test)]
 mod run_overrides_test_support;
+mod run_visualization;
 mod status;
 mod task_history;
 mod update_cli;
@@ -44,8 +45,9 @@ use exec_cli::{ExecCliArgs, run_exec_command};
 use graph_output::print_dot_graph;
 use make_cli::run_make_command;
 use run_command::{RunCliArgs, run_task_command};
+use run_visualization::RunVisualizationObserver;
 use status::{run_local_status, run_status};
-use task_history::{HistoryOutputObserver, print_task_history, print_task_logs};
+use task_history::{print_task_history, print_task_logs};
 use workspace_helpers::{canonical_label, load_workspace_from_cwd, parse_input_label};
 
 pub(crate) use command_model::command_tree;

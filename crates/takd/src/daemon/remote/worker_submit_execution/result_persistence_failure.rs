@@ -38,18 +38,13 @@ fn persist_failed_worker_result(
             input.idempotency_key
         );
     }
-    if let Err(append_error) = store.append_event(
-        input.idempotency_key,
-        input.output_observer.claim_next_seq(),
-        &serde_json::json!({
+    if let Err(append_error) = input.output_observer.events.append(serde_json::json!({
             "kind": "TASK_FAILED",
             "timestamp_ms": input.finished_at,
             "success": false,
             "exit_code": 1,
             "message": format!("{error:#}"),
-        })
-        .to_string(),
-    ) {
+        })) {
         tracing::error!(
             "failed to append TASK_FAILED event for submit {}: {append_error:#}",
             input.idempotency_key

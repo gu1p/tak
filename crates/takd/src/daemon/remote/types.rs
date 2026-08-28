@@ -129,13 +129,17 @@ impl RemoteNodeContext {
         self.resource_policy.resolve(authored)
     }
 
-    pub(crate) fn wait_until_resources_admitted(
+    pub(crate) fn wait_until_resources_admitted_with_positions(
         &self,
         idempotency_key: &str,
         cancellation: &tak_runner::RunCancellation,
+        on_position: impl FnMut(usize),
     ) -> Result<()> {
-        self.resource_admission
-            .wait_until_admitted(idempotency_key, cancellation)
+        self.resource_admission.wait_until_admitted_with_positions(
+            idempotency_key,
+            cancellation,
+            on_position,
+        )
     }
 
     pub(crate) fn release_resources(&self, idempotency_key: &str) -> Result<()> {

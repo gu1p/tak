@@ -45,10 +45,8 @@ fn cancelled_run_records_cancelled_even_when_container_exited_nonzero() {
     let case = TestQueuedSubmit::new("task-run-cancel-race");
     let execution = case.execution();
     case.cancellation.cancel();
-    let observer = std::sync::Arc::new(RemoteWorkerEventObserver::new_with_next_seq(
-        case.store.clone(),
-        case.idempotency_key.clone(),
-        2,
+    let observer = std::sync::Arc::new(RemoteWorkerEventObserver::new(
+        RemoteWorkerEventWriter::new(case.store.clone(), case.idempotency_key.clone(), 2),
     ));
 
     persist_worker_execution_result(

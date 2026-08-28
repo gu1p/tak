@@ -61,6 +61,10 @@ pub(super) fn handle_remote_events_route(
                 .map(str::to_string),
             chunk: remote_event_chunk_text(&payload_value, &chunk_bytes),
             chunk_bytes,
+            queue_position: payload_value
+                .get("queue_position")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| u32::try_from(value).ok()),
         });
     }
 

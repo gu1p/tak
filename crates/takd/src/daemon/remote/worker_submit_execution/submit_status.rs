@@ -1,3 +1,14 @@
+#[derive(Clone, Copy)]
+pub(super) enum PreparedResourceAdmission {
+    Admitted {
+        started_at: i64,
+    },
+    Queued {
+        queue_position: usize,
+        queued_at_ms: i64,
+    },
+}
+
 pub(super) fn register_active_job_for_submit(
     execution: &RemoteWorkerSubmitExecution,
     started_at: i64,
@@ -43,28 +54,21 @@ pub(super) fn register_active_job(
 }
 
 fn append_queue_event(
-    store: &SubmitAttemptStore,
-    idempotency_key: &str,
+    events: &RemoteWorkerEventWriter,
     queue_position: usize,
     timestamp_ms: i64,
+    admitted_to_queue: bool,
 ) {
     let ahead = queue_position.saturating_sub(1);
     let message =
         format!("queued: waiting for remote capacity (queue position: {queue_position}; {ahead} tasks ahead)");
-    if let Err(error) = store.append_event(
-        idempotency_key,
-        1,
-        &serde_json::json!({
-            "kind": "TASK_QUEUED",
+    if let Err(error) = events.append(serde_json::json!({
+            "kind": if admitted_to_queue { "TASK_QUEUED" } else { "TASK_QUEUE_POSITION" },
             "timestamp_ms": timestamp_ms,
             "queue_position": queue_position,
             "message": message,
-        })
-        .to_string(),
-    ) {
-        tracing::error!(
-            "failed to append TASK_QUEUED event for submit {idempotency_key}: {error:#}"
-        );
+        })) {
+        tracing::error!("failed to append TASK_QUEUED event: {error:#}");
     }
 }
 

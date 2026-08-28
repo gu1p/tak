@@ -23,6 +23,7 @@ pub struct TaskOutputChunk {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatusPhase {
+    Scheduling,
     RemoteProbe,
     RemoteStageWorkspace,
     RemoteSubmit,
@@ -34,6 +35,7 @@ pub enum TaskStatusPhase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatusEventKind {
+    TaskPlanned,
     LocalDaemonConnection,
     RemoteCapacityDiscovery,
     RemoteNodeProbe,
@@ -87,6 +89,8 @@ pub struct TaskStructuredStatusEvent {
     pub retryable: Option<bool>,
     pub bytes_total: Option<u64>,
     pub bytes_sent: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub execution_unit_members: Vec<TaskLabel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,6 +116,18 @@ pub struct TaskFinishedEvent {
     pub remote_node_id: Option<String>,
 }
 
+impl From<&TaskStructuredStatusEvent> for TaskStatusEvent {
+    fn from(event: &TaskStructuredStatusEvent) -> Self {
+        Self {
+            task_label: event.task_label.clone(),
+            attempt: event.attempt,
+            phase: event.phase,
+            remote_node_id: event.remote_node_id.clone(),
+            message: event.message.clone(),
+        }
+    }
+}
+
 pub trait TaskOutputObserver: Send + Sync {
     fn observe_output(&self, chunk: TaskOutputChunk) -> Result<()>;
 
@@ -119,8 +135,8 @@ pub trait TaskOutputObserver: Send + Sync {
         Ok(())
     }
 
-    fn observe_structured_status(&self, _event: TaskStructuredStatusEvent) -> Result<()> {
-        Ok(())
+    fn observe_structured_status(&self, event: TaskStructuredStatusEvent) -> Result<()> {
+        self.observe_status(TaskStatusEvent::from(&event))
     }
 
     fn observe_task_started(&self, _event: TaskStartedEvent) -> Result<()> {

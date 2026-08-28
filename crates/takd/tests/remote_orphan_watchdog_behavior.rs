@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use prost::Message;
-use tak_proto::GetTaskResultResponse;
 use takd::{RemoteNodeContext, SubmitAttemptStore, run_remote_v1_http_server};
 
 use crate::support::{
@@ -12,6 +10,7 @@ use crate::support::{
 };
 
 mod active_liveness;
+mod result_wait;
 
 #[allow(clippy::await_holding_lock)]
 #[tokio::test(flavor = "multi_thread")]
@@ -54,7 +53,7 @@ async fn watchdog_cancels_active_worker_without_client_heartbeat() {
     assert!(!daemon.create_records().is_empty(), "no container started");
     wait_for_removed_container(&daemon).await;
 
-    let result = result(&context, &store, "task-run-orphan");
+    let result = result_wait::wait_for_result(&context, &store, "task-run-orphan").await;
     assert!(!result.success);
     assert_eq!(result.status, "cancelled");
     assert!(
@@ -84,17 +83,4 @@ fn get(context: &RemoteNodeContext, store: &SubmitAttemptStore, task: &str, endp
     let path = format!("/v1/tasks/{task}/{endpoint}?attempt=1");
     takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
         .expect("remote request");
-}
-
-fn result(
-    context: &RemoteNodeContext,
-    store: &SubmitAttemptStore,
-    task: &str,
-) -> GetTaskResultResponse {
-    let path = format!("/v1/tasks/{task}/result?attempt=1");
-    let response =
-        takd::daemon::remote::handle_remote_v1_request(context, store, "GET", &path, &[], None)
-            .expect("result response");
-    assert_eq!(response.status_code, 200);
-    GetTaskResultResponse::decode(response.body.as_slice()).expect("decode result")
 }

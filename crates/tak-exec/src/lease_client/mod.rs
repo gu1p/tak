@@ -10,11 +10,13 @@ use uuid::Uuid;
 use crate::{LeaseContext, RunOptions};
 
 mod acquire_release;
+#[cfg(test)]
+mod acquire_release_tests;
+mod coordination_status;
 mod needs_transport;
 mod wire_types;
 
 #[cfg(test)]
-#[path = "wire_types_tests.rs"]
 mod wire_types_tests;
 
 pub(crate) use acquire_release::{TaskLease, acquire_task_lease, release_task_lease};

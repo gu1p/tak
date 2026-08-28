@@ -7,7 +7,7 @@ struct CancelledSubmitResult<'a> {
     duration_ms: i64,
     stdout_tail: &'a str,
     stderr_tail: String,
-    seq: u64,
+    events: &'a RemoteWorkerEventWriter,
 }
 
 fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
@@ -34,17 +34,12 @@ fn persist_cancelled_result(result: CancelledSubmitResult<'_>) {
             result.idempotency_key
         );
     }
-    if let Err(error) = result.store.append_event(
-        result.idempotency_key,
-        result.seq,
-        &serde_json::json!({
+    if let Err(error) = result.events.append(serde_json::json!({
             "kind": "TASK_CANCELLED",
             "timestamp_ms": result.finished_at,
             "success": false,
             "message": result.stderr_tail,
-        })
-        .to_string(),
-    ) {
+        })) {
         tracing::error!(
             "failed to append TASK_CANCELLED event for submit {}: {error:#}",
             result.idempotency_key

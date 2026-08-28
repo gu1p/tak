@@ -6,6 +6,8 @@ mod fit;
 #[path = "resource_admission_host_usage_tests.rs"]
 mod host_usage_tests;
 mod operations;
+#[path = "resource_admission_position_tests.rs"]
+mod position_tests;
 mod request;
 #[path = "resource_admission_reservation_tests.rs"]
 mod reservation_tests;

@@ -1,4 +1,9 @@
+use super::coordination_status::{
+    CoordinationQueueTracker, emit_coordination_cancellation, emit_coordination_status,
+    wait_for_retry_or_cancellation,
+};
 use super::*;
+use crate::engine::cancelled_error;
 
 pub(crate) struct TaskLease {
     lease_id: String,
@@ -68,18 +73,53 @@ pub(crate) async fn acquire_task_lease(
         ttl_ms: options.lease_ttl_ms.max(1_000),
     };
 
+    let mut queue = CoordinationQueueTracker::default();
     loop {
-        let response = send_daemon_request(socket_path, Request::Acquire(acquire_request.clone()))
-            .await
-            .with_context(|| format!("lease acquire request failed for {}", task.label))?;
+        let response = tokio::select! {
+            response = send_daemon_request(socket_path, Request::Acquire(acquire_request.clone())) => {
+                response.with_context(|| format!("lease acquire request failed for {}", task.label))?
+            }
+            _ = options.cancellation.cancelled() => {
+                emit_coordination_cancellation(task, attempt, options, &queue)?;
+                return Err(cancelled_error());
+            }
+        };
 
         match response {
             Response::LeaseGranted { lease, .. } => {
+                if let Some(kind) = queue.granted() {
+                    emit_coordination_status(
+                        task,
+                        attempt,
+                        options,
+                        kind,
+                        None,
+                        "coordination lease granted",
+                    )?;
+                }
                 return Ok(Some(TaskLease::new(lease, socket_path)));
             }
-            Response::LeasePending { .. } => {
+            Response::LeasePending { pending, .. } => {
+                if let Some(kind) = queue.pending(pending.queue_position) {
+                    emit_coordination_status(
+                        task,
+                        attempt,
+                        options,
+                        kind,
+                        Some(pending.queue_position),
+                        "waiting for coordination capacity",
+                    )?;
+                }
                 let poll_ms = options.lease_poll_interval_ms.max(10);
-                tokio::time::sleep(Duration::from_millis(poll_ms)).await;
+                if let Err(error) = wait_for_retry_or_cancellation(
+                    Duration::from_millis(poll_ms),
+                    &options.cancellation,
+                )
+                .await
+                {
+                    emit_coordination_cancellation(task, attempt, options, &queue)?;
+                    return Err(error);
+                }
             }
             Response::Error { message, .. } => {
                 bail!(

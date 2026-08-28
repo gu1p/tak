@@ -11,10 +11,8 @@ use super::store::TaskHistoryWriter;
 use crate::cli::run_output::StdStreamOutputObserver;
 
 pub(in crate::cli) struct HistoryOutputObserver {
-    inner: StdStreamOutputObserver,
+    inner: Option<StdStreamOutputObserver>,
     history: Mutex<HistoryRecorder>,
-    announce_task_start: bool,
-    announcement_lock: Mutex<()>,
 }
 
 struct HistoryRecorder {
@@ -26,37 +24,16 @@ struct HistoryRecorder {
 impl HistoryOutputObserver {
     pub(in crate::cli) fn new() -> Self {
         Self {
-            inner: StdStreamOutputObserver::default(),
+            inner: Some(StdStreamOutputObserver::default()),
             history: Mutex::new(HistoryRecorder::open()),
-            announce_task_start: false,
-            announcement_lock: Mutex::new(()),
         }
     }
 
-    pub(in crate::cli) fn new_with_start_announcements() -> Self {
+    pub(in crate::cli) fn new_recording_only() -> Self {
         Self {
-            announce_task_start: true,
-            ..Self::new()
+            inner: None,
+            history: Mutex::new(HistoryRecorder::open()),
         }
-    }
-
-    fn announce_task_started(&self, event: &TaskStartedEvent) -> Result<()> {
-        if !self.announce_task_start {
-            return Ok(());
-        }
-
-        let _guard = self
-            .announcement_lock
-            .lock()
-            .map_err(|_| anyhow!("task start announcement lock poisoned"))?;
-        let mut stderr = io::stderr().lock();
-        writeln!(
-            stderr,
-            "{}: started",
-            canonical_task_label(&event.task_label)
-        )?;
-        stderr.flush()?;
-        Ok(())
     }
 
     fn record_history(
@@ -73,7 +50,9 @@ impl HistoryOutputObserver {
 
 impl TaskOutputObserver for HistoryOutputObserver {
     fn observe_output(&self, chunk: TaskOutputChunk) -> Result<()> {
-        self.inner.observe_output(chunk.clone())?;
+        if let Some(inner) = &self.inner {
+            inner.observe_output(chunk.clone())?;
+        }
         self.record_history(|writer| {
             writer.record_started(
                 &chunk.task_run_id,
@@ -85,11 +64,13 @@ impl TaskOutputObserver for HistoryOutputObserver {
     }
 
     fn observe_status(&self, event: TaskStatusEvent) -> Result<()> {
-        self.inner.observe_status(event)
+        if let Some(inner) = &self.inner {
+            inner.observe_status(event)?;
+        }
+        Ok(())
     }
 
     fn observe_task_started(&self, event: TaskStartedEvent) -> Result<()> {
-        self.announce_task_started(&event)?;
         self.record_history(|writer| {
             writer.record_started_event(&event, &canonical_task_label(&event.task_label))
         })

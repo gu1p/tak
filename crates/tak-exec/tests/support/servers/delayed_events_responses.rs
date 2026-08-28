@@ -68,6 +68,7 @@ pub fn event_response(call: usize) -> PollTaskEventsResponse {
                 message: None,
                 chunk: Some("pending\n".into()),
                 chunk_bytes: Vec::new(),
+                queue_position: None,
             }],
             done: false,
         }
@@ -82,6 +83,7 @@ pub fn event_response(call: usize) -> PollTaskEventsResponse {
                 message: None,
                 chunk: None,
                 chunk_bytes: Vec::new(),
+                queue_position: None,
             }],
             done: true,
         }

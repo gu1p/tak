@@ -2,6 +2,9 @@
 
 use crate::support;
 
+#[path = "run_visualization_contract.rs"]
+mod visualization_contract;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::process::Command as StdCommand;
@@ -48,7 +51,7 @@ SPEC
 }
 
 #[test]
-fn run_command_reports_task_start_before_silent_local_task() {
+fn run_command_reports_visual_running_state_for_silent_local_task() {
     let temp = tempfile::tempdir().expect("tempdir");
     fs::write(
         temp.path().join("TASKS.py"),
@@ -71,7 +74,7 @@ SPEC
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("//:silent: started"),
+        String::from_utf8_lossy(&output.stderr).contains("[running] //:silent@local"),
         "stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );

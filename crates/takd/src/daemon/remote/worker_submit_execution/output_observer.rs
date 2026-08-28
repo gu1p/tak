@@ -1,35 +1,22 @@
 use base64::Engine;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 const REMOTE_RESULT_TAIL_LIMIT_BYTES: usize = 4096;
 
 #[derive(Clone)]
 struct RemoteWorkerEventObserver {
-    store: SubmitAttemptStore,
-    idempotency_key: String,
-    next_seq: Arc<AtomicU64>,
+    events: RemoteWorkerEventWriter,
     stdout_tail: Arc<Mutex<Vec<u8>>>,
     stderr_tail: Arc<Mutex<Vec<u8>>>,
 }
 
 impl RemoteWorkerEventObserver {
-    fn new_with_next_seq(
-        store: SubmitAttemptStore,
-        idempotency_key: String,
-        next_seq: u64,
-    ) -> Self {
+    fn new(events: RemoteWorkerEventWriter) -> Self {
         Self {
-            store,
-            idempotency_key,
-            next_seq: Arc::new(AtomicU64::new(next_seq)),
+            events,
             stdout_tail: Arc::new(Mutex::new(Vec::new())),
             stderr_tail: Arc::new(Mutex::new(Vec::new())),
         }
-    }
-
-    fn claim_next_seq(&self) -> u64 {
-        self.next_seq.fetch_add(1, Ordering::SeqCst)
     }
 
     fn stdout_tail(&self) -> String {
@@ -55,20 +42,12 @@ impl TaskOutputObserver for RemoteWorkerEventObserver {
             OutputStream::Stdout => "TASK_STDOUT_CHUNK",
             OutputStream::Stderr => "TASK_STDERR_CHUNK",
         };
-        if let Err(error) = self.store.append_event(
-            &self.idempotency_key,
-            self.claim_next_seq(),
-            &serde_json::json!({
+        if let Err(error) = self.events.append(serde_json::json!({
                 "kind": kind,
                 "timestamp_ms": unix_epoch_ms(),
                 "chunk_base64": base64::engine::general_purpose::STANDARD.encode(&chunk.bytes),
-            })
-            .to_string(),
-        ) {
-            tracing::error!(
-                "failed to append {kind} event for submit {}: {error:#}",
-                self.idempotency_key
-            );
+            })) {
+            tracing::error!("failed to append {kind} event: {error:#}");
         }
         Ok(())
     }
@@ -76,16 +55,11 @@ impl TaskOutputObserver for RemoteWorkerEventObserver {
     fn observe_status(&self, event: TaskStatusEvent) -> Result<()> {
         append_tail_bytes(&self.stderr_tail, event.message.as_bytes());
         append_tail_bytes(&self.stderr_tail, b"\n");
-        self.store.append_event(
-            &self.idempotency_key,
-            self.claim_next_seq(),
-            &serde_json::json!({
+        self.events.append(serde_json::json!({
                 "kind": "TASK_STATUS",
                 "timestamp_ms": unix_epoch_ms(),
                 "message": event.message,
-            })
-            .to_string(),
-        )?;
+            }))?;
         Ok(())
     }
 }

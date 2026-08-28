@@ -24,7 +24,17 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
     if args.labels.is_empty() {
         bail!("run requires at least one label");
     }
+    let visualization = Arc::new(RunVisualizationObserver::new(args.jobs)?);
+    visualization.start_refresh()?;
+    let result = run_task_command_with_visualization(args, visualization.clone()).await;
+    visualization.finish_run(result.as_ref().err())?;
+    result
+}
 
+async fn run_task_command_with_visualization(
+    args: RunCliArgs,
+    visualization: Arc<RunVisualizationObserver>,
+) -> Result<()> {
     let spec = load_workspace_from_cwd()?;
     let targets = args
         .labels
@@ -32,9 +42,9 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         .map(|label| parse_input_label(&spec, label, "run"))
         .collect::<Result<Vec<_>>>()?;
     if warn_redundant_remote_container_flag(args.remote, args.container) {
-        eprintln!(
-            "warning: --container is redundant with --remote; remote execution already implies a container"
-        );
+        visualization.write_notice(
+            "warning: --container is redundant with --remote; remote execution already implies a container",
+        )?;
     }
     let spec = apply_run_execution_overrides(
         &spec,
@@ -59,15 +69,20 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
         lease_poll_interval_ms: 200,
         session_id: std::env::var("TAK_SESSION_ID").ok(),
         user: std::env::var("TAK_USER").ok(),
-        output_observer: Some(Arc::new(
-            HistoryOutputObserver::new_with_start_announcements(),
-        )),
+        output_observer: Some(visualization.clone()),
         cancellation: cancellation.clone(),
     };
-    let summary = run_tasks_until_interrupted(&spec, &targets, &options, cancellation).await?;
+    let summary = run_tasks_until_interrupted(
+        &spec,
+        &targets,
+        &options,
+        cancellation,
+        visualization.as_ref(),
+    )
+    .await?;
 
     for (label, result) in summary.results {
-        println!(
+        visualization.write_result_line(&format!(
             "{}: {} (task_run_id={}, attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={}, session={}, reuse={})",
             canonical_label(&label),
             if result.success { "ok" } else { "failed" },
@@ -85,9 +100,8 @@ pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
             result.remote_runtime_engine.as_deref().unwrap_or("none"),
             result.session_name.as_deref().unwrap_or("none"),
             result.session_reuse.as_deref().unwrap_or("none")
-        );
+        ))?;
     }
-
     Ok(())
 }
 
@@ -96,6 +110,7 @@ async fn run_tasks_until_interrupted(
     targets: &[tak_core::model::TaskLabel],
     options: &RunOptions,
     cancellation: RunCancellation,
+    visualization: &RunVisualizationObserver,
 ) -> Result<RunSummary> {
     let run = run_tasks(spec, targets, options);
     tokio::pin!(run);
@@ -103,7 +118,7 @@ async fn run_tasks_until_interrupted(
         result = &mut run => result,
         signal = tokio::signal::ctrl_c() => {
             if signal.is_ok() {
-                eprintln!("cancelling remote tasks...");
+                visualization.write_notice("cancelling tasks…")?;
             }
             cancellation.cancel();
             run.await

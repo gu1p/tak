@@ -6,6 +6,9 @@ use anyhow::Result;
 
 use crate::support;
 
+#[path = "run_visualization_framing_contract.rs"]
+mod visualization_framing_contract;
+
 use support::live_direct::{LiveDirectRoots, init_direct_agent, spawn_direct_agent};
 use support::live_direct_remote::add_remote;
 use support::live_direct_token::wait_for_token;

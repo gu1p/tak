@@ -38,8 +38,9 @@ impl TaskOutputObserver for StatusCollector {
     }
 
     fn observe_structured_status(&self, event: TaskStructuredStatusEvent) -> Result<()> {
+        let human = TaskStatusEvent::from(&event);
         self.structured.lock().unwrap().push(event);
-        Ok(())
+        self.observe_status(human)
     }
 }
 

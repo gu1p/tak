@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use futures::stream::{FuturesUnordered, StreamExt};
 
 use super::{ExecutionPlan, ScheduledUnit, ScheduledUnitKind};
@@ -9,6 +9,11 @@ use crate::engine::remote_selection::SharedRemoteSelectionState;
 use crate::engine::run_single_task::{RunSingleTaskContext, run_single_task};
 use crate::engine::session_workspaces::SharedExecutionSessionManager;
 use crate::engine::{LeaseContext, RunOptions, RunSummary, TaskRunResult};
+
+mod progress;
+mod status;
+use progress::{PlanProgress, handle_successful_unit};
+use status::SchedulerStatus;
 
 struct ScheduledOutcome {
     unit_id: usize,
@@ -29,12 +34,16 @@ pub(in crate::engine::run_tasks) async fn run_execution_plan(
     let mut running = FuturesUnordered::new();
     let mut completed = 0_usize;
     let mut terminal_error = None;
+    let mut status = SchedulerStatus::new(&plan, options.output_observer.as_ref())?;
+    status.sync_ready(&ready)?;
 
     while completed < plan.units.len() {
         while terminal_error.is_none()
             && running.len() < options.jobs
             && let Some(unit_id) = ready.pop_front()
         {
+            status.dispatch(unit_id)?;
+            status.sync_ready(&ready)?;
             running.push(run_scheduled_unit(
                 unit_id,
                 &plan.units[unit_id],
@@ -51,56 +60,48 @@ pub(in crate::engine::run_tasks) async fn run_execution_plan(
         };
         completed += 1;
         match outcome.result {
-            Ok(result) => handle_successful_unit(
-                outcome.unit_id,
-                result,
-                &plan,
-                options,
-                PlanProgress {
-                    terminal_error: &mut terminal_error,
-                    remaining_deps: &mut remaining_deps,
-                    ready: &mut ready,
-                    summary,
-                },
-            ),
+            Ok(result) => {
+                if !result.success {
+                    status.failure(outcome.unit_id, "scheduled execution unit failed")?;
+                }
+                handle_successful_unit(
+                    outcome.unit_id,
+                    result,
+                    &plan,
+                    options,
+                    PlanProgress {
+                        terminal_error: &mut terminal_error,
+                        remaining_deps: &mut remaining_deps,
+                        ready: &mut ready,
+                        summary,
+                    },
+                )
+            }
             Err(err) => {
+                status.failure(
+                    outcome.unit_id,
+                    format!("scheduled execution failed: {err:#}"),
+                )?;
                 if terminal_error.is_none() {
                     terminal_error = Some(err);
                     ready.clear();
                 }
             }
         }
+        status.sync_ready(&ready)?;
+        if terminal_error.is_some() {
+            status.cancel_undispatched("cancelled by fail-fast scheduling")?;
+        }
+    }
+
+    if completed < plan.units.len() {
+        status.cancel_undispatched("cancelled because a dependency did not succeed")?;
     }
 
     if let Some(err) = terminal_error {
         return Err(err);
     }
     Ok(())
-}
-
-fn handle_successful_unit(
-    unit_id: usize,
-    result: TaskRunResult,
-    plan: &ExecutionPlan,
-    options: &RunOptions,
-    progress: PlanProgress<'_>,
-) {
-    let PlanProgress {
-        terminal_error,
-        remaining_deps,
-        ready,
-        summary,
-    } = progress;
-    let failed = !result.success;
-    insert_unit_result(summary, &plan.units[unit_id], result.clone());
-    if failed {
-        if !options.keep_going && terminal_error.is_none() {
-            *terminal_error = Some(task_failed_error(&plan.units[unit_id], &result));
-            ready.clear();
-        }
-        return;
-    }
-    release_dependents(unit_id, plan, remaining_deps, ready);
 }
 
 fn ready_units(remaining_deps: &[usize]) -> VecDeque<usize> {
@@ -155,38 +156,4 @@ async fn run_scheduled_unit(
         }
     };
     ScheduledOutcome { unit_id, result }
-}
-
-fn insert_unit_result(summary: &mut RunSummary, unit: &ScheduledUnit, result: TaskRunResult) {
-    for label in &unit.labels {
-        summary.results.insert(label.clone(), result.clone());
-    }
-}
-
-fn release_dependents(
-    unit_id: usize,
-    plan: &ExecutionPlan,
-    remaining_deps: &mut [usize],
-    ready: &mut VecDeque<usize>,
-) {
-    for dependent in &plan.dependents[unit_id] {
-        remaining_deps[*dependent] -= 1;
-        if remaining_deps[*dependent] == 0 {
-            ready.push_back(*dependent);
-        }
-    }
-}
-
-struct PlanProgress<'a> {
-    terminal_error: &'a mut Option<anyhow::Error>,
-    remaining_deps: &'a mut [usize],
-    ready: &'a mut VecDeque<usize>,
-    summary: &'a mut RunSummary,
-}
-
-fn task_failed_error(unit: &ScheduledUnit, result: &TaskRunResult) -> anyhow::Error {
-    if let Some(detail) = result.failure_detail.as_deref() {
-        return anyhow!("task {} failed: {detail}", unit.root);
-    }
-    anyhow::anyhow!("task {} failed", unit.root)
 }
