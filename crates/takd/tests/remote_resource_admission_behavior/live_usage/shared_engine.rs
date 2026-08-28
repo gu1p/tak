@@ -1,24 +1,12 @@
-#![allow(clippy::await_holding_lock)]
-
 use std::collections::BTreeMap;
-use std::time::{Duration, Instant};
 
-use takd::SubmitAttemptStore;
-use takd::daemon::remote::run_remote_v1_http_server;
-use tokio::net::TcpListener;
-
-use crate::support::fake_docker_daemon::{FakeDockerConfig, FakeDockerDaemon};
-use crate::support::remote_container::configure_fake_docker_env;
-use crate::support::remote_output::test_context_with_runtime;
-
-use super::status;
+use super::*;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn paused_tak_container_remains_in_usage_attribution() {
+async fn measured_tak_usage_excludes_another_node_on_the_same_engine() {
     let _env_lock = crate::support::env::env_lock();
     let mut env = crate::support::env::EnvGuard::default();
     let temp = tempfile::tempdir().expect("tempdir");
-    let tmpdir = temp.path().join("tmp-root");
     let measured_bytes = 4 * 1024 * 1024;
     let daemon = FakeDockerDaemon::spawn(
         temp.path(),
@@ -27,16 +15,18 @@ async fn paused_tak_container_remains_in_usage_attribution() {
             ..Default::default()
         },
     );
-    daemon.add_paused_container(
-        "paused-tak",
+    let labels = |node_id: &str, submit_key: &str| {
         BTreeMap::from([
-            ("tak.owner".into(), "takd".into()),
-            ("tak.node_id".into(), "builder-a".into()),
-            ("tak.submit_key".into(), "paused-run:1".into()),
-        ]),
-    );
+            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.node_id".to_string(), node_id.to_string()),
+            ("tak.submit_key".to_string(), submit_key.to_string()),
+        ])
+    };
+    // Paused containers remain measurable but are protected from the cleanup
+    // sweep that starts alongside the usage sampler.
+    daemon.add_paused_container("owned", labels("builder-a", "owned:1"));
+    daemon.add_paused_container("foreign", labels("builder-b", "foreign:1"));
     let runtime = configure_fake_docker_env(temp.path(), daemon.socket_path(), &mut env)
-        .with_explicit_remote_exec_root(tmpdir.join("takd-remote-exec"))
         .with_skip_exec_root_probe(true)
         .build();
     let context = test_context_with_runtime(runtime);
@@ -48,17 +38,19 @@ async fn paused_tak_container_remains_in_usage_attribution() {
         context.clone(),
     ));
 
-    let deadline = Instant::now() + Duration::from_secs(2);
-    loop {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let sampled_usage = loop {
         let usage = status(&context, &store)
             .resource_envelope
             .map(|envelope| envelope.tak_usage_memory_bytes)
             .unwrap_or_default();
-        if usage >= measured_bytes {
-            break;
+        if usage > 0 {
+            break usage;
         }
-        assert!(Instant::now() < deadline, "paused Tak usage was omitted");
+        assert!(Instant::now() < deadline, "usage sample was not published");
         tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    };
+
+    assert_eq!(sampled_usage, measured_bytes);
     server.abort();
 }

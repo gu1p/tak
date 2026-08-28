@@ -150,6 +150,7 @@ pub(crate) fn resolve_runtime_execution_metadata_for_node_runtime_with_workspace
             Ok(Some(RuntimeExecutionMetadata {
                 kind: "containerized".to_string(),
                 engine: Some(engine_name),
+                node_id: node_id.to_string(),
                 env_overrides,
                 container_plan,
                 container_identity: None,

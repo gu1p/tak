@@ -24,3 +24,5 @@ mod emergency_capacity;
 mod fused_container_oom_retry;
 #[path = "remote_memory_pressure_recovery_behavior.rs"]
 mod memory_pressure_recovery;
+#[path = "remote_shared_docker_node_isolation_behavior.rs"]
+mod shared_docker_node_isolation;

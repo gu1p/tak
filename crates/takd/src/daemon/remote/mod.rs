@@ -18,6 +18,7 @@ use zip::read::ZipArchive;
 
 mod active_executions;
 mod cleanup_janitor;
+mod container_ownership;
 mod execution_root;
 #[cfg(test)]
 mod http2_roundtrip_support;

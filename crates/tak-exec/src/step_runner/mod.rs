@@ -38,6 +38,7 @@ pub(crate) struct StepRunContext<'a> {
     pub(crate) output_observer: Option<&'a Arc<dyn TaskOutputObserver>>,
     pub(crate) cancellation: &'a RunCancellation,
     pub(crate) container_identity: Option<&'a ContainerExecutionIdentity>,
+    pub(crate) container_node_id: Option<&'a str>,
 }
 
 type OutputRelayTask = Option<tokio::task::JoinHandle<Result<()>>>;

@@ -3,19 +3,23 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{Context, Result, anyhow};
-use bollard::container::{ListContainersOptions, Stats, StatsOptions};
-use bollard::{API_DEFAULT_VERSION, Docker};
+use bollard::Docker;
+use bollard::container::{Stats, StatsOptions};
 use futures::StreamExt;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
+use super::RemoteNodeContext;
 use super::resource_admission::{ResourceCapacity, SharedResourceAdmission};
 use super::runtime::RemoteRuntimeConfig;
 use super::status_resources::{host_cpu_cores_used, non_tak_cpu_cores, non_tak_memory_bytes};
 
+mod docker;
 mod stats;
 #[path = "tak_container_usage_tests.rs"]
 mod tests;
 
+pub(super) use docker::connect_docker_client;
+use docker::list_active_takd_containers;
 use stats::sample_container_usage;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -55,13 +59,24 @@ impl SharedTakContainerUsage {
 }
 
 pub(crate) fn spawn_tak_container_usage_sampler(
-    runtime_config: RemoteRuntimeConfig,
-    usage: SharedTakContainerUsage,
-    admission: SharedResourceAdmission,
+    context: RemoteNodeContext,
 ) -> tokio::task::JoinHandle<()> {
+    let runtime_config = context.runtime_config();
+    let usage = context.tak_container_usage();
+    let admission = context.resource_admission();
+    let node_id = context.node_info().map(|node| node.node_id);
     let sample_containers = !tak_core::mock::mock_container_enabled();
     let ignore_host_usage = runtime_config.ignore_host_usage_for_tests() || !sample_containers;
     tokio::spawn(async move {
+        let node_id = match node_id {
+            Ok(node_id) => node_id,
+            Err(error) => {
+                tracing::error!(
+                    "Tak container resource sampler cannot read node identity: {error}"
+                );
+                return;
+            }
+        };
         let mut host = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_cpu(CpuRefreshKind::everything())
@@ -73,7 +88,7 @@ pub(crate) fn spawn_tak_container_usage_sampler(
         loop {
             ticker.tick().await;
             if sample_containers {
-                match sample_tak_container_usage(&runtime_config).await {
+                match sample_tak_container_usage(&runtime_config, &node_id).await {
                     Ok(sample) => {
                         usage.update(sample);
                     }
@@ -127,9 +142,10 @@ fn update_host_usage(
 
 async fn sample_tak_container_usage(
     runtime_config: &RemoteRuntimeConfig,
+    node_id: &str,
 ) -> Result<TakContainerUsageSnapshot> {
     let docker = connect_docker_client(runtime_config).await?;
-    let containers = list_active_takd_containers(&docker).await?;
+    let containers = list_active_takd_containers(&docker, node_id).await?;
     let mut total = TakContainerUsageSnapshot {
         attribution_complete: true,
         ..TakContainerUsageSnapshot::default()
@@ -158,39 +174,4 @@ async fn sample_tak_container_usage(
         }
     }
     Ok(total)
-}
-
-pub(super) async fn connect_docker_client(runtime_config: &RemoteRuntimeConfig) -> Result<Docker> {
-    let docker = if let Some(host) = runtime_config.docker_host() {
-        if host.starts_with("unix://") || host.starts_with('/') {
-            Docker::connect_with_unix(host, 120, API_DEFAULT_VERSION)?
-        } else if host.starts_with("tcp://") || host.starts_with("http://") {
-            Docker::connect_with_http(host, 120, API_DEFAULT_VERSION)?
-        } else {
-            Docker::connect_with_local_defaults()?
-        }
-    } else {
-        Docker::connect_with_local_defaults()?
-    };
-    docker.ping().await?;
-    Ok(docker)
-}
-
-async fn list_active_takd_containers(
-    docker: &Docker,
-) -> Result<Vec<bollard::models::ContainerSummary>> {
-    let mut filters = HashMap::new();
-    filters.insert("label".to_string(), vec!["tak.owner=takd".to_string()]);
-    filters.insert(
-        "status".to_string(),
-        vec!["running".to_string(), "paused".to_string()],
-    );
-    docker
-        .list_containers(Some(ListContainersOptions {
-            all: true,
-            filters,
-            ..Default::default()
-        }))
-        .await
-        .context("list active takd-owned containers")
 }

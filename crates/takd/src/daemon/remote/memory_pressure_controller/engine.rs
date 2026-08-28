@@ -6,10 +6,17 @@ use bollard::container::ListContainersOptions;
 use bollard::models::ContainerSummary;
 
 use super::policy::ManagedContainer;
+use crate::daemon::remote::container_ownership;
 
-pub(super) fn managed_containers(summaries: &[ContainerSummary]) -> Vec<ManagedContainer> {
+pub(super) fn managed_containers(
+    summaries: &[ContainerSummary],
+    node_id: &str,
+) -> Vec<ManagedContainer> {
     summaries
         .iter()
+        .filter(|summary| {
+            container_ownership::labels_belong_to_node(summary.labels.as_ref(), node_id)
+        })
         .filter_map(|summary| {
             let id = summary.id.clone()?;
             let created = summary.created.unwrap_or(0);
@@ -29,9 +36,12 @@ pub(super) fn managed_containers(summaries: &[ContainerSummary]) -> Vec<ManagedC
         .collect()
 }
 
-pub(super) async fn list_managed_takd_containers(docker: &Docker) -> Result<Vec<ContainerSummary>> {
+pub(super) async fn list_managed_takd_containers(
+    docker: &Docker,
+    node_id: &str,
+) -> Result<Vec<ContainerSummary>> {
     let mut filters = HashMap::new();
-    filters.insert("label".to_string(), vec!["tak.owner=takd".to_string()]);
+    container_ownership::add_node_ownership_filter(&mut filters, node_id);
     filters.insert(
         "status".to_string(),
         vec!["running".to_string(), "paused".to_string()],

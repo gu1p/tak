@@ -58,6 +58,7 @@ async fn container_janitor_removes_inactive_takd_containers_only() {
 fn takd_labels(submit_key: &str) -> BTreeMap<String, String> {
     BTreeMap::from([
         ("tak.owner".to_string(), "takd".to_string()),
+        ("tak.node_id".to_string(), "builder-a".to_string()),
         ("tak.submit_key".to_string(), submit_key.to_string()),
     ])
 }

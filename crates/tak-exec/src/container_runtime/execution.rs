@@ -127,6 +127,9 @@ fn container_labels(run_context: &ContainerStepRunContext<'_>) -> Option<HashMap
             run_context.task_label.to_string(),
         ),
     ]);
+    if let Some(node_id) = run_context.container_node_id {
+        labels.insert("tak.node_id".to_string(), node_id.to_string());
+    }
     // A nonzero step timeout is wall-clock: the daemon must not pause such a
     // container (its timeout keeps running while frozen). Expose it as a label
     // so the memory-pressure controller can skip it.

@@ -15,6 +15,8 @@ use super::{status, submit};
 
 #[path = "live_usage/paused.rs"]
 mod paused;
+#[path = "live_usage/shared_engine.rs"]
+mod shared_engine;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn measured_tak_usage_queues_new_elastic_work() {

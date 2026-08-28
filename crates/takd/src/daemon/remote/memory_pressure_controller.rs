@@ -37,7 +37,11 @@ async fn run_memory_pressure_tick(
     record_pressure_before_engine_work(context, state)?;
 
     let docker = connect_docker_client(runtime_config).await?;
-    let managed = managed_containers(&list_managed_takd_containers(&docker).await?);
+    let node_id = context.node_info()?.node_id;
+    let managed = managed_containers(
+        &list_managed_takd_containers(&docker, &node_id).await?,
+        &node_id,
+    );
     let (paused, running): (Vec<ManagedContainer>, Vec<ManagedContainer>) =
         managed.into_iter().partition(|container| container.paused);
     let action = decide(state, &running, &paused, settings.min_running);

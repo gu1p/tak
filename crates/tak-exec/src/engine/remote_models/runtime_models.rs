@@ -9,6 +9,7 @@ use crate::container_engine::ContainerEngine;
 pub(crate) struct RuntimeExecutionMetadata {
     pub(crate) kind: String,
     pub(crate) engine: Option<String>,
+    pub(crate) node_id: String,
     pub(crate) env_overrides: BTreeMap<String, String>,
     pub(crate) container_plan: Option<ContainerExecutionPlan>,
     pub(crate) container_identity: Option<super::super::ContainerExecutionIdentity>,

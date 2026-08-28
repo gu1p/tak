@@ -11,6 +11,7 @@ fn managed_containers_parses_timeout_running_and_paused_state() {
         state: Some("running".to_string()),
         labels: Some(std::collections::HashMap::from([
             ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.node_id".to_string(), "builder-a".to_string()),
             ("tak.timeout_s".to_string(), "30".to_string()),
         ])),
         ..Default::default()
@@ -19,10 +20,13 @@ fn managed_containers_parses_timeout_running_and_paused_state() {
         id: Some("c2".to_string()),
         created: Some(7),
         state: Some("paused".to_string()),
-        labels: Some(std::collections::HashMap::new()),
+        labels: Some(std::collections::HashMap::from([
+            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.node_id".to_string(), "builder-a".to_string()),
+        ])),
         ..Default::default()
     };
-    let parsed = managed_containers(&[running_summary, paused_summary]);
+    let parsed = managed_containers(&[running_summary, paused_summary], "builder-a");
     assert_eq!(
         parsed,
         vec![
@@ -48,19 +52,23 @@ fn managed_containers_treats_zero_or_missing_timeout_as_pausable() {
         id: Some("z".to_string()),
         created: Some(1),
         state: Some("running".to_string()),
-        labels: Some(std::collections::HashMap::from([(
-            "tak.timeout_s".to_string(),
-            "0".to_string(),
-        )])),
+        labels: Some(std::collections::HashMap::from([
+            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.node_id".to_string(), "builder-a".to_string()),
+            ("tak.timeout_s".to_string(), "0".to_string()),
+        ])),
         ..Default::default()
     };
     let missing = ContainerSummary {
         id: Some("m".to_string()),
         created: Some(2),
         state: Some("running".to_string()),
-        labels: Some(std::collections::HashMap::new()),
+        labels: Some(std::collections::HashMap::from([
+            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.node_id".to_string(), "builder-a".to_string()),
+        ])),
         ..Default::default()
     };
-    let parsed = managed_containers(&[zero, missing]);
+    let parsed = managed_containers(&[zero, missing], "builder-a");
     assert!(parsed.iter().all(|container| !container.has_timeout));
 }

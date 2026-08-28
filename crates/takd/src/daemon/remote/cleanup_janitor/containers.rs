@@ -12,13 +12,14 @@ pub(super) async fn cleanup_inactive_takd_containers(
     context: &RemoteNodeContext,
     active_jobs: &BTreeSet<String>,
 ) -> Result<()> {
+    let node_id = context.node_info()?.node_id;
     let docker = connect_cleanup_docker_client(&context.runtime_config())
         .await
         .context("connect container engine for remote container cleanup")?;
-    let containers = list_takd_containers(&docker).await?;
+    let containers = list_takd_containers(&docker, &node_id).await?;
     for container in containers {
         let labels = container.labels.unwrap_or_default();
-        if labels.get("tak.owner").map(String::as_str) != Some("takd") {
+        if !container_ownership::labels_belong_to_node(Some(&labels), &node_id) {
             continue;
         }
         if container.state.as_deref() == Some("paused") {
@@ -61,9 +62,12 @@ async fn connect_cleanup_docker_client(runtime_config: &RemoteRuntimeConfig) -> 
     Ok(docker)
 }
 
-async fn list_takd_containers(docker: &Docker) -> Result<Vec<bollard::models::ContainerSummary>> {
+async fn list_takd_containers(
+    docker: &Docker,
+    node_id: &str,
+) -> Result<Vec<bollard::models::ContainerSummary>> {
     let mut filters = HashMap::new();
-    filters.insert("label".to_string(), vec!["tak.owner=takd".to_string()]);
+    container_ownership::add_node_ownership_filter(&mut filters, node_id);
     docker
         .list_containers(Some(ListContainersOptions {
             all: true,

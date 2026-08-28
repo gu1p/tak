@@ -33,6 +33,7 @@ fn cleanup_janitor_does_not_reap_active_containers_on_another_daemon() {
             "container-1",
             BTreeMap::from([
                 ("tak.owner".to_string(), "takd".to_string()),
+                ("tak.node_id".to_string(), "other-builder".to_string()),
                 ("tak.submit_key".to_string(), "other-job:1".to_string()),
             ]),
         );

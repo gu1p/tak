@@ -14,11 +14,7 @@ pub(crate) fn spawn_remote_runtime_services(context: RemoteNodeContext, store: S
     tokio::spawn(supervise_runtime_services(move || {
         let mut services = spawn_remote_cleanup_janitor(context.clone(), store.clone());
         services.push(spawn_remote_orphan_watchdog(context.clone()));
-        services.push(spawn_tak_container_usage_sampler(
-            context.runtime_config(),
-            context.tak_container_usage(),
-            context.resource_admission(),
-        ));
+        services.push(spawn_tak_container_usage_sampler(context.clone()));
         if let Some(service) = spawn_memory_pressure_controller(context.clone()) {
             services.push(service);
         }

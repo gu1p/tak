@@ -16,6 +16,7 @@ pub(super) struct ContainerStepRunContext<'a> {
     pub(super) container_user: Option<&'a str>,
     pub(super) cancellation: &'a RunCancellation,
     pub(super) container_identity: Option<&'a crate::ContainerExecutionIdentity>,
+    pub(super) container_node_id: Option<&'a str>,
     /// Wall-clock step timeout, surfaced as a `tak.timeout_s` container label so
     /// the daemon's memory-pressure controller can avoid pausing a container
     /// whose timeout keeps counting while frozen (which would fail the step).

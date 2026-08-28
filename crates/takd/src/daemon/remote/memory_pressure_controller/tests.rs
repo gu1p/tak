@@ -6,6 +6,8 @@ use super::policy::ManagedContainer;
 mod decisions;
 #[path = "../memory_pressure_controller_tests/engine_mapping_tests.rs"]
 mod engine_mapping;
+#[path = "../memory_pressure_controller_tests/engine_ownership_tests.rs"]
+mod engine_ownership;
 #[path = "../memory_pressure_controller_tests/selection_tests.rs"]
 mod selection;
 #[path = "../memory_pressure_controller_tests/thresholds_tests.rs"]

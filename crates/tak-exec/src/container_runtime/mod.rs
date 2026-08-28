@@ -57,6 +57,7 @@ pub(crate) async fn run_task_steps_in_container(
         container_user: plan.container_user.as_deref(),
         cancellation: context.cancellation,
         container_identity: context.container_identity,
+        container_node_id: context.container_node_id,
         timeout_s: task.timeout_s,
     };
     let executor = ContainerStepExecutor {
