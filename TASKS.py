@@ -9,6 +9,11 @@ CARGO_SHARED_ENV_SCRIPT = (
 
 CARGO_CHECK_LOCK = "cargo-check-workspace"
 
+AXIOM_INSTALL_COMMAND = (
+    "curl --proto '=https' --tlsv1.2 -LsSf "
+    "https://raw.githubusercontent.com/gu1p/axiom/main/install.sh | sh"
+)
+
 
 def cargo_needs():
     return [need(CARGO_CHECK_LOCK, 1, scope=Scope.Worktree)]
@@ -58,7 +63,18 @@ CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
     doc="Run check tasks in a shared remote-first test workspace container.",
 )
 
-
+CHECK_PARALLEL_POLICY = Execution.FirstAvailable(
+    placements=[
+        Execution.Remote(
+            required_tags=["builder"],
+            required_capabilities=["linux"],
+            container=CHECK_CONTAINER,
+            selection=RemoteSelection.Shuffle(),
+        ),
+        Execution.Local(),
+    ],
+    doc="Spread independent check tasks across available builders.",
+)
 def release_build_task(name, target, build_mode):
     return task(
         name,
@@ -163,13 +179,13 @@ SPEC = module_spec(
         ),
         task(
             "native-dead-code-install",
-            doc="Install the pinned Rust toolchain and Hawk dead-code analyzer.",
+            doc="Install the Axiom code analyzer.",
             needs=cargo_needs(),
             steps=[
-                script(
-                    "scripts/native_dead_code.sh",
-                    "install",
-                    interpreter="bash",
+                cmd(
+                    "sh",
+                    "-c",
+                    AXIOM_INSTALL_COMMAND,
                 )
             ],
         ),
@@ -178,13 +194,7 @@ SPEC = module_spec(
             doc="Find Rust declarations reachable only from tests.",
             deps=[":native-dead-code-install"],
             needs=cargo_needs(),
-            steps=[
-                script(
-                    "scripts/native_dead_code.sh",
-                    "check",
-                    interpreter="bash",
-                )
-            ],
+            steps=[cmd("axiom", "check", "--dead-code")],
         ),
         task(
             "lint",
@@ -256,6 +266,23 @@ SPEC = module_spec(
         PACKAGE_RELEASE_AARCH64_UNKNOWN_LINUX_MUSL,
         PACKAGE_RELEASE_X86_64_APPLE_DARWIN,
         PACKAGE_RELEASE_AARCH64_APPLE_DARWIN,
+        task(
+            "check-parallel",
+            doc="Run every check with independent remote placement.",
+            context=CHECK_CONTEXT,
+            outputs=[],
+            deps=[
+                ":fmt-check",
+                ":line-limits-check",
+                ":src-test-separation-check",
+                ":workflow-contract-check",
+                ":generated-artifact-ignore-check",
+                ":native-dead-code",
+                ":check-rust",
+            ],
+            execution=CHECK_PARALLEL_POLICY,
+            cascade_execution=True,
+        ),
         task(
             "check",
             context=CHECK_CONTEXT,

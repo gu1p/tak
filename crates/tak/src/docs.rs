@@ -90,6 +90,10 @@ pub(crate) fn render_docs_dump() -> Result<String> {
         let _ = writeln!(output, "- `{crate_name}`: {}", docs.trim());
     }
     output.push('\n');
+
+    output.push_str("## Authoring Workflow\n\n");
+    output.push_str(authoring_workflow.trim());
+    output.push_str("\n\n");
     output.push_str("## CLI Surface\n\n");
     for entry in cli_docs {
         let _ = writeln!(output, "### `{}`\n", entry.path);
@@ -128,10 +132,6 @@ pub(crate) fn render_docs_dump() -> Result<String> {
         let source_docs = extract_example_source_docs(sources);
         render_example_entry(&mut output, entry, &source_docs, sources);
     }
-
-    output.push_str("## Authoring Workflow\n\n");
-    output.push_str(authoring_workflow.trim());
-    output.push('\n');
 
     Ok(with_trailing_newline(output))
 }

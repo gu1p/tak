@@ -1,0 +1,2515 @@
+version = 1
+
+[sources]
+include = ["**/*.rs"]
+exclude = []
+test = ["**/tests.rs", "**/*_test.rs", "**/*_tests.rs", "**/tests/**/*.rs"]
+
+[tools.clippy]
+enabled = true
+profile = "axiom"
+check-docs = true
+targets = "all"
+features = "default"
+warnings = "deny"
+# Generated from Clippy 1.98.0 (`clippy-driver -W help`).
+# Regenerate this catalog when the pinned Rust toolchain changes.
+[tools.clippy.lints]
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::absolute_paths" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::absurd_extreme_comparisons" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::alloc_instead_of_core" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::allow_attributes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::allow_attributes_without_reason" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::almost_complete_range" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::almost_swapped" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::approx_constant" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::arbitrary_source_item_ordering" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::arc_with_non_send_sync" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::arithmetic_side_effects" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::as_conversions" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::as_pointer_underscore" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::as_ptr_cast_mut" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::as_underscore" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::assertions_on_constants" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::assertions_on_result_states" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::assign_op_pattern" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::assigning_clones" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::async_yields_async" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::await_holding_invalid_type" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::await_holding_lock" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::await_holding_refcell_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bad_bit_mask" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::big_endian_bytes" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bind_instead_of_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::blanket_clippy_restriction_lints" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::blocks_in_conditions" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bool_assert_comparison" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bool_comparison" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bool_to_int_with_if" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::borrow_as_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::borrow_deref_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::borrow_interior_mutable_const" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::borrowed_box" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::box_collection" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::box_default" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::boxed_local" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::branches_sharing_code" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::builtin_type_shadow" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::by_ref_peekable_peek" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::byte_char_slices" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bytes_count_to_len" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::bytes_nth" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cargo_common_metadata" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::case_sensitive_file_extension_comparisons" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_abs_to_unsigned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_enum_constructor" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_enum_truncation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_lossless" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_nan_to_int" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_possible_truncation" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_possible_wrap" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_precision_loss" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_ptr_alignment" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_sign_loss" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_slice_different_sizes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cast_slice_from_raw_parts" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cfg_not_test" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::char_indices_as_byte_indices" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::char_lit_as_u8" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::chars_last_cmp" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::chars_next_cmp" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::checked_conversions" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::chunks_exact_to_as_chunks" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::clear_with_drain" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::clone_on_copy" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::clone_on_ref_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cloned_instead_of_copied" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cloned_ref_to_slice_refs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cmp_null" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cmp_owned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::coerce_container_to_any" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::cognitive_complexity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::collapsible_else_if" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::collapsible_if" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::collapsible_match" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::collapsible_str_replace" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::collection_is_never_read" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::comparison_chain" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::comparison_to_empty" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::confusing_method_to_numeric_cast" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::const_is_empty" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::copy_iterator" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::crate_in_macro_def" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::create_dir" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::crosspointer_transmute" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::dbg_macro" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::debug_assert_with_mut_call" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::decimal_bitwise_operands" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::decimal_literal_representation" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::declare_interior_mutable_const" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::default_constructed_unit_structs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::default_instead_of_iter_empty" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::default_numeric_fallback" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::default_trait_access" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::default_union_representation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::deprecated_cfg_attr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::deprecated_clippy_cfg_attr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::deprecated_semver" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::deref_addrof" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::deref_by_slicing" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::derivable_impls" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::derive_ord_xor_partial_ord" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::derive_partial_eq_without_eq" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::derived_hash_with_manual_eq" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::disallowed_fields" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::disallowed_macros" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::disallowed_methods" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::disallowed_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::disallowed_script_idents" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::disallowed_types" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::diverging_sub_expression" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_broken_link" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_comment_double_space_linebreaks" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_include_without_cfg" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_lazy_continuation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_link_code" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_link_with_quotes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_markdown" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_nested_refdefs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_overindented_list_items" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_paragraphs_missing_punctuation" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::doc_suspicious_footnotes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::double_comparisons" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::double_ended_iterator_last" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::double_must_use" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::double_parens" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::drain_collect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::drop_non_drop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::duplicate_mod" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::duplicate_underscore_argument" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::duplicated_attributes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::duration_suboptimal_units" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::duration_subsec" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::eager_transmute" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::elidable_lifetime_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::else_if_without_else" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_docs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_drop" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_enum_variants_with_brackets" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_enums" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_line_after_doc_comments" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_line_after_outer_attr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::empty_structs_with_brackets" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::enum_clike_unportable_variant" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::enum_glob_use" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::enum_variant_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::eq_op" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::equatable_if_let" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::erasing_op" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::err_expect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::error_impl_error" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::excessive_nesting" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::excessive_precision" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::exhaustive_enums" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::exhaustive_structs" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::exit" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::expect_fun_call" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::expect_used" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::expl_impl_clone_on_copy" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::explicit_auto_deref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::explicit_counter_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::explicit_deref_methods" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::explicit_into_iter_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::explicit_iter_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::explicit_write" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::extend_with_drain" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::extra_unused_lifetimes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::extra_unused_type_parameters" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::fallible_impl_from" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::field_reassign_with_default" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::field_scoped_visibility_modifiers" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::filetype_is_file" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::filter_map_bool_then" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::filter_map_identity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::filter_map_next" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::filter_next" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::flat_map_identity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::flat_map_option" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::float_arithmetic" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::float_cmp" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::float_cmp_const" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::float_equality_without_abs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::fn_params_excessive_bools" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::fn_to_numeric_cast" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::fn_to_numeric_cast_any" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::fn_to_numeric_cast_with_truncation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::for_kv_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::for_unbounded_range" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::forget_non_drop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::format_collect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::format_in_format_args" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::format_push_string" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::four_forward_slashes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::from_over_into" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::from_raw_with_void_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::from_str_radix_10" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::future_not_send" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::get_first" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::get_last_with_len" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::get_unwrap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::host_endian_bytes" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::identity_op" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::if_let_mutex" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::if_not_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::if_same_then_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::if_then_some_else_none" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ifs_same_cond" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ignore_without_reason" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ignored_unit_patterns" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::impl_hash_borrow_with_str_and_bytes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::impl_trait_in_params" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::implicit_clone" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::implicit_hasher" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::implicit_return" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::implicit_saturating_add" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::implicit_saturating_sub" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::implied_bounds_in_impls" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::impossible_comparisons" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::imprecise_flops" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::incompatible_msrv" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inconsistent_digit_grouping" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inconsistent_struct_constructor" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::index_refutable_slice" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::indexing_slicing" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ineffective_bit_mask" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ineffective_open_options" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inefficient_to_string" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::infallible_destructuring_match" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::infallible_try_from" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::infinite_iter" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::infinite_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inherent_to_string" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inherent_to_string_shadow_display" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::init_numbered_fields" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inline_always" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inline_asm_x86_att_syntax" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inline_asm_x86_intel_syntax" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inline_fn_without_body" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inline_modules" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inline_trait_bounds" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inspect_for_each" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::int_plus_one" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::integer_division" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::integer_division_remainder_used" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::into_iter_on_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::into_iter_without_iter" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::invalid_regex" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::invalid_upcast_comparisons" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::inverted_saturating_sub" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::invisible_characters" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::io_other_error" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ip_constant" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::is_digit_ascii_radix" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::items_after_statements" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::items_after_test_module" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_cloned_collect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_count" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_filter_is_ok" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_filter_is_some" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_kv_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_next_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_next_slice" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_not_returning_iterator" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_nth" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_nth_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_on_empty_collections" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_on_single_items" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_out_of_bounds" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_over_hash_type" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_overeager_cloned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_skip_next" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_skip_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_with_drain" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iter_without_into_iter" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::iterator_step_by_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::join_absolute_paths" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::just_underscores_and_digits" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_const_arrays" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_digit_groups" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_enum_variant" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_futures" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_include_file" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_stack_arrays" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_stack_frames" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::large_types_passed_by_value" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::legacy_numeric_constants" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::len_without_is_empty" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::len_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_and_return" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_underscore_future" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_underscore_lock" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_underscore_must_use" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_underscore_untyped" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_unit_value" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::let_with_type_underscore" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::lines_filter_map_ok" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::linkedlist" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::lint_groups_priority" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::literal_string_with_formatting_args" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::little_endian_bytes" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::lossy_float_literal" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::macro_metavars_in_unsafe" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::macro_use_imports" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::main_recursion" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_abs_diff" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_assert" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_assert_eq" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_async_fn" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_bits" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_c_str_literals" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_checked_ops" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_clamp" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_clear" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_contains" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_dangling_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_div_ceil" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_filter" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_filter_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_find" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_find_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_flatten" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_hash_one" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_ignore_case_cmp" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_ilog2" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_inspect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_instant_elapsed" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_is_ascii_check" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_is_finite" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_is_infinite" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_is_multiple_of" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_is_power_of_two" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_is_variant_and" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_isolate_lowest_one" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_let_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_main_separator_str" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_memcpy" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_midpoint" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_next_back" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_non_exhaustive" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_noop_waker" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_ok_err" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_ok_or" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_option_as_slice" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_option_zip" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_pattern_char_comparison" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_pop_if" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_range_contains" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_range_patterns" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_rem_euclid" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_repeat_n" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_retain" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_rotate" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_saturating_arithmetic" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_slice_fill" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_slice_size_calculation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_split_once" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_str_repeat" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_string_new" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_strip" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_swap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_take" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_try_fold" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_unwrap_or" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_unwrap_or_default" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::manual_while_let_some" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::many_single_char_names" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_all_any_identity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_clone" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_collect_result_unit" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_entry" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_err_ignore" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_flatten" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_identity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_or_identity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_unwrap_or" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::map_with_unused_argument_over_ranges" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_as_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_bool" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_like_matches_macro" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_overlapping_arm" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_ref_pats" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_result_ok" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_same_arms" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_single_binding" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_str_case_mismatch" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_wild_err_arm" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::match_wildcard_for_single_variants" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::maybe_infinite_iter" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mem_forget" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mem_replace_option_with_none" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mem_replace_option_with_some" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mem_replace_with_default" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mem_replace_with_uninit" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::min_ident_chars" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::min_max" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mismatching_type_param_order" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::misnamed_getters" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::misrefactored_assign_op" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_assert_message" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_asserts_for_indexing" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_const_for_fn" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_const_for_thread_local" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_docs_in_private_items" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_enforced_import_renames" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_errors_doc" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_fields_in_debug" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_inline_in_public_items" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_panics_doc" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_safety_doc" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_spin_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_trait_methods" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::missing_transmute_annotations" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mistyped_literal_suffixes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mixed_attributes_style" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mixed_case_hex_literals" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mixed_read_write_in_expression" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mod_module_files" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::module_inception" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::module_name_repetitions" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::modulo_arithmetic" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::modulo_one" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::multi_assignments" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::multiple_bound_locations" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::multiple_crate_versions" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::multiple_inherent_impl" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::multiple_unsafe_ops_per_block" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::must_use_candidate" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::must_use_unit" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mut_from_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mut_mut" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mut_mutex_lock" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mut_range_bound" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mutable_key_type" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mutex_atomic" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::mutex_integer" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::naive_bytecount" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_arbitrary_self_type" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_as_bytes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_bitwise_bool" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_bool" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_bool_assign" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_borrow" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_borrowed_reference" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_borrows_for_generic_args" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_character_iteration" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_collect" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_continue" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_doctest_main" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_for_each" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_ifs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_late_init" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_lifetimes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_match" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_maybe_sized" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_option_as_deref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_option_take" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_parens_on_range_literals" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_pass_by_ref_mut" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_pass_by_value" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_pub_self" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_question_mark" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_range_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_raw_string_hashes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_raw_strings" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_return" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_return_with_question_mark" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_splitn" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_type_cast" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::needless_update" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::neg_cmp_op_on_partial_ord" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::neg_multiply" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::negative_feature_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::never_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::new_ret_no_self" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::new_without_default" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::no_effect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::no_effect_replace" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::no_effect_underscore_binding" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::no_mangle_with_rust_abi" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_ascii_literal" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_canonical_clone_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_canonical_partial_ord_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_minimal_cfg" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_octal_unix_permissions" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_send_fields_in_send_ty" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_std_lazy_statics" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::non_zero_suggestions" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::nonminimal_bool" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::nonsensical_open_options" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::nonstandard_macro_braces" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::not_unsafe_ptr_arg_deref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::obfuscated_if_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::octal_escapes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ok_expect" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::only_used_in_recursion" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::op_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_as_ref_cloned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_as_ref_deref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_env_unwrap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_filter_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_if_let_else" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_map_or_none" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_map_unit_fn" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::option_option" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::or_fun_call" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::or_then_unwrap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::out_of_bounds_indexing" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::overly_complex_bool_expr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::owned_cow" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::panic" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::panic_in_result_fn" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::panicking_overflow_checks" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::panicking_unwrap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::partial_pub_fields" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::partialeq_ne_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::partialeq_to_none" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::path_buf_push_overwrite" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::path_ends_with_ext" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pathbuf_init_then_push" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pattern_type_mismatch" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::permissions_set_readonly_false" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pointer_format" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pointers_in_nomem_asm_block" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::possible_missing_comma" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::possible_missing_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::precedence" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::precedence_bits" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::print_in_format_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::print_literal" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::print_stderr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::print_stdout" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::print_with_newline" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::println_empty_string" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ptr_arg" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ptr_as_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ptr_cast_constness" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ptr_eq" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ptr_offset_by_literal" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ptr_offset_with_cast" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pub_underscore_fields" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pub_use" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pub_with_shorthand" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::pub_without_shorthand" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::question_mark" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::question_mark_used" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::range_minus_one" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::range_plus_one" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::range_zip_with_len" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::rc_buffer" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::rc_clone_in_vec_init" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::rc_mutex" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::read_line_without_trim" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::read_zero_byte_vec" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::readonly_write_lock" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::recursive_format_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_allocation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_as_str" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_async_block" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_at_rest_pattern" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_clone" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_closure" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_closure_call" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_closure_for_method_calls" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_comparisons" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_feature_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_field_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_guards" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_iter_cloned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_locals" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_pattern" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_pattern_matching" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_pub_crate" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_slicing" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_static_lifetimes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_test_prefix" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::redundant_type_annotations" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ref_as_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ref_binding_to_reference" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ref_option" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ref_option_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::ref_patterns" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::regex_creation_in_loops" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::renamed_function_params" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::repeat_once" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::repeat_vec_with_capacity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::replace_box" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::repr_packed_without_abi" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::reserve_after_initialization" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::rest_pat_in_fully_bound_structs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::result_filter_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::result_large_err" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::result_map_or_into_option" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::result_map_unit_fn" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::result_unit_err" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::return_and_then" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::return_self_not_must_use" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::reversed_empty_ranges" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::same_functions_in_if_condition" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::same_item_push" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::same_length_and_capacity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::same_name_method" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::search_is_some" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::seek_from_current" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::seek_to_start_instead_of_rewind" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::self_assignment" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::self_named_constructors" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::self_named_module_files" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::self_only_used_in_recursion" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::semicolon_if_nothing_returned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::semicolon_inside_block" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::semicolon_outside_block" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::separated_literal_suffix" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::serde_api_misuse" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::set_contains_or_insert" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::shadow_reuse" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::shadow_same" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::shadow_unrelated" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::short_circuit_statement" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::should_implement_trait" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::should_panic_without_expect" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::significant_drop_in_scrutinee" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::significant_drop_tightening" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::similar_names" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_call_fn" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_char_add_str" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_char_lifetime_names" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_char_pattern" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_component_path_imports" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_element_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_match" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_match_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_option_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::single_range_in_vec_init" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::size_of_in_element_count" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::size_of_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::skip_while_next" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::sliced_string_as_bytes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::slow_vector_initialization" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::some_filter" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::stable_sort_primitive" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::std_instead_of_alloc" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::std_instead_of_core" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::str_split_at_newline" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::str_to_string" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_add" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_add_assign" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_extend_chars" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_from_utf8_as_bytes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_lit_as_bytes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_lit_chars_any" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::string_slice" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::strlen_on_c_strings" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::struct_excessive_bools" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::struct_field_names" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suboptimal_flops" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_arithmetic_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_assignment_formatting" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_command_arg_space" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_doc_comments" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_else_formatting" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_op_assign_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_open_options" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_operation_groupings" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_splitn" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_to_owned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_unary_op_formatting" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::suspicious_xor_used_as_pow" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::swap_ptr_to_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::swap_with_temporary" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::tabs_in_doc_comments" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::temporary_assignment" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::test_attr_in_doctest" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::tests_outside_test_module" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::to_digit_is_some" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::to_string_in_format_args" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::to_string_trait_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::todo" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::too_long_first_doc_paragraph" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::too_many_arguments" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::too_many_lines" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::toplevel_ref_arg" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::trailing_empty_array" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::trait_duplication_in_bounds" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_bytes_to_str" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_int_to_bool" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_int_to_non_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_null_to_fn" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_ptr_to_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_ptr_to_ref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmute_undefined_repr" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmutes_expressible_as_ptr_casts" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::transmuting_null" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::trim_split_whitespace" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::trivial_regex" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::trivially_copy_pass_by_ref" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::try_err" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::tuple_array_conversions" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::type_complexity" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::type_id_on_box" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::type_repetition_in_bounds" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unbuffered_bytes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unchecked_time_subtraction" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unconditional_recursion" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::undocumented_unsafe_blocks" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unicode_not_nfc" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unimplemented" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::uninhabited_references" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::uninit_assumed_init" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::uninit_vec" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::uninlined_format_args" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unit_arg" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unit_cmp" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unit_hash" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unit_return_expecting_ord" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_box_returns" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_cast" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_clippy_cfg" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_debug_formatting" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_fallible_conversions" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_filter_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_find_map" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_first_then_check" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_fold" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_get_then_check" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_join" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_lazy_evaluations" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_literal_bound" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_literal_unwrap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_map_on_constructor" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_map_or" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_min_or_max" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_mut_passed" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_operation" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_option_map_or_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_owned_empty_strings" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_result_map_or_else" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_safety_comment" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_safety_doc" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_self_imports" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_semicolon" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_sort_by" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_struct_initialization" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_to_owned" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_trailing_comma" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_unwrap" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_unwrap_unchecked" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnecessary_wraps" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unneeded_field_pattern" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unneeded_struct_pattern" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unneeded_wildcard_pattern" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unnested_or_patterns" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unreachable" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unreadable_literal" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unsafe_derive_deserialize" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unsafe_removed_from_name" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unseparated_literal_suffix" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unsound_collection_transmute" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_async" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_async_trait_impl" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_enumerate_index" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_format_specs" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_io_amount" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_peekable" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_result_ok" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_rounding" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_self" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_trait_names" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unused_unit" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unusual_byte_groupings" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unwrap_in_result" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unwrap_or_default" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::unwrap_used" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::upper_case_acronyms" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::use_debug" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::use_self" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::used_underscore_binding" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::used_underscore_items" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_asref" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_attribute" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_borrows_in_formatting" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_concat" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_conversion" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_format" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_let_if_seq" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_nonzero_new_unchecked" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_transmute" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::useless_vec" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::vec_box" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::vec_init_then_push" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::vec_resize_to_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::verbose_bit_mask" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::verbose_file_reads" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::volatile_composites" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::waker_clone_wake" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::while_float" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::while_immutable_condition" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::while_let_loop" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::while_let_on_iterator" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::wildcard_dependencies" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::wildcard_enum_match_arm" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::wildcard_imports" = "allow"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::wildcard_in_or_patterns" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::with_capacity_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::write_literal" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::write_with_newline" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::writeln_empty_string" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::wrong_self_convention" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::wrong_transmute" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zero_divided_by_zero" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zero_prefixed_literal" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zero_ptr" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zero_repeat_side_effects" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zero_sized_map_values" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zombie_processes" = "deny"
+
+# Possible values: "deny" (error), "warn" (warning), "allow" (disabled).
+"clippy::zst_offset" = "deny"
+
+
+[rules."size/function-max-lines"]
+level = "deny"
+limit = 50
+scope = "production"
+
+[rules."size/file-max-lines"]
+level = "deny"
+limit = 200
+scope = "production"
+
+[rules."testing/separate-test-files"]
+level = "deny"
+
+[rules."dead-code/private"]
+level = "warn"
+
+[rules."dead-code/public"]
+level = "warn"
+
+[rules."dead-code/test-only"]
+level = "warn"
+
+[rules."visibility/unnecessary-public"]
+level = "deny"
+
+[rules."visibility/unnecessary-restricted"]
+level = "warn"
+
+[rules."visibility/unnecessary-crate"]
+level = "warn"

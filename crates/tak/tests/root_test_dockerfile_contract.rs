@@ -37,6 +37,26 @@ fn repo_test_dockerfile_extends_live_tor_timeout_budget() -> Result<()> {
 }
 
 #[test]
+fn repo_test_dockerfile_provides_axiom_noninteractively() -> Result<()> {
+    let dockerfile = fs::read_to_string(repo_root().join("docker/tak-tests/Dockerfile"))?;
+
+    assert!(
+        dockerfile.contains("ENV AXIOM_NO_MODIFY_PATH=1"),
+        "test image must not edit a shell profile:\n{dockerfile}"
+    );
+    assert!(
+        dockerfile.contains("ARG AXIOM_VERSION=0.1.19")
+            && dockerfile.contains("AXIOM_INSTALL_DIR=/usr/local/cargo/bin")
+            && dockerfile.contains("https://raw.githubusercontent.com/gu1p/axiom/main/install.sh")
+            && dockerfile.contains("-o /tmp/axiom-install.sh")
+            && dockerfile.contains("&& env AXIOM_VERSION"),
+        "test image must provide Axiom to every task container:\n{dockerfile}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn repo_test_dockerfile_does_not_install_cargo_nextest() -> Result<()> {
     let dockerfile = fs::read_to_string(repo_root().join("docker/tak-tests/Dockerfile"))?;
 
