@@ -17,7 +17,7 @@ async fn measured_tak_usage_excludes_another_node_on_the_same_engine() {
     );
     let labels = |node_id: &str, submit_key: &str| {
         BTreeMap::from([
-            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.owner".to_string(), "takd-node-v1".to_string()),
             ("tak.node_id".to_string(), node_id.to_string()),
             ("tak.submit_key".to_string(), submit_key.to_string()),
         ])

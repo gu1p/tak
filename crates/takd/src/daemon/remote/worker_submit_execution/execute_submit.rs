@@ -165,7 +165,7 @@ async fn execute_one_remote_member(
             container_user: remote_container_user(),
             image_cache: context.image_cache.map(image_cache_options),
             container_identity: Some(tak_runner::ContainerExecutionIdentity {
-                owner: "takd".to_string(),
+                owner: super::container_ownership::OWNER_VALUE.to_string(),
                 submit_key: context.submit_key.to_string(),
                 task_run_id: context.task_run_id.clone(),
             }),

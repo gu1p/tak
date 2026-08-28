@@ -9,6 +9,9 @@ use crate::support::{
     remote_output::test_context_for_node_with_runtime,
 };
 
+#[path = "remote_shared_docker_node_isolation_behavior/legacy_janitor.rs"]
+mod legacy_janitor;
+
 /// Two independently configured Tak nodes may intentionally share one Docker
 /// engine. A submit key is only locally meaningful, so each janitor must
 /// restrict itself to containers carrying its own node identity.

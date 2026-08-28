@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 pub(super) const OWNER_LABEL: &str = "tak.owner";
-pub(super) const OWNER_VALUE: &str = "takd";
+// This must not equal the legacy global value `takd`: old janitors select that
+// value without a node filter and would otherwise reap new scoped containers.
+pub(super) const OWNER_VALUE: &str = "takd-node-v1";
 pub(super) const NODE_ID_LABEL: &str = "tak.node_id";
 
 pub(super) fn labels_belong_to_node(

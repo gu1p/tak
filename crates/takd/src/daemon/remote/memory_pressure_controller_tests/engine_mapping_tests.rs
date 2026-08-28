@@ -10,7 +10,7 @@ fn managed_containers_parses_timeout_running_and_paused_state() {
         created: Some(42),
         state: Some("running".to_string()),
         labels: Some(std::collections::HashMap::from([
-            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.owner".to_string(), "takd-node-v1".to_string()),
             ("tak.node_id".to_string(), "builder-a".to_string()),
             ("tak.timeout_s".to_string(), "30".to_string()),
         ])),
@@ -21,7 +21,7 @@ fn managed_containers_parses_timeout_running_and_paused_state() {
         created: Some(7),
         state: Some("paused".to_string()),
         labels: Some(std::collections::HashMap::from([
-            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.owner".to_string(), "takd-node-v1".to_string()),
             ("tak.node_id".to_string(), "builder-a".to_string()),
         ])),
         ..Default::default()
@@ -53,7 +53,7 @@ fn managed_containers_treats_zero_or_missing_timeout_as_pausable() {
         created: Some(1),
         state: Some("running".to_string()),
         labels: Some(std::collections::HashMap::from([
-            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.owner".to_string(), "takd-node-v1".to_string()),
             ("tak.node_id".to_string(), "builder-a".to_string()),
             ("tak.timeout_s".to_string(), "0".to_string()),
         ])),
@@ -64,7 +64,7 @@ fn managed_containers_treats_zero_or_missing_timeout_as_pausable() {
         created: Some(2),
         state: Some("running".to_string()),
         labels: Some(std::collections::HashMap::from([
-            ("tak.owner".to_string(), "takd".to_string()),
+            ("tak.owner".to_string(), "takd-node-v1".to_string()),
             ("tak.node_id".to_string(), "builder-a".to_string()),
         ])),
         ..Default::default()

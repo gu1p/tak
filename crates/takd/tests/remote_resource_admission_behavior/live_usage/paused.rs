@@ -30,7 +30,7 @@ async fn paused_tak_container_remains_in_usage_attribution() {
     daemon.add_paused_container(
         "paused-tak",
         BTreeMap::from([
-            ("tak.owner".into(), "takd".into()),
+            ("tak.owner".into(), "takd-node-v1".into()),
             ("tak.node_id".into(), "builder-a".into()),
             ("tak.submit_key".into(), "paused-run:1".into()),
         ]),
