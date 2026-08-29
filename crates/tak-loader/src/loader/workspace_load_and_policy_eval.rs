@@ -4,14 +4,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
+use monty::{LimitedTracker, MontyObject, MontyRepl, PrintWriter, ResourceLimits};
 use tak_core::model::{
     ModuleSpec, PolicyDecisionDef, PolicyDecisionSpec, TaskLabel, WorkspaceSpec,
 };
 
 use super::{
     LoadOptions, MergeState, PRELUDE,
-    authored_source::{prepare_authored_source, runtime_input_names, runtime_inputs},
+    authored_source::{
+        LegacyBootstrapAdmission, prepare_legacy_authored_source, prepare_policy_version_probe,
+        runtime_input_names, runtime_inputs, validate_evaluated_version,
+    },
     execution_policy_registry::register_global_execution_policies,
     execution_resolution::resolve_policy_decision,
     global_config::load_global_execution_config,
@@ -101,7 +104,7 @@ pub fn evaluate_named_policy_decision(
     }
 
     let source = fs::read_to_string(tasks_file)?;
-    let prepared = prepare_authored_source(tasks_file, &source)?;
+    let (prepared, admission) = prepare_legacy_authored_source(tasks_file, &source)?;
     let mut chars = policy_name.chars();
     let Some(first_char) = chars.next() else {
         bail!("policy_name is required");
@@ -111,30 +114,60 @@ pub fn evaluate_named_policy_decision(
     {
         bail!("policy_name must be a valid identifier");
     }
-    let code = format!(
-        r#"{PRELUDE}
-
-{}
-
-__TAK_RUNTIME_POLICY_CONTEXT__ = POLICY_CONTEXT if isinstance(POLICY_CONTEXT, dict) else PolicyContext()
-_compile_policy_decision({policy_name}, __TAK_RUNTIME_POLICY_CONTEXT__)
-"#,
-        prepared.runtime_source
-    );
-
     let limits = ResourceLimits::new()
         .max_duration(Duration::from_secs(2))
         .max_memory(64 * 1024 * 1024)
         .max_allocations(200_000);
     let tracker = LimitedTracker::new(limits);
+    let mut repl = MontyRepl::new(&tasks_file.to_string_lossy(), tracker);
+    let probe = prepare_policy_version_probe(&prepared.runtime_source)?;
+    repl.feed_run(&probe.initializer_source, Vec::new(), PrintWriter::Disabled)
+        .map_err(|e| anyhow!("failed to initialize policy evaluation: {e}"))?;
+    let module_code = format!(
+        "{PRELUDE}\n\n{}\n{}",
+        probe.activation_source, probe.runtime_source
+    );
+    let inputs = runtime_input_names()
+        .into_iter()
+        .zip(runtime_inputs())
+        .collect();
+    let module_probe = repl
+        .feed_run(&module_code, inputs, PrintWriter::Disabled)
+        .map_err(|e| anyhow!("failed to evaluate {}: {e}", tasks_file.display()))?;
+    validate_policy_version_probe(tasks_file, &source, admission, module_probe)?;
 
-    let runner = MontyRun::new(code, &tasks_file.to_string_lossy(), runtime_input_names())
-        .map_err(|e| anyhow!("failed to compile {}: {e}", tasks_file.display()))?;
-    let value = runner
-        .run(runtime_inputs(), tracker, PrintWriter::Disabled)
+    let policy_code = format!(
+        "__TAK_RUNTIME_POLICY_CONTEXT__ = POLICY_CONTEXT if isinstance(POLICY_CONTEXT, dict) else PolicyContext()\n_compile_policy_decision({policy_name}, __TAK_RUNTIME_POLICY_CONTEXT__)"
+    );
+    let value = repl
+        .feed_run(&policy_code, Vec::new(), PrintWriter::Disabled)
         .map_err(|e| anyhow!("failed to evaluate {}: {e}", tasks_file.display()))?;
 
-    let decision: PolicyDecisionDef = deserialize_from_monty(value)
+    let decision: PolicyDecisionDef = deserialize_from_monty(&value)
         .map_err(|e| anyhow!("invalid policy decision in {}: {e}", tasks_file.display()))?;
     resolve_policy_decision(decision, package)
+}
+
+fn validate_policy_version_probe(
+    tasks_file: &Path,
+    source: &str,
+    admission: LegacyBootstrapAdmission,
+    value: MontyObject,
+) -> Result<()> {
+    let MontyObject::List(fields) = value else {
+        bail!("invalid internal policy version probe result");
+    };
+    match fields.as_slice() {
+        [MontyObject::Int(0), MontyObject::Int(0)] => Ok(()),
+        [MontyObject::Int(1), MontyObject::Int(version)] => {
+            let version = u32::try_from(*version)
+                .map_err(|_| anyhow!("invalid internal policy version probe result"))?;
+            validate_evaluated_version(tasks_file, source, admission, version)
+        }
+        [MontyObject::Int(2), MontyObject::Int(0)] => bail!(
+            "invalid evaluated module version in {}; expected an unsigned 32-bit integer",
+            tasks_file.display()
+        ),
+        _ => bail!("invalid internal policy version probe result"),
+    }
 }

@@ -2,6 +2,9 @@ use crate::support;
 
 use std::process::Command as StdCommand;
 
+#[path = "daemon_surface_contract/v2_authored_spec_contract.rs"]
+mod v2_authored_spec_contract;
+
 #[test]
 fn daemon_subcommand_is_removed() {
     let output = StdCommand::new(support::tak_bin())

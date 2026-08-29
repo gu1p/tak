@@ -6,7 +6,7 @@ use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::{Ranged, TextRange};
 
 use super::{
-    PreparedAuthoredSource,
+    PreparedLegacyAuthoredSource,
     expr_helpers::{is_tak_module, line_and_column},
 };
 
@@ -36,7 +36,7 @@ impl<'a> AuthoredDslBoundary<'a> {
         }
     }
 
-    pub(super) fn finish(mut self) -> Result<PreparedAuthoredSource> {
+    pub(super) fn finish(mut self) -> Result<PreparedLegacyAuthoredSource> {
         if let Some(message) = self.error.take() {
             return Err(anyhow!(message));
         }
@@ -52,7 +52,7 @@ impl<'a> AuthoredDslBoundary<'a> {
             );
         }
 
-        Ok(PreparedAuthoredSource {
+        Ok(PreparedLegacyAuthoredSource {
             authored_source: self.source.to_owned(),
             runtime_source,
         })

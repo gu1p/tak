@@ -11,11 +11,11 @@ mod text_methods;
 
 use error::MontyDeserializeError;
 
-pub(crate) fn deserialize_from_monty<T>(value: MontyObject) -> Result<T>
+pub(crate) fn deserialize_from_monty<T>(value: &MontyObject) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    <T as serde::Deserialize>::deserialize(MontyDeserializer { value: &value })
+    <T as serde::Deserialize>::deserialize(MontyDeserializer { value })
         .map_err(|err| anyhow!(err.to_string()))
 }
 
