@@ -8,6 +8,8 @@ mod cancel_active;
 mod cleanup_janitor;
 #[path = "remote_cleanup_janitor_isolation_behavior.rs"]
 mod cleanup_janitor_isolation;
+#[path = "remote_cleanup_shared_session_behavior.rs"]
+mod cleanup_shared_session;
 #[path = "remote_container_cleanup_result_behavior.rs"]
 mod container_cleanup_result;
 #[path = "remote_container_infrastructure_failure_behavior.rs"]

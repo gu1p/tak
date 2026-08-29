@@ -5,15 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 
-use super::WORKSPACE_UPLOADS_DIR_NAME;
-
-pub(super) fn cleanup_stale_remote_entries(
-    root: &Path,
-    active_jobs: &BTreeSet<String>,
-    ttl: Duration,
-) -> Result<()> {
-    cleanup_stale_remote_entries_with(root, active_jobs, ttl, remove_stale_remote_entry)
-}
+use super::{CLEANUP_TOMBSTONE_PREFIX, WORKSPACE_UPLOADS_DIR_NAME};
 
 pub(super) fn cleanup_stale_remote_entries_with<F>(
     root: &Path,
@@ -42,7 +34,7 @@ where
         };
         // The workspace-upload blob cache is reaped per-blob because it is
         // shared across a job's tasks and refreshed on every resolve.
-        if name == WORKSPACE_UPLOADS_DIR_NAME {
+        if name == WORKSPACE_UPLOADS_DIR_NAME || name.starts_with(CLEANUP_TOMBSTONE_PREFIX) {
             continue;
         }
         if active_jobs.contains(name) || !is_stale(&path, ttl)? {
@@ -63,9 +55,15 @@ where
     Ok(())
 }
 
-fn is_stale(path: &Path, ttl: Duration) -> Result<bool> {
-    let metadata = std::fs::symlink_metadata(path)
-        .with_context(|| format!("failed to stat cleanup path {}", path.display()))?;
+pub(super) fn is_stale(path: &Path, ttl: Duration) -> Result<bool> {
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(err) => {
+            return Err(err)
+                .with_context(|| format!("failed to stat cleanup path {}", path.display()));
+        }
+    };
     let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
     let age = SystemTime::now()
         .duration_since(modified)
@@ -74,8 +72,14 @@ fn is_stale(path: &Path, ttl: Duration) -> Result<bool> {
 }
 
 pub(super) fn remove_stale_remote_entry(path: &Path) -> Result<()> {
-    let metadata = std::fs::symlink_metadata(path)
-        .with_context(|| format!("failed to stat stale cleanup path {}", path.display()))?;
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => {
+            return Err(err)
+                .with_context(|| format!("failed to stat stale cleanup path {}", path.display()));
+        }
+    };
     let file_type = metadata.file_type();
     if file_type.is_dir() && !file_type.is_symlink() {
         std::fs::remove_dir_all(path)
@@ -155,7 +159,7 @@ pub(super) fn remove_stale_workspace_upload_file(path: &Path) -> Result<()> {
         .with_context(|| format!("failed to remove stale workspace upload {}", path.display()))
 }
 
-fn is_permission_denied(err: &anyhow::Error) -> bool {
+pub(super) fn is_permission_denied(err: &anyhow::Error) -> bool {
     err.chain().any(|cause| {
         cause
             .downcast_ref::<std::io::Error>()

@@ -2,8 +2,8 @@
 
 use prost::Message;
 use tak_proto::{
-    CmdStep, ExecutionSession, GetTaskResultResponse, Step, SubmitTaskRequest, SubmitTaskResponse,
-    step,
+    CancelTaskResponse, CmdStep, ExecutionSession, GetTaskResultResponse, Step, SubmitTaskRequest,
+    SubmitTaskResponse, step,
 };
 use takd::{RemoteNodeContext, SubmitAttemptStore};
 
@@ -74,4 +74,18 @@ pub fn assert_success(context: &RemoteNodeContext, store: &SubmitAttemptStore, t
             .expect("result response");
     let result = GetTaskResultResponse::decode(response.body.as_slice()).expect("decode result");
     assert!(result.success, "task {task_run_id} failed: {result:?}");
+}
+
+pub fn cancel_session_task(
+    context: &RemoteNodeContext,
+    store: &SubmitAttemptStore,
+    task_run_id: &str,
+) -> bool {
+    let path = format!("/v1/tasks/{task_run_id}/cancel?attempt=1");
+    let response =
+        takd::daemon::remote::handle_remote_v1_request(context, store, "POST", &path, &[], None)
+            .expect("cancel response");
+    assert_eq!(response.status_code, 202);
+    let cancel = CancelTaskResponse::decode(response.body.as_slice()).expect("decode cancel");
+    cancel.cancelled
 }

@@ -51,6 +51,7 @@ mod remote_output_range_resume_contract;
 mod remote_output_root_switch_behavior;
 mod remote_resource_admission_behavior;
 mod remote_session_contract;
+mod remote_session_key_validation_behavior;
 mod remote_status_behavior;
 mod remote_status_unavailable_behavior;
 mod remote_streaming_binary_contract;

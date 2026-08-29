@@ -10,7 +10,10 @@ fn overlay_session_paths(
     else {
         return Ok(());
     };
-    copy_directory_contents(&session_paths_root(execution_root_base, key), execution_root)
+    copy_directory_contents(
+        &session_paths_root(execution_root_base, key),
+        execution_root,
+    )
 }
 
 fn persist_session_paths(
@@ -135,13 +138,13 @@ fn remove_existing_path(path: &Path) -> Result<()> {
 
 fn session_workspace_root(execution_root_base: &Path, key: &str) -> PathBuf {
     execution_root_base
-        .join("sessions")
+        .join(SESSION_WORKSPACES_DIR_NAME)
         .join(sanitize_submit_idempotency_key(key))
 }
 
 fn session_paths_root(execution_root_base: &Path, key: &str) -> PathBuf {
     execution_root_base
-        .join("session-paths")
+        .join(SESSION_PATHS_DIR_NAME)
         .join(sanitize_submit_idempotency_key(key))
 }
 

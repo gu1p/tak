@@ -22,6 +22,22 @@ impl RemoteNodeContext {
         self.active_executions.keys()
     }
 
+    pub(in crate::daemon::remote) fn try_when_no_active_executions<T>(
+        &self,
+        operation: impl FnOnce() -> Result<Option<T>>,
+    ) -> Result<Option<T>> {
+        self.active_executions.try_when_idle(operation)
+    }
+
+    pub(crate) fn unregister_active_execution_after_locked<T>(
+        &self,
+        idempotency_key: &str,
+        operation: impl FnOnce() -> Result<T>,
+    ) -> Result<T> {
+        self.active_executions
+            .unregister_after_locked(idempotency_key, operation)
+    }
+
     pub(crate) fn cancel_active_task(
         &self,
         task_run_id: &str,

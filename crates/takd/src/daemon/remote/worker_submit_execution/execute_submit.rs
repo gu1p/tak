@@ -1,9 +1,6 @@
 fn execute_remote_worker_submit(
     context: RemoteWorkerSubmitRunContext<'_>,
-) -> Result<(
-    RemoteWorkerExecutionOutcome,
-    Vec<RemoteWorkerOutputRecord>,
-)> {
+) -> Result<(RemoteWorkerExecutionOutcome, Vec<RemoteWorkerOutputRecord>)> {
     let RemoteWorkerSubmitRunContext {
         idempotency_key,
         execution_root_base,
@@ -17,6 +14,7 @@ fn execute_remote_worker_submit(
     let execution_root = execution_root_for_payload(idempotency_key, execution_root_base, payload)?;
     let artifact_root = artifact_root_for_submit_key_at_base(idempotency_key, execution_root_base);
     prepare_execution_root(&execution_root, payload)?;
+    refresh_session_storage_parent_for_submit(idempotency_key, execution_root_base, payload);
 
     let execution_result = (|| -> Result<_> {
         unpack_payload_workspace(payload, &execution_root)?;
@@ -47,6 +45,7 @@ fn execute_remote_worker_submit(
         Ok((result, outputs))
     })();
 
+    refresh_session_storage_parent_for_submit(idempotency_key, execution_root_base, payload);
     let cleanup_result = cleanup_execution_root(payload, &execution_root);
 
     match (execution_result, cleanup_result) {

@@ -124,3 +124,6 @@ use worker_submit_execution::{
 use worker_workspace_outputs::{
     collect_declared_remote_worker_outputs, unpack_remote_worker_workspace,
 };
+
+const SESSION_PATHS_DIR_NAME: &str = "session-paths";
+const SESSION_WORKSPACES_DIR_NAME: &str = "sessions";

@@ -7,6 +7,10 @@ use tak_runner::RunCancellation;
 
 use super::query_helpers::unix_epoch_ms;
 
+#[path = "active_executions/fence_tests.rs"]
+#[cfg(test)]
+mod fence_tests;
+
 #[derive(Clone, Default)]
 pub(super) struct SharedActiveExecutions {
     inner: Arc<Mutex<ActiveExecutions>>,
@@ -64,6 +68,31 @@ impl SharedActiveExecutions {
 
     pub(super) fn keys(&self) -> Result<Vec<String>> {
         Ok(self.lock()?.by_key.keys().cloned().collect())
+    }
+
+    pub(super) fn try_when_idle<T>(
+        &self,
+        operation: impl FnOnce() -> Result<Option<T>>,
+    ) -> Result<Option<T>> {
+        let guard = self.lock()?;
+        if !guard.by_key.is_empty() {
+            return Ok(None);
+        }
+        let result = operation();
+        drop(guard);
+        result
+    }
+
+    pub(super) fn unregister_after_locked<T>(
+        &self,
+        idempotency_key: &str,
+        operation: impl FnOnce() -> Result<T>,
+    ) -> Result<T> {
+        let mut guard = self.lock()?;
+        let result = operation();
+        guard.by_key.remove(idempotency_key);
+        drop(guard);
+        result
     }
 
     pub(super) fn refresh_client(&self, task_run_id: &str, attempt: Option<u32>) -> Result<()> {

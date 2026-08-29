@@ -118,13 +118,15 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
         "remote worker task started"
     );
 
+    let mut resolved_execution_root_base = None;
     let execution_result = store
         .execution_root_base_for_submit(idempotency_key)
         .map(|value| value.unwrap_or_else(|| execution.execution_root_base.clone()))
-        .and_then(|resolved_execution_root_base| {
+        .and_then(|resolved| {
+            let resolved = resolved_execution_root_base.insert(resolved);
             execute_remote_worker_submit(RemoteWorkerSubmitRunContext {
                 idempotency_key,
-                execution_root_base: &resolved_execution_root_base,
+                execution_root_base: resolved.as_path(),
                 selected_node_id: &execution.selected_node_id,
                 image_cache: execution.image_cache.as_ref(),
                 payload: &execution.payload,
@@ -150,22 +152,12 @@ fn run_remote_worker_submit_execution(execution: &RemoteWorkerSubmitExecution) {
         execution_result,
     );
 
-    if let Err(error) = execution.context.finish_active_job(idempotency_key) {
-        tracing::error!(
-            "failed to clear active node status entry for submit {idempotency_key}: {error:#}"
-        );
-    }
-    if let Err(error) = execution
-        .context
-        .unregister_active_execution(idempotency_key)
-    {
-        tracing::error!(
-            "failed to unregister active execution for submit {idempotency_key}: {error:#}"
-        );
-    }
-    if let Err(error) = execution.context.release_resources(idempotency_key) {
-        tracing::error!("failed to release resources for submit {idempotency_key}: {error:#}");
-    }
+    finish_remote_worker_submit(
+        &execution.context,
+        idempotency_key,
+        resolved_execution_root_base.as_deref(),
+        execution.payload.session.as_ref(),
+    );
 }
 
 include!("worker_submit_execution/event_writer.rs");
@@ -174,6 +166,7 @@ include!("worker_submit_execution/output_observer.rs");
 include!("worker_submit_execution/result_persistence.rs");
 include!("worker_submit_execution/result_persistence_failure.rs");
 include!("worker_submit_execution/session_paths.rs");
+include!("worker_submit_execution/session_storage_activity.rs");
 include!("worker_submit_execution/queued_terminal.rs");
 include!("worker_submit_execution/member_status.rs");
 include!("worker_submit_execution/execute_context.rs");
@@ -181,11 +174,24 @@ include!("worker_submit_execution/execute_submit.rs");
 include!("worker_submit_execution/execute_submit_retry.rs");
 include!("worker_submit_execution/execute_submit_workspace.rs");
 include!("worker_submit_execution/completion_helpers.rs");
+include!("worker_submit_execution/submit_completion.rs");
 
 mod completion_helpers_tests;
+
+#[path = "worker_submit_execution/completion_root_tests.rs"]
+#[cfg(test)]
+mod completion_root_tests;
 
 #[path = "worker_submit_execution/queued_failure_tests.rs"]
 mod queued_failure_tests;
 
 #[cfg(test)]
 mod event_sequence_tests;
+
+#[path = "worker_submit_execution/session_storage_activity_tests.rs"]
+#[cfg(test)]
+mod session_storage_activity_tests;
+
+#[path = "worker_submit_execution/session_storage_security_tests.rs"]
+#[cfg(all(test, unix))]
+mod session_storage_security_tests;

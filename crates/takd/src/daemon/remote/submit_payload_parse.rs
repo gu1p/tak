@@ -7,6 +7,8 @@ use tak_proto::{RuntimeSpec, Step, runtime_spec, step};
 mod fused_members;
 mod output_glob;
 mod resources;
+#[cfg(test)]
+mod session_key_tests;
 use output_glob::normalize_workspace_submit_glob;
 use resources::parse_container_resource_limits;
 
@@ -71,6 +73,9 @@ fn parse_remote_worker_session(
     let key = session.key.trim().to_string();
     if key.is_empty() {
         bail!("invalid_submit_fields: session.key is required");
+    }
+    if matches!(sanitize_submit_idempotency_key(&key).as_str(), "." | "..") {
+        bail!("invalid_submit_fields: reserved session.key `{key}`");
     }
     let reuse = match session.reuse.as_str() {
         "share_workspace" => RemoteWorkerSessionReuse::ShareWorkspace,
