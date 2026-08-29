@@ -46,7 +46,9 @@ CHECK_CONTAINER = Container.Dockerfile(
 
 CHECK_SESSION = session(
     "check-workspace",
-    reuse=SessionReuse.Workspace(),
+    # TODO: Replace this v1 bootstrap fusion with v2 Balanced scheduling and
+    # remove //:check-parallel after the distributed acceptance contract passes.
+    reuse=SessionReuse.Container(),
     context=CHECK_CONTEXT,
 )
 
@@ -60,7 +62,7 @@ CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
         ),
         Execution.Local(),
     ],
-    doc="Run check tasks in a shared remote-first test workspace container.",
+    doc="Run the check graph as one fused remote-first test container.",
 )
 
 CHECK_PARALLEL_POLICY = Execution.FirstAvailable(
