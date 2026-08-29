@@ -1,4 +1,5 @@
 mod generated;
+pub mod local_daemon;
 mod token;
 mod tor_invite_words;
 
