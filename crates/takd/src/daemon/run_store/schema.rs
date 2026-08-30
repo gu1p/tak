@@ -13,7 +13,7 @@ impl RunStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         migration::apply(&transaction)?;
         transaction.execute(
-            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 2) \
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 3) \
              ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
             [],
         )?;
@@ -139,6 +139,19 @@ CREATE TABLE IF NOT EXISTS run_dispatch_outbox (
     dispatch_generation INTEGER NOT NULL,
     fencing_token TEXT NOT NULL,
     payload_json TEXT NOT NULL,
+    delivered_at_ms INTEGER,
+    PRIMARY KEY (run_id, job_id, authored_attempt, dispatch_generation),
+    FOREIGN KEY (run_id, job_id, authored_attempt, dispatch_generation)
+        REFERENCES run_attempts(run_id, job_id, authored_attempt, dispatch_generation)
+        ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS run_cancel_outbox (
+    run_id TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    authored_attempt INTEGER NOT NULL,
+    dispatch_generation INTEGER NOT NULL,
+    fencing_token TEXT NOT NULL,
+    node_id TEXT NOT NULL,
     delivered_at_ms INTEGER,
     PRIMARY KEY (run_id, job_id, authored_attempt, dispatch_generation),
     FOREIGN KEY (run_id, job_id, authored_attempt, dispatch_generation)

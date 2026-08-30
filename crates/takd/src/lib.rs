@@ -18,6 +18,9 @@ pub mod service;
 #[cfg(test)]
 mod test_env;
 
+pub use daemon::attempt_coordinator::{
+    AttemptCoordinator, AttemptDriveReport, AttemptObservation, AttemptTransport,
+};
 pub use daemon::lease::{
     AcquireLeaseResponse, LeaseManager, SharedLeaseManager, new_shared_manager_with_db,
 };

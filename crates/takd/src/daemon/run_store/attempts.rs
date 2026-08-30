@@ -10,6 +10,7 @@ use crate::daemon::scheduler::{
 use super::RunStore;
 use super::events::{append_job_event, now_ms, sqlite_i64};
 
+mod recovery;
 mod transitions;
 
 impl RunStore {

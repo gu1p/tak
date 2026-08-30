@@ -63,8 +63,13 @@ impl RunStore {
     pub fn pending_dispatches(&self) -> Result<Vec<DispatchCommand>> {
         let connection = self.open_connection()?;
         let mut statement = connection.prepare(
-            "SELECT payload_json FROM run_dispatch_outbox WHERE delivered_at_ms IS NULL \
-             ORDER BY rowid",
+            "SELECT outbox.payload_json FROM run_dispatch_outbox outbox \
+             JOIN run_attempts attempt USING (run_id, job_id, authored_attempt, dispatch_generation) \
+             JOIN run_jobs job USING (run_id, job_id) JOIN runs run USING (run_id) \
+             WHERE outbox.delivered_at_ms IS NULL AND attempt.state = 'transferring' \
+             AND attempt.released_at_ms IS NULL AND job.state = 'transferring' \
+             AND job.current_fencing_token = attempt.fencing_token \
+             AND run.state = 'running' AND run.dispatch_stopped = 0 ORDER BY outbox.rowid",
         )?;
         statement
             .query_map([], |row| row.get::<_, String>(0))?

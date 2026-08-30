@@ -1,3 +1,4 @@
+pub mod attempt_coordinator;
 pub mod lease;
 pub mod peer_manager;
 pub mod protocol;

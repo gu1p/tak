@@ -5,6 +5,8 @@ use tak_proto::local_daemon::v2::{RunEventKind, RunLifecycleState};
 use super::RunStore;
 use super::events::{append_event, now_ms, sqlite_i64};
 
+mod attempts;
+
 impl RunStore {
     pub fn cancel(&self, run_id: &str) -> Result<RunLifecycleState> {
         let mut connection = self.open_connection()?;
@@ -81,6 +83,12 @@ fn request_active_cancellation(
         [run_id],
     )?;
     transaction.execute(
+        "INSERT OR IGNORE INTO run_cancel_outbox (run_id, job_id, authored_attempt, dispatch_generation, fencing_token, node_id) \
+         SELECT run_id, job_id, authored_attempt, dispatch_generation, fencing_token, node_id \
+         FROM run_attempts WHERE run_id = ?1 AND released_at_ms IS NULL",
+        [run_id],
+    )?;
+    transaction.execute(
         "UPDATE run_attempts SET state = 'cancelling' WHERE run_id = ?1 AND released_at_ms IS NULL",
         [run_id],
     )?;
@@ -93,10 +101,6 @@ fn request_active_cancellation(
         run_id,
         RunEventKind::Cancelling,
         "cancellation requested",
-    )?;
-    transaction.execute(
-        "INSERT OR IGNORE INTO run_outbox (run_id, kind, payload_json) VALUES (?1, 'cancel_run', '{}')",
-        [run_id],
     )?;
     Ok(())
 }
