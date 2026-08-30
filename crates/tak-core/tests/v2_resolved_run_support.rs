@@ -1,9 +1,9 @@
 use std::num::NonZeroU32;
 
 use tak_core::v2::{
-    JobContextManifest, PlacementCandidate, PlacementKind, ResolvedJob, ResolvedRun,
-    ResolvedRunOptions, ResolvedTaskUnit, RetryPolicy, WorkspaceDescriptor, WorkspaceEntry,
-    WorkspaceManifest,
+    JobContextManifest, PlacementCandidate, PlacementKind, PlacementPolicy, RemoteSelection,
+    ResolvedJob, ResolvedRun, ResolvedRunOptions, ResolvedTaskUnit, ResourceRequest, RetryPolicy,
+    WorkspaceDescriptor, WorkspaceEntry, WorkspaceManifest,
 };
 
 pub(super) fn sample_run() -> ResolvedRun {
@@ -36,12 +36,17 @@ pub(super) fn sample_run() -> ResolvedRun {
         jobs: vec![ResolvedJob {
             job_id: "job-0".into(),
             task_ids: vec!["//:check".into()],
+            placement_policy: PlacementPolicy {
+                policy_id: "local".into(),
+                selection: RemoteSelection::Sequential,
+            },
             placement_candidates: vec![PlacementCandidate {
                 node_id: "local".into(),
                 kind: PlacementKind::Local,
                 transport: None,
                 reason: "local execution".into(),
             }],
+            resources: ResourceRequest::default(),
             retry: RetryPolicy::default(),
             idempotent: false,
             queue: None,

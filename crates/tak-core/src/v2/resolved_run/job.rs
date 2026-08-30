@@ -63,7 +63,9 @@ pub struct ResolvedTaskUnit {
 pub struct ResolvedJob {
     pub job_id: String,
     pub task_ids: Vec<String>,
+    pub placement_policy: PlacementPolicy,
     pub placement_candidates: Vec<PlacementCandidate>,
+    pub resources: ResourceRequest,
     pub retry: RetryPolicy,
     pub idempotent: bool,
     pub queue: Option<String>,
@@ -81,8 +83,27 @@ pub struct JobEdge {
     pub dependent_job_id: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlacementPolicy {
+    pub policy_id: String,
     pub selection: RemoteSelection,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceRequest {
+    pub cpu_millis: u64,
+    pub memory_bytes: u64,
+    pub execution_slots: NonZeroU32,
+}
+
+impl Default for ResourceRequest {
+    fn default() -> Self {
+        Self {
+            cpu_millis: 0,
+            memory_bytes: 0,
+            execution_slots: NonZeroU32::MIN,
+        }
+    }
 }

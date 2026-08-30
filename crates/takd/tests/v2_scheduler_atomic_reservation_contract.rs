@@ -1,0 +1,48 @@
+use std::num::NonZeroU32;
+use std::sync::{Arc, Barrier};
+
+use takd::{RunStore, SchedulerNode};
+
+use crate::support::v2_run::{ARCHIVE, scheduler::independent_jobs};
+
+#[test]
+fn concurrent_reservations_never_exceed_run_or_node_capacity() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = RunStore::with_db_path(temp.path().join("takd.sqlite")).unwrap();
+    let mut request = independent_jobs("atomic", 4);
+    request.run.options.max_parallel_jobs = NonZeroU32::new(2).unwrap();
+    let run = store.submit(&request, "uid:1").unwrap();
+    store
+        .upload_workspace(
+            &run.run_id,
+            &request.run.workspace.manifest.fingerprint,
+            ARCHIVE.len() as u64,
+            0,
+            &ARCHIVE,
+        )
+        .unwrap();
+    store.commit(&run.run_id).unwrap();
+    let nodes = Arc::new([
+        SchedulerNode::with_execution_slots("worker-a", 1),
+        SchedulerNode::with_execution_slots("worker-b", 1),
+    ]);
+    let barrier = Arc::new(Barrier::new(4));
+    let threads = (0..4)
+        .map(|_| {
+            let store = store.clone();
+            let nodes = Arc::clone(&nodes);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                store.reserve_next(nodes.as_slice()).unwrap()
+            })
+        })
+        .collect::<Vec<_>>();
+    let reserved = threads
+        .into_iter()
+        .filter_map(|thread| thread.join().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(reserved.len(), 2);
+    assert_ne!(reserved[0].node_id, reserved[1].node_id);
+    assert_eq!(store.pending_dispatches().unwrap().len(), 2);
+}

@@ -5,6 +5,7 @@ use crate::v2::PassEnv;
 
 mod graph;
 mod projection;
+mod scheduling;
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
     validate_identifier("project id", &run.project_id)?;
@@ -19,6 +20,7 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
     validate_tasks(run, &tasks, &jobs)?;
     graph::task_graph(run)?;
     validate_jobs(run, &tasks)?;
+    scheduling::validate(run)?;
     projection::validate(run)?;
     graph::job_graph(run, &jobs)?;
     validate_definitions(run)?;

@@ -10,6 +10,38 @@ pub(super) fn append_event(
     kind: RunEventKind,
     message: &str,
 ) -> Result<u64> {
+    append_context_event(transaction, run_id, kind, None, &[], None, message)
+}
+
+pub(super) fn append_job_event(
+    transaction: &Transaction<'_>,
+    run_id: &str,
+    kind: RunEventKind,
+    job_id: &str,
+    task_ids: &[String],
+    node_id: &str,
+    message: &str,
+) -> Result<u64> {
+    append_context_event(
+        transaction,
+        run_id,
+        kind,
+        Some(job_id),
+        task_ids,
+        Some(node_id),
+        message,
+    )
+}
+
+fn append_context_event(
+    transaction: &Transaction<'_>,
+    run_id: &str,
+    kind: RunEventKind,
+    job_id: Option<&str>,
+    task_ids: &[String],
+    node_id: Option<&str>,
+    message: &str,
+) -> Result<u64> {
     let next: i64 = transaction.query_row(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM run_events WHERE run_id = ?1",
         [run_id],
@@ -18,9 +50,9 @@ pub(super) fn append_event(
     let event = RunEvent {
         seq: u64::try_from(next).map_err(|_| anyhow!("event sequence overflow"))?,
         kind,
-        job_id: None,
-        task_ids: Vec::new(),
-        node_id: None,
+        job_id: job_id.map(str::to_owned),
+        task_ids: task_ids.to_vec(),
+        node_id: node_id.map(str::to_owned),
         message: message.to_owned(),
     };
     transaction.execute(

@@ -7,6 +7,7 @@ mod cancellation;
 mod connection;
 mod events;
 mod queries;
+mod scheduling;
 mod schema;
 mod submission;
 mod types;

@@ -104,4 +104,6 @@ mod v2_run_store_corrupt_resume_contract;
 mod v2_run_store_event_paging_contract;
 mod v2_run_store_idempotency_contract;
 mod v2_run_store_resume_repair_contract;
+mod v2_scheduler_atomic_reservation_contract;
+mod v2_scheduler_round_robin_behavior;
 mod workspace_wormhole_upload_contract;

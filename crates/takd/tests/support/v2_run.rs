@@ -3,10 +3,13 @@ use std::sync::LazyLock;
 
 use sha2::{Digest, Sha256};
 use tak_core::v2::{
-    EnvironmentValue, JobContextManifest, PlacementCandidate, PlacementKind, ResolvedJob,
-    ResolvedRun, ResolvedRunOptions, ResolvedTaskUnit, RetryPolicy, RunSubmission,
-    WorkspaceDescriptor, WorkspaceEntry, WorkspaceManifest,
+    EnvironmentValue, JobContextManifest, PlacementCandidate, PlacementKind, PlacementPolicy,
+    RemoteSelection, ResolvedJob, ResolvedRun, ResolvedRunOptions, ResolvedTaskUnit,
+    ResourceRequest, RetryPolicy, RunSubmission, WorkspaceDescriptor, WorkspaceEntry,
+    WorkspaceManifest,
 };
+
+pub mod scheduler;
 
 pub static ARCHIVE: LazyLock<Vec<u8>> = LazyLock::new(|| {
     let mut archive = Vec::new();
@@ -61,12 +64,17 @@ pub fn submission(key: &str, secret: &str) -> RunSubmission {
         jobs: vec![ResolvedJob {
             job_id: "job-0".into(),
             task_ids: vec!["//:check".into()],
+            placement_policy: PlacementPolicy {
+                policy_id: "local".into(),
+                selection: RemoteSelection::Sequential,
+            },
             placement_candidates: vec![PlacementCandidate {
                 node_id: "local".into(),
                 kind: PlacementKind::Local,
                 transport: None,
                 reason: "local".into(),
             }],
+            resources: ResourceRequest::default(),
             retry: RetryPolicy::default(),
             idempotent: true,
             queue: None,

@@ -5,8 +5,9 @@ use anyhow::{Result, anyhow, bail};
 use sha2::{Digest, Sha256};
 use tak_core::v2::{
     Affinity, AuthoredModule, AuthoredTask, EnvironmentValue, Execution, JobContextManifest,
-    JobEdge, PlacementCandidate, PlacementKind, ResolvedJob, ResolvedRun, ResolvedRunOptions,
-    ResolvedTaskUnit, RetryPolicy, RunSubmission, Session, WorkspaceDescriptor,
+    JobEdge, PlacementCandidate, PlacementKind, PlacementPolicy, RemoteSelection, ResolvedJob,
+    ResolvedRun, ResolvedRunOptions, ResolvedTaskUnit, ResourceRequest, RetryPolicy, RunSubmission,
+    Session, WorkspaceDescriptor,
 };
 use tak_loader::V2AuthoredRoot;
 
@@ -57,7 +58,12 @@ pub(super) fn resolve(
         jobs.push(ResolvedJob {
             job_id,
             task_ids: vec![task_id],
+            placement_policy: PlacementPolicy {
+                policy_id: "local".into(),
+                selection: RemoteSelection::Sequential,
+            },
             placement_candidates: placement_candidates(&root.module, task)?,
+            resources: ResourceRequest::default(),
             retry: RetryPolicy::default(),
             idempotent: task.idempotent,
             queue: None,

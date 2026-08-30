@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS runs (
     project_id TEXT NOT NULL,
     targets_json TEXT NOT NULL,
     resolved_json TEXT NOT NULL,
+    max_parallel_jobs INTEGER NOT NULL,
     workspace_fingerprint TEXT NOT NULL,
     archive_sha256 TEXT NOT NULL,
     archive_size INTEGER NOT NULL,
@@ -69,6 +70,44 @@ CREATE TABLE IF NOT EXISTS run_outbox (
     delivered_at_ms INTEGER,
     UNIQUE (run_id, kind),
     FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS run_policy_cursors (
+    run_id TEXT NOT NULL,
+    policy_id TEXT NOT NULL,
+    next_assignment INTEGER NOT NULL,
+    PRIMARY KEY (run_id, policy_id),
+    FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS run_attempts (
+    run_id TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    authored_attempt INTEGER NOT NULL,
+    dispatch_generation INTEGER NOT NULL,
+    fencing_token TEXT NOT NULL UNIQUE,
+    node_id TEXT NOT NULL,
+    state TEXT NOT NULL,
+    cpu_millis INTEGER NOT NULL,
+    memory_bytes INTEGER NOT NULL,
+    execution_slots INTEGER NOT NULL,
+    reserved_at_ms INTEGER NOT NULL,
+    released_at_ms INTEGER,
+    PRIMARY KEY (run_id, job_id, authored_attempt, dispatch_generation),
+    FOREIGN KEY (run_id, job_id) REFERENCES run_jobs(run_id, job_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS run_attempts_active_node
+    ON run_attempts(node_id) WHERE released_at_ms IS NULL;
+CREATE TABLE IF NOT EXISTS run_dispatch_outbox (
+    run_id TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    authored_attempt INTEGER NOT NULL,
+    dispatch_generation INTEGER NOT NULL,
+    fencing_token TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    delivered_at_ms INTEGER,
+    PRIMARY KEY (run_id, job_id, authored_attempt, dispatch_generation),
+    FOREIGN KEY (run_id, job_id, authored_attempt, dispatch_generation)
+        REFERENCES run_attempts(run_id, job_id, authored_attempt, dispatch_generation)
+        ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS workspace_blobs (
     fingerprint TEXT PRIMARY KEY,
