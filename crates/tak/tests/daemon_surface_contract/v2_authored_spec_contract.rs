@@ -1,3 +1,5 @@
+#[path = "v2_authored_spec_contract/container_fusion.rs"]
+mod container_fusion;
 #[path = "v2_authored_spec_contract/failed_submission.rs"]
 mod failed_submission;
 #[path = "v2_authored_spec_contract/includes_inactive.rs"]

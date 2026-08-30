@@ -1,24 +1,27 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU32;
 
 use anyhow::{Result, anyhow, bail};
 use sha2::{Digest, Sha256};
 use tak_core::v2::{
-    Affinity, AuthoredModule, AuthoredTask, Execution, JobContextManifest, JobEdge,
-    PlacementCandidate, PlacementKind, PlacementPolicy, RemoteSelection, ResolvedJob, ResolvedRun,
-    ResolvedRunOptions, ResolvedTaskUnit, ResourceRequest, RunSubmission, Session,
-    WorkspaceDescriptor,
+    Execution, JobContextManifest, JobEdge, PlacementCandidate, PlacementKind, PlacementPolicy,
+    RemoteSelection, ResolvedJob, ResolvedRun, ResolvedRunOptions, ResolvedTaskUnit,
+    ResourceRequest, RunSubmission, WorkspaceDescriptor,
 };
 use tak_loader::V2AuthoredRoot;
 
 use super::RunCliArgs;
 
 mod environment;
+mod fusion;
+#[cfg(test)]
+mod fusion_tests;
 mod graph;
 mod identity;
 #[cfg(test)]
 mod identity_tests;
 mod scheduling;
+mod sessions;
 use environment::{effective_env_names, environment_values};
 use graph::{canonical, selected_tasks};
 
@@ -42,6 +45,7 @@ pub(super) fn resolve(
     let worktree_scope_key = identity::worktree_scope_key(root)?;
     let limiter_definitions = scheduling::limiters(&root.module, &selected, &worktree_scope_key)?;
     let queue_definitions = scheduling::queues(&root.module, &selected, &worktree_scope_key)?;
+    let bindings = sessions::bindings(&root.module, &selected)?;
     let mut tasks = Vec::new();
     let mut jobs = Vec::new();
     for task in &selected {
@@ -52,7 +56,9 @@ pub(super) fn resolve(
             .map(|dependency| canonical(dependency))
             .collect::<Result<Vec<_>>>()?;
         let pass_env_names = effective_env_names(&root.module, task, &args.pass_env)?;
-        let (session, affinity) = effective_session_and_affinity(&root.module, task)?;
+        let binding = &bindings[&task_id];
+        let session = binding.session.clone();
+        let affinity = binding.affinity.clone();
         let job_id = job_ids[&task_id].clone();
         tasks.push(ResolvedTaskUnit {
             task_id: task_id.clone(),
@@ -71,7 +77,7 @@ pub(super) fn resolve(
                 policy_id: "local".into(),
                 selection: RemoteSelection::Sequential,
             },
-            placement_candidates: placement_candidates(&root.module, task)?,
+            placement_candidates: placement_candidates(binding.execution.as_ref())?,
             resources: ResourceRequest::default(),
             retry: scheduling::retry(&root.module, task),
             idempotent: task.idempotent,
@@ -85,13 +91,27 @@ pub(super) fn resolve(
             pass_env_names,
         });
     }
+    let fused = fusion::fuse_jobs(jobs)?;
+    for task in &mut tasks {
+        task.job_id = fused.job_ids[&task.job_id].clone();
+    }
+    let resolved_job_ids = tasks
+        .iter()
+        .map(|task| (task.task_id.clone(), task.job_id.clone()))
+        .collect::<BTreeMap<_, _>>();
     let job_edges = tasks
         .iter()
         .flat_map(|task| {
-            task.dependencies.iter().map(|dependency| JobEdge {
-                dependency_job_id: job_ids[dependency].clone(),
-                dependent_job_id: task.job_id.clone(),
+            task.dependencies.iter().filter_map(|dependency| {
+                let dependency_job_id = resolved_job_ids[dependency].clone();
+                (dependency_job_id != task.job_id).then(|| (dependency_job_id, task.job_id.clone()))
             })
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|(dependency_job_id, dependent_job_id)| JobEdge {
+            dependency_job_id,
+            dependent_job_id,
         })
         .collect();
     let run = ResolvedRun {
@@ -108,7 +128,7 @@ pub(super) fn resolve(
         },
         workspace,
         tasks,
-        jobs,
+        jobs: fused.jobs,
         job_edges,
         limiter_definitions,
         queue_definitions,
@@ -121,28 +141,8 @@ pub(super) fn resolve(
     )?)
 }
 
-fn effective_session_and_affinity(
-    module: &AuthoredModule,
-    task: &AuthoredTask,
-) -> Result<(Option<Session>, Option<Affinity>)> {
-    let execution = effective_execution(module, task);
-    let attached = execution.and_then(|execution| match execution {
-        Execution::LocalOnly { local } => local.session.as_deref(),
-        Execution::RemoteOnly { remote } => remote.session.as_deref(),
-    });
-    let session = task.session.as_ref().or(attached);
-    let affinity = match session {
-        Some(session) => session.effective_affinity(task.affinity.as_ref())?,
-        None => task.affinity.clone(),
-    };
-    Ok((session.cloned(), affinity))
-}
-
-fn placement_candidates(
-    module: &AuthoredModule,
-    task: &AuthoredTask,
-) -> Result<Vec<PlacementCandidate>> {
-    match effective_execution(module, task) {
+fn placement_candidates(execution: Option<&Execution>) -> Result<Vec<PlacementCandidate>> {
+    match execution {
         None | Some(Execution::LocalOnly { .. }) => Ok(vec![PlacementCandidate {
             node_id: "local".into(),
             kind: PlacementKind::Local,
@@ -153,20 +153,6 @@ fn placement_candidates(
             bail!("takd remote placement candidate resolution is not active in this build")
         }
     }
-}
-
-fn effective_execution<'a>(
-    module: &'a AuthoredModule,
-    task: &'a AuthoredTask,
-) -> Option<&'a Execution> {
-    task.execution
-        .as_ref()
-        .or_else(|| {
-            task.session
-                .as_ref()
-                .and_then(|session| session.execution.as_deref())
-        })
-        .or(module.defaults.execution.as_ref())
 }
 
 fn project_id(root: &V2AuthoredRoot) -> String {

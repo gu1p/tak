@@ -71,7 +71,7 @@ fn convert_defaults(defaults: wire::Defaults) -> Result<AuthoredDefaults> {
 }
 
 fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
-    if task.context.is_some() || task.timeout_s.is_some() || task.cascade_session {
+    if task.context.is_some() || task.timeout_s.is_some() {
         bail!("this v2 task uses fields not active in this build");
     }
     let execution = task.execution.map(convert_execution).transpose()?;
@@ -87,6 +87,9 @@ fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
         .is_some_and(|session| session.execution.is_none())
     {
         bail!("task(use_session=...) requires a session with execution")
+    }
+    if task.cascade_session && session.is_none() {
+        bail!("task(cascade_session=True) requires use_session")
     }
     let affinity = task.affinity.map(convert_affinity).transpose()?;
     validate_task_affinity(execution.as_ref(), session.as_ref(), affinity.as_ref())?;

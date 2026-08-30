@@ -35,6 +35,7 @@ mod sessions_contract;
 mod task_spec_stub_contract;
 mod typed_stub_contract;
 mod v2_authored_root_contract;
+mod v2_container_session_cascade_contract;
 mod v2_default_affinity_contract;
 mod v2_legacy_isolation_contract;
 mod v2_scheduling_fields_contract;
