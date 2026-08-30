@@ -9,7 +9,14 @@ fn repo_root_test_task_runs_workspace_lib_and_integration_tests_with_workspace_t
     let task = spec.tasks.get(&parse("//:test")).expect("test task");
 
     let actual = cmd_steps(task, "repo root test task");
-    let expected = expected_cargo_argv(&[&["test", "--workspace", "--lib", "--tests"]]);
+    let expected = expected_cargo_argv(&[&[
+        "test",
+        "--workspace",
+        "--lib",
+        "--tests",
+        "--",
+        "--test-threads=4",
+    ]]);
 
     assert_eq!(actual, expected, "unexpected //:test steps");
     Ok(())

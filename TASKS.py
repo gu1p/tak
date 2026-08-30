@@ -206,7 +206,16 @@ SPEC = module_spec(
         task(
             "test",
             needs=cargo_needs(),
-            steps=[cargo_cmd("test", "--workspace", "--lib", "--tests")],
+            steps=[
+                cargo_cmd(
+                    "test",
+                    "--workspace",
+                    "--lib",
+                    "--tests",
+                    "--",
+                    "--test-threads=4",
+                )
+            ],
         ),
         task(
             "docs-check",
