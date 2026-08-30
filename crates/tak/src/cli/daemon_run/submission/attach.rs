@@ -103,10 +103,11 @@ pub(super) async fn handle_interrupt(
     match crate::cli::attachment_interrupt::validate_cancellation(run_id, &response)? {
         CancellationOutcome::Persisted => {
             eprintln!("Cancellation persisted for {run_id}; waiting for takd to stop active work.");
+            Ok(detach_requested)
         }
         CancellationOutcome::AlreadyTerminal => {
             eprintln!("Run {run_id} was already terminal; loading its final state.");
+            Ok(false)
         }
     }
-    Ok(detach_requested)
 }

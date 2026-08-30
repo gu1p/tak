@@ -61,7 +61,7 @@ fn handle(
         {
             Some(*delay)
         }
-        Reply::DelayedCancellationFlow(operation, delay)
+        Reply::DelayedCancellationFlow(operation, delay, _)
             if request["operation"]["type"].as_str() == Some(operation)
                 || request["operation"]["type"].as_str() == Some("CancelRun") =>
         {

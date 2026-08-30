@@ -24,7 +24,7 @@ pub(crate) enum Reply {
     Retryable(&'static str),
     SubmissionFlow,
     DelayedSubmissionFlow(&'static str, Duration),
-    DelayedCancellationFlow(&'static str, Duration),
+    DelayedCancellationFlow(&'static str, Duration, &'static str),
     FailedSubmissionFlow,
     RetrySubmissionFlow,
     ManagementFlow,

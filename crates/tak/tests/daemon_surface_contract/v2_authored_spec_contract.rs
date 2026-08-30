@@ -28,6 +28,8 @@ mod submission;
 mod submission_interrupt;
 #[path = "v2_authored_spec_contract/submission_support.rs"]
 mod submission_support;
+#[path = "v2_authored_spec_contract/terminal_cancellation_race.rs"]
+mod terminal_cancellation_race;
 #[path = "v2_authored_spec_contract/v1_migration.rs"]
 mod v1_migration;
 #[path = "v2_authored_spec_contract/v2_refusal.rs"]

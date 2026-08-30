@@ -4,7 +4,7 @@ pub(super) fn submission_response(
     request_id: &str,
     request: &Value,
     fail: bool,
-    cancelled: bool,
+    cancellation_state: Option<&str>,
 ) -> Value {
     let operation = &request["operation"];
     match operation["type"].as_str().unwrap() {
@@ -21,13 +21,14 @@ pub(super) fn submission_response(
             "protocol_version": 2, "type": "RunCommitted", "request_id": request_id,
             "run_id": "run-123", "state": "queued",
         }),
-        "CancelRun" if cancelled => json!({
+        "CancelRun" if cancellation_state.is_some() => json!({
             "protocol_version": 2, "type": "CancellationAccepted", "request_id": request_id,
-            "run_id": "run-123", "state": "cancelled",
+            "run_id": "run-123", "state": cancellation_state.unwrap(),
         }),
-        "AttachRun" if cancelled => json!({
+        "AttachRun" if cancellation_state.is_some() => json!({
             "protocol_version": 2, "type": "RunEvents", "request_id": request_id,
-            "run_id": "run-123", "next_event": 0, "state": "cancelled", "terminal": true,
+            "run_id": "run-123", "next_event": 0,
+            "state": cancellation_state.unwrap(), "terminal": true,
             "events": [],
         }),
         "AttachRun" if fail => failed_attachment(request_id, operation),
