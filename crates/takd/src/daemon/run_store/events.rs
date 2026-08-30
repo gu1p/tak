@@ -1,6 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Result, anyhow};
+use base64::Engine as _;
 use rusqlite::{Transaction, params};
 use tak_proto::local_daemon::v2::{RunEvent, RunEventKind};
 
@@ -10,7 +11,7 @@ pub(super) fn append_event(
     kind: RunEventKind,
     message: &str,
 ) -> Result<u64> {
-    append_context_event(transaction, run_id, kind, None, &[], None, message)
+    append_context_event(transaction, run_id, kind, None, &[], None, message, None)
 }
 
 pub(super) fn append_job_event(
@@ -30,6 +31,28 @@ pub(super) fn append_job_event(
         task_ids,
         Some(node_id),
         message,
+        None,
+    )
+}
+
+pub(super) fn append_output_event(
+    transaction: &Transaction<'_>,
+    run_id: &str,
+    kind: RunEventKind,
+    job_id: &str,
+    task_ids: &[String],
+    node_id: &str,
+    bytes: &[u8],
+) -> Result<u64> {
+    append_context_event(
+        transaction,
+        run_id,
+        kind,
+        Some(job_id),
+        task_ids,
+        Some(node_id),
+        "",
+        Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
     )
 }
 
@@ -47,9 +70,11 @@ pub(super) fn append_skipped_event(
         task_ids,
         None,
         "job skipped after dependency failure",
+        None,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_context_event(
     transaction: &Transaction<'_>,
     run_id: &str,
@@ -58,6 +83,7 @@ fn append_context_event(
     task_ids: &[String],
     node_id: Option<&str>,
     message: &str,
+    chunk_base64: Option<String>,
 ) -> Result<u64> {
     let next: i64 = transaction.query_row(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM run_events WHERE run_id = ?1",
@@ -71,6 +97,7 @@ fn append_context_event(
         task_ids: task_ids.to_vec(),
         node_id: node_id.map(str::to_owned),
         message: message.to_owned(),
+        chunk_base64,
     };
     transaction.execute(
         "INSERT INTO run_events (run_id, seq, payload_json, created_at_ms) VALUES (?1, ?2, ?3, ?4)",

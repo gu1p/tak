@@ -18,7 +18,9 @@ use tokio::process::Command;
 pub(super) fn build_command(
     step: &StepDef,
     workspace_root: &Path,
+    base_environment: Option<&BTreeMap<String, String>>,
     runtime_env: Option<&BTreeMap<String, String>>,
+    clear_environment: bool,
 ) -> Result<(Command, PathBuf)> {
     match step {
         StepDef::Cmd { argv, cwd, env } => {
@@ -27,6 +29,7 @@ pub(super) fn build_command(
                 .ok_or_else(|| anyhow!("cmd step requires a non-empty argv"))?;
             let mut command = Command::new(program);
             command.args(args);
+            apply_base_environment(&mut command, base_environment, clear_environment);
             if let Some(runtime_env) = runtime_env {
                 for (key, value) in runtime_env {
                     command.env(key, value);
@@ -54,6 +57,7 @@ pub(super) fn build_command(
                 cmd.args(argv);
                 cmd
             };
+            apply_base_environment(&mut command, base_environment, clear_environment);
             if let Some(runtime_env) = runtime_env {
                 for (key, value) in runtime_env {
                     command.env(key, value);
@@ -64,6 +68,19 @@ pub(super) fn build_command(
             }
             Ok((command, resolve_cwd(workspace_root, cwd)))
         }
+    }
+}
+
+fn apply_base_environment(
+    command: &mut Command,
+    base_environment: Option<&BTreeMap<String, String>>,
+    clear_environment: bool,
+) {
+    if clear_environment {
+        command.env_clear();
+    }
+    if let Some(environment) = base_environment {
+        command.envs(environment);
     }
 }
 

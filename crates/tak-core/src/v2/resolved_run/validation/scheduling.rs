@@ -134,12 +134,22 @@ fn validate_candidates(job: &super::super::ResolvedJob) -> Result<(), ResolvedRu
                 job.job_id, candidate.node_id
             )));
         }
+        let local_identity_valid = match candidate.kind {
+            PlacementKind::Local => candidate.node_id == "local",
+            PlacementKind::Remote => candidate.node_id != "local",
+        };
         let transport_valid = match candidate.kind {
             PlacementKind::Local => candidate.transport.is_none(),
             PlacementKind::Remote => {
                 matches!(candidate.transport.as_deref(), Some("direct" | "tor"))
             }
         };
+        if !local_identity_valid {
+            return Err(ResolvedRunError::new(format!(
+                "job `{}` has a candidate that conflicts with the reserved local node",
+                job.job_id
+            )));
+        }
         if !transport_valid || candidate.reason.trim().is_empty() {
             return Err(ResolvedRunError::new(format!(
                 "job `{}` has an invalid placement candidate",

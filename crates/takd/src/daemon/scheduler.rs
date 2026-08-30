@@ -61,6 +61,12 @@ pub enum AttemptCompletion {
     Failed { terminal_digest: String },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttemptOutputStream {
+    Stdout,
+    Stderr,
+}
+
 impl AttemptCompletion {
     pub(crate) fn digest(&self) -> &str {
         match self {

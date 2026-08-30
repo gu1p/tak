@@ -27,8 +27,11 @@ async fn remote_worker_reports_injected_container_lifecycle_failure() {
             package: "//".to_string(),
             name: "remote_runtime_failure".to_string(),
         },
+        task_run_id: String::new(),
         attempt: 1,
         steps: vec![shell_step("true")],
+        base_environment: Default::default(),
+        clear_environment: false,
         timeout_s: None,
         runtime: Some(RemoteRuntimeSpec::Containerized {
             source: ContainerRuntimeSourceSpec::Image {

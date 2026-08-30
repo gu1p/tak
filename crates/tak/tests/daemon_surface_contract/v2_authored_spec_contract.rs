@@ -1,9 +1,15 @@
+#[path = "v2_authored_spec_contract/cancellation.rs"]
+mod cancellation;
 #[path = "v2_authored_spec_contract/container_fusion.rs"]
 mod container_fusion;
 #[path = "v2_authored_spec_contract/failed_submission.rs"]
 mod failed_submission;
 #[path = "v2_authored_spec_contract/includes_inactive.rs"]
 mod includes_inactive;
+#[path = "v2_authored_spec_contract/live_output.rs"]
+mod live_output;
+#[path = "v2_authored_spec_contract/local_execution.rs"]
+mod local_execution;
 #[path = "v2_authored_spec_contract/rate_limit_submission.rs"]
 mod rate_limit_submission;
 #[path = "v2_authored_spec_contract/remote_selection_migration.rs"]
@@ -14,8 +20,12 @@ mod retry_submission;
 mod scheduling_rejection;
 #[path = "v2_authored_spec_contract/scheduling_submission.rs"]
 mod scheduling_submission;
+#[path = "v2_authored_spec_contract/second_submission_interrupt.rs"]
+mod second_submission_interrupt;
 #[path = "v2_authored_spec_contract/submission.rs"]
 mod submission;
+#[path = "v2_authored_spec_contract/submission_interrupt.rs"]
+mod submission_interrupt;
 #[path = "v2_authored_spec_contract/submission_support.rs"]
 mod submission_support;
 #[path = "v2_authored_spec_contract/v1_migration.rs"]

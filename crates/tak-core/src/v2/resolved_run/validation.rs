@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{ResolvedRun, ResolvedRunError, validate_digest};
-use crate::v2::PassEnv;
 
 mod graph;
+mod names;
 mod projection;
 mod scheduling;
+mod step_paths;
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
     validate_identifier("project id", &run.project_id)?;
@@ -74,7 +75,8 @@ fn validate_tasks(
             )));
         }
         require_references("task dependency", task.dependencies.iter(), tasks)?;
-        validate_names(&task.pass_env_names)?;
+        step_paths::validate(task)?;
+        names::validate(&task.pass_env_names)?;
         if let Some(affinity) = &task.affinity {
             affinity
                 .validate()
@@ -101,7 +103,7 @@ fn validate_jobs(run: &ResolvedRun, tasks: &BTreeSet<String>) -> Result<(), Reso
             )));
         }
         require_references("job task", job.task_ids.iter(), tasks)?;
-        validate_names(&job.pass_env_names)?;
+        names::validate(&job.pass_env_names)?;
         if let Some(affinity) = &job.affinity {
             affinity
                 .validate()
@@ -129,17 +131,6 @@ fn validate_jobs(run: &ResolvedRun, tasks: &BTreeSet<String>) -> Result<(), Reso
                 task.task_id
             )));
         }
-    }
-    Ok(())
-}
-
-fn validate_names(names: &[String]) -> Result<(), ResolvedRunError> {
-    let canonical =
-        PassEnv::new(names).map_err(|error| ResolvedRunError::new(error.to_string()))?;
-    if canonical.as_strs() != names.iter().map(String::as_str).collect::<Vec<_>>() {
-        return Err(ResolvedRunError::new(
-            "environment names must be sorted and unique",
-        ));
     }
     Ok(())
 }

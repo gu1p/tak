@@ -21,6 +21,17 @@ fn placement_policy_identity_and_concrete_candidates_are_canonical() {
     contradictory_candidate.jobs[0].placement_candidates[0].kind = PlacementKind::Local;
     contradictory_candidate.jobs[0].placement_candidates[0].transport = Some("direct".into());
     assert!(contradictory_candidate.validate().is_err());
+
+    let mut remote_named_local = sample_run();
+    remote_named_local.jobs[0].placement_candidates[0].kind = PlacementKind::Remote;
+    remote_named_local.jobs[0].placement_candidates[0].transport = Some("direct".into());
+    assert!(
+        remote_named_local
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("reserved local node")
+    );
 }
 
 #[test]

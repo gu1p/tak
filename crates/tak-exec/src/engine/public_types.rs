@@ -7,6 +7,7 @@ use super::cancellation::RunCancellation;
 
 mod observer;
 mod remote_worker_outcome;
+mod remote_worker_spec_debug;
 
 pub use observer::{
     OutputStream, TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskStartedEvent,
@@ -103,11 +104,14 @@ pub struct SyncedOutput {
     pub size_bytes: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RemoteWorkerExecutionSpec {
     pub task_label: TaskLabel,
+    pub task_run_id: String,
     pub attempt: u32,
     pub steps: Vec<StepDef>,
+    pub base_environment: BTreeMap<String, String>,
+    pub clear_environment: bool,
     pub timeout_s: Option<u64>,
     pub runtime: Option<RemoteRuntimeSpec>,
     pub node_id: String,

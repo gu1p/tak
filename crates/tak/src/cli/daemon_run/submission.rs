@@ -33,28 +33,55 @@ pub(super) async fn submit_and_attach(
         bail!("local takd returned an unexpected SubmitRun response")
     };
     println!("run_id={run_id}");
+    let mut interrupts = crate::cli::attachment_interrupt::State::default();
     if let WorkspaceDisposition::UploadRequired { next_offset } = workspace {
-        upload::workspace(
+        let upload = upload::workspace(
             &socket_path,
             &run_id,
             &submission.run.workspace.manifest.fingerprint,
             &archive,
             next_offset,
-        )
-        .await?;
+        );
+        tokio::select! {
+            result = upload => result?,
+            action = interrupts.next() => {
+                handle_pre_attach_interrupt(
+                    &socket_path, &run_id, action?, &mut interrupts,
+                ).await?;
+                return attach::run_with_interrupts(&socket_path, &run_id, interrupts).await;
+            }
+        }
     }
-    let response = exchange::response(
-        &socket_path,
-        &Request {
-            request_id: exchange::request_id("commit"),
-            operation: Operation::CommitRun {
-                run_id: run_id.clone(),
-            },
+    let commit_request = Request {
+        request_id: exchange::request_id("commit"),
+        operation: Operation::CommitRun {
+            run_id: run_id.clone(),
         },
-    )
-    .await?;
+    };
+    let commit = exchange::response(&socket_path, &commit_request);
+    let response = tokio::select! {
+        response = commit => response?,
+        action = interrupts.next() => {
+            handle_pre_attach_interrupt(
+                &socket_path, &run_id, action?, &mut interrupts,
+            ).await?;
+            return attach::run_with_interrupts(&socket_path, &run_id, interrupts).await;
+        }
+    };
     if !matches!(response, Response::RunCommitted { run_id: ref id, .. } if id == &run_id) {
         bail!("local takd returned an unexpected CommitRun response");
     }
-    attach::run(&socket_path, &run_id).await
+    attach::run_with_interrupts(&socket_path, &run_id, interrupts).await
+}
+
+async fn handle_pre_attach_interrupt(
+    socket_path: &std::path::Path,
+    run_id: &str,
+    action: crate::cli::attachment_interrupt::Action,
+    interrupts: &mut crate::cli::attachment_interrupt::State,
+) -> Result<()> {
+    if attach::handle_interrupt(socket_path, run_id, action, interrupts).await? {
+        bail!("detached from run {run_id}; persisted cancellation continues")
+    }
+    Ok(())
 }

@@ -18,6 +18,8 @@ mod help;
 mod huge_output;
 #[path = "runs_cli_contract/invalid_run_id.rs"]
 mod invalid_run_id;
+#[path = "runs_cli_contract/live_attachment_output.rs"]
+mod live_attachment_output;
 #[path = "runs_cli_contract/missing_daemon.rs"]
 mod missing_daemon;
 #[path = "runs_cli_contract/outputs_usage.rs"]

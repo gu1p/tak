@@ -7,8 +7,9 @@ use super::{MISMATCH_DIAGNOSTIC, render, request};
 
 pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
     let mut after_event = 0;
+    let mut interrupts = crate::cli::attachment_interrupt::State::default();
     loop {
-        let response = request(
+        let attached = request(
             socket,
             "tak-runs-attach",
             Operation::AttachRun {
@@ -16,8 +17,16 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
                 after_event,
             },
             false,
-        )
-        .await?;
+        );
+        let response = tokio::select! {
+            response = attached => response?,
+            action = interrupts.next() => {
+                if handle_interrupt(socket, run_id, action?, &mut interrupts).await? {
+                    bail!("detached from run {run_id}; persisted cancellation continues")
+                }
+                continue;
+            }
+        };
         let Response::RunEvents {
             run_id: response_run,
             events,
@@ -38,7 +47,7 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
             state,
             terminal,
         )?;
-        render::events(&events);
+        render::events(&events)?;
         after_event = next_event;
         if terminal {
             return match state {
@@ -49,8 +58,49 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
                 _ => bail!(MISMATCH_DIAGNOSTIC),
             };
         }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+            action = interrupts.next() => {
+                if handle_interrupt(socket, run_id, action?, &mut interrupts).await? {
+                    bail!("detached from run {run_id}; persisted cancellation continues")
+                }
+            }
+        }
     }
+}
+
+async fn handle_interrupt(
+    socket: &Path,
+    run_id: &str,
+    action: crate::cli::attachment_interrupt::Action,
+    interrupts: &mut crate::cli::attachment_interrupt::State,
+) -> Result<bool> {
+    use crate::cli::attachment_interrupt::Action;
+    if matches!(action, Action::Detach) {
+        return Ok(true);
+    }
+    let cancellation = request(
+        socket,
+        "tak-runs-attach-cancel",
+        Operation::CancelRun {
+            run_id: run_id.to_owned(),
+        },
+        true,
+    );
+    let response = tokio::select! {
+        response = cancellation => response?,
+        action = interrupts.next() => return Ok(matches!(action?, Action::Detach)),
+    };
+    use crate::cli::attachment_interrupt::CancellationOutcome;
+    match crate::cli::attachment_interrupt::validate_cancellation(run_id, &response)? {
+        CancellationOutcome::Persisted => {
+            eprintln!("Cancellation persisted for {run_id}; waiting for takd to stop active work.");
+        }
+        CancellationOutcome::AlreadyTerminal => {
+            eprintln!("Run {run_id} was already terminal; loading its final state.");
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn validate_event_page(

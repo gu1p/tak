@@ -9,12 +9,15 @@ fn remote_worker_public_api_stays_available() {
 
     let _remote_worker_spec = tak_exec::RemoteWorkerExecutionSpec {
         task_label,
+        task_run_id: "task".to_string(),
         attempt: 1,
         steps: vec![StepDef::Cmd {
             argv: vec!["echo".to_string()],
             cwd: None,
             env: Default::default(),
         }],
+        base_environment: Default::default(),
+        clear_environment: false,
         timeout_s: None,
         runtime: None::<RemoteRuntimeSpec>,
         node_id: "node".to_string(),

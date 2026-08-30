@@ -41,10 +41,14 @@ pub(super) fn response_bytes(
         Reply::Success => json!({
             "protocol_version": 2, "type": "RunList", "request_id": request_id, "runs": [],
         }),
-        Reply::SubmissionFlow => submission_response(request_id, request, false),
-        Reply::FailedSubmissionFlow => submission_response(request_id, request, true),
+        Reply::SubmissionFlow => submission_response(request_id, request, false, false),
+        Reply::DelayedSubmissionFlow(_, _) => submission_response(request_id, request, false, true),
+        Reply::DelayedCancellationFlow(_, _) => {
+            submission_response(request_id, request, false, true)
+        }
+        Reply::FailedSubmissionFlow => submission_response(request_id, request, true, false),
         Reply::RetrySubmissionFlow if request_number == 0 => return None,
-        Reply::RetrySubmissionFlow => submission_response(request_id, request, false),
+        Reply::RetrySubmissionFlow => submission_response(request_id, request, false, false),
         Reply::ManagementFlow => management_response(request_id, request),
         Reply::FailedAttachFlow => failed_attach_response(request_id, request),
         Reply::UnsafeOutputFlow => unsafe_output_response(request_id, request),

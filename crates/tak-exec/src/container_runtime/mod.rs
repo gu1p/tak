@@ -76,8 +76,12 @@ pub(crate) async fn run_task_steps_in_container(
         if context.cancellation.is_cancelled() {
             return Err(crate::engine::cancelled_error());
         }
-        let mut step_spec =
-            build_container_step_spec(step, context.workspace_root, context.runtime_env)?;
+        let mut step_spec = build_container_step_spec(
+            step,
+            context.workspace_root,
+            context.base_environment,
+            context.runtime_env,
+        )?;
         apply_container_user_defaults(
             &mut step_spec,
             context.workspace_root,
@@ -100,6 +104,7 @@ pub(crate) async fn run_task_steps_in_container(
 pub(crate) fn build_container_step_spec(
     step: &StepDef,
     workspace_root: &Path,
+    base_environment: Option<&BTreeMap<String, String>>,
     runtime_env: Option<&BTreeMap<String, String>>,
 ) -> Result<ContainerStepSpec> {
     match step {
@@ -108,6 +113,9 @@ pub(crate) fn build_container_step_spec(
                 bail!("cmd step requires a non-empty argv");
             }
             let mut env_map = BTreeMap::new();
+            if let Some(base_environment) = base_environment {
+                env_map.extend(base_environment.clone());
+            }
             if let Some(runtime_env) = runtime_env {
                 env_map.extend(runtime_env.clone());
             }
@@ -135,6 +143,9 @@ pub(crate) fn build_container_step_spec(
             full_argv.extend(argv.clone());
 
             let mut env_map = BTreeMap::new();
+            if let Some(base_environment) = base_environment {
+                env_map.extend(base_environment.clone());
+            }
             if let Some(runtime_env) = runtime_env {
                 env_map.extend(runtime_env.clone());
             }

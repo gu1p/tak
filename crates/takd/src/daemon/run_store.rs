@@ -7,6 +7,8 @@ mod blob;
 mod cancellation;
 mod connection;
 mod events;
+pub(in crate::daemon) mod execution;
+mod output_events;
 mod queries;
 mod scheduling;
 mod schema;

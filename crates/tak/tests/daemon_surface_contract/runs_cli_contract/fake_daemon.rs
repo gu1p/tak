@@ -23,6 +23,8 @@ pub(crate) enum Reply {
     RawThenStall(Vec<u8>),
     Retryable(&'static str),
     SubmissionFlow,
+    DelayedSubmissionFlow(&'static str, Duration),
+    DelayedCancellationFlow(&'static str, Duration),
     FailedSubmissionFlow,
     RetrySubmissionFlow,
     ManagementFlow,
@@ -75,6 +77,10 @@ impl FakeRunDaemon {
             "unexpected fake-daemon request count: {requests:?}"
         );
         requests
+    }
+
+    pub(crate) fn request_count(&self) -> usize {
+        self.requests.lock().expect("request capture lock").len()
     }
 
     fn stop_and_join(&mut self) {

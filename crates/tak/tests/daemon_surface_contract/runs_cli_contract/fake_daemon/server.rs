@@ -16,19 +16,23 @@ pub(super) fn serve(
     stop: &AtomicBool,
     requests: &Arc<Mutex<Vec<Value>>>,
 ) {
-    loop {
-        let (stream, _) = listener.accept().expect("accept fake run request");
-        if stop.load(Ordering::Acquire) {
-            break;
+    std::thread::scope(|scope| {
+        loop {
+            let (stream, _) = listener.accept().expect("accept fake run request");
+            if stop.load(Ordering::Acquire) {
+                break;
+            }
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .expect("bound fake request read");
+            stream
+                .set_write_timeout(Some(Duration::from_secs(2)))
+                .expect("bound fake response write");
+            let reply = &reply;
+            let requests = Arc::clone(requests);
+            scope.spawn(move || handle(stream, reply, stop, &requests));
         }
-        stream
-            .set_read_timeout(Some(Duration::from_secs(2)))
-            .expect("bound fake request read");
-        stream
-            .set_write_timeout(Some(Duration::from_secs(2)))
-            .expect("bound fake response write");
-        handle(stream, &reply, stop, requests);
-    }
+    });
 }
 
 fn handle(
@@ -47,7 +51,27 @@ fn handle(
         .to_string();
     let request_number = requests.lock().expect("request capture lock").len();
     let bytes = response_bytes(reply, &request_id, &request, request_number);
+    let delay = match reply {
+        Reply::DelayedSubmissionFlow(operation, delay)
+            if request["operation"]["type"].as_str() == Some(operation) =>
+        {
+            Some(*delay)
+        }
+        Reply::DelayedCancellationFlow(operation, delay)
+            if request["operation"]["type"].as_str() == Some(operation)
+                || request["operation"]["type"].as_str() == Some("CancelRun") =>
+        {
+            Some(*delay)
+        }
+        _ => None,
+    };
     requests.lock().expect("request capture lock").push(request);
+    if let Some(delay) = delay {
+        let deadline = Instant::now() + delay;
+        while !stop.load(Ordering::Acquire) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
     if let Some(bytes) = bytes {
         if let Reply::SlowDripInactive(_, interval, prefix_bytes) = reply {
             write_slow_prefix(&mut stream, &bytes, *prefix_bytes, *interval, stop);

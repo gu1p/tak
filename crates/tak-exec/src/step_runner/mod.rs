@@ -31,6 +31,8 @@ pub(crate) struct StepRunResult {
 
 pub(crate) struct StepRunContext<'a> {
     pub(crate) workspace_root: &'a Path,
+    pub(crate) base_environment: Option<&'a BTreeMap<String, String>>,
+    pub(crate) clear_environment: bool,
     pub(crate) runtime_env: Option<&'a BTreeMap<String, String>>,
     pub(crate) task_label: &'a TaskLabel,
     pub(crate) attempt: u32,
@@ -59,7 +61,13 @@ pub(crate) async fn run_step(
     if context.cancellation.is_cancelled() {
         return Err(cancelled_error());
     }
-    let (mut command, cwd) = build_command(step, context.workspace_root, context.runtime_env)?;
+    let (mut command, cwd) = build_command(
+        step,
+        context.workspace_root,
+        context.base_environment,
+        context.runtime_env,
+        context.clear_environment,
+    )?;
     command.current_dir(cwd);
     command.kill_on_drop(true);
     configure_child_process_group(&mut command);

@@ -17,6 +17,18 @@ use reservation::{advance_fairness, reserve, save_cursor};
 use selection::{AffinitySelection, select_node};
 
 impl RunStore {
+    pub(in crate::daemon) fn has_ready_jobs(&self) -> Result<bool> {
+        let connection = self.open_connection()?;
+        let exists = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM run_jobs job JOIN runs run USING (run_id) \
+             WHERE (job.state='ready' OR (job.state='retrying' AND job.next_eligible_at_ms<=?1)) \
+             AND run.state IN ('queued','running') AND run.dispatch_stopped=0)",
+            [i64::try_from(super::events::now_ms()?)?],
+            |row| row.get::<_, bool>(0),
+        )?;
+        Ok(exists)
+    }
+
     pub fn reserve_next(&self, nodes: &[SchedulerNode]) -> Result<Option<DispatchCommand>> {
         validate_nodes(nodes)?;
         let mut connection = self.open_connection()?;

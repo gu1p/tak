@@ -35,6 +35,7 @@ pub async fn run_server_with_broker_peers_and_run_store(
     let listener = UnixListener::bind(socket_path)
         .with_context(|| format!("failed to bind socket {}", socket_path.display()))?;
     set_owner_only_socket_permissions(socket_path).await?;
+    let _run_driver = crate::daemon::RunDriver::spawn(run_store.clone());
     let warm_broker = broker.clone();
     let tasks = DaemonTaskHandles::default();
     tokio::spawn(async move {

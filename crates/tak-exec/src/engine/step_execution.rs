@@ -19,9 +19,12 @@ use super::remote_models::RuntimeExecutionMetadata;
 /// #     Ok(())
 /// # }
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_task_steps(
     task: &ResolvedTask,
     workspace_root: &Path,
+    base_environment: Option<&BTreeMap<String, String>>,
+    clear_environment: bool,
     runtime_env: Option<&BTreeMap<String, String>>,
     attempt: u32,
     task_run_id: &str,
@@ -34,6 +37,8 @@ pub(crate) async fn run_task_steps(
             task.timeout_s,
             StepRunContext {
                 workspace_root,
+                base_environment,
+                clear_environment,
                 runtime_env,
                 task_label: &task.label,
                 attempt,
@@ -57,9 +62,12 @@ pub(crate) async fn run_task_steps(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_task_steps_with_runtime(
     task: &ResolvedTask,
     workspace_root: &Path,
+    base_environment: Option<&BTreeMap<String, String>>,
+    clear_environment: bool,
     runtime_metadata: Option<&RuntimeExecutionMetadata>,
     attempt: u32,
     task_run_id: &str,
@@ -74,6 +82,8 @@ pub(crate) async fn run_task_steps_with_runtime(
             plan,
             StepRunContext {
                 workspace_root,
+                base_environment,
+                clear_environment,
                 runtime_env: Some(&metadata.env_overrides),
                 task_label: &task.label,
                 attempt,
@@ -90,6 +100,8 @@ pub(crate) async fn run_task_steps_with_runtime(
     run_task_steps(
         task,
         workspace_root,
+        base_environment,
+        clear_environment,
         runtime_metadata.map(|metadata| &metadata.env_overrides),
         attempt,
         task_run_id,

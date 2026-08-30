@@ -1,6 +1,11 @@
 use serde_json::{Value, json};
 
-pub(super) fn submission_response(request_id: &str, request: &Value, fail: bool) -> Value {
+pub(super) fn submission_response(
+    request_id: &str,
+    request: &Value,
+    fail: bool,
+    cancelled: bool,
+) -> Value {
     let operation = &request["operation"];
     match operation["type"].as_str().unwrap() {
         "SubmitRun" => json!({
@@ -15,6 +20,15 @@ pub(super) fn submission_response(request_id: &str, request: &Value, fail: bool)
         "CommitRun" => json!({
             "protocol_version": 2, "type": "RunCommitted", "request_id": request_id,
             "run_id": "run-123", "state": "queued",
+        }),
+        "CancelRun" if cancelled => json!({
+            "protocol_version": 2, "type": "CancellationAccepted", "request_id": request_id,
+            "run_id": "run-123", "state": "cancelled",
+        }),
+        "AttachRun" if cancelled => json!({
+            "protocol_version": 2, "type": "RunEvents", "request_id": request_id,
+            "run_id": "run-123", "next_event": 0, "state": "cancelled", "terminal": true,
+            "events": [],
         }),
         "AttachRun" if fail => failed_attachment(request_id, operation),
         "AttachRun" => json!({

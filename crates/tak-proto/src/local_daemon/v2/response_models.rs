@@ -56,6 +56,8 @@ pub enum RunEventKind {
     Failed,
     Cancelled,
     Skipped,
+    Stdout,
+    Stderr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +69,8 @@ pub struct RunEvent {
     pub task_ids: Vec<String>,
     pub node_id: Option<String>,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunk_base64: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

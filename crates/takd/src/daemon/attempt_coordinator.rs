@@ -1,10 +1,13 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures::future::BoxFuture;
 
 use super::run_store::RunStore;
 use super::scheduler::{AttemptCompletion, DispatchCommand};
+
+const CANCELLATION_RESPONSE_TIMEOUT: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttemptObservation {
@@ -44,7 +47,13 @@ impl<T: AttemptTransport> AttemptCoordinator<T> {
     pub async fn drive_once(&mut self) -> Result<AttemptDriveReport> {
         let mut report = AttemptDriveReport::default();
         for command in self.store.pending_cancellations()? {
-            match self.transport.cancel_and_wait(&command).await {
+            let result = tokio::time::timeout(
+                CANCELLATION_RESPONSE_TIMEOUT,
+                self.transport.cancel_and_wait(&command),
+            )
+            .await
+            .unwrap_or_else(|_| Err(anyhow::anyhow!("attempt cancellation timed out")));
+            match result {
                 Ok(()) => {
                     self.store.ack_cancellation(&command)?;
                     report.cancelled += 1;

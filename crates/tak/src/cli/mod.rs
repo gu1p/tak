@@ -4,6 +4,7 @@ use tak_core::label::parse_label;
 use tak_core::model::{TaskLabel, WorkspaceSpec};
 use tak_loader::{LoadOptions, load_workspace};
 
+mod attachment_interrupt;
 mod command_model;
 mod daemon_run;
 mod docker_cli;

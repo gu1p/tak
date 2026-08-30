@@ -53,6 +53,8 @@ pub(crate) async fn execute_task_attempt(
         run_task_steps_with_runtime(
             context.task,
             context.run_root,
+            None,
+            false,
             context.runtime_metadata,
             context.attempt,
             context.task_run_id,

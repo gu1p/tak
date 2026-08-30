@@ -1,3 +1,7 @@
+use std::io::Write;
+
+use anyhow::{Context, Result, bail};
+use base64::Engine as _;
 use tak_proto::local_daemon::v2::{RunDetails, RunEvent, RunEventKind, RunSummary};
 
 pub(super) fn list(runs: &[RunSummary]) {
@@ -28,8 +32,19 @@ pub(super) fn details(run: &RunDetails) {
     }
 }
 
-pub(super) fn events(events: &[RunEvent]) {
+pub(super) fn events(events: &[RunEvent]) -> Result<()> {
     for event in events {
+        if let Some(chunk) = &event.chunk_base64 {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(chunk)
+                .context("local takd returned an invalid output event")?;
+            match event.kind {
+                RunEventKind::Stdout => write(&mut std::io::stdout().lock(), &bytes)?,
+                RunEventKind::Stderr => write(&mut std::io::stderr().lock(), &bytes)?,
+                _ => bail!("local takd returned an invalid output event"),
+            }
+            continue;
+        }
         println!(
             "{} tasks={} node={} {}",
             event_kind(event.kind),
@@ -38,6 +53,13 @@ pub(super) fn events(events: &[RunEvent]) {
             event.message
         );
     }
+    Ok(())
+}
+
+fn write(stream: &mut impl Write, bytes: &[u8]) -> Result<()> {
+    stream.write_all(bytes)?;
+    stream.flush()?;
+    Ok(())
 }
 
 fn event_kind(kind: RunEventKind) -> &'static str {
@@ -54,5 +76,7 @@ fn event_kind(kind: RunEventKind) -> &'static str {
         RunEventKind::Failed => "failed",
         RunEventKind::Cancelled => "cancelled",
         RunEventKind::Skipped => "skipped",
+        RunEventKind::Stdout => "stdout",
+        RunEventKind::Stderr => "stderr",
     }
 }

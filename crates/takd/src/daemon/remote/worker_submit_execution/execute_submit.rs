@@ -156,8 +156,11 @@ async fn execute_one_remote_member(
         context.execution_root,
         &RemoteWorkerExecutionSpec {
             task_label,
+            task_run_id: context.task_run_id.clone(),
             attempt,
             steps,
+            base_environment: Default::default(),
+            clear_environment: false,
             timeout_s,
             runtime: context.runtime.clone(),
             node_id: context.selected_node_id.to_string(),

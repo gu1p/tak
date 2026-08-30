@@ -84,9 +84,11 @@ pub async fn execute_remote_worker_steps_with_output_and_cancellation(
     let result = run_task_steps_with_runtime(
         &task,
         workspace_root,
+        Some(&spec.base_environment),
+        spec.clear_environment,
         runtime_metadata.as_ref(),
         spec.attempt,
-        "",
+        &spec.task_run_id,
         output_observer.as_ref(),
         cancellation,
     )

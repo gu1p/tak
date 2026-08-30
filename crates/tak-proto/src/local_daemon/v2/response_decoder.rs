@@ -1,3 +1,4 @@
+use base64::Engine as _;
 use serde::Deserialize;
 
 use super::identifier::is_valid_identifier;
@@ -146,7 +147,22 @@ fn valid_success(response: &super::Response) -> bool {
         } => {
             let sequences_are_valid = events.windows(2).all(|pair| pair[0].seq < pair[1].seq)
                 && events.last().is_none_or(|event| event.seq == *next_event);
-            is_valid_identifier(run_id) && sequences_are_valid && (!terminal || state.is_terminal())
+            let event_shapes_are_valid = events.iter().all(|event| {
+                let is_output = matches!(
+                    event.kind,
+                    super::RunEventKind::Stdout | super::RunEventKind::Stderr
+                );
+                is_output == event.chunk_base64.is_some()
+                    && event.chunk_base64.as_ref().is_none_or(|chunk| {
+                        base64::engine::general_purpose::STANDARD
+                            .decode(chunk)
+                            .is_ok()
+                    })
+            });
+            is_valid_identifier(run_id)
+                && sequences_are_valid
+                && event_shapes_are_valid
+                && (!terminal || state.is_terminal())
         }
         Response::RunList { runs, .. } => runs.iter().all(|run| is_valid_identifier(&run.run_id)),
         Response::RunDetails { run, .. } => is_valid_identifier(&run.summary.run_id),

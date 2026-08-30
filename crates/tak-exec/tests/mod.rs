@@ -50,6 +50,7 @@ mod remote_wait_heartbeat_behavior;
 mod remote_wait_unavailable_telemetry_behavior;
 mod remote_worker_container_cleanup_behavior;
 mod remote_worker_container_user_behavior;
+mod remote_worker_environment_contract;
 #[path = "remote_worker_runtime_behavior.rs"]
 mod remote_worker_runtime_behavior;
 mod remote_worker_runtime_failure_behavior;
