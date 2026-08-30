@@ -147,6 +147,7 @@ pub async fn run_cli() -> Result<ExitCode> {
             })
             .await?;
         }
+        Commands::Runs { command } => return super::runs_cli::run_runs_command(command).await,
         Commands::Docker { argv } => {
             return run_docker_command(selectors, argv).await;
         }

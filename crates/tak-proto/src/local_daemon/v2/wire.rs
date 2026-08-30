@@ -18,6 +18,7 @@ enum WireOperation {
     GetRun { run_id: String },
     AttachRun { run_id: String, after_event: u64 },
     CancelRun { run_id: String },
+    GetOutputManifest { run_id: String },
 }
 
 pub(super) fn decode_strict(raw: &str) -> Option<Request> {
@@ -40,9 +41,13 @@ pub(super) fn decode_strict(raw: &str) -> Option<Request> {
         WireOperation::CancelRun { run_id } if is_valid_identifier(&run_id) => {
             Operation::CancelRun { run_id }
         }
+        WireOperation::GetOutputManifest { run_id } if is_valid_identifier(&run_id) => {
+            Operation::GetOutputManifest { run_id }
+        }
         WireOperation::GetRun { .. }
         | WireOperation::AttachRun { .. }
-        | WireOperation::CancelRun { .. } => return None,
+        | WireOperation::CancelRun { .. }
+        | WireOperation::GetOutputManifest { .. } => return None,
     };
     Some(Request {
         request_id: wire.request_id,

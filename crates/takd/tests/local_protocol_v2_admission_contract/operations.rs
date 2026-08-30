@@ -13,6 +13,10 @@ async fn all_v2_run_operations_are_recognized_on_one_persistent_connection() {
             r#"{"type":"AttachRun","run_id":"run-123","after_event":0}"#,
         ),
         ("cancel", r#"{"type":"CancelRun","run_id":"run-123"}"#),
+        (
+            "outputs",
+            r#"{"type":"GetOutputManifest","run_id":"run-123"}"#,
+        ),
     ];
 
     for (request_id, operation) in requests {

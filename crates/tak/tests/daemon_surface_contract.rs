@@ -2,6 +2,8 @@ use crate::support;
 
 use std::process::Command as StdCommand;
 
+#[path = "daemon_surface_contract/runs_cli_contract.rs"]
+mod runs_cli_contract;
 #[path = "daemon_surface_contract/v2_authored_spec_contract.rs"]
 mod v2_authored_spec_contract;
 

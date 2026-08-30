@@ -37,7 +37,10 @@ fn collect_command_docs(command: &Command, path: String, entries: &mut Vec<CliDo
         args,
     });
 
-    for subcommand in command.get_subcommands() {
+    for subcommand in command
+        .get_subcommands()
+        .filter(|subcommand| !subcommand.is_hide_set())
+    {
         let subcommand_path = format!("{path} {}", subcommand.get_name());
         collect_command_docs(subcommand, subcommand_path, entries);
     }

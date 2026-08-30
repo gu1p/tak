@@ -1,6 +1,7 @@
 mod binary_contract;
 mod dictionary_packaging_contract;
 mod failure_kind_binary_contract;
+mod local_daemon_v2_client_contract;
 mod local_daemon_v2_decode_contract;
 mod remote_event_queue_position_contract;
 mod status_binary_contract;

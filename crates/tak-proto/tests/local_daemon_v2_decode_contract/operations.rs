@@ -24,6 +24,14 @@ fn decoder_recognizes_every_v2_run_operation() {
         r#"{"protocol_version":2,"request_id":"cancel","operation":{"type":"CancelRun","run_id":"run-3"}}"#,
     );
     assert!(matches!(cancel.operation, Operation::CancelRun { run_id } if run_id == "run-3"));
+
+    let outputs = v2(
+        r#"{"protocol_version":2,"request_id":"outputs","operation":{"type":"GetOutputManifest","run_id":"run-4"}}"#,
+    );
+    assert!(matches!(
+        outputs.operation,
+        Operation::GetOutputManifest { run_id } if run_id == "run-4"
+    ));
 }
 
 fn v2(raw: &str) -> tak_proto::local_daemon::v2::Request {

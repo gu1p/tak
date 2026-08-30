@@ -99,6 +99,9 @@ fn v2_not_active_response(request: V2Request) -> V2ErrorResponse {
         V2Operation::GetRun { .. } => tracing::debug!("recognized v2 GetRun request"),
         V2Operation::AttachRun { .. } => tracing::debug!("recognized v2 AttachRun request"),
         V2Operation::CancelRun { .. } => tracing::debug!("recognized v2 CancelRun request"),
+        V2Operation::GetOutputManifest { .. } => {
+            tracing::debug!("recognized v2 GetOutputManifest request");
+        }
     }
     V2ErrorResponse::v2_not_active(request.request_id)
 }

@@ -21,6 +21,7 @@ pub enum Operation {
     GetRun { run_id: String },
     AttachRun { run_id: String, after_event: u64 },
     CancelRun { run_id: String },
+    GetOutputManifest { run_id: String },
 }
 
 /// A fixed protocol-v2 request classification failure.

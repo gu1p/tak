@@ -34,6 +34,7 @@ mod run_overrides_support;
 #[cfg(test)]
 mod run_overrides_test_support;
 mod run_visualization;
+mod runs_cli;
 mod status;
 mod task_history;
 mod update_cli;

@@ -71,6 +71,7 @@ tempfile.workspace = true
 serde.workspace = true
 toml.workspace = true
 takd = { path = "../takd" }
+tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]
 serde.workspace = true
