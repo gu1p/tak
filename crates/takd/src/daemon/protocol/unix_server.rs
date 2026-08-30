@@ -17,6 +17,26 @@ pub async fn run_server_with_broker_peers_and_run_store(
     peers: crate::daemon::peer_manager::PeerManager,
     run_store: RunStore,
 ) -> Result<()> {
+    let executable = std::env::current_exe().context("resolve local attempt executable")?;
+    run_server_with_local_attempt_executable(
+        socket_path,
+        manager,
+        broker,
+        peers,
+        run_store,
+        executable,
+    )
+    .await
+}
+
+pub async fn run_server_with_local_attempt_executable(
+    socket_path: &Path,
+    manager: SharedLeaseManager,
+    broker: TorBroker,
+    peers: crate::daemon::peer_manager::PeerManager,
+    run_store: RunStore,
+    local_attempt_executable: PathBuf,
+) -> Result<()> {
     if let Some(parent) = socket_path.parent() {
         let created = ensure_socket_parent(parent).await?;
         if created || tak_core::runtime_paths::daemon_socket_parent_requires_owner_only(socket_path)
@@ -35,7 +55,7 @@ pub async fn run_server_with_broker_peers_and_run_store(
     let listener = UnixListener::bind(socket_path)
         .with_context(|| format!("failed to bind socket {}", socket_path.display()))?;
     set_owner_only_socket_permissions(socket_path).await?;
-    let _run_driver = crate::daemon::RunDriver::spawn(run_store.clone());
+    let _run_driver = crate::daemon::RunDriver::spawn(run_store.clone(), local_attempt_executable);
     let warm_broker = broker.clone();
     let tasks = DaemonTaskHandles::default();
     tokio::spawn(async move {

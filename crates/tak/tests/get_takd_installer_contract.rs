@@ -81,6 +81,19 @@ fn linux_installer_download_uses_visible_progress() {
     );
 }
 
+#[test]
+fn supervisors_restart_takd_without_killing_durable_attempt_wrappers() {
+    let installer = fs::read_to_string(repo_root().join("get-takd.sh")).unwrap();
+    assert!(
+        installer.contains("KillMode=process"),
+        "systemd must leave local attempt wrappers alive"
+    );
+    assert!(
+        installer.contains("<key>AbandonProcessGroup</key><true/>"),
+        "launchd must leave local attempt wrappers alive"
+    );
+}
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }

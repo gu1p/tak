@@ -35,12 +35,14 @@ pub use daemon::protocol::{
     RemoteResponseHeader, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
     StreamTaskEventsRequest, TaskInfo, TorBroker, ensure_valid_request,
     run_server_with_broker_and_peers, run_server_with_broker_peers_and_run_store,
+    run_server_with_local_attempt_executable,
 };
 pub use daemon::remote::{
     ActiveSubmitAttempt, RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteRuntimeConfig,
     RemoteV1Response, SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key,
     run_remote_v1_http_server,
 };
+pub use daemon::run_local_attempt_subprocess;
 pub use daemon::run_store::{RunStore, SubmitRunResult, UploadProgress};
 pub use daemon::runtime::default_socket_path;
 pub use daemon::scheduler::{

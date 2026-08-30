@@ -33,6 +33,7 @@ pub(super) fn prepare(snapshot: LocalExecutionSnapshot) -> Result<Preparation> {
         return Ok(Preparation::Unknown);
     }
     let workspace_root = snapshot.attempt_root.join("workspace");
+    remove_existing(&workspace_root)?;
     private_dir(&workspace_root)?;
     let archive = fs::File::open(&snapshot.archive_path).context("open verified workspace blob")?;
     tar::Archive::new(archive)
@@ -44,9 +45,21 @@ pub(super) fn prepare(snapshot: LocalExecutionSnapshot) -> Result<Preparation> {
     })
 }
 
+fn remove_existing(path: &Path) -> Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() => {
+            fs::remove_dir_all(path)?;
+        }
+        Ok(_) => fs::remove_file(path)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    Ok(())
+}
+
 pub(super) fn mark_started(root: &Path) -> Result<()> {
     let path = root.join("started");
-    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    let mut file = create_private(&path)?;
     file.write_all(b"v2\n")?;
     file.sync_all()?;
     fs::File::open(root)?.sync_all()?;
@@ -84,15 +97,29 @@ pub(super) fn write_completion(root: &Path, completion: &AttemptCompletion) -> R
         },
     };
     let temporary = root.join(format!("terminal-{}.tmp", uuid::Uuid::new_v4()));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary)?;
+    let mut file = create_private(&temporary)?;
     file.write_all(&serde_json::to_vec(&record)?)?;
     file.sync_all()?;
     fs::rename(temporary, root.join("terminal.json"))?;
     fs::File::open(root)?.sync_all()?;
     Ok(())
+}
+
+fn create_private(path: &Path) -> Result<fs::File> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        options.mode(0o600);
+        let file = options.open(path)?;
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+        Ok(file)
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(options.open(path)?)
+    }
 }
 
 fn private_dir(path: &Path) -> Result<()> {

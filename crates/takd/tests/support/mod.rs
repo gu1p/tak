@@ -22,6 +22,7 @@ pub mod remote_output;
 pub mod remote_session;
 pub mod remote_v1_http;
 pub mod remote_v1_http_submit;
+pub mod restartable_local_daemon;
 pub mod runtime_config;
 pub mod sqlite_gate;
 pub mod synthetic_memory_signal;

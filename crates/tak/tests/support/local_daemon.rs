@@ -3,23 +3,19 @@
 use super::local_daemon_manager::manager_for;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
-use std::thread;
 use std::time::{Duration, Instant};
 use tak_core::model::WorkspaceSpec;
-use takd::{PeerManager, TorBroker, run_server_with_broker_and_peers};
-use tokio::runtime::Runtime;
-use tokio::task::JoinHandle;
+use takd::{PeerManager, RunStore, TorBroker, run_server_with_local_attempt_executable};
 
 pub struct LocalDaemonGuard {
-    runtime: Runtime,
-    task: JoinHandle<()>,
+    runtime: tokio::runtime::Runtime,
+    task: tokio::task::JoinHandle<()>,
     socket_path: PathBuf,
 }
 impl LocalDaemonGuard {
     pub fn spawn(socket_path: &Path, spec: &WorkspaceSpec) -> Self {
         Self::spawn_with_broker(socket_path, spec, TorBroker::new())
     }
-
     pub fn spawn_with_tor_dial_addr(
         socket_path: &Path,
         spec: &WorkspaceSpec,
@@ -49,14 +45,23 @@ impl LocalDaemonGuard {
         broker: TorBroker,
         peers: PeerManager,
     ) -> Self {
-        let manager = manager_for(spec);
-        let runtime = Runtime::new().expect("tokio runtime");
-        let manager = Arc::clone(&manager);
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let manager = Arc::clone(&manager_for(spec));
         let socket_path = socket_path.to_path_buf();
         let serve_path = socket_path.clone();
+        let run_store = RunStore::with_db_path(socket_path.with_extension("v2.sqlite")).unwrap();
+        let attempt_executable = super::takd_binary::takd_bin();
         let (startup_tx, startup_rx) = mpsc::channel();
         let task = runtime.spawn(async move {
-            let exit = run_server_with_broker_and_peers(&serve_path, manager, broker, peers).await;
+            let exit = run_server_with_local_attempt_executable(
+                &serve_path,
+                manager,
+                broker,
+                peers,
+                run_store,
+                attempt_executable,
+            )
+            .await;
             let message = match exit {
                 Ok(()) => "server exited before local daemon socket appeared".to_string(),
                 Err(err) => format!("{err:#}"),
@@ -76,7 +81,7 @@ impl LocalDaemonGuard {
                 "timed out waiting for local daemon socket {}",
                 socket_path.display()
             );
-            thread::sleep(Duration::from_millis(20));
+            std::thread::sleep(Duration::from_millis(20));
         }
         Self {
             runtime,

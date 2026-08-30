@@ -51,12 +51,13 @@ fn spawn_protocol_server_with_manager(
     run_store: takd::RunStore,
 ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
-        takd::run_server_with_broker_peers_and_run_store(
+        takd::run_server_with_local_attempt_executable(
             &socket_path,
             manager,
             takd::TorBroker::new(),
             takd::PeerManager::default(),
             run_store,
+            super::takd_bin(),
         )
         .await
     })

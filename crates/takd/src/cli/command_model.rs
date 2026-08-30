@@ -13,6 +13,11 @@ pub(super) struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum Commands {
+    #[command(name = "__local-attempt", hide = true)]
+    LocalAttempt {
+        #[arg(long)]
+        request: PathBuf,
+    },
     Init {
         #[arg(long)]
         config_root: Option<PathBuf>,

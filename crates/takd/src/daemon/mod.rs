@@ -11,4 +11,5 @@ pub mod scheduler;
 pub mod transport;
 
 pub(crate) use local_attempt_transport::LocalAttemptTransport;
+pub use local_attempt_transport::run_local_attempt_subprocess;
 pub(crate) use run_driver::RunDriver;

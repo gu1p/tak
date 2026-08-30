@@ -25,4 +25,8 @@ impl RunStore {
         store.ensure_schema()?;
         Ok(store)
     }
+
+    pub(in crate::daemon) fn db_path(&self) -> &std::path::Path {
+        &self.db_path
+    }
 }

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -38,5 +38,6 @@ pub use types::{
 };
 pub use unix_server::{
     run_server_with_broker_and_peers, run_server_with_broker_peers_and_run_store,
+    run_server_with_local_attempt_executable,
 };
 pub use validation::ensure_valid_request;

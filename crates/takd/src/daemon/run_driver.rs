@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,14 +14,17 @@ pub(crate) struct RunDriver {
 }
 
 impl RunDriver {
-    pub(crate) fn spawn(store: RunStore) -> Self {
+    pub(crate) fn spawn(store: RunStore, local_attempt_executable: PathBuf) -> Self {
         let task = tokio::spawn(async move {
             let capacity = std::thread::available_parallelism()
                 .map_or(1, |parallelism| parallelism.get())
                 .try_into()
                 .unwrap_or(u32::MAX);
             let nodes = [SchedulerNode::with_execution_slots("local", capacity)];
-            let transport = Arc::new(LocalAttemptTransport::new(store.clone()));
+            let transport = Arc::new(LocalAttemptTransport::new(
+                store.clone(),
+                local_attempt_executable,
+            ));
             let mut coordinator = AttemptCoordinator::new(store.clone(), transport);
             loop {
                 if let Err(error) = schedule_ready(&store, &nodes) {

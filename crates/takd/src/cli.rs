@@ -13,7 +13,7 @@ use takd::agent::{
     InitAgentOptions, default_config_root, default_state_root, init_agent,
     interactive_image_cache_budget_gb, read_config, read_token, read_token_wait,
 };
-use takd::serve_agent;
+use takd::{run_local_attempt_subprocess, serve_agent};
 
 mod command_model;
 mod peers_output;
@@ -25,6 +25,9 @@ mod update;
 pub async fn run_cli() -> Result<()> {
     tak_core::crypto_provider::ensure_rustls_crypto_provider();
     match Cli::parse().command {
+        Commands::LocalAttempt { request } => {
+            run_local_attempt_subprocess(&request).await?;
+        }
         Commands::Init {
             config_root,
             state_root,

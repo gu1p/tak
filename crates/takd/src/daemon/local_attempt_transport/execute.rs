@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
@@ -8,46 +8,20 @@ use tak_core::label::parse_label;
 use tak_core::model::StepDef;
 use tak_core::v2::{ResolvedTaskUnit, Step};
 use tak_runner::{
-    OutputStream, RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver,
+    OutputStream, RemoteWorkerExecutionSpec, RunCancellation, TaskOutputChunk, TaskOutputObserver,
     execute_remote_worker_steps_with_output_and_cancellation,
 };
 
 use super::super::run_store::RunStore;
 use super::super::run_store::execution::LocalExecutionSnapshot;
 use super::super::scheduler::{AttemptCompletion, AttemptOutputStream, DispatchCommand};
-use super::{ActiveAttempt, workspace};
 
-pub(super) fn spawn(
-    store: RunStore,
-    command: DispatchCommand,
-    snapshot: LocalExecutionSnapshot,
-    workspace_root: PathBuf,
-    active: Arc<ActiveAttempt>,
-) {
-    tokio::spawn(async move {
-        let completion = run(&store, &command, &snapshot, &workspace_root, &active)
-            .await
-            .unwrap_or_else(failed);
-        loop {
-            match workspace::write_completion(&snapshot.attempt_root, &completion) {
-                Ok(()) => break,
-                Err(error) => {
-                    tracing::error!("persist local attempt terminal record: {error:#}");
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                }
-            }
-        }
-        *active.completion.lock().expect("active attempt lock") = Some(completion);
-        active.completed.notify_waiters();
-    });
-}
-
-async fn run(
+pub(super) async fn run(
     store: &RunStore,
     command: &DispatchCommand,
     snapshot: &LocalExecutionSnapshot,
     workspace_root: &Path,
-    active: &ActiveAttempt,
+    cancellation: &RunCancellation,
 ) -> Result<AttemptCompletion> {
     for task in &snapshot.tasks {
         let observer: Arc<dyn TaskOutputObserver> = Arc::new(DurableObserver {
@@ -60,7 +34,7 @@ async fn run(
             workspace_root,
             &spec,
             Some(Arc::clone(&observer)),
-            &active.cancellation,
+            cancellation,
         )
         .await?;
         if !result.success {
@@ -162,7 +136,7 @@ fn step(value: &Step) -> StepDef {
     }
 }
 
-fn failed(error: anyhow::Error) -> AttemptCompletion {
+pub(super) fn failed(error: anyhow::Error) -> AttemptCompletion {
     AttemptCompletion::Failed {
         terminal_digest: digest(format!("failed:{error:#}").as_bytes()),
     }

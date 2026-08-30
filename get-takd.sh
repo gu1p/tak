@@ -210,6 +210,7 @@ After=default.target
 Environment=RUST_LOG=${service_rust_log}
 Environment=RUST_BACKTRACE=${service_backtrace}
 ExecStart=${takd_bin} serve --config-root ${config_root} --state-root ${state_root}
+KillMode=process
 OOMPolicy=continue
 Restart=always
 RestartSec=2
@@ -247,6 +248,7 @@ install_macos_service() {
 <key>EnvironmentVariables</key><dict><key>RUST_LOG</key><string>${service_rust_log}</string><key>RUST_BACKTRACE</key><string>${service_backtrace}</string></dict>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
+<key>AbandonProcessGroup</key><true/>
 </dict></plist>
 EOF
   stop_macos_service
