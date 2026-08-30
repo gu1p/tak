@@ -13,6 +13,8 @@ pub(super) fn backfill(transaction: &Transaction<'_>) -> Result<()> {
             "SELECT attempt.run_id, attempt.node_id, attempt.reserved_at_ms, \
              attempt.released_at_ms, job.definition_json \
              FROM run_attempts attempt JOIN run_jobs job USING (run_id, job_id) \
+             WHERE NOT EXISTS (SELECT 1 FROM scheduler_node_losses loss \
+                 WHERE loss.node_id = attempt.node_id) \
              ORDER BY attempt.reserved_at_ms, attempt.run_id, attempt.job_id, \
              attempt.authored_attempt, attempt.dispatch_generation",
         )?;

@@ -13,7 +13,7 @@ impl RunStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         migration::apply(&transaction)?;
         transaction.execute(
-            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 4) \
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 5) \
              ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
             [],
         )?;
@@ -117,6 +117,10 @@ INSERT OR IGNORE INTO scheduler_state (singleton, next_turn) VALUES (1, 1);
 CREATE TABLE IF NOT EXISTS scheduler_submitters (
     submitter_id TEXT PRIMARY KEY,
     last_scheduled_turn INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS scheduler_node_losses (
+    node_id TEXT PRIMARY KEY,
+    declared_at_ms INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS run_attempts (
     run_id TEXT NOT NULL,

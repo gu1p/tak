@@ -44,7 +44,8 @@ pub use daemon::remote::{
 pub use daemon::run_store::{RunStore, SubmitRunResult, UploadProgress};
 pub use daemon::runtime::default_socket_path;
 pub use daemon::scheduler::{
-    AttemptCompletion, DispatchCommand, ResultAcceptance, SchedulerNode, UnknownOutcomeResolution,
+    AttemptCompletion, DispatchCommand, NodeLossResolution, ResultAcceptance, SchedulerNode,
+    UnknownOutcomeResolution,
 };
 pub use daemon::transport::{
     ArtiSettings, ContainerEngine, ContainerEngineProbe, HostPlatform,

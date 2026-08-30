@@ -10,8 +10,13 @@ use crate::daemon::scheduler::{
 use super::RunStore;
 use super::events::{append_job_event, now_ms, sqlite_i64};
 
+mod node_loss;
 mod recovery;
 mod transitions;
+mod unknown;
+mod validation;
+
+use validation::validate_digest;
 
 impl RunStore {
     pub fn ack_dispatch(&self, command: &DispatchCommand) -> Result<ResultAcceptance> {
@@ -103,22 +108,11 @@ impl RunStore {
     ) -> Result<UnknownOutcomeResolution> {
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let Some(attempt) = load_attempt(&transaction, command)? else {
-            return Ok(UnknownOutcomeResolution::Stale);
-        };
-        if !attempt.matches(command) || attempt.state != "running" {
-            return Ok(UnknownOutcomeResolution::Stale);
-        }
-        let job = load_job(&transaction, command)?;
-        let retry = job.idempotent && command.authored_attempt < job.retry.max_attempts.get();
-        release_unknown(&transaction, command)?;
-        let resolution = if retry {
-            transitions::schedule_retry(&transaction, command, &job, "outcome unknown; retrying")?;
-            UnknownOutcomeResolution::Retrying
-        } else {
-            transitions::finish_job(&transaction, command, &job, false)?;
-            UnknownOutcomeResolution::Failed
-        };
+        let resolution = unknown::resolve_unknown_in_transaction(
+            &transaction,
+            command,
+            "outcome unknown; retrying",
+        )?;
         transaction.commit()?;
         Ok(resolution)
     }
@@ -185,21 +179,18 @@ fn finish_attempt(
 
 fn release_unknown(transaction: &Transaction<'_>, command: &DispatchCommand) -> Result<()> {
     let now = sqlite_i64(now_ms()?, "timestamp")?;
-    transaction.execute(
+    let released = transaction.execute(
         "UPDATE run_attempts SET state = 'unknown', outcome = 'unknown', finished_at_ms = ?6, released_at_ms = ?6 WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4 AND fencing_token = ?5",
         params![command.run_id, command.job_id, command.authored_attempt,
             command.dispatch_generation, command.fencing_token, now],
     )?;
-    Ok(())
-}
-
-fn validate_digest(value: &str) -> Result<()> {
-    if value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-    {
-        return Ok(());
+    let settled = transaction.execute(
+        "UPDATE run_dispatch_outbox SET delivered_at_ms = COALESCE(delivered_at_ms, ?6) WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4 AND fencing_token = ?5",
+        params![command.run_id, command.job_id, command.authored_attempt,
+            command.dispatch_generation, command.fencing_token, now],
+    )?;
+    if released != 1 || settled != 1 {
+        bail!("unknown attempt is no longer current");
     }
-    bail!("invalid terminal digest")
+    Ok(())
 }

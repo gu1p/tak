@@ -22,6 +22,7 @@ impl RunStore {
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = now_ms()?;
+        let lost_nodes = constraints::lost_nodes(&transaction)?;
         let ready = ready_jobs(&transaction, now)?;
         for ready_job in ready {
             if active_run_attempts(&transaction, &ready_job.run_id)? >= ready_job.max_parallel {
@@ -43,6 +44,7 @@ impl RunStore {
             let affinity = AffinitySelection {
                 eligible_nodes: affinity_nodes.as_ref(),
                 preferred_node: preferred_node.as_deref(),
+                lost_nodes: &lost_nodes,
             };
             let constraint_context = constraints::Context {
                 run_id: &ready_job.run_id,

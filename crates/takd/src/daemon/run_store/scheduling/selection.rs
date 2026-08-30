@@ -14,6 +14,7 @@ mod tests;
 pub(super) struct AffinitySelection<'a> {
     pub(super) eligible_nodes: Option<&'a BTreeSet<String>>,
     pub(super) preferred_node: Option<&'a str>,
+    pub(super) lost_nodes: &'a BTreeSet<String>,
 }
 
 pub(super) fn select_node<'a>(
@@ -48,10 +49,7 @@ pub(super) fn select_node<'a>(
     for offset in 0..count {
         let index = (start + offset) % count;
         let candidate = &job.placement_candidates[index];
-        if affinity
-            .eligible_nodes
-            .is_some_and(|eligible| !eligible.contains(&candidate.node_id))
-        {
+        if !candidate_is_eligible(candidate.node_id.as_str(), affinity) {
             continue;
         }
         let Some(node) = nodes_by_id.get(candidate.node_id.as_str()) else {
@@ -79,10 +77,7 @@ fn select_balanced<'a>(
 ) -> Result<Option<(&'a SchedulerNode, Option<u64>)>> {
     let mut best = None;
     for (index, candidate) in job.placement_candidates.iter().enumerate() {
-        if affinity
-            .eligible_nodes
-            .is_some_and(|eligible| !eligible.contains(&candidate.node_id))
-        {
+        if !candidate_is_eligible(candidate.node_id.as_str(), affinity) {
             continue;
         }
         let Some(node) = nodes.get(candidate.node_id.as_str()).copied() else {
@@ -106,6 +101,13 @@ fn select_balanced<'a>(
         }
     }
     Ok(best.map(|(node, _, _)| (node, None)))
+}
+
+fn candidate_is_eligible(node_id: &str, affinity: &AffinitySelection<'_>) -> bool {
+    !affinity.lost_nodes.contains(node_id)
+        && affinity
+            .eligible_nodes
+            .is_none_or(|eligible| eligible.contains(node_id))
 }
 
 #[derive(Debug, Clone, Copy, Default)]

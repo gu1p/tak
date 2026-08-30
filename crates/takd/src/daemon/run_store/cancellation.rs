@@ -7,6 +7,8 @@ use super::events::{append_event, now_ms, sqlite_i64};
 
 mod attempts;
 
+pub(in crate::daemon::run_store) use attempts::settle_cancellation;
+
 impl RunStore {
     pub fn cancel(&self, run_id: &str) -> Result<RunLifecycleState> {
         let mut connection = self.open_connection()?;

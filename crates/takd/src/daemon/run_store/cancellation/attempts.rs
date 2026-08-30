@@ -50,7 +50,7 @@ impl RunStore {
     }
 }
 
-fn settle_cancellation(
+pub(in crate::daemon::run_store) fn settle_cancellation(
     transaction: &rusqlite::Transaction<'_>,
     command: &DispatchCommand,
 ) -> Result<()> {

@@ -84,3 +84,9 @@ pub enum UnknownOutcomeResolution {
     Failed,
     Stale,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeLossResolution {
+    Applied,
+    Duplicate,
+}
