@@ -30,7 +30,8 @@ mod policy_version_provenance_tests;
 pub(crate) use module_declaration::{ModuleDeclaration, SpecVersionMarker};
 pub(crate) use policy_version_probe::prepare as prepare_policy_version_probe;
 pub(crate) use spec_version::{
-    LegacyBootstrapAdmission, admit_legacy_bootstrap, validate_evaluated_version,
+    AuthoredSpecVersion, LegacyBootstrapAdmission, admit_legacy_bootstrap,
+    classify_authored_version, validate_evaluated_version,
 };
 
 pub(crate) struct PreparedLegacyAuthoredSource {
@@ -70,6 +71,33 @@ impl<'a> ParsedAuthoredSource<'a> {
         boundary.visit_body(&self.syntax.body);
         boundary.finish()
     }
+
+    pub(crate) fn prepare_v2(&self) -> Result<PreparedLegacyAuthoredSource> {
+        let mut boundary = boundary::AuthoredDslBoundary::new_v2(self.path, self.source);
+        boundary.visit_body(&self.syntax.body);
+        boundary.finish()
+    }
+}
+
+pub(crate) fn classify_source(path: &Path, source: &str) -> Result<AuthoredSpecVersion> {
+    let parsed = ParsedAuthoredSource::parse(path, source)?;
+    let declaration = parsed.module_declaration()?;
+    classify_authored_version(path, source, declaration.as_ref())
+}
+
+pub(crate) fn prepare_v2_authored_source(
+    path: &Path,
+    source: &str,
+) -> Result<PreparedLegacyAuthoredSource> {
+    let parsed = ParsedAuthoredSource::parse(path, source)?;
+    let declaration = parsed.module_declaration()?;
+    if classify_authored_version(path, source, declaration.as_ref())? != AuthoredSpecVersion::V2 {
+        return Err(anyhow!(
+            "{}: module_spec(spec_version=2) is required for v2 evaluation",
+            path.display()
+        ));
+    }
+    parsed.prepare_v2()
 }
 
 pub(crate) fn prepare_legacy_authored_source(

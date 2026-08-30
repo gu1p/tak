@@ -54,6 +54,14 @@ fn direct_module_spec_call(statement: &Stmt) -> Option<&ExprCall> {
 }
 
 fn classify_call(path: &Path, source: &str, call: &ExprCall) -> Result<ModuleDeclaration> {
+    if positional_v2_marker(call) {
+        return Err(authored_error(
+            path,
+            source,
+            call.arguments.args[1].range(),
+            "declare spec_version=2 as a keyword argument",
+        ));
+    }
     let mut marker = None;
     let mut expansion = None;
     for keyword in &call.arguments.keywords {
@@ -94,6 +102,13 @@ fn classify_call(path: &Path, source: &str, call: &ExprCall) -> Result<ModuleDec
         version: SpecVersionMarker::Literal(value),
         marker_range: keyword.value.range(),
     })
+}
+
+fn positional_v2_marker(call: &ExprCall) -> bool {
+    let Some(Expr::NumberLiteral(number)) = call.arguments.args.get(1) else {
+        return false;
+    };
+    matches!(&number.value, Number::Int(value) if value.as_u32() == Some(2))
 }
 
 fn non_literal_error(path: &Path, source: &str, range: TextRange) -> anyhow::Error {

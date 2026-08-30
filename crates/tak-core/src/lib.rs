@@ -11,5 +11,6 @@ pub mod model;
 pub mod planner;
 pub mod remote_inventory;
 pub mod runtime_paths;
+pub mod v2;
 
 extern crate self as tak_core;

@@ -10,7 +10,7 @@ use tak_core::model::{
 };
 
 use super::{
-    LoadOptions, MergeState, PRELUDE,
+    AuthoredRootModule, LoadOptions, MergeState, PRELUDE,
     authored_source::{
         LegacyBootstrapAdmission, prepare_legacy_authored_source, prepare_policy_version_probe,
         runtime_input_names, runtime_inputs, validate_evaluated_version,
@@ -18,6 +18,7 @@ use super::{
     execution_policy_registry::register_global_execution_policies,
     execution_resolution::resolve_policy_decision,
     global_config::load_global_execution_config,
+    inspect_authored_root_module,
     module_merge::merge_module,
     monty_deserializer::deserialize_from_monty,
     project_resolution::{package_for_file, resolve_project_id},
@@ -27,6 +28,16 @@ use super::{
 
 pub fn load_workspace(root: &Path, options: &LoadOptions) -> Result<WorkspaceSpec> {
     let workspace_root = detect_workspace_root(root)?;
+    if let AuthoredRootModule::V2(v2) = inspect_authored_root_module(&workspace_root, options)? {
+        if !v2.module.includes.is_empty() {
+            bail!(
+                "module_spec(spec_version=2) declares includes, but v2 include resolution is not active in this build; no child TASKS.py was evaluated and no legacy include fallback was attempted"
+            );
+        }
+        bail!(
+            "module_spec(spec_version=2) loaded and validated, but daemon-owned v2 graph resolution/submission is not active in this build; no legacy WorkspaceSpec was produced and no client executor fallback was attempted"
+        );
+    }
     let discovered = discover_tasks_files(&workspace_root, options)?;
     let mut modules = Vec::<(PathBuf, String, ModuleSpec)>::new();
 

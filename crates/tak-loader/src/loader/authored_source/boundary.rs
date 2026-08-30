@@ -17,6 +17,13 @@ pub(super) struct AuthoredDslBoundary<'a> {
     allowed_namespace_attribute_ranges: Vec<TextRange>,
     allowed_namespace_name_ranges: Vec<TextRange>,
     error: Option<String>,
+    version: DslVersion,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum DslVersion {
+    Legacy,
+    V2,
 }
 
 struct Replacement {
@@ -33,7 +40,19 @@ impl<'a> AuthoredDslBoundary<'a> {
             allowed_namespace_attribute_ranges: Vec::new(),
             allowed_namespace_name_ranges: Vec::new(),
             error: None,
+            version: DslVersion::Legacy,
         }
+    }
+
+    pub(super) fn new_v2(path: &'a Path, source: &'a str) -> Self {
+        Self {
+            version: DslVersion::V2,
+            ..Self::new(path, source)
+        }
+    }
+
+    pub(super) fn is_v2(&self) -> bool {
+        self.version == DslVersion::V2
     }
 
     pub(super) fn finish(mut self) -> Result<PreparedLegacyAuthoredSource> {
@@ -97,7 +116,9 @@ impl<'a> AuthoredDslBoundary<'a> {
     }
 
     fn should_reject_name(&self, name: &str, range: TextRange) -> bool {
-        is_namespace_name(name) && !self.is_allowed_namespace_name(range)
+        is_namespace_name(name)
+            && (name != "Affinity" || self.is_v2())
+            && !self.is_allowed_namespace_name(range)
     }
 
     fn name_rejection_message(&self, name: &str) -> String {
@@ -166,6 +187,8 @@ fn is_namespace_name(name: &str) -> bool {
             | "Runtime"
             | "Transport"
             | "SessionReuse"
+            | "RemoteSelection"
+            | "Affinity"
             | "Scope"
             | "Hold"
             | "QueueDiscipline"

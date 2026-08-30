@@ -5,3 +5,4 @@ mod module_layout_contract;
 mod remote_inventory_contract;
 mod runtime_paths_contract;
 mod serde_defaults_contract;
+mod v2_domain_contract;

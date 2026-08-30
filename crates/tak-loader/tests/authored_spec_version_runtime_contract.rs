@@ -4,10 +4,7 @@ use tak_loader::{LoadOptions, evaluate_named_policy_decision, load_workspace};
 
 #[test]
 fn included_module_reports_its_own_explicit_version_gate() {
-    for (version, expected) in [
-        (1, "Migration summary"),
-        (2, "does not load or execute v2 modules"),
-    ] {
+    for (version, expected) in [(1, "Migration summary"), (2, "cannot enter legacy")] {
         let temp = tempfile::tempdir().expect("tempdir");
         let child = temp.path().join("apps/web");
         fs::create_dir_all(&child).expect("mkdir child");
@@ -59,10 +56,7 @@ fn evaluated_payload_keeps_a_version_one_backstop() {
 
 #[test]
 fn named_policy_evaluation_stops_at_the_authored_version_gate() {
-    for (version, expected) in [
-        (1, "Migration summary"),
-        (2, "does not load or execute v2 modules"),
-    ] {
+    for (version, expected) in [(1, "Migration summary"), (2, "cannot enter legacy")] {
         let temp = tempfile::tempdir().expect("tempdir");
         let tasks_file = temp.path().join("TASKS.py");
         fs::write(

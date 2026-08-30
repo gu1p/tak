@@ -82,11 +82,9 @@ fn explicit_v2_refusal_does_not_depend_on_type_checking() {
     };
 
     let message = load_workspace(temp.path(), &options)
-        .expect_err("explicit v2 must not reach legacy evaluation")
+        .expect_err("explicit v2 must stop before submission")
         .to_string();
-    assert!(
-        message.contains("cannot fall back to legacy client execution"),
-        "{message}"
-    );
+    assert!(message.contains("loaded and validated"), "{message}");
+    assert!(message.contains("no client executor fallback"), "{message}");
     assert!(!message.contains("failed to evaluate"), "{message}");
 }

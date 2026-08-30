@@ -56,14 +56,20 @@ impl<'a> AuthoredDslBoundary<'a> {
         if self.lower_namespace_call(callee, "Transport", transport_method_replacement) {
             return;
         }
-        if self.lower_namespace_call(
-            callee,
-            "RemoteSelection",
-            remote_selection_method_replacement,
-        ) {
+        if self.lower_remote_selection_call(callee) {
             return;
         }
-        if self.lower_namespace_call(callee, "SessionReuse", session_reuse_method_replacement) {
+        let reuse_replacement = if self.is_v2() {
+            v2_session_reuse_method_replacement
+        } else {
+            session_reuse_method_replacement
+        };
+        if self.lower_namespace_call(callee, "SessionReuse", reuse_replacement) {
+            return;
+        }
+        if self.is_v2()
+            && self.lower_namespace_call(callee, "Affinity", affinity_method_replacement)
+        {
             return;
         }
 
@@ -139,7 +145,11 @@ impl<'a> AuthoredDslBoundary<'a> {
             "Transport",
             "RemoteSelection",
             "SessionReuse",
+            "Affinity",
         ] {
+            if namespace == "Affinity" && !self.is_v2() {
+                continue;
+            }
             if let Some(member_name) = namespace_attribute_name(expr, namespace) {
                 if self.is_allowed_namespace_attribute(range) {
                     return;
@@ -153,5 +163,21 @@ impl<'a> AuthoredDslBoundary<'a> {
                 return;
             }
         }
+    }
+
+    fn lower_remote_selection_call(&mut self, callee: &Expr) -> bool {
+        if self.is_v2() && namespace_method_name(callee, "RemoteSelection") == Some("Shuffle") {
+            self.reject(
+                callee.range(),
+                "RemoteSelection.Shuffle() was removed in spec_version=2; use Balanced.",
+            );
+            return true;
+        }
+        let replacement = if self.is_v2() {
+            v2_remote_selection_method_replacement
+        } else {
+            remote_selection_method_replacement
+        };
+        self.lower_namespace_call(callee, "RemoteSelection", replacement)
     }
 }

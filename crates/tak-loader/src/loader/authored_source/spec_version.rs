@@ -7,6 +7,12 @@ use super::{ModuleDeclaration, SpecVersionMarker, authored_error};
 
 const MIGRATION_SUMMARY: &str = "Migration summary for the coordinated v2 release: after upgrading, run `tak docs dump`; add literal `spec_version=2` to every TASKS.py module; all execution is daemon-owned by local `takd`; `RemoteSelection.Balanced()` replaces `Shuffle()`; `Workspace()` and `Paths(...)` are isolated snapshots; use `SharedWorkspace(max_parallel_tasks=N)` for shared undeclared writes; declare outputs and `pass_env`.";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AuthoredSpecVersion {
+    LegacyBootstrap,
+    V2,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct LegacyBootstrapAdmission {
     marker_range: Option<TextRange>,
@@ -41,7 +47,7 @@ pub(crate) fn admit_legacy_bootstrap(
             path,
             source,
             declaration.marker_range,
-            "module_spec(spec_version=2) was recognized, but this build does not load or execute v2 modules; v2 modules cannot fall back to legacy client execution, and module evaluation stopped before a workspace graph was produced",
+            "module_spec(spec_version=2) cannot enter legacy TASKS.py loading; no legacy adapter was attempted",
         )),
         SpecVersionMarker::Literal(version) => Err(authored_error(
             path,
@@ -49,6 +55,34 @@ pub(crate) fn admit_legacy_bootstrap(
             declaration.marker_range,
             format!(
                 "unsupported spec_version={version}; version 2 is the migration target, but this build does not load it yet. Upgrade tak, takd, and workers together when the v2 release is available"
+            ),
+        )),
+    }
+}
+
+pub(crate) fn classify_authored_version(
+    path: &Path,
+    source: &str,
+    declaration: Option<&ModuleDeclaration>,
+) -> Result<AuthoredSpecVersion> {
+    let Some(declaration) = declaration else {
+        return Ok(AuthoredSpecVersion::LegacyBootstrap);
+    };
+    match declaration.version {
+        SpecVersionMarker::Omitted => Ok(AuthoredSpecVersion::LegacyBootstrap),
+        SpecVersionMarker::Literal(1) => Err(authored_error(
+            path,
+            source,
+            declaration.marker_range,
+            format!("explicit module_spec(spec_version=1) is rejected. {MIGRATION_SUMMARY}"),
+        )),
+        SpecVersionMarker::Literal(2) => Ok(AuthoredSpecVersion::V2),
+        SpecVersionMarker::Literal(version) => Err(authored_error(
+            path,
+            source,
+            declaration.marker_range,
+            format!(
+                "unsupported spec_version={version}; protocol v2 is required. Upgrade tak, takd, and workers together"
             ),
         )),
     }

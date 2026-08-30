@@ -35,11 +35,38 @@ pub(super) fn remote_selection_method_replacement(name: &str) -> Option<&'static
     }
 }
 
+pub(super) fn v2_remote_selection_method_replacement(name: &str) -> Option<&'static str> {
+    match name {
+        "Balanced" => Some("RemoteSelection_Balanced"),
+        "Sequential" => Some("RemoteSelection_Sequential"),
+        "RoundRobin" => Some("RemoteSelection_RoundRobin"),
+        _ => None,
+    }
+}
+
 pub(super) fn session_reuse_method_replacement(name: &str) -> Option<&'static str> {
     match name {
         "Workspace" => Some("SessionReuse_Workspace"),
         "Paths" => Some("SessionReuse_Paths"),
         "Container" => Some("SessionReuse_Container"),
+        _ => None,
+    }
+}
+
+pub(super) fn v2_session_reuse_method_replacement(name: &str) -> Option<&'static str> {
+    match name {
+        "Workspace" => Some("SessionReuse_Workspace"),
+        "Paths" => Some("SessionReuse_Paths"),
+        "SharedWorkspace" => Some("SessionReuse_SharedWorkspace"),
+        "Container" => Some("SessionReuse_Container"),
+        _ => None,
+    }
+}
+
+pub(super) fn affinity_method_replacement(name: &str) -> Option<&'static str> {
+    match name {
+        "PreferSameNode" => Some("Affinity_PreferSameNode"),
+        "RequireSameNode" => Some("Affinity_RequireSameNode"),
         _ => None,
     }
 }

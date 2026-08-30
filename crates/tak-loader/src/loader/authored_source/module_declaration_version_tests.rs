@@ -71,3 +71,18 @@ fn explicit_literal_survives_unrelated_keyword_expansion() {
         SpecVersionMarker::Literal(2)
     );
 }
+
+#[test]
+fn positional_v2_marker_requires_the_authored_keyword() {
+    let source = "SPEC = module_spec([], 2)\nSPEC\n";
+    let parsed = ParsedAuthoredSource::parse(Path::new("TASKS.py"), source).expect("parse source");
+    let message = parsed
+        .module_declaration()
+        .expect_err("positional v2 marker should be rejected")
+        .to_string();
+
+    assert!(
+        message.contains("declare spec_version=2 as a keyword argument"),
+        "{message}"
+    );
+}
