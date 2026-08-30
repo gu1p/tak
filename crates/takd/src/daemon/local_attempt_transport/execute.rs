@@ -23,7 +23,7 @@ pub(super) async fn run(
     workspace_root: &Path,
     cancellation: &RunCancellation,
 ) -> Result<AttemptCompletion> {
-    for task in &snapshot.tasks {
+    for (index, task) in snapshot.tasks.iter().enumerate() {
         let observer: Arc<dyn TaskOutputObserver> = Arc::new(DurableObserver {
             store: store.clone(),
             command: command.clone(),
@@ -43,6 +43,15 @@ pub(super) async fn run(
                 result.exit_code
             )));
         }
+        if index + 1 == snapshot.tasks.len()
+            && matches!(
+                store.begin_output_commit(command)?,
+                super::super::scheduler::ResultAcceptance::Stale
+            )
+        {
+            bail!("local attempt output fence is stale");
+        }
+        super::outputs::persist(store, command, task, workspace_root)?;
     }
     Ok(AttemptCompletion::Succeeded {
         terminal_digest: digest(b"succeeded"),

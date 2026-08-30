@@ -2,6 +2,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Result, ensure};
+use sha2::{Digest, Sha256};
+use tak_core::v2::OutputMergeError;
 use tak_runner::RunCancellation;
 
 use super::{durable_state::AttemptOwner, execute, launcher, workspace};
@@ -22,7 +24,18 @@ pub async fn run_local_attempt_subprocess(request_path: &Path) -> Result<()> {
     if workspace::read_completion(&root)?.is_some() {
         return Ok(());
     }
-    let snapshot = store.local_execution_snapshot(&request.command)?;
+    let snapshot = match store.local_execution_snapshot(&request.command) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let Some(conflict) = error.downcast_ref::<OutputMergeError>() else {
+                return Err(error);
+            };
+            let message = format!("declared output preparation failed: {conflict}");
+            let digest = format!("{:x}", Sha256::digest(message.as_bytes()));
+            store.fail_attempt_permanently(&request.command, &digest, &message)?;
+            return Ok(());
+        }
+    };
     let prepared = tokio::task::spawn_blocking(move || workspace::prepare(snapshot)).await??;
     let workspace::Preparation::Execute {
         snapshot,

@@ -51,7 +51,7 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
         after_event = next_event;
         if terminal {
             return match state {
-                RunLifecycleState::Succeeded => Ok(()),
+                RunLifecycleState::Succeeded => materialize(socket, run_id).await,
                 RunLifecycleState::Failed | RunLifecycleState::Cancelled => {
                     bail!("run {run_id} did not succeed")
                 }
@@ -67,6 +67,20 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
             }
         }
     }
+}
+
+async fn materialize(socket: &Path, run_id: &str) -> Result<()> {
+    let store = crate::cli::run_checkout_store::RunCheckoutStore::open_default()?;
+    if let Some(context) = store.load(socket, run_id)? {
+        return crate::cli::output_materialization::materialize(socket, run_id, &context).await;
+    }
+    let bundle = crate::cli::runs_cli::outputs::fetch(socket, run_id).await?;
+    if bundle.manifest.entries.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "original checkout association for run {run_id} is unavailable; outputs remain in takd. Use `tak runs outputs {run_id} --to DIR`."
+    )
 }
 
 async fn handle_interrupt(

@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
 use crate::daemon::scheduler::AttemptCompletion;
 
+#[cfg(test)]
+#[path = "workspace/overlay_replacement_tests.rs"]
+mod overlay_replacement_tests;
+mod overlays;
 mod shared;
 
 pub(super) enum Preparation {
@@ -38,6 +42,7 @@ pub(super) fn prepare(snapshot: LocalExecutionSnapshot) -> Result<Preparation> {
         LocalWorkspace::Private => prepare_private(&snapshot)?,
         LocalWorkspace::Shared(root) => shared::prepare(&snapshot.archive_path, root)?,
     };
+    overlays::apply(&workspace_root, &snapshot.overlays)?;
     Ok(Preparation::Execute {
         snapshot,
         workspace_root,

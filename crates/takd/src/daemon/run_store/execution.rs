@@ -10,6 +10,7 @@ use crate::daemon::scheduler::DispatchCommand;
 
 use super::RunStore;
 use super::blob::verified_blob;
+use super::output_artifacts::{OutputOverlay, dependency_overlays};
 
 pub(in crate::daemon) struct LocalExecutionSnapshot {
     pub(in crate::daemon) archive_path: PathBuf,
@@ -17,6 +18,7 @@ pub(in crate::daemon) struct LocalExecutionSnapshot {
     pub(in crate::daemon) tasks: Vec<ResolvedTaskUnit>,
     pub(in crate::daemon) environment: BTreeMap<String, String>,
     pub(in crate::daemon) workspace: LocalWorkspace,
+    pub(in crate::daemon) overlays: Vec<OutputOverlay>,
 }
 
 pub(in crate::daemon) enum LocalWorkspace {
@@ -34,7 +36,7 @@ impl RunStore {
             "SELECT COUNT(*) FROM run_attempts attempt JOIN run_jobs job USING (run_id,job_id) \
              WHERE attempt.run_id=?1 AND attempt.job_id=?2 AND attempt.authored_attempt=?3 \
              AND attempt.dispatch_generation=?4 AND attempt.fencing_token=?5 \
-             AND attempt.node_id=?6 AND attempt.state IN ('transferring','running') \
+             AND attempt.node_id=?6 AND attempt.state IN ('transferring','running','output_committing') \
              AND attempt.released_at_ms IS NULL \
              AND job.current_fencing_token=attempt.fencing_token",
             rusqlite::params![
@@ -105,6 +107,11 @@ impl RunStore {
         drop(statement);
         let archive_path = verified_blob(self, &transaction, &fingerprint)?
             .ok_or_else(|| anyhow::anyhow!("verified workspace blob is missing"))?;
+        let consumer = job
+            .task_ids
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("resolved local job has no tasks"))?;
+        let overlays = dependency_overlays(self, &transaction, &command.run_id, &run, consumer)?;
         transaction.commit()?;
         let workspace = job
             .session
@@ -126,6 +133,7 @@ impl RunStore {
             tasks,
             environment,
             workspace,
+            overlays,
         })
     }
 

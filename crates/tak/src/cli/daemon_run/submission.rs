@@ -13,6 +13,7 @@ pub(super) async fn submit_and_attach(
     socket_path: PathBuf,
     submission: RunSubmission,
     archive: Vec<u8>,
+    checkout: crate::cli::run_checkout_store::CheckoutContext,
 ) -> Result<()> {
     let mut interrupts = crate::cli::attachment_interrupt::State::new()?;
     let response = exchange::response(
@@ -34,6 +35,11 @@ pub(super) async fn submit_and_attach(
         bail!("local takd returned an unexpected SubmitRun response")
     };
     println!("run_id={run_id}");
+    crate::cli::run_checkout_store::RunCheckoutStore::open_default()?.record(
+        &socket_path,
+        &run_id,
+        &checkout,
+    )?;
     if let WorkspaceDisposition::UploadRequired { next_offset } = workspace {
         let upload = upload::workspace(
             &socket_path,
@@ -48,7 +54,9 @@ pub(super) async fn submit_and_attach(
                 handle_pre_attach_interrupt(
                     &socket_path, &run_id, action?, &mut interrupts,
                 ).await?;
-                return attach::run_with_interrupts(&socket_path, &run_id, interrupts).await;
+                return attach::run_with_interrupts(
+                    &socket_path, &run_id, interrupts, &checkout,
+                ).await;
             }
         }
     }
@@ -65,13 +73,15 @@ pub(super) async fn submit_and_attach(
             handle_pre_attach_interrupt(
                 &socket_path, &run_id, action?, &mut interrupts,
             ).await?;
-            return attach::run_with_interrupts(&socket_path, &run_id, interrupts).await;
+            return attach::run_with_interrupts(
+                &socket_path, &run_id, interrupts, &checkout,
+            ).await;
         }
     };
     if !matches!(response, Response::RunCommitted { run_id: ref id, .. } if id == &run_id) {
         bail!("local takd returned an unexpected CommitRun response");
     }
-    attach::run_with_interrupts(&socket_path, &run_id, interrupts).await
+    attach::run_with_interrupts(&socket_path, &run_id, interrupts, &checkout).await
 }
 
 async fn handle_pre_attach_interrupt(

@@ -10,6 +10,8 @@ use tak_core::v2::{
 };
 
 pub mod constraints;
+pub mod local_outputs;
+pub mod output_conflicts;
 pub mod scheduler;
 
 pub static ARCHIVE: LazyLock<Vec<u8>> = LazyLock::new(|| {
@@ -91,10 +93,6 @@ pub fn submission(key: &str, secret: &str) -> RunSubmission {
         limiter_definitions: vec![],
         queue_definitions: vec![],
     };
-    RunSubmission::new(
-        key,
-        run,
-        vec![EnvironmentValue::new("TOKEN", secret).unwrap()],
-    )
-    .unwrap()
+    let environment = vec![EnvironmentValue::new("TOKEN", secret).unwrap()];
+    RunSubmission::new(key, run, environment).unwrap()
 }

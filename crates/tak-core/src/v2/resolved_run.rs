@@ -1,3 +1,4 @@
+mod declared_outputs;
 mod definitions;
 mod environment_values;
 mod job;
@@ -6,6 +7,7 @@ mod submission;
 mod validation;
 mod workspace;
 
+pub use declared_outputs::*;
 pub use definitions::*;
 pub use environment_values::EnvironmentValue;
 pub use job::*;

@@ -4,16 +4,18 @@ use rusqlite::TransactionBehavior;
 use super::RunStore;
 
 mod migration;
+mod output;
 
 impl RunStore {
     pub(super) fn ensure_schema(&self) -> Result<()> {
         let mut connection = self.open_connection()?;
         migration::reject_newer_schema(&connection)?;
         connection.execute_batch(SCHEMA)?;
+        connection.execute_batch(output::SCHEMA)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         migration::apply(&transaction)?;
         transaction.execute(
-            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 6) \
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 7) \
              ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
             [],
         )?;

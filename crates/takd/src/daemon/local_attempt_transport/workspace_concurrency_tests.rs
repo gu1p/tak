@@ -26,6 +26,7 @@ fn simultaneous_shared_preparations_publish_one_complete_root() {
                     tasks: Vec::new(),
                     environment: BTreeMap::new(),
                     workspace: LocalWorkspace::Shared(shared.as_ref().clone()),
+                    overlays: Vec::new(),
                 };
                 let Preparation::Execute { workspace_root, .. } = prepare(snapshot).unwrap() else {
                     panic!("shared attempt should execute")

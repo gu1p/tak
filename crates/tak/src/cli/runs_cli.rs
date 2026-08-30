@@ -13,7 +13,7 @@ pub(crate) mod client;
 #[cfg(test)]
 mod client_deadline_tests;
 #[path = "runs_cli/outputs.rs"]
-mod outputs;
+pub(crate) mod outputs;
 #[path = "runs_cli/render.rs"]
 mod render;
 

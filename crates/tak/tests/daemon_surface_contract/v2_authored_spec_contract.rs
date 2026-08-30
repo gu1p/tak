@@ -2,6 +2,10 @@
 mod cancellation;
 #[path = "v2_authored_spec_contract/container_fusion.rs"]
 mod container_fusion;
+#[path = "v2_authored_spec_contract/declared_output_roundtrip.rs"]
+mod declared_output_roundtrip;
+#[path = "v2_authored_spec_contract/dependency_output_conflict.rs"]
+mod dependency_output_conflict;
 #[path = "v2_authored_spec_contract/failed_submission.rs"]
 mod failed_submission;
 #[path = "v2_authored_spec_contract/includes_inactive.rs"]
@@ -10,6 +14,10 @@ mod includes_inactive;
 mod live_output;
 #[path = "v2_authored_spec_contract/local_execution.rs"]
 mod local_execution;
+#[path = "v2_authored_spec_contract/output_conflict_roundtrip.rs"]
+mod output_conflict_roundtrip;
+#[path = "v2_authored_spec_contract/output_reattach_roundtrip.rs"]
+mod output_reattach_roundtrip;
 #[path = "v2_authored_spec_contract/rate_limit_submission.rs"]
 mod rate_limit_submission;
 #[path = "v2_authored_spec_contract/remote_selection_migration.rs"]

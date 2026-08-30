@@ -20,3 +20,9 @@ pub struct UploadProgress {
     pub next_offset: u64,
     pub complete: bool,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputArtifactChunk {
+    pub bytes: Vec<u8>,
+    pub complete: bool,
+}

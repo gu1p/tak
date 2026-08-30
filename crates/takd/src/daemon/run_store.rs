@@ -8,6 +8,7 @@ mod cancellation;
 mod connection;
 mod events;
 pub(in crate::daemon) mod execution;
+pub(in crate::daemon) mod output_artifacts;
 mod output_events;
 mod queries;
 mod scheduling;
@@ -16,7 +17,7 @@ mod submission;
 mod types;
 mod upload;
 
-pub use types::{RunStore, SubmitRunResult, UploadProgress};
+pub use types::{OutputArtifactChunk, RunStore, SubmitRunResult, UploadProgress};
 
 impl RunStore {
     pub fn with_db_path(db_path: PathBuf) -> Result<Self> {

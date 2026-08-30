@@ -12,8 +12,12 @@ mod workspace;
 pub(super) async fn execute(root: V2AuthoredRoot, args: RunCliArgs) -> Result<()> {
     validate_overrides(&args)?;
     let workspace = workspace::build(&root.workspace_root)?;
+    let checkout = super::run_checkout_store::CheckoutContext::new(
+        &root.workspace_root,
+        workspace.descriptor.manifest.clone(),
+    )?;
     let submission = resolve::resolve(&root, &args, workspace.descriptor.clone())?;
-    submission::submit_and_attach(socket_path(), submission, workspace.archive).await
+    submission::submit_and_attach(socket_path(), submission, workspace.archive, checkout).await
 }
 
 fn socket_path() -> PathBuf {

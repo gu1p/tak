@@ -1,3 +1,4 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use tak_core::v2::RunSubmission;
 use tak_proto::local_daemon::v2::{ErrorResponse, Operation, Request, Response};
 
@@ -78,16 +79,30 @@ pub(super) fn dispatch(request: Request, store: &RunStore) -> Result<Response, E
                 })
         }
         Operation::GetOutputManifest { run_id } => store
-            .summary(&run_id)
-            .and_then(|run| run.ok_or_else(|| anyhow::anyhow!("run not found")))
-            .map(|_| Response::OutputManifest {
+            .output_manifest(&run_id)
+            .and_then(|artifacts| artifacts.ok_or_else(|| anyhow::anyhow!("run not found")))
+            .map(|artifacts| Response::OutputManifest {
                 protocol_version: 2,
                 request_id: request_id.clone(),
                 run_id,
                 expired: false,
-                artifacts: Vec::new(),
+                artifacts,
             }),
-        Operation::GetOutputChunk { .. } => Err(anyhow::anyhow!("artifact not found")),
+        Operation::GetOutputChunk {
+            artifact_id,
+            offset,
+            max_bytes,
+        } => store
+            .output_chunk(&artifact_id, offset, max_bytes)
+            .and_then(|chunk| chunk.ok_or_else(|| anyhow::anyhow!("artifact not found")))
+            .map(|chunk| Response::OutputChunk {
+                protocol_version: 2,
+                request_id: request_id.clone(),
+                artifact_id,
+                offset,
+                chunk_base64: STANDARD.encode(chunk.bytes),
+                complete: chunk.complete,
+            }),
     };
     result.map_err(|error| classify_error(request_id, &error))
 }

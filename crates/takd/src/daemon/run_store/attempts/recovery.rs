@@ -11,8 +11,8 @@ impl RunStore {
             "SELECT attempt.run_id, attempt.job_id, attempt.node_id, attempt.authored_attempt, \
              attempt.dispatch_generation, attempt.fencing_token FROM run_attempts attempt \
              JOIN run_jobs job USING (run_id, job_id) JOIN runs run USING (run_id) \
-             WHERE attempt.state = 'running' AND attempt.released_at_ms IS NULL \
-             AND job.state = 'running' AND job.current_fencing_token = attempt.fencing_token \
+             WHERE attempt.state IN ('running','output_committing') AND attempt.released_at_ms IS NULL \
+             AND job.state IN ('running','output_committing') AND job.current_fencing_token = attempt.fencing_token \
              AND run.state = 'running' ORDER BY attempt.reserved_at_ms, attempt.run_id, attempt.job_id",
         )?;
         statement

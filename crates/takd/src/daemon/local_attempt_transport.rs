@@ -10,6 +10,7 @@ use super::scheduler::DispatchCommand;
 mod durable_state;
 mod execute;
 mod launcher;
+mod outputs;
 mod workspace;
 mod wrapper;
 

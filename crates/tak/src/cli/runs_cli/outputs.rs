@@ -11,6 +11,16 @@ mod download;
 mod materialize;
 
 pub(super) async fn retrieve(socket: &Path, run_id: &str, destination: &Path) -> Result<()> {
+    let bundle = fetch(socket, run_id).await?;
+    write_fresh(socket, destination, &bundle).await
+}
+
+pub(crate) struct ValidatedOutputBundle {
+    pub(crate) artifacts: Vec<OutputArtifact>,
+    pub(crate) manifest: WorkspaceManifest,
+}
+
+pub(crate) async fn fetch(socket: &Path, run_id: &str) -> Result<ValidatedOutputBundle> {
     let response = super::request(
         socket,
         "tak-runs-outputs",
@@ -35,7 +45,18 @@ pub(super) async fn retrieve(socket: &Path, run_id: &str, destination: &Path) ->
     if expired {
         bail!("Run output artifacts have expired.");
     }
-    preflight(&artifacts)?;
+    let manifest = validate(&artifacts)?;
+    Ok(ValidatedOutputBundle {
+        artifacts,
+        manifest,
+    })
+}
+
+pub(crate) async fn write_fresh(
+    socket: &Path,
+    destination: &Path,
+    bundle: &ValidatedOutputBundle,
+) -> Result<()> {
     if fs::symlink_metadata(destination).is_ok() {
         bail!("run output destination already exists");
     }
@@ -47,20 +68,18 @@ pub(super) async fn retrieve(socket: &Path, run_id: &str, destination: &Path) ->
     fs::create_dir(destination)
         .with_context(|| format!("create run output destination {}", destination.display()))?;
     let mut fresh = FreshDestination::new(destination);
-    materialize::all(socket, destination, &artifacts).await?;
+    materialize::all(socket, destination, &bundle.artifacts).await?;
     fresh.keep();
     Ok(())
 }
 
-fn preflight(artifacts: &[OutputArtifact]) -> Result<()> {
+fn validate(artifacts: &[OutputArtifact]) -> Result<WorkspaceManifest> {
     let mut entries = Vec::new();
     for artifact in artifacts {
         safe_path(&artifact.path)?;
         entries.push(validate_metadata(artifact)?);
     }
-    WorkspaceManifest::new(entries)
-        .map_err(|_| anyhow::anyhow!("daemon output manifest is unsafe"))?;
-    Ok(())
+    WorkspaceManifest::new(entries).map_err(|_| anyhow::anyhow!("daemon output manifest is unsafe"))
 }
 
 fn validate_metadata(artifact: &OutputArtifact) -> Result<WorkspaceEntry> {

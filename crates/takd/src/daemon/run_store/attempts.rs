@@ -1,6 +1,5 @@
 use anyhow::{Result, bail};
-use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
-use tak_core::v2::ResolvedJob;
+use rusqlite::{Transaction, TransactionBehavior, params};
 use tak_proto::local_daemon::v2::RunEventKind;
 
 use crate::daemon::scheduler::{
@@ -11,11 +10,16 @@ use super::RunStore;
 use super::events::{append_job_event, now_ms, sqlite_i64};
 
 mod node_loss;
+mod output_commit;
+mod output_completion;
+mod permanent_failure;
+mod records;
 mod recovery;
 mod transitions;
 mod unknown;
 mod validation;
 
+use records::{load_attempt, load_job};
 use validation::validate_digest;
 
 impl RunStore {
@@ -28,7 +32,7 @@ impl RunStore {
         if !attempt.matches(command) {
             return Ok(ResultAcceptance::Stale);
         }
-        if attempt.state == "running" {
+        if matches!(attempt.state.as_str(), "running" | "output_committing") {
             return Ok(ResultAcceptance::Duplicate);
         }
         if attempt.state != "transferring" {
@@ -74,11 +78,8 @@ impl RunStore {
         let Some(attempt) = load_attempt(&transaction, command)? else {
             return Ok(ResultAcceptance::Stale);
         };
-        let outcome = if matches!(completion, AttemptCompletion::Succeeded { .. }) {
-            "succeeded"
-        } else {
-            "failed"
-        };
+        let succeeded = matches!(completion, AttemptCompletion::Succeeded { .. });
+        let outcome = if succeeded { "succeeded" } else { "failed" };
         if !attempt.matches(command) {
             return Ok(ResultAcceptance::Stale);
         }
@@ -87,16 +88,33 @@ impl RunStore {
         {
             return Ok(ResultAcceptance::Duplicate);
         }
-        if !matches!(attempt.state.as_str(), "transferring" | "running") {
+        if !matches!(
+            attempt.state.as_str(),
+            "transferring" | "running" | "output_committing"
+        ) {
             return Ok(ResultAcceptance::Stale);
         }
         let job = load_job(&transaction, command)?;
-        let retry = outcome == "failed" && command.authored_attempt < job.retry.max_attempts.get();
-        finish_attempt(&transaction, command, outcome, completion.digest(), retry)?;
-        if retry {
-            transitions::schedule_retry(&transaction, command, &job, "attempt failed; retrying")?;
+        if succeeded {
+            output_completion::finish_successful_attempt(
+                &transaction,
+                command,
+                &job,
+                completion.digest(),
+            )?;
         } else {
-            transitions::finish_job(&transaction, command, &job, outcome == "succeeded")?;
+            let retry = command.authored_attempt < job.retry.max_attempts.get();
+            finish_attempt(&transaction, command, outcome, completion.digest(), retry)?;
+            if retry {
+                transitions::schedule_retry(
+                    &transaction,
+                    command,
+                    &job,
+                    "attempt failed; retrying",
+                )?;
+            } else {
+                transitions::finish_job(&transaction, command, &job, false)?;
+            }
         }
         transaction.commit()?;
         Ok(ResultAcceptance::Applied)
@@ -116,40 +134,6 @@ impl RunStore {
         transaction.commit()?;
         Ok(resolution)
     }
-}
-
-struct StoredAttempt {
-    token: String,
-    node_id: String,
-    state: String,
-    outcome: Option<String>,
-    digest: Option<String>,
-}
-
-impl StoredAttempt {
-    fn matches(&self, command: &DispatchCommand) -> bool {
-        self.token == command.fencing_token && self.node_id == command.node_id
-    }
-}
-
-fn load_attempt(
-    transaction: &Transaction<'_>,
-    command: &DispatchCommand,
-) -> Result<Option<StoredAttempt>> {
-    transaction.query_row(
-        "SELECT fencing_token, node_id, state, outcome, terminal_digest FROM run_attempts WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4",
-        params![command.run_id, command.job_id, command.authored_attempt, command.dispatch_generation],
-        |row| Ok(StoredAttempt { token: row.get(0)?, node_id: row.get(1)?, state: row.get(2)?, outcome: row.get(3)?, digest: row.get(4)? }),
-    ).optional().map_err(Into::into)
-}
-
-fn load_job(transaction: &Transaction<'_>, command: &DispatchCommand) -> Result<ResolvedJob> {
-    let definition = transaction.query_row(
-        "SELECT definition_json FROM run_jobs WHERE run_id = ?1 AND job_id = ?2 AND current_fencing_token = ?3",
-        params![command.run_id, command.job_id, command.fencing_token],
-        |row| row.get::<_, String>(0),
-    ).optional()?.ok_or_else(|| anyhow::anyhow!("attempt fence is no longer current"))?;
-    Ok(serde_json::from_str(&definition)?)
 }
 
 fn finish_attempt(

@@ -66,6 +66,7 @@ fn snapshot(
         tasks: Vec::new(),
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Shared(shared.to_owned()),
+        overlays: Vec::new(),
     }
 }
 

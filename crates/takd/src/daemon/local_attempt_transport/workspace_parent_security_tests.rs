@@ -23,6 +23,7 @@ fn shared_preparation_rejects_a_symlinked_storage_parent() {
         tasks: Vec::new(),
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Shared(parent.join("shared")),
+        overlays: Vec::new(),
     };
 
     assert!(prepare(snapshot).is_err());

@@ -8,6 +8,7 @@ pub(super) async fn run_with_interrupts(
     socket_path: &Path,
     run_id: &str,
     mut interrupts: crate::cli::attachment_interrupt::State,
+    checkout: &crate::cli::run_checkout_store::CheckoutContext,
 ) -> Result<()> {
     let mut after_event = 0;
     loop {
@@ -54,7 +55,10 @@ pub(super) async fn run_with_interrupts(
         after_event = next_event;
         if terminal {
             return match state {
-                RunLifecycleState::Succeeded => Ok(()),
+                RunLifecycleState::Succeeded => {
+                    crate::cli::output_materialization::materialize(socket_path, run_id, checkout)
+                        .await
+                }
                 RunLifecycleState::Failed | RunLifecycleState::Cancelled => {
                     bail!("run {run_id} did not succeed")
                 }

@@ -7,7 +7,7 @@ use crate::daemon::scheduler::DispatchCommand;
 mod affinity;
 mod cancellation;
 
-const CURRENT_VERSION: i64 = 6;
+const CURRENT_VERSION: i64 = 7;
 
 pub(super) fn reject_newer_schema(connection: &Connection) -> Result<()> {
     let has_version_table = connection.query_row(

@@ -19,6 +19,7 @@ fn preparation_discards_a_partial_workspace_left_before_start() {
         tasks: Vec::new(),
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Private,
+        overlays: Vec::new(),
     };
 
     let Preparation::Execute { workspace_root, .. } = prepare(snapshot).unwrap() else {
@@ -66,6 +67,7 @@ fn snapshot(
         tasks: Vec::new(),
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Shared(shared.to_owned()),
+        overlays: Vec::new(),
     }
 }
 
