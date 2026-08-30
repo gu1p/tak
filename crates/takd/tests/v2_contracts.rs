@@ -14,6 +14,7 @@ test_module!(v2_attempt_outbox_recovery_behavior);
 test_module!(v2_local_attempt_restart_behavior);
 test_module!(v2_local_attempt_restart_cancellation_behavior);
 test_module!(v2_local_attempt_wrapper_cli_contract);
+test_module!(v2_local_shared_workspace_behavior);
 test_module!(v2_run_store_active_migration_contract);
 test_module!(v2_run_store_archive_contract);
 test_module!(v2_run_store_blob_recovery_contract);

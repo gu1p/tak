@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
-use tak_core::v2::{ResolvedRun, ResolvedTaskUnit};
+use tak_core::v2::{ResolvedRun, ResolvedTaskUnit, SessionReuse};
 
 use crate::daemon::scheduler::DispatchCommand;
 
@@ -16,6 +16,12 @@ pub(in crate::daemon) struct LocalExecutionSnapshot {
     pub(in crate::daemon) attempt_root: PathBuf,
     pub(in crate::daemon) tasks: Vec<ResolvedTaskUnit>,
     pub(in crate::daemon) environment: BTreeMap<String, String>,
+    pub(in crate::daemon) workspace: LocalWorkspace,
+}
+
+pub(in crate::daemon) enum LocalWorkspace {
+    Private,
+    Shared(PathBuf),
 }
 
 impl RunStore {
@@ -100,11 +106,26 @@ impl RunStore {
         let archive_path = verified_blob(self, &transaction, &fingerprint)?
             .ok_or_else(|| anyhow::anyhow!("verified workspace blob is missing"))?;
         transaction.commit()?;
+        let workspace = job
+            .session
+            .as_ref()
+            .filter(|session| matches!(session.reuse, SessionReuse::SharedWorkspace { .. }))
+            .map_or(LocalWorkspace::Private, |session| {
+                let identity =
+                    serde_json::to_vec(&(&command.run_id, &session.id, &command.node_id))
+                        .expect("shared workspace identity serializes");
+                LocalWorkspace::Shared(
+                    self.blob_root
+                        .join("shared-workspaces")
+                        .join(format!("{:x}", Sha256::digest(identity))),
+                )
+            });
         Ok(LocalExecutionSnapshot {
             archive_path,
             attempt_root: self.attempt_root(command),
             tasks,
             environment,
+            workspace,
         })
     }
 

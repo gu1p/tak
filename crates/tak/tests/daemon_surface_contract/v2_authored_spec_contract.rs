@@ -22,6 +22,8 @@ mod scheduling_rejection;
 mod scheduling_submission;
 #[path = "v2_authored_spec_contract/second_submission_interrupt.rs"]
 mod second_submission_interrupt;
+#[path = "v2_authored_spec_contract/shared_workspace.rs"]
+mod shared_workspace;
 #[path = "v2_authored_spec_contract/submission.rs"]
 mod submission;
 #[path = "v2_authored_spec_contract/submission_interrupt.rs"]

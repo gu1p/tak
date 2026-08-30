@@ -18,6 +18,12 @@ mod durable_state_tests;
 #[cfg(test)]
 mod launcher_tests;
 #[cfg(test)]
+mod workspace_concurrency_tests;
+#[cfg(test)]
+mod workspace_parent_security_tests;
+#[cfg(test)]
+mod workspace_security_tests;
+#[cfg(test)]
 mod workspace_tests;
 
 pub use wrapper::run_local_attempt_subprocess;

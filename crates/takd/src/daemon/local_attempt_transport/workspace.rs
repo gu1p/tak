@@ -5,8 +5,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::daemon::run_store::execution::LocalExecutionSnapshot;
+use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
 use crate::daemon::scheduler::AttemptCompletion;
+
+mod shared;
 
 pub(super) enum Preparation {
     Execute {
@@ -32,17 +34,29 @@ pub(super) fn prepare(snapshot: LocalExecutionSnapshot) -> Result<Preparation> {
     if started.try_exists()? {
         return Ok(Preparation::Unknown);
     }
-    let workspace_root = snapshot.attempt_root.join("workspace");
-    remove_existing(&workspace_root)?;
-    private_dir(&workspace_root)?;
-    let archive = fs::File::open(&snapshot.archive_path).context("open verified workspace blob")?;
-    tar::Archive::new(archive)
-        .unpack(&workspace_root)
-        .context("unpack verified workspace blob")?;
+    let workspace_root = match &snapshot.workspace {
+        LocalWorkspace::Private => prepare_private(&snapshot)?,
+        LocalWorkspace::Shared(root) => shared::prepare(&snapshot.archive_path, root)?,
+    };
     Ok(Preparation::Execute {
         snapshot,
         workspace_root,
     })
+}
+
+fn prepare_private(snapshot: &LocalExecutionSnapshot) -> Result<PathBuf> {
+    let root = snapshot.attempt_root.join("workspace");
+    remove_existing(&root)?;
+    private_dir(&root)?;
+    unpack(&snapshot.archive_path, &root)?;
+    Ok(root)
+}
+
+fn unpack(archive_path: &Path, destination: &Path) -> Result<()> {
+    let archive = fs::File::open(archive_path).context("open verified workspace blob")?;
+    tar::Archive::new(archive)
+        .unpack(destination)
+        .context("unpack verified workspace blob")
 }
 
 fn remove_existing(path: &Path) -> Result<()> {

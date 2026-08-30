@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::workspace::{Preparation, prepare};
-use crate::daemon::run_store::execution::LocalExecutionSnapshot;
+use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
 
 #[test]
 fn preparation_discards_a_partial_workspace_left_before_start() {
@@ -18,6 +18,7 @@ fn preparation_discards_a_partial_workspace_left_before_start() {
         attempt_root,
         tasks: Vec::new(),
         environment: BTreeMap::new(),
+        workspace: LocalWorkspace::Private,
     };
 
     let Preparation::Execute { workspace_root, .. } = prepare(snapshot).unwrap() else {
@@ -28,6 +29,44 @@ fn preparation_discards_a_partial_workspace_left_before_start() {
         std::fs::read(workspace_root.join("fresh")).unwrap(),
         b"complete"
     );
+}
+
+#[test]
+fn shared_preparations_reuse_one_root_and_preserve_undeclared_writes() {
+    std::fs::create_dir_all(".tmp").unwrap();
+    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let archive_path = temp.path().join("workspace.tar");
+    write_archive(&archive_path);
+    let shared = temp.path().join("shared");
+    let first = snapshot(&archive_path, temp.path().join("attempt-1"), &shared);
+    let Preparation::Execute { workspace_root, .. } = prepare(first).unwrap() else {
+        panic!("first shared workspace should execute")
+    };
+    assert_eq!(workspace_root, shared.join("data"));
+    std::fs::write(workspace_root.join("generated"), b"producer").unwrap();
+
+    let second = snapshot(&archive_path, temp.path().join("attempt-2"), &shared);
+    let Preparation::Execute { workspace_root, .. } = prepare(second).unwrap() else {
+        panic!("second shared workspace should execute")
+    };
+    assert_eq!(
+        std::fs::read(workspace_root.join("generated")).unwrap(),
+        b"producer"
+    );
+}
+
+fn snapshot(
+    archive_path: &std::path::Path,
+    attempt_root: std::path::PathBuf,
+    shared: &std::path::Path,
+) -> LocalExecutionSnapshot {
+    LocalExecutionSnapshot {
+        archive_path: archive_path.to_owned(),
+        attempt_root,
+        tasks: Vec::new(),
+        environment: BTreeMap::new(),
+        workspace: LocalWorkspace::Shared(shared.to_owned()),
+    }
 }
 
 fn write_archive(path: &std::path::Path) {
