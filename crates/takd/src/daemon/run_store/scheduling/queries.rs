@@ -21,28 +21,57 @@ pub(super) fn validate_nodes(nodes: &[SchedulerNode]) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn ready_jobs(
-    transaction: &Transaction<'_>,
-) -> Result<Vec<(String, String, String, u64)>> {
+pub(super) struct ReadyJob {
+    pub(super) run_id: String,
+    pub(super) job_id: String,
+    pub(super) definition: String,
+    pub(super) max_parallel: u64,
+    pub(super) workspace_fingerprint: String,
+    pub(super) submitter_id: String,
+}
+
+pub(super) fn ready_jobs(transaction: &Transaction<'_>, now_ms: u64) -> Result<Vec<ReadyJob>> {
     let mut statement = transaction.prepare(
-        "SELECT j.run_id, j.job_id, j.definition_json, r.max_parallel_jobs \
+        "SELECT j.run_id, j.job_id, j.definition_json, r.max_parallel_jobs, \
+         r.workspace_fingerprint, r.submitter_id \
          FROM run_jobs j JOIN runs r ON r.run_id = j.run_id \
-         WHERE j.state = 'ready' AND r.state IN ('queued', 'running') \
-         ORDER BY r.created_at_ms, r.run_id, j.ordinal, j.job_id",
+         LEFT JOIN scheduler_submitters submitter ON submitter.submitter_id = r.submitter_id \
+         WHERE (j.state = 'ready' OR (j.state = 'retrying' AND j.next_eligible_at_ms <= ?1)) \
+         AND r.state IN ('queued', 'running') AND r.dispatch_stopped = 0 \
+         ORDER BY COALESCE(submitter.last_scheduled_turn, 0), \
+         (SELECT MIN(first_run.created_at_ms) FROM runs first_run WHERE first_run.submitter_id = r.submitter_id), \
+         r.submitter_id, r.last_scheduled_turn, r.created_at_ms, r.run_id, \
+         j.next_eligible_at_ms, j.ready_order, j.ordinal, j.job_id",
     )?;
     statement
-        .query_map([], |row| {
+        .query_map([i64::try_from(now_ms)?], |row| {
             let max_parallel = row.get::<_, i64>(3)?;
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                u64::try_from(max_parallel)
+            Ok(ReadyJob {
+                run_id: row.get(0)?,
+                job_id: row.get(1)?,
+                definition: row.get(2)?,
+                max_parallel: u64::try_from(max_parallel)
                     .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(3, max_parallel))?,
-            ))
+                workspace_fingerprint: row.get(4)?,
+                submitter_id: row.get(5)?,
+            })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(Into::into)
+}
+
+impl super::super::RunStore {
+    pub fn workspace_fingerprint(&self, run_id: &str) -> Result<Option<String>> {
+        let connection = self.open_connection()?;
+        connection
+            .query_row(
+                "SELECT workspace_fingerprint FROM runs WHERE run_id = ?1",
+                [run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(Into::into)
+    }
 }
 
 pub(super) fn active_run_attempts(transaction: &Transaction<'_>, run_id: &str) -> Result<u64> {

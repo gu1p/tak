@@ -1,16 +1,32 @@
 use anyhow::Result;
+use rusqlite::TransactionBehavior;
 
 use super::RunStore;
 
+mod migration;
+
 impl RunStore {
     pub(super) fn ensure_schema(&self) -> Result<()> {
-        let connection = self.open_connection()?;
+        let mut connection = self.open_connection()?;
+        migration::reject_newer_schema(&connection)?;
         connection.execute_batch(SCHEMA)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        migration::apply(&transaction)?;
+        transaction.execute(
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 2) \
+             ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
+            [],
+        )?;
+        transaction.commit()?;
         Ok(())
     }
 }
 
 const SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS run_schema_version (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    version INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS runs (
     run_id TEXT PRIMARY KEY,
     submitter_id TEXT NOT NULL,
@@ -21,6 +37,9 @@ CREATE TABLE IF NOT EXISTS runs (
     targets_json TEXT NOT NULL,
     resolved_json TEXT NOT NULL,
     max_parallel_jobs INTEGER NOT NULL,
+    keep_going INTEGER NOT NULL,
+    dispatch_stopped INTEGER NOT NULL DEFAULT 0,
+    last_scheduled_turn INTEGER NOT NULL DEFAULT 0,
     workspace_fingerprint TEXT NOT NULL,
     archive_sha256 TEXT NOT NULL,
     archive_size INTEGER NOT NULL,
@@ -44,6 +63,10 @@ CREATE TABLE IF NOT EXISTS run_jobs (
     definition_json TEXT NOT NULL,
     node_id TEXT,
     attempt INTEGER NOT NULL DEFAULT 0,
+    dispatch_generation INTEGER NOT NULL DEFAULT 0,
+    current_fencing_token TEXT,
+    next_eligible_at_ms INTEGER NOT NULL DEFAULT 0,
+    ready_order INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (run_id, job_id),
     FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
 );
@@ -78,6 +101,15 @@ CREATE TABLE IF NOT EXISTS run_policy_cursors (
     PRIMARY KEY (run_id, policy_id),
     FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS scheduler_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    next_turn INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO scheduler_state (singleton, next_turn) VALUES (1, 1);
+CREATE TABLE IF NOT EXISTS scheduler_submitters (
+    submitter_id TEXT PRIMARY KEY,
+    last_scheduled_turn INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS run_attempts (
     run_id TEXT NOT NULL,
     job_id TEXT NOT NULL,
@@ -90,6 +122,10 @@ CREATE TABLE IF NOT EXISTS run_attempts (
     memory_bytes INTEGER NOT NULL,
     execution_slots INTEGER NOT NULL,
     reserved_at_ms INTEGER NOT NULL,
+    accepted_at_ms INTEGER,
+    finished_at_ms INTEGER,
+    outcome TEXT,
+    terminal_digest TEXT,
     released_at_ms INTEGER,
     PRIMARY KEY (run_id, job_id, authored_attempt, dispatch_generation),
     FOREIGN KEY (run_id, job_id) REFERENCES run_jobs(run_id, job_id) ON DELETE CASCADE

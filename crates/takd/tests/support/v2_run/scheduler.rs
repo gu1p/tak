@@ -1,10 +1,12 @@
 use std::num::NonZeroU32;
 
 use tak_core::v2::{
-    PlacementCandidate, PlacementKind, PlacementPolicy, RemoteSelection, ResourceRequest,
+    JobEdge, PlacementCandidate, PlacementKind, PlacementPolicy, RemoteSelection, ResourceRequest,
 };
+use tak_proto::local_daemon::v2::WorkspaceDisposition;
+use takd::RunStore;
 
-use super::submission;
+use super::{ARCHIVE, submission};
 
 pub fn independent_jobs(key: &str, count: usize) -> tak_core::v2::RunSubmission {
     let mut result = submission(key, "secret");
@@ -52,4 +54,36 @@ pub fn independent_jobs(key: &str, count: usize) -> tak_core::v2::RunSubmission 
     )
     .unwrap();
     result
+}
+
+pub fn dependent_jobs(key: &str, keep_going: bool) -> tak_core::v2::RunSubmission {
+    let mut result = independent_jobs(key, 3);
+    result.run.options.max_parallel_jobs = NonZeroU32::MIN;
+    result.run.options.keep_going = keep_going;
+    result.run.tasks[1].dependencies = vec![result.run.tasks[0].task_id.clone()];
+    result.run.job_edges = vec![JobEdge {
+        dependency_job_id: result.run.jobs[0].job_id.clone(),
+        dependent_job_id: result.run.jobs[1].job_id.clone(),
+    }];
+    result
+}
+
+pub fn commit(store: &RunStore, request: &tak_core::v2::RunSubmission, owner: &str) -> String {
+    let accepted = store.submit(request, owner).unwrap();
+    if matches!(
+        accepted.workspace,
+        WorkspaceDisposition::UploadRequired { .. }
+    ) {
+        store
+            .upload_workspace(
+                &accepted.run_id,
+                &request.run.workspace.manifest.fingerprint,
+                ARCHIVE.len() as u64,
+                0,
+                &ARCHIVE,
+            )
+            .unwrap();
+    }
+    store.commit(&accepted.run_id).unwrap();
+    accepted.run_id
 }

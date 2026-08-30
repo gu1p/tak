@@ -154,13 +154,14 @@ impl RunStore {
         {
             bail!("run workspace is incomplete");
         }
+        let now = sqlite_i64(now_ms()?, "timestamp")?;
         transaction.execute(
-            "UPDATE run_jobs SET state = CASE WHEN EXISTS (SELECT 1 FROM run_dependencies d WHERE d.run_id = run_jobs.run_id AND d.dependent_job_id = run_jobs.job_id) THEN 'blocked' ELSE 'ready' END WHERE run_id = ?1",
-            [run_id],
+            "UPDATE run_jobs SET state = CASE WHEN EXISTS (SELECT 1 FROM run_dependencies d WHERE d.run_id = run_jobs.run_id AND d.dependent_job_id = run_jobs.job_id) THEN 'blocked' ELSE 'ready' END, next_eligible_at_ms = CASE WHEN EXISTS (SELECT 1 FROM run_dependencies d WHERE d.run_id = run_jobs.run_id AND d.dependent_job_id = run_jobs.job_id) THEN 0 ELSE ?2 END, ready_order = ordinal WHERE run_id = ?1",
+            params![run_id, now],
         )?;
         transaction.execute(
             "UPDATE runs SET state = 'queued', updated_at_ms = ?2 WHERE run_id = ?1",
-            params![run_id, sqlite_i64(now_ms()?, "timestamp")?],
+            params![run_id, now],
         )?;
         append_event(&transaction, run_id, RunEventKind::Queued, "run committed")?;
         transaction.execute(

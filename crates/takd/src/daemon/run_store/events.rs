@@ -33,6 +33,23 @@ pub(super) fn append_job_event(
     )
 }
 
+pub(super) fn append_skipped_event(
+    transaction: &Transaction<'_>,
+    run_id: &str,
+    job_id: &str,
+    task_ids: &[String],
+) -> Result<u64> {
+    append_context_event(
+        transaction,
+        run_id,
+        RunEventKind::Skipped,
+        Some(job_id),
+        task_ids,
+        None,
+        "job skipped after dependency failure",
+    )
+}
+
 fn append_context_event(
     transaction: &Transaction<'_>,
     run_id: &str,

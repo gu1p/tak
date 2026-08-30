@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
+mod attempts;
 mod blob;
 mod cancellation;
 mod connection;

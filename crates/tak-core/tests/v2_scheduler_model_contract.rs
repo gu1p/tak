@@ -36,3 +36,14 @@ fn one_run_policy_id_cannot_name_conflicting_selection_semantics() {
     run.jobs.push(second_job);
     assert!(run.validate().is_err());
 }
+
+#[test]
+fn resource_requests_must_fit_the_durable_sqlite_representation() {
+    let mut cpu = sample_run();
+    cpu.jobs[0].resources.cpu_millis = i64::MAX as u64 + 1;
+    assert!(cpu.validate().is_err());
+
+    let mut memory = sample_run();
+    memory.jobs[0].resources.memory_bytes = i64::MAX as u64 + 1;
+    assert!(memory.validate().is_err());
+}

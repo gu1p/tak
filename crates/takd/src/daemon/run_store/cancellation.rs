@@ -67,9 +67,26 @@ fn request_active_cancellation(
     transaction: &rusqlite::Transaction<'_>,
     run_id: &str,
 ) -> Result<()> {
+    let now = sqlite_i64(now_ms()?, "timestamp")?;
     transaction.execute(
-        "UPDATE runs SET state = 'cancelling', updated_at_ms = ?2 WHERE run_id = ?1",
-        params![run_id, sqlite_i64(now_ms()?, "timestamp")?],
+        "UPDATE runs SET state = 'cancelling', dispatch_stopped = 1, updated_at_ms = ?2 WHERE run_id = ?1",
+        params![run_id, now],
+    )?;
+    transaction.execute(
+        "UPDATE run_jobs SET state = 'cancelled' WHERE run_id = ?1 AND state IN ('ready', 'blocked', 'retrying')",
+        [run_id],
+    )?;
+    transaction.execute(
+        "UPDATE run_jobs SET state = 'cancelling', current_fencing_token = NULL WHERE run_id = ?1 AND state IN ('transferring', 'running', 'output_committing')",
+        [run_id],
+    )?;
+    transaction.execute(
+        "UPDATE run_attempts SET state = 'cancelling' WHERE run_id = ?1 AND released_at_ms IS NULL",
+        [run_id],
+    )?;
+    transaction.execute(
+        "UPDATE run_dispatch_outbox SET delivered_at_ms = COALESCE(delivered_at_ms, ?2) WHERE run_id = ?1 AND delivered_at_ms IS NULL",
+        params![run_id, now],
     )?;
     append_event(
         transaction,

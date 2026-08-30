@@ -18,6 +18,14 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
             )));
         }
         validate_candidates(job)?;
+        if job.resources.cpu_millis > i64::MAX as u64
+            || job.resources.memory_bytes > i64::MAX as u64
+        {
+            return Err(ResolvedRunError::new(format!(
+                "job `{}` resource request exceeds durable range",
+                job.job_id
+            )));
+        }
     }
     Ok(())
 }

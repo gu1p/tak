@@ -23,7 +23,7 @@ pub(super) fn insert_run(
         WorkspaceDisposition::UploadRequired { next_offset } => *next_offset,
     };
     transaction.execute(
-        "INSERT INTO runs (run_id, submitter_id, idempotency_key, request_digest, state, project_id, targets_json, resolved_json, max_parallel_jobs, workspace_fingerprint, archive_sha256, archive_size, upload_offset, created_at_ms, updated_at_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
+        "INSERT INTO runs (run_id, submitter_id, idempotency_key, request_digest, state, project_id, targets_json, resolved_json, max_parallel_jobs, keep_going, workspace_fingerprint, archive_sha256, archive_size, upload_offset, created_at_ms, updated_at_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)",
         params![
             run_id,
             submitter_id,
@@ -34,6 +34,7 @@ pub(super) fn insert_run(
             serde_json::to_string(&submission.run.targets)?,
             serde_json::to_string(&submission.run)?,
             i64::from(submission.run.options.max_parallel_jobs.get()),
+            i64::from(submission.run.options.keep_going),
             descriptor.manifest.fingerprint,
             descriptor.archive_sha256,
             sqlite_i64(descriptor.archive_size, "workspace archive size")?,

@@ -7,7 +7,8 @@ use crate::support::v2_run::{ARCHIVE, scheduler::independent_jobs};
 
 #[test]
 fn concurrent_reservations_never_exceed_run_or_node_capacity() {
-    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(".tmp").unwrap();
+    let temp = tempfile::tempdir_in(".tmp").unwrap();
     let store = RunStore::with_db_path(temp.path().join("takd.sqlite")).unwrap();
     let mut request = independent_jobs("atomic", 4);
     request.run.options.max_parallel_jobs = NonZeroU32::new(2).unwrap();
@@ -45,4 +46,33 @@ fn concurrent_reservations_never_exceed_run_or_node_capacity() {
     assert_eq!(reserved.len(), 2);
     assert_ne!(reserved[0].node_id, reserved[1].node_id);
     assert_eq!(store.pending_dispatches().unwrap().len(), 2);
+}
+
+#[test]
+fn aggregate_reservations_do_not_overflow_sqlite_integer_sums() {
+    std::fs::create_dir_all(".tmp").unwrap();
+    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let store = RunStore::with_db_path(temp.path().join("takd.sqlite")).unwrap();
+    let mut request = independent_jobs("large-reservations", 3);
+    let amount = i64::MAX as u64 / 2 + 1;
+    for job in &mut request.run.jobs {
+        job.resources.cpu_millis = amount;
+    }
+    let run = store.submit(&request, "uid:1").unwrap();
+    store
+        .upload_workspace(
+            &run.run_id,
+            &request.run.workspace.manifest.fingerprint,
+            ARCHIVE.len() as u64,
+            0,
+            &ARCHIVE,
+        )
+        .unwrap();
+    store.commit(&run.run_id).unwrap();
+    let mut node = SchedulerNode::with_execution_slots("worker-a", 3);
+    node.cpu_capacity_millis = u64::MAX;
+
+    assert!(store.reserve_next(&[node.clone()]).unwrap().is_some());
+    assert!(store.reserve_next(&[node.clone()]).unwrap().is_some());
+    assert!(store.reserve_next(&[node]).unwrap().is_some());
 }
