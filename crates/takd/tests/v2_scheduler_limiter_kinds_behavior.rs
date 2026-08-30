@@ -13,7 +13,7 @@ fn resource_and_process_cap_leases_release_on_completion() {
 }
 
 #[test]
-fn a_rate_permit_survives_completion_until_its_window_expires() {
+fn a_token_bucket_survives_completion_and_restart_until_refilled() {
     std::fs::create_dir_all(".tmp").unwrap();
     let temp = tempfile::tempdir_in(".tmp").unwrap();
     let db = temp.path().join("takd.sqlite");
@@ -24,12 +24,19 @@ fn a_rate_permit_survives_completion_until_its_window_expires() {
     let nodes = [SchedulerNode::with_execution_slots("worker-a", 2)];
     let first = store.reserve_next(&nodes).unwrap().unwrap();
     finish(&store, &first);
+    Connection::open(&db)
+        .unwrap()
+        .execute("DELETE FROM run_attempts", [])
+        .unwrap();
     drop(store);
     let restored = RunStore::with_db_path(db.clone()).unwrap();
     assert!(restored.reserve_next(&nodes).unwrap().is_none());
     Connection::open(&db)
         .unwrap()
-        .execute("UPDATE run_attempts SET reserved_at_ms = 0", [])
+        .execute(
+            "UPDATE scheduler_rate_buckets SET refilled_at_ms = 0, available_micros = 0",
+            [],
+        )
         .unwrap();
     assert!(restored.reserve_next(&nodes).unwrap().is_some());
 }

@@ -25,10 +25,10 @@ impl Key {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-struct Owner {
-    scope: DefinitionScope,
-    identity: String,
-    scope_key: Option<String>,
+pub(super) struct Owner {
+    pub(super) scope: DefinitionScope,
+    pub(super) identity: String,
+    pub(super) scope_key: Option<String>,
 }
 
 #[derive(Clone)]
@@ -46,7 +46,6 @@ pub(super) struct Constraint {
 pub(super) enum Lease {
     During,
     AtStart,
-    Rate(u64),
 }
 
 impl Constraint {
@@ -54,11 +53,10 @@ impl Constraint {
         self.key.namespace == "queue"
     }
 
-    pub(super) fn active(&self, now_ms: u64) -> bool {
+    pub(super) fn active(&self) -> bool {
         match self.lease {
             Lease::During => !self.released,
             Lease::AtStart => !self.accepted && !self.released,
-            Lease::Rate(window) => self.reserved_at_ms.saturating_add(window) > now_ms,
         }
     }
 }
@@ -97,7 +95,9 @@ pub(super) fn constraints(
             .iter()
             .find(|definition| limiter_name(definition) == claim.name)
             .ok_or_else(|| anyhow::anyhow!("unknown limiter `{}`", claim.name))?;
-        let (scope, scope_key, capacity, lease) = properties(definition);
+        let Some((scope, scope_key, capacity, lease)) = properties(definition) else {
+            continue;
+        };
         result.push(constraint(
             "limiter",
             &claim.name,
@@ -133,7 +133,7 @@ fn constraint(
     }
 }
 
-fn owner(
+pub(super) fn owner(
     context: &Context<'_>,
     scope: &DefinitionScope,
     scope_key: Option<&str>,

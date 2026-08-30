@@ -4,6 +4,8 @@ mod container_fusion;
 mod failed_submission;
 #[path = "v2_authored_spec_contract/includes_inactive.rs"]
 mod includes_inactive;
+#[path = "v2_authored_spec_contract/rate_limit_submission.rs"]
+mod rate_limit_submission;
 #[path = "v2_authored_spec_contract/remote_selection_migration.rs"]
 mod remote_selection_migration;
 #[path = "v2_authored_spec_contract/retry_submission.rs"]

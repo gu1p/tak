@@ -1,4 +1,6 @@
-use tak_core::v2::{PlacementKind, RemoteSelection};
+use std::num::{NonZeroU32, NonZeroU64};
+
+use tak_core::v2::{DefinitionScope, LimiterDefinition, PlacementKind, RemoteSelection};
 
 use crate::v2_resolved_run_support::sample_run;
 
@@ -46,4 +48,17 @@ fn resource_requests_must_fit_the_durable_sqlite_representation() {
     let mut memory = sample_run();
     memory.jobs[0].resources.memory_bytes = i64::MAX as u64 + 1;
     assert!(memory.validate().is_err());
+}
+
+#[test]
+fn rate_refill_must_fit_the_durable_sqlite_representation() {
+    let mut run = sample_run();
+    run.limiter_definitions = vec![LimiterDefinition::RateLimit {
+        name: "api".into(),
+        scope: DefinitionScope::Project,
+        scope_key: None,
+        burst: NonZeroU32::MIN,
+        refill_millis_per_second: NonZeroU64::new(i64::MAX as u64 + 1).unwrap(),
+    }];
+    assert!(run.validate().is_err());
 }

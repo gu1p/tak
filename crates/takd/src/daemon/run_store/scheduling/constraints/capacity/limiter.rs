@@ -4,50 +4,39 @@ use super::model::Lease;
 
 pub(super) fn properties(
     definition: &LimiterDefinition,
-) -> (&DefinitionScope, Option<&str>, u64, Lease) {
+) -> Option<(&DefinitionScope, Option<&str>, u64, Lease)> {
     match definition {
         LimiterDefinition::Lock {
             scope,
             scope_key,
             hold,
             ..
-        } => (scope, scope_key.as_deref(), 1_000, hold_lease(*hold)),
-        LimiterDefinition::RateLimit {
-            scope,
-            scope_key,
-            permits,
-            per_millis,
-            ..
-        } => (
-            scope,
-            scope_key.as_deref(),
-            u64::from(permits.get()) * 1_000,
-            Lease::Rate(per_millis.get()),
-        ),
+        } => Some((scope, scope_key.as_deref(), 1_000, hold_lease(*hold))),
+        LimiterDefinition::RateLimit { .. } => None,
         LimiterDefinition::ProcessCap {
             scope,
             scope_key,
             max_processes,
             hold,
             ..
-        } => (
+        } => Some((
             scope,
             scope_key.as_deref(),
             u64::from(max_processes.get()) * 1_000,
             hold_lease(*hold),
-        ),
+        )),
         LimiterDefinition::Resource {
             scope,
             scope_key,
             capacity_millis,
             hold,
             ..
-        } => (
+        } => Some((
             scope,
             scope_key.as_deref(),
             capacity_millis.get(),
             hold_lease(*hold),
-        ),
+        )),
     }
 }
 

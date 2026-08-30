@@ -53,13 +53,18 @@ pub(super) fn limiter(value: wire::Limiter) -> Result<AuthoredLimiterDefinition>
         }
         wire::Limiter::RateLimit {
             name,
-            scope,
+            scope: raw,
             burst,
             refill_per_second,
-        } => bail!(
-            "v2 token-bucket rate limits are not active in this build \
-             (name={name}, scope={scope}, burst={burst}, refill_per_second={refill_per_second})"
-        ),
+        } => AuthoredLimiterDefinition::RateLimit {
+            name,
+            scope: scope(&raw)?,
+            burst: positive_u32(burst, "rate-limit burst")?,
+            refill_millis_per_second: scaled_positive_millis(
+                refill_per_second,
+                "rate-limit refill_per_second",
+            )?,
+        },
         wire::Limiter::ProcessCap {
             name,
             scope: raw,

@@ -32,8 +32,8 @@ pub enum AuthoredLimiterDefinition {
     RateLimit {
         name: String,
         scope: DefinitionScope,
-        permits: NonZeroU32,
-        per_millis: NonZeroU64,
+        burst: NonZeroU32,
+        refill_millis_per_second: NonZeroU64,
     },
     ProcessCap {
         name: String,

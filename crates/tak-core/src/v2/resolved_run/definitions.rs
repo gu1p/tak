@@ -49,8 +49,8 @@ pub enum LimiterDefinition {
         name: String,
         scope: DefinitionScope,
         scope_key: Option<String>,
-        permits: NonZeroU32,
-        per_millis: NonZeroU64,
+        burst: NonZeroU32,
+        refill_millis_per_second: NonZeroU64,
     },
     ProcessCap {
         name: String,
@@ -81,7 +81,7 @@ impl LimiterDefinition {
     pub(super) fn capacity_millis(&self) -> u64 {
         match self {
             Self::Lock { .. } => 1_000,
-            Self::RateLimit { permits, .. }
+            Self::RateLimit { burst: permits, .. }
             | Self::ProcessCap {
                 max_processes: permits,
                 ..

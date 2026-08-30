@@ -72,8 +72,8 @@ pub fn project_rate_limit(mut request: RunSubmission) -> RunSubmission {
         name: "starts".into(),
         scope: DefinitionScope::Project,
         scope_key: None,
-        permits: NonZeroU32::MIN,
-        per_millis: NonZeroU64::new(60_000).unwrap(),
+        burst: NonZeroU32::MIN,
+        refill_millis_per_second: NonZeroU64::MIN,
     }];
     claim(&mut request, "starts");
     request

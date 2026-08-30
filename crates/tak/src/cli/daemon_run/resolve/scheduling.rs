@@ -177,8 +177,8 @@ fn resolve_limiter(
         AuthoredLimiterDefinition::RateLimit {
             name,
             scope,
-            permits,
-            per_millis,
+            burst,
+            refill_millis_per_second,
         } => {
             if hold != HoldMode::AtStart {
                 bail!("v2 rate-limit claims require Hold.AtStart")
@@ -187,8 +187,8 @@ fn resolve_limiter(
                 name: name.clone(),
                 scope: scope.clone(),
                 scope_key: resolved_scope_key(scope, worktree_scope_key),
-                permits: *permits,
-                per_millis: *per_millis,
+                burst: *burst,
+                refill_millis_per_second: *refill_millis_per_second,
             }
         }
     })

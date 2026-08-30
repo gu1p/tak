@@ -35,24 +35,6 @@ SPEC
     assert!(error.contains("unknown scoped queue `build`"), "{error}");
 }
 
-#[test]
-fn rate_limits_are_rejected_until_durable_token_accrual_is_active() {
-    let error = run_error(
-        r#"SPEC = module_spec(
-  spec_version=2,
-  limiters=[rate_limit("api", burst=5, refill_per_second=2, scope=Scope.Project)],
-  tasks=[task("target",
-    needs=[need("api", scope=Scope.Project, hold=Hold.AtStart)])],
-)
-SPEC
-"#,
-    );
-    assert!(
-        error.contains("token-bucket rate limits are not active"),
-        "{error}"
-    );
-}
-
 fn run_error(source: &str) -> String {
     fs::create_dir_all(".tmp").unwrap();
     let temp = tempfile::tempdir_in(".tmp").unwrap();

@@ -6,6 +6,7 @@ use crate::v2::{Affinity, DefinitionScope, LimiterDefinition};
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
     validate_worktree_scope_keys(run)?;
+    validate_rate_ranges(run)?;
     if run
         .queue_definitions
         .iter()
@@ -39,6 +40,23 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
         }
     }
     validate_hard_affinity(run)?;
+    Ok(())
+}
+
+fn validate_rate_ranges(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
+    if run.limiter_definitions.iter().any(|definition| {
+        matches!(
+            definition,
+            LimiterDefinition::RateLimit {
+                refill_millis_per_second,
+                ..
+            } if refill_millis_per_second.get() > i64::MAX as u64
+        )
+    }) {
+        return Err(ResolvedRunError::new(
+            "rate-limit refill exceeds durable range",
+        ));
+    }
     Ok(())
 }
 

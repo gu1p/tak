@@ -66,6 +66,14 @@ impl RunStore {
             else {
                 continue;
             };
+            if !constraints::consume_rate_limits(
+                &transaction,
+                &constraint_context,
+                &job,
+                &node.node_id,
+            )? {
+                continue;
+            }
             let command = reserve(
                 &transaction,
                 &ready_job.run_id,

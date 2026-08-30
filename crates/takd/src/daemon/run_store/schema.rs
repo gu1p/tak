@@ -13,7 +13,7 @@ impl RunStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         migration::apply(&transaction)?;
         transaction.execute(
-            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 5) \
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 6) \
              ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
             [],
         )?;
@@ -121,6 +121,18 @@ CREATE TABLE IF NOT EXISTS scheduler_submitters (
 CREATE TABLE IF NOT EXISTS scheduler_node_losses (
     node_id TEXT PRIMARY KEY,
     declared_at_ms INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS scheduler_rate_buckets (
+    limiter_name TEXT NOT NULL,
+    scope TEXT NOT NULL CHECK(scope IN ('run','submitter','project','worktree','node')),
+    owner_identity TEXT NOT NULL,
+    scope_key_present INTEGER NOT NULL CHECK(scope_key_present IN (0,1)),
+    scope_key TEXT NOT NULL,
+    burst INTEGER NOT NULL CHECK(burst > 0),
+    refill_millis_per_second INTEGER NOT NULL CHECK(refill_millis_per_second > 0),
+    available_micros INTEGER NOT NULL CHECK(available_micros >= 0),
+    refilled_at_ms INTEGER NOT NULL CHECK(refilled_at_ms >= 0),
+    PRIMARY KEY (limiter_name, scope, owner_identity, scope_key_present, scope_key)
 );
 CREATE TABLE IF NOT EXISTS run_attempts (
     run_id TEXT NOT NULL,

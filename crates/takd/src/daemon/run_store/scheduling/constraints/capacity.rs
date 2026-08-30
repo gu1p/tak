@@ -4,6 +4,9 @@ use tak_core::v2::{ResolvedJob, ResolvedRun};
 
 mod limiter;
 mod model;
+mod rate_limit;
+#[cfg(test)]
+mod rate_limit_tests;
 
 pub(in crate::daemon::run_store::scheduling) use model::Context;
 use model::{Constraint, Key, constraints};
@@ -22,6 +25,9 @@ pub(in crate::daemon::run_store::scheduling) fn can_acquire(
     node_id: &str,
 ) -> Result<bool> {
     if !is_queue_head(transaction, context, job, node_id)? {
+        return Ok(false);
+    }
+    if !rate_limit::can_acquire(transaction, context, job, node_id)? {
         return Ok(false);
     }
     let requested = constraints(context, job, node_id)?;
@@ -46,6 +52,15 @@ pub(in crate::daemon::run_store::scheduling) fn can_acquire(
         }
     }
     Ok(true)
+}
+
+pub(in crate::daemon::run_store::scheduling) fn consume_rate_limits(
+    transaction: &Transaction<'_>,
+    context: &Context<'_>,
+    job: &ResolvedJob,
+    node_id: &str,
+) -> Result<bool> {
+    rate_limit::acquire(transaction, context, job, node_id)
 }
 
 fn is_queue_head(
@@ -144,7 +159,7 @@ fn active_constraints(transaction: &Transaction<'_>, now_ms: u64) -> Result<Vec<
             constraint.reserved_at_ms = reserved;
             constraint.accepted = accepted;
             constraint.released = released;
-            if constraint.active(now_ms) {
+            if constraint.active() {
                 result.push(constraint);
             }
         }
