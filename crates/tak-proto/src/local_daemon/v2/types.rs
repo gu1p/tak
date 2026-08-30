@@ -1,3 +1,5 @@
+use tak_core::v2::{EnvironmentValue, ResolvedRun};
+
 /// The safe result of classifying one local-daemon frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodeOutcome {
@@ -17,11 +19,40 @@ pub struct Request {
 /// A daemon-owned run operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
+    SubmitRun {
+        idempotency_key: String,
+        run: Box<ResolvedRun>,
+        environment_values: Vec<EnvironmentValue>,
+    },
+    UploadWorkspace {
+        run_id: String,
+        workspace_fingerprint: String,
+        archive_size: u64,
+        offset: u64,
+        chunk: Vec<u8>,
+    },
+    CommitRun {
+        run_id: String,
+    },
     ListRuns {},
-    GetRun { run_id: String },
-    AttachRun { run_id: String, after_event: u64 },
-    CancelRun { run_id: String },
-    GetOutputManifest { run_id: String },
+    GetRun {
+        run_id: String,
+    },
+    AttachRun {
+        run_id: String,
+        after_event: u64,
+    },
+    CancelRun {
+        run_id: String,
+    },
+    GetOutputManifest {
+        run_id: String,
+    },
+    GetOutputChunk {
+        artifact_id: String,
+        offset: u64,
+        max_bytes: u32,
+    },
 }
 
 /// A fixed protocol-v2 request classification failure.

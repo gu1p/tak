@@ -1,8 +1,11 @@
 use super::*;
 use tak_proto::local_daemon::v2::{
-    DecodeOutcome, ErrorResponse as V2ErrorResponse, Operation as V2Operation,
-    Request as V2Request, decode_request,
+    DecodeOutcome, ErrorResponse as V2ErrorResponse, MAX_REQUEST_FRAME_BYTES, decode_request,
 };
+
+#[cfg(test)]
+#[path = "local_protocol_io/tests.rs"]
+mod tests;
 
 pub(super) async fn handle_client(
     stream: UnixStream,
@@ -10,30 +13,71 @@ pub(super) async fn handle_client(
     broker: TorBroker,
     peers: crate::daemon::peer_manager::PeerManager,
     tasks: DaemonTaskHandles,
+    run_store: RunStore,
 ) -> Result<()> {
     let (reader_half, mut writer_half) = stream.into_split();
     let mut reader = BufReader::new(reader_half);
-    let mut line = String::new();
 
     loop {
-        line.clear();
-        // TODO: Bound frames after legacy PlaceRemote payloads no longer share this stream.
-        let bytes = reader.read_line(&mut line).await?;
-        if bytes == 0 {
+        let Some(line) = read_frame(&mut reader, MAX_REQUEST_FRAME_BYTES).await? else {
             break;
-        }
+        };
         if broker::is_http_request_line(&line) {
             handle_broker_http_request(&broker, &peers, line.clone(), reader, &mut writer_half)
                 .await?;
             break;
         }
 
-        let response =
-            decode_and_dispatch_request(line.trim_end(), &manager, &peers, &broker, &tasks).await;
+        let response = decode_and_dispatch_request(
+            line.trim_end(),
+            &manager,
+            &peers,
+            &broker,
+            &tasks,
+            &run_store,
+        )
+        .await;
         write_protocol_response(&mut writer_half, &response).await?;
     }
 
     Ok(())
+}
+
+async fn read_frame<R>(reader: &mut R, max_payload_bytes: usize) -> std::io::Result<Option<String>>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let mut frame = Vec::with_capacity(max_payload_bytes.min(4096));
+    loop {
+        let available = reader.fill_buf().await?;
+        if available.is_empty() {
+            if frame.is_empty() {
+                return Ok(None);
+            }
+            return String::from_utf8(frame).map(Some).map_err(invalid_utf8);
+        }
+        let delimiter = available.iter().position(|byte| *byte == b'\n');
+        let payload_bytes = delimiter.unwrap_or(available.len());
+        if frame.len().saturating_add(payload_bytes) > max_payload_bytes {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "local daemon protocol frame exceeds the byte limit",
+            ));
+        }
+        let consumed = delimiter.map_or(payload_bytes, |position| position + 1);
+        frame.extend_from_slice(&available[..consumed]);
+        reader.consume(consumed);
+        if delimiter.is_some() {
+            return String::from_utf8(frame).map(Some).map_err(invalid_utf8);
+        }
+    }
+}
+
+fn invalid_utf8(_error: std::string::FromUtf8Error) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        "local daemon protocol frame is not UTF-8",
+    )
 }
 
 async fn decode_and_dispatch_request(
@@ -42,13 +86,17 @@ async fn decode_and_dispatch_request(
     peers: &crate::daemon::peer_manager::PeerManager,
     broker: &TorBroker,
     tasks: &DaemonTaskHandles,
+    run_store: &RunStore,
 ) -> ProtocolResponse {
     match decode_request(raw_request) {
-        Ok(DecodeOutcome::V2(request)) => ProtocolResponse::V2(v2_not_active_response(request)),
+        Ok(DecodeOutcome::V2(request)) => match super::v2_dispatch::dispatch(request, run_store) {
+            Ok(response) => ProtocolResponse::V2Success(response),
+            Err(error) => ProtocolResponse::V2Error(error),
+        },
         Ok(DecodeOutcome::LegacyCandidate) => ProtocolResponse::Legacy(
             decode_and_dispatch_legacy(raw_request, manager, peers, broker, tasks).await,
         ),
-        Err(error) => ProtocolResponse::V2(error.into()),
+        Err(error) => ProtocolResponse::V2Error(error.into()),
     }
 }
 
@@ -93,19 +141,6 @@ fn legacy_request_id(request: &Request) -> &str {
     }
 }
 
-fn v2_not_active_response(request: V2Request) -> V2ErrorResponse {
-    match request.operation {
-        V2Operation::ListRuns {} => tracing::debug!("recognized v2 ListRuns request"),
-        V2Operation::GetRun { .. } => tracing::debug!("recognized v2 GetRun request"),
-        V2Operation::AttachRun { .. } => tracing::debug!("recognized v2 AttachRun request"),
-        V2Operation::CancelRun { .. } => tracing::debug!("recognized v2 CancelRun request"),
-        V2Operation::GetOutputManifest { .. } => {
-            tracing::debug!("recognized v2 GetOutputManifest request");
-        }
-    }
-    V2ErrorResponse::v2_not_active(request.request_id)
-}
-
 async fn write_protocol_response(
     writer: &mut tokio::net::unix::OwnedWriteHalf,
     response: &ProtocolResponse,
@@ -119,14 +154,16 @@ async fn write_protocol_response(
 
 enum ProtocolResponse {
     Legacy(Response),
-    V2(V2ErrorResponse),
+    V2Success(tak_proto::local_daemon::v2::Response),
+    V2Error(V2ErrorResponse),
 }
 
 impl ProtocolResponse {
     fn encode(&self) -> Result<String> {
         match self {
             Self::Legacy(response) => Ok(serde_json::to_string(response)?),
-            Self::V2(response) => Ok(serde_json::to_string(response)?),
+            Self::V2Success(response) => Ok(serde_json::to_string(response)?),
+            Self::V2Error(response) => Ok(serde_json::to_string(response)?),
         }
     }
 }

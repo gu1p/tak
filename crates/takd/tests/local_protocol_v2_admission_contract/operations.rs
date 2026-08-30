@@ -1,12 +1,21 @@
 use crate::support::raw_local_protocol::RawLocalProtocol;
 
-const INACTIVE_MESSAGE: &str = "Protocol v2 run operations are not active in this takd build. Upgrade tak, takd, and workers together.";
-
 #[tokio::test(flavor = "multi_thread")]
 async fn all_v2_run_operations_are_recognized_on_one_persistent_connection() {
     let mut daemon = RawLocalProtocol::start().await;
+    let list = daemon
+        .exchange(r#"{"protocol_version":2,"request_id":"list","operation":{"type":"ListRuns"}}"#)
+        .await;
+    super::assert_json_response(
+        &list,
+        serde_json::json!({
+            "protocol_version": 2,
+            "type": "RunList",
+            "request_id": "list",
+            "runs": []
+        }),
+    );
     let requests = [
-        ("list", r#"{"type":"ListRuns"}"#),
         ("show", r#"{"type":"GetRun","run_id":"run-123"}"#),
         (
             "attach",
@@ -30,8 +39,8 @@ async fn all_v2_run_operations_are_recognized_on_one_persistent_connection() {
                 "protocol_version": 2,
                 "type": "Error",
                 "request_id": request_id,
-                "message": INACTIVE_MESSAGE,
-                "code": "protocol_v2_not_active",
+                "message": "The requested run does not exist.",
+                "code": "run_not_found",
                 "retryable": false
             }),
         );

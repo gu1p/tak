@@ -11,6 +11,7 @@ pub(super) struct RunCliArgs {
     pub(super) labels: Vec<String>,
     pub(super) jobs: usize,
     pub(super) keep_going: bool,
+    pub(super) pass_env: Vec<String>,
     pub(super) local: bool,
     pub(super) local_no_container: bool,
     pub(super) remote: bool,
@@ -23,6 +24,17 @@ pub(super) struct RunCliArgs {
 pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
     if args.labels.is_empty() {
         bail!("run requires at least one label");
+    }
+    let cwd = std::env::current_dir().context("resolve current directory")?;
+    if let tak_loader::AuthoredRootModule::V2(root) =
+        tak_loader::inspect_authored_root_module(&cwd, &LoadOptions::default())?
+    {
+        if !root.module.includes.is_empty() {
+            bail!(
+                "module_spec(spec_version=2) declares includes, but v2 include resolution is not active in this build; no child TASKS.py was evaluated and no legacy include fallback was attempted"
+            );
+        }
+        return super::daemon_run::execute(*root, args).await;
     }
     let visualization = Arc::new(RunVisualizationObserver::new(args.jobs)?);
     visualization.start_refresh()?;

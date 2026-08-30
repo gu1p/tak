@@ -45,8 +45,9 @@ fn handle(
         .as_str()
         .expect("request id")
         .to_string();
+    let request_number = requests.lock().expect("request capture lock").len();
+    let bytes = response_bytes(reply, &request_id, &request, request_number);
     requests.lock().expect("request capture lock").push(request);
-    let bytes = response_bytes(reply, &request_id);
     if let Some(bytes) = bytes {
         if let Reply::SlowDripInactive(_, interval, prefix_bytes) = reply {
             write_slow_prefix(&mut stream, &bytes, *prefix_bytes, *interval, stop);

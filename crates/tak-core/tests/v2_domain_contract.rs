@@ -1,4 +1,6 @@
-use tak_core::v2::{Affinity, PassEnv, RemoteSelection, Session, SessionReuse};
+use std::collections::BTreeMap;
+
+use tak_core::v2::{Affinity, PassEnv, RemoteSelection, Session, SessionReuse, Step};
 
 #[test]
 fn balanced_is_the_v2_remote_selection_default() {
@@ -40,4 +42,17 @@ fn shared_workspace_task_cannot_weaken_or_change_its_home() {
 
     assert!(session.effective_affinity(Some(&soft)).is_err());
     assert!(session.effective_affinity(Some(&other)).is_err());
+}
+
+#[test]
+fn authored_step_debug_redacts_environment_values() {
+    let step = Step::Cmd {
+        argv: vec!["true".into()],
+        cwd: None,
+        env: BTreeMap::from([("TOKEN".into(), "never-debug-this".into())]),
+    };
+
+    let debug = format!("{step:?}");
+    assert!(debug.contains("TOKEN"), "{debug}");
+    assert!(!debug.contains("never-debug-this"), "{debug}");
 }

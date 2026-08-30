@@ -8,3 +8,7 @@ mod request_validation;
 mod response_duplicates;
 #[path = "local_daemon_v2_client_contract/response_rejection.rs"]
 mod response_rejection;
+#[path = "local_daemon_v2_client_contract/submission.rs"]
+mod submission;
+#[path = "local_daemon_v2_client_contract/success_decoding.rs"]
+mod success_decoding;

@@ -23,6 +23,13 @@ impl Affinity {
             group: validate_group(group.into())?,
         })
     }
+
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        let group = match self {
+            Self::PreferSameNode { group } | Self::RequireSameNode { group } => group,
+        };
+        validate_group(group.clone()).map(drop)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,14 +66,25 @@ impl Session {
         affinity: Option<Affinity>,
     ) -> Result<Self, ValidationError> {
         let name = name.into();
-        validate_shared_affinity(&reuse, affinity.as_ref())?;
-        Ok(Self {
+        let session = Self {
             id: name.clone(),
             name: Some(name),
             reuse,
             affinity,
             execution: None,
-        })
+        };
+        session.validate()?;
+        Ok(session)
+    }
+
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        if self.id.is_empty() || self.id.len() > 128 || self.id.chars().any(char::is_control) {
+            return Err(ValidationError::InvalidSessionId);
+        }
+        if let Some(affinity) = &self.affinity {
+            affinity.validate()?;
+        }
+        validate_shared_affinity(&self.reuse, self.affinity.as_ref())
     }
 
     pub fn effective_affinity(

@@ -7,6 +7,11 @@ pub enum DaemonErrorCode {
     ProtocolVersionInvalid,
     ProtocolVersionUnsupported,
     ProtocolRequestInvalid,
+    IdempotencyConflict,
+    RunNotFound,
+    WorkspaceInvalid,
+    RunStateInvalid,
+    Internal,
 }
 
 /// A fixed request-encoding failure that never contains authored values.
@@ -14,6 +19,8 @@ pub enum DaemonErrorCode {
 pub enum RequestEncodeError {
     RequestIdInvalid,
     RunIdInvalid,
+    PayloadInvalid,
+    FrameTooLarge,
     EncodingFailed,
 }
 
@@ -22,6 +29,8 @@ impl Display for RequestEncodeError {
         let message = match self {
             Self::RequestIdInvalid => "protocol v2 request id is invalid",
             Self::RunIdInvalid => "protocol v2 run id is invalid",
+            Self::PayloadInvalid => "protocol v2 request payload is invalid",
+            Self::FrameTooLarge => "protocol v2 request frame is too large",
             Self::EncodingFailed => "protocol v2 request encoding failed",
         };
         formatter.write_str(message)

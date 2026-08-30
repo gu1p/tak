@@ -6,6 +6,17 @@ pub async fn run_server_with_broker_and_peers(
     broker: TorBroker,
     peers: crate::daemon::peer_manager::PeerManager,
 ) -> Result<()> {
+    let run_store = RunStore::with_db_path(socket_path.with_extension("v2.sqlite"))?;
+    run_server_with_broker_peers_and_run_store(socket_path, manager, broker, peers, run_store).await
+}
+
+pub async fn run_server_with_broker_peers_and_run_store(
+    socket_path: &Path,
+    manager: SharedLeaseManager,
+    broker: TorBroker,
+    peers: crate::daemon::peer_manager::PeerManager,
+    run_store: RunStore,
+) -> Result<()> {
     if let Some(parent) = socket_path.parent() {
         let created = ensure_socket_parent(parent).await?;
         if created || tak_core::runtime_paths::daemon_socket_parent_requires_owner_only(socket_path)
@@ -38,8 +49,10 @@ pub async fn run_server_with_broker_and_peers(
         let broker = broker.clone();
         let peers = peers.clone();
         let tasks = tasks.clone();
+        let run_store = run_store.clone();
         tokio::spawn(async move {
-            if let Err(err) = handle_client(stream, manager, broker, peers, tasks).await {
+            if let Err(err) = handle_client(stream, manager, broker, peers, tasks, run_store).await
+            {
                 tracing::error!("client handling error: {err}");
             }
         });

@@ -7,8 +7,15 @@ pub(crate) async fn run_local_daemon_with_broker_and_peers(
     peers: crate::daemon::peer_manager::PeerManager,
 ) -> Result<()> {
     let manager = local_daemon_manager(db_path)?;
-    crate::daemon::protocol::run_server_with_broker_and_peers(socket_path, manager, broker, peers)
-        .await
+    let run_store = crate::daemon::run_store::RunStore::with_db_path(db_path.to_path_buf())?;
+    crate::daemon::protocol::run_server_with_broker_peers_and_run_store(
+        socket_path,
+        manager,
+        broker,
+        peers,
+        run_store,
+    )
+    .await
 }
 
 fn local_daemon_manager(db_path: &Path) -> Result<crate::daemon::lease::SharedLeaseManager> {

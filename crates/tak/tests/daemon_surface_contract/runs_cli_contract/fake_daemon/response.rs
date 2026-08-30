@@ -2,7 +2,22 @@ use serde_json::json;
 
 use super::Reply;
 
-pub(super) fn response_bytes(reply: &Reply, request_id: &str) -> Option<Vec<u8>> {
+#[path = "response/management.rs"]
+mod management;
+#[path = "response/output.rs"]
+mod output;
+#[path = "response/submission.rs"]
+mod submission;
+use management::{failed_attach_response, management_response};
+use output::{huge_output_response, symlink_chain_output_response, unsafe_output_response};
+use submission::submission_response;
+
+pub(super) fn response_bytes(
+    reply: &Reply,
+    request_id: &str,
+    request: &serde_json::Value,
+    request_number: usize,
+) -> Option<Vec<u8>> {
     let value = match reply {
         Reply::Inactive(message) | Reply::SlowDripInactive(message, _, _) => json!({
             "protocol_version": 2,
@@ -26,6 +41,15 @@ pub(super) fn response_bytes(reply: &Reply, request_id: &str) -> Option<Vec<u8>>
         Reply::Success => json!({
             "protocol_version": 2, "type": "RunList", "request_id": request_id, "runs": [],
         }),
+        Reply::SubmissionFlow => submission_response(request_id, request, false),
+        Reply::FailedSubmissionFlow => submission_response(request_id, request, true),
+        Reply::RetrySubmissionFlow if request_number == 0 => return None,
+        Reply::RetrySubmissionFlow => submission_response(request_id, request, false),
+        Reply::ManagementFlow => management_response(request_id, request),
+        Reply::FailedAttachFlow => failed_attach_response(request_id, request),
+        Reply::UnsafeOutputFlow => unsafe_output_response(request_id, request),
+        Reply::SymlinkChainOutputFlow => symlink_chain_output_response(request_id, request),
+        Reply::HugeOutputFlow => huge_output_response(request_id, request),
         Reply::Raw(bytes) | Reply::RawThenStall(bytes) => return Some(bytes.clone()),
         Reply::Close => return None,
     };

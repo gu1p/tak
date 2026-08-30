@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +12,7 @@ pub enum OutputSelector {
     Glob { value: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Step {
     Cmd {
@@ -26,6 +27,39 @@ pub enum Step {
         cwd: Option<String>,
         env: BTreeMap<String, String>,
     },
+}
+
+impl Debug for Step {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Cmd { argv, cwd, env } => formatter
+                .debug_struct("Cmd")
+                .field("argv", argv)
+                .field("cwd", cwd)
+                .field("env", &redacted_env(env))
+                .finish(),
+            Self::Script {
+                path,
+                argv,
+                interpreter,
+                cwd,
+                env,
+            } => formatter
+                .debug_struct("Script")
+                .field("path", path)
+                .field("argv", argv)
+                .field("interpreter", interpreter)
+                .field("cwd", cwd)
+                .field("env", &redacted_env(env))
+                .finish(),
+        }
+    }
+}
+
+fn redacted_env(env: &BTreeMap<String, String>) -> BTreeMap<&str, &str> {
+    env.keys()
+        .map(|name| (name.as_str(), "<redacted>"))
+        .collect()
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

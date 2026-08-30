@@ -29,12 +29,15 @@ fn v2_shuffle_points_to_balanced_and_balanced_reaches_validation() {
     let balanced = temp.path().join("balanced");
     write_tasks(
         &balanced,
-        "SELECTION = RemoteSelection.Balanced()\nSPEC = module_spec(spec_version=2, tasks=[], defaults=Defaults(execution=Execution.Remote(selection=SELECTION)))\nSPEC\n",
+        "SELECTION = RemoteSelection.Balanced()\nSPEC = module_spec(spec_version=2, tasks=[task('check', steps=[cmd('true')])], defaults=Defaults(execution=Execution.Remote(selection=SELECTION)))\nSPEC\n",
     )
     .expect("write balanced tasks");
     let output = run_tak_output(&balanced, &["run", "//:check"], &env).expect("run balanced");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "stderr:\n{stderr}");
-    assert!(stderr.contains("loaded and validated"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("takd remote placement candidate resolution"),
+        "stderr:\n{stderr}"
+    );
     assert!(!stderr.contains("Shuffle"), "stderr:\n{stderr}");
 }

@@ -7,6 +7,12 @@ const INVALID_VERSION_MESSAGE: &str = "protocol_version must appear exactly once
 const UNSUPPORTED_VERSION_MESSAGE: &str =
     "This takd requires protocol v2. Upgrade tak, takd, and workers together.";
 const INVALID_REQUEST_MESSAGE: &str = "Invalid protocol v2 request.";
+const IDEMPOTENCY_CONFLICT_MESSAGE: &str =
+    "The idempotency key is already bound to a different run submission.";
+const RUN_NOT_FOUND_MESSAGE: &str = "The requested run does not exist.";
+const WORKSPACE_INVALID_MESSAGE: &str = "The workspace upload is invalid.";
+const RUN_STATE_INVALID_MESSAGE: &str = "The requested operation is invalid for this run state.";
+const INTERNAL_MESSAGE: &str = "The local daemon could not complete the request.";
 
 /// A redacted protocol v2 error frame.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -32,6 +38,38 @@ impl ErrorResponse {
     /// ```
     pub fn v2_not_active(request_id: String) -> Self {
         Self::new(Some(request_id), INACTIVE_MESSAGE, "protocol_v2_not_active")
+    }
+
+    pub fn idempotency_conflict(request_id: String) -> Self {
+        Self::new(
+            Some(request_id),
+            IDEMPOTENCY_CONFLICT_MESSAGE,
+            "idempotency_conflict",
+        )
+    }
+
+    pub fn run_not_found(request_id: String) -> Self {
+        Self::new(Some(request_id), RUN_NOT_FOUND_MESSAGE, "run_not_found")
+    }
+
+    pub fn workspace_invalid(request_id: String) -> Self {
+        Self::new(
+            Some(request_id),
+            WORKSPACE_INVALID_MESSAGE,
+            "workspace_invalid",
+        )
+    }
+
+    pub fn run_state_invalid(request_id: String) -> Self {
+        Self::new(
+            Some(request_id),
+            RUN_STATE_INVALID_MESSAGE,
+            "run_state_invalid",
+        )
+    }
+
+    pub fn internal(request_id: String) -> Self {
+        Self::new(Some(request_id), INTERNAL_MESSAGE, "internal")
     }
 
     fn new(request_id: Option<String>, message: &'static str, code: &'static str) -> Self {

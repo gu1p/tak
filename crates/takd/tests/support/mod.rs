@@ -28,6 +28,7 @@ pub mod synthetic_memory_signal;
 pub mod takd_tasks;
 pub mod tor_secret_warning;
 pub mod transport_health;
+pub mod v2_run;
 pub mod wait_for_path;
 pub mod wait_for_session_task;
 pub mod wait_for_terminal_events;

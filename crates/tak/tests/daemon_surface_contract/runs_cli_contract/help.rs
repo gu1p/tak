@@ -3,25 +3,22 @@ use std::collections::BTreeMap;
 use crate::support::run_tak_output;
 
 #[test]
-fn runs_help_is_reachable_without_a_workspace_but_hidden_until_v2_activation() {
+fn runs_help_is_reachable_and_visible_without_a_workspace() {
     let root = tempfile::tempdir().expect("temp root");
     let env = BTreeMap::new();
     let root_help = run_tak_output(root.path(), &["--help"], &env).expect("root help");
     assert!(root_help.status.success(), "root help should succeed");
     let root_stdout = String::from_utf8_lossy(&root_help.stdout);
     assert!(
-        !root_stdout
+        root_stdout
             .lines()
             .any(|line| line.trim_start().starts_with("runs ")),
-        "runs should stay hidden until the coordinated v2 activation\n{root_stdout}"
+        "runs command should be visible\n{root_stdout}"
     );
     let docs = run_tak_output(root.path(), &["docs", "dump"], &env).expect("docs dump");
     assert!(docs.status.success(), "docs dump should succeed");
     let docs_stdout = String::from_utf8_lossy(&docs.stdout);
-    assert!(
-        !docs_stdout.contains("### `tak runs"),
-        "hidden runs command leaked into docs dump"
-    );
+    assert!(docs_stdout.contains("### `tak runs"), "{docs_stdout}");
 
     let help = run_tak_output(root.path(), &["runs", "--help"], &env).expect("runs help");
     assert!(help.status.success(), "runs help should succeed");

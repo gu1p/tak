@@ -13,6 +13,12 @@ use super::{DecodeOutcome, RequestDecodeError};
 /// assert!(matches!(decode_request(raw), Ok(DecodeOutcome::V2(_))));
 /// ```
 pub fn decode_request(raw: &str) -> Result<DecodeOutcome, RequestDecodeError> {
+    if raw.len() > super::MAX_REQUEST_FRAME_BYTES {
+        return Err(RequestDecodeError {
+            code: super::RequestDecodeErrorCode::RequestInvalid,
+            request_id: None,
+        });
+    }
     let probe = Probe::inspect(raw);
     match probe.decide() {
         Decision::Legacy => Ok(DecodeOutcome::LegacyCandidate),

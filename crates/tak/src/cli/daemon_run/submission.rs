@@ -1,0 +1,60 @@
+use std::path::PathBuf;
+
+use anyhow::{Result, bail};
+use tak_core::v2::RunSubmission;
+use tak_proto::local_daemon::v2::{Operation, Request, Response, WorkspaceDisposition};
+
+mod attach;
+mod exchange;
+mod render;
+mod upload;
+
+pub(super) async fn submit_and_attach(
+    socket_path: PathBuf,
+    submission: RunSubmission,
+    archive: Vec<u8>,
+) -> Result<()> {
+    let response = exchange::response(
+        &socket_path,
+        &Request {
+            request_id: exchange::request_id("submit"),
+            operation: Operation::SubmitRun {
+                idempotency_key: submission.idempotency_key.clone(),
+                run: Box::new(submission.run.clone()),
+                environment_values: submission.environment_values.clone(),
+            },
+        },
+    )
+    .await?;
+    let Response::RunSubmitted {
+        run_id, workspace, ..
+    } = response
+    else {
+        bail!("local takd returned an unexpected SubmitRun response")
+    };
+    println!("run_id={run_id}");
+    if let WorkspaceDisposition::UploadRequired { next_offset } = workspace {
+        upload::workspace(
+            &socket_path,
+            &run_id,
+            &submission.run.workspace.manifest.fingerprint,
+            &archive,
+            next_offset,
+        )
+        .await?;
+    }
+    let response = exchange::response(
+        &socket_path,
+        &Request {
+            request_id: exchange::request_id("commit"),
+            operation: Operation::CommitRun {
+                run_id: run_id.clone(),
+            },
+        },
+    )
+    .await?;
+    if !matches!(response, Response::RunCommitted { run_id: ref id, .. } if id == &run_id) {
+        bail!("local takd returned an unexpected CommitRun response");
+    }
+    attach::run(&socket_path, &run_id).await
+}

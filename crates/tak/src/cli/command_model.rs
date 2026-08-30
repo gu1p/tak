@@ -89,6 +89,9 @@ pub(super) enum Commands {
         /// Continue scheduling independent tasks after a task failure.
         #[arg(long = "keep-going", default_value_t = false)]
         keep_going: bool,
+        /// Pass one named client environment variable to selected tasks.
+        #[arg(long = "pass-env", value_name = "NAME")]
+        pass_env: Vec<String>,
         /// Force local placement; a declared container runtime may still be used.
         #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
         local: bool,
@@ -112,7 +115,6 @@ pub(super) enum Commands {
         container_build_context: Option<String>,
     },
     /// Recover and manage daemon-owned graph runs.
-    #[command(hide = true)]
     Runs {
         #[command(subcommand)]
         command: RunsCommands,

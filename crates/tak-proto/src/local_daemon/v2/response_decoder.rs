@@ -5,6 +5,7 @@ use super::{DaemonErrorCode, PROTOCOL_VERSION, ResponseDecodeError};
 
 /// Maximum JSON payload size accepted from the local daemon, excluding NDJSON framing.
 pub const MAX_ERROR_RESPONSE_FRAME_BYTES: usize = 64 * 1024;
+pub const MAX_RESPONSE_FRAME_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,6 +34,46 @@ enum WireDaemonErrorCode {
     ProtocolVersionUnsupported,
     #[serde(rename = "protocol_request_invalid")]
     ProtocolRequestInvalid,
+    #[serde(rename = "idempotency_conflict")]
+    IdempotencyConflict,
+    #[serde(rename = "run_not_found")]
+    RunNotFound,
+    #[serde(rename = "workspace_invalid")]
+    WorkspaceInvalid,
+    #[serde(rename = "run_state_invalid")]
+    RunStateInvalid,
+    #[serde(rename = "internal")]
+    Internal,
+}
+
+pub fn decode_response(
+    raw: &[u8],
+    expected_request_id: &str,
+) -> Result<super::Response, ResponseDecodeError> {
+    if raw.len() > MAX_RESPONSE_FRAME_BYTES
+        || !is_valid_identifier(expected_request_id)
+        || raw.first() != Some(&b'{')
+        || raw.last() != Some(&b'}')
+    {
+        return Err(ResponseDecodeError::ProtocolMismatch);
+    }
+    if let Ok(response) = serde_json::from_slice::<super::Response>(raw) {
+        let (request_id, protocol_version) = response.correlation();
+        if protocol_version == PROTOCOL_VERSION
+            && request_id == expected_request_id
+            && is_valid_identifier(request_id)
+            && valid_success(&response)
+        {
+            return Ok(response);
+        }
+        return Err(ResponseDecodeError::ProtocolMismatch);
+    }
+    let code = decode_error_response(raw, expected_request_id)?;
+    Ok(super::Response::Error {
+        protocol_version: PROTOCOL_VERSION,
+        request_id: expected_request_id.to_owned(),
+        code,
+    })
 }
 
 /// Decodes one delimiter-free, strictly correlated v2 daemon error frame.
@@ -78,5 +119,37 @@ pub fn decode_error_response(
             Ok(DaemonErrorCode::ProtocolVersionUnsupported)
         }
         WireDaemonErrorCode::ProtocolRequestInvalid => Ok(DaemonErrorCode::ProtocolRequestInvalid),
+        WireDaemonErrorCode::IdempotencyConflict => Ok(DaemonErrorCode::IdempotencyConflict),
+        WireDaemonErrorCode::RunNotFound => Ok(DaemonErrorCode::RunNotFound),
+        WireDaemonErrorCode::WorkspaceInvalid => Ok(DaemonErrorCode::WorkspaceInvalid),
+        WireDaemonErrorCode::RunStateInvalid => Ok(DaemonErrorCode::RunStateInvalid),
+        WireDaemonErrorCode::Internal => Ok(DaemonErrorCode::Internal),
+    }
+}
+
+fn valid_success(response: &super::Response) -> bool {
+    use super::Response;
+    match response {
+        Response::Error { .. } => false,
+        Response::RunSubmitted { run_id, .. }
+        | Response::WorkspaceUploadProgress { run_id, .. }
+        | Response::RunCommitted { run_id, .. }
+        | Response::CancellationAccepted { run_id, .. }
+        | Response::OutputManifest { run_id, .. } => is_valid_identifier(run_id),
+        Response::RunEvents {
+            run_id,
+            events,
+            next_event,
+            state,
+            terminal,
+            ..
+        } => {
+            let sequences_are_valid = events.windows(2).all(|pair| pair[0].seq < pair[1].seq)
+                && events.last().is_none_or(|event| event.seq == *next_event);
+            is_valid_identifier(run_id) && sequences_are_valid && (!terminal || state.is_terminal())
+        }
+        Response::RunList { runs, .. } => runs.iter().all(|run| is_valid_identifier(&run.run_id)),
+        Response::RunDetails { run, .. } => is_valid_identifier(&run.summary.run_id),
+        Response::OutputChunk { artifact_id, .. } => is_valid_identifier(artifact_id),
     }
 }

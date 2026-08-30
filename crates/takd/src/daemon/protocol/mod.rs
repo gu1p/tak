@@ -10,6 +10,7 @@ use tokio::io::{
 use tokio::net::{UnixListener, UnixStream};
 
 use crate::daemon::lease::{AcquireLeaseResponse, SharedLeaseManager};
+use crate::daemon::run_store::RunStore;
 
 mod broker;
 mod daemon_tasks;
@@ -18,6 +19,7 @@ mod local_protocol_io;
 mod request_wire;
 mod types;
 mod unix_server;
+mod v2_dispatch;
 mod validation;
 
 use broker::handle_broker_http_request;
@@ -34,5 +36,7 @@ pub use types::{
     RemoteResponseHeader, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
     StreamTaskEventsRequest, TaskInfo,
 };
-pub use unix_server::run_server_with_broker_and_peers;
+pub use unix_server::{
+    run_server_with_broker_and_peers, run_server_with_broker_peers_and_run_store,
+};
 pub use validation::ensure_valid_request;

@@ -27,8 +27,7 @@ fn runs_list_bounds_and_redacts_untrusted_daemon_responses() {
             "protocol mismatch",
         ),
         ("retryable", Reply::Retryable(secret), "protocol mismatch"),
-        ("success", Reply::Success, "protocol mismatch"),
-        ("oversized", Reply::RawThenStall(oversized), "protocol mismatch"),
+        ("incomplete", Reply::RawThenStall(oversized), "timeout"),
     ];
 
     for (name, reply, expected) in cases {
@@ -46,4 +45,13 @@ fn runs_list_bounds_and_redacts_untrusted_daemon_responses() {
         assert!(!stderr.contains(secret), "{name}: {stderr}");
         assert!(!stderr.contains(wrong_id), "{name}: {stderr}");
     }
+
+    let socket = root.path().join("success.sock");
+    let daemon = FakeRunDaemon::spawn(&socket, Reply::Success);
+    let env = BTreeMap::from([("TAKD_SOCKET".to_string(), socket.display().to_string())]);
+    let output = run_tak_output(root.path(), &["runs", "list"], &env).expect("run list success");
+    let requests = daemon.finish_expecting(1);
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty() && output.stderr.is_empty());
+    assert_eq!(requests.len(), 1);
 }

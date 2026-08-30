@@ -6,3 +6,6 @@ mod remote_inventory_contract;
 mod runtime_paths_contract;
 mod serde_defaults_contract;
 mod v2_domain_contract;
+mod v2_resolved_run_consistency_contract;
+mod v2_resolved_run_contract;
+mod v2_resolved_run_support;

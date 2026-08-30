@@ -15,18 +15,26 @@ mod server;
 #[path = "fake_daemon/write.rs"]
 mod write;
 
-pub(super) enum Reply {
+pub(crate) enum Reply {
     Inactive(&'static str),
     SlowDripInactive(&'static str, Duration, usize),
     Legacy(&'static str),
     Raw(Vec<u8>),
     RawThenStall(Vec<u8>),
     Retryable(&'static str),
+    SubmissionFlow,
+    FailedSubmissionFlow,
+    RetrySubmissionFlow,
+    ManagementFlow,
+    FailedAttachFlow,
+    UnsafeOutputFlow,
+    SymlinkChainOutputFlow,
+    HugeOutputFlow,
     Close,
     Success,
 }
 
-pub(super) struct FakeRunDaemon {
+pub(crate) struct FakeRunDaemon {
     socket_path: PathBuf,
     stop: Arc<AtomicBool>,
     requests: Arc<Mutex<Vec<Value>>>,
@@ -34,7 +42,7 @@ pub(super) struct FakeRunDaemon {
 }
 
 impl FakeRunDaemon {
-    pub(super) fn spawn(socket_path: &Path, reply: Reply) -> Self {
+    pub(crate) fn spawn(socket_path: &Path, reply: Reply) -> Self {
         let listener = std::os::unix::net::UnixListener::bind(socket_path)
             .expect("bind fake run daemon socket");
         let stop = Arc::new(AtomicBool::new(false));
@@ -52,7 +60,7 @@ impl FakeRunDaemon {
         }
     }
 
-    pub(super) fn finish_expecting(mut self, expected: usize) -> Vec<Value> {
+    pub(crate) fn finish_expecting(mut self, expected: usize) -> Vec<Value> {
         let deadline = Instant::now() + Duration::from_secs(5);
         while self.requests.lock().expect("request capture lock").len() < expected
             && Instant::now() < deadline
@@ -60,7 +68,13 @@ impl FakeRunDaemon {
             std::thread::sleep(Duration::from_millis(5));
         }
         self.stop_and_join();
-        self.requests.lock().expect("request capture lock").clone()
+        let requests = self.requests.lock().expect("request capture lock").clone();
+        assert_eq!(
+            requests.len(),
+            expected,
+            "unexpected fake-daemon request count: {requests:?}"
+        );
+        requests
     }
 
     fn stop_and_join(&mut self) {

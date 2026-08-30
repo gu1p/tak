@@ -6339,6 +6339,7 @@ dependencies = [
  "arti-client",
  "assert_cmd",
  "axum",
+ "base64",
  "bytes",
  "clap",
  "crossterm 0.28.1",
@@ -6346,6 +6347,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "ignore",
  "nokhwa",
  "predicates",
  "prost",
@@ -6359,6 +6361,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "syn 2.0.117",
  "sysinfo 0.36.1",
  "tak-core",
@@ -6368,10 +6371,12 @@ dependencies = [
  "tak-proto",
  "tak-update",
  "takd",
+ "tar",
  "tempfile",
  "tokio",
  "toml 0.8.23",
  "url",
+ "uuid",
  "webbrowser",
 ]
 
@@ -6473,6 +6478,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "tak-core",
 ]
 
 [[package]]

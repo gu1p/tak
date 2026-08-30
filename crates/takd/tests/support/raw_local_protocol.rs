@@ -6,7 +6,7 @@ use tokio::net::UnixStream;
 use tokio::time::{Duration, sleep, timeout};
 
 pub struct RawLocalProtocol {
-    _temp: TempDir,
+    _temp: Option<TempDir>,
     server: tokio::task::JoinHandle<anyhow::Result<()>>,
     stream: BufReader<UnixStream>,
 }
@@ -21,7 +21,21 @@ impl RawLocalProtocol {
         );
         let stream = connect(&socket_path).await;
         Self {
-            _temp: temp,
+            _temp: Some(temp),
+            server,
+            stream: BufReader::new(stream),
+        }
+    }
+
+    pub async fn start_in(root: &Path) -> Self {
+        let socket_path = root.join("run/takd.sock");
+        let server = super::protocol_server::spawn_protocol_server(
+            root.join("state/takd.sqlite"),
+            socket_path.clone(),
+        );
+        let stream = connect(&socket_path).await;
+        Self {
+            _temp: None,
             server,
             stream: BufReader::new(stream),
         }
@@ -42,7 +56,7 @@ impl RawLocalProtocol {
         });
         let stream = connect(&socket_path).await;
         Self {
-            _temp: temp,
+            _temp: Some(temp),
             server,
             stream: BufReader::new(stream),
         }

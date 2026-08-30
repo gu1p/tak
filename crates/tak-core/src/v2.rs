@@ -3,11 +3,13 @@
 mod authored;
 mod environment;
 mod placement;
+mod resolved_run;
 mod session;
 
 pub use authored::{AuthoredDefaults, AuthoredModule, AuthoredTask, OutputSelector, Step};
 pub use environment::PassEnv;
 pub use placement::{Execution, LocalExecution, RemoteExecution, RemoteSelection};
+pub use resolved_run::*;
 pub use session::{Affinity, Session, SessionReuse};
 
 use thiserror::Error;
@@ -24,4 +26,6 @@ pub enum ValidationError {
     SharedWorkspaceRequiresHardAffinity,
     #[error("a SharedWorkspace task cannot weaken or change its session affinity")]
     SharedWorkspaceAffinityOverride,
+    #[error("session id must be 1 to 128 bytes with no control characters")]
+    InvalidSessionId,
 }

@@ -2,12 +2,12 @@
 
 use std::time::Duration;
 
-use tak_proto::local_daemon::v2::{DaemonErrorCode, ErrorResponse, Operation, Request};
+use tak_proto::local_daemon::v2::{DaemonErrorCode, ErrorResponse, Operation, Request, Response};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::time::{pause, resume, sleep};
 
-use super::client::send_request;
+use super::client::send_response;
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_fragmented_response_can_complete_after_a_short_daemon_delay() {
@@ -44,8 +44,14 @@ async fn a_fragmented_response_can_complete_after_a_short_daemon_delay() {
         operation: Operation::ListRuns {},
     };
 
-    let result = send_request(&socket, &request).await;
+    let result = send_response(&socket, &request).await;
 
-    assert_eq!(result, Ok(DaemonErrorCode::ProtocolV2NotActive));
+    assert!(matches!(
+        result,
+        Ok(Response::Error {
+            code: DaemonErrorCode::ProtocolV2NotActive,
+            ..
+        })
+    ));
     server.await.expect("join fake daemon");
 }

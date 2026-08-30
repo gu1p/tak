@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::support::{run_tak_output, write_tasks};
 
 #[test]
-fn explicit_v2_is_validated_then_stops_before_submission_without_fallback() {
+fn remote_v2_stops_before_submission_until_daemon_candidate_resolution_is_available() {
     let temp = tempfile::tempdir().expect("tempdir");
     let workspace = temp.path().join("workspace");
     let env = BTreeMap::from([
@@ -45,14 +45,10 @@ SPEC
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(!output.status.success(), "stderr:\n{stderr}");
-    for token in [
-        "module_spec(spec_version=2) loaded and validated",
-        "daemon-owned v2 graph resolution/submission is not active",
-        "no legacy WorkspaceSpec was produced",
-        "no client executor fallback was attempted",
-    ] {
-        assert!(stderr.contains(token), "missing `{token}`:\n{stderr}");
-    }
+    assert!(
+        stderr.contains("takd remote placement candidate resolution"),
+        "stderr:\n{stderr}"
+    );
     for secret in ["do-not-render-build", "do-not-render-task"] {
         assert!(!stderr.contains(secret), "secret rendered: {stderr}");
     }
@@ -60,6 +56,7 @@ SPEC
         "does not load or execute v2 modules",
         "type errors",
         "takd serve",
+        "loaded and validated",
     ] {
         assert!(!stderr.contains(stale), "unexpected `{stale}`: {stderr}");
     }

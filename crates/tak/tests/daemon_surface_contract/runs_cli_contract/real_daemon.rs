@@ -7,7 +7,7 @@ use crate::support::local_daemon::LocalDaemonGuard;
 use crate::support::{run_tak_output, write_tasks};
 
 #[test]
-fn runs_client_and_real_daemon_share_the_strict_v2_error_boundary() {
+fn runs_client_and_real_daemon_share_the_active_strict_v2_boundary() {
     let root = tempfile::tempdir().expect("temp root");
     write_tasks(root.path(), "raise RuntimeError('TASKS_POISON')\n").expect("write poison tasks");
     let socket = root.path().join("takd.sock");
@@ -26,22 +26,24 @@ fn runs_client_and_real_daemon_share_the_strict_v2_error_boundary() {
     let destination_arg = destination.display().to_string();
     let env = BTreeMap::from([("TAKD_SOCKET".to_string(), socket.display().to_string())]);
 
-    for args in [
-        vec!["runs", "list"],
-        vec!["runs", "outputs", "run-1", "--to", &destination_arg],
-    ] {
-        let output = run_tak_output(root.path(), &args, &env).expect("run against real daemon");
-        assert!(!output.status.success(), "{args:?} should be inactive");
-        assert!(output.stdout.is_empty(), "{args:?} wrote stdout");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            stderr.contains("Protocol v2 run operations are not active"),
-            "{stderr}"
-        );
-        assert!(stderr.contains("upgrade tak, takd, and workers together"));
-        assert!(!stderr.contains("protocol mismatch"), "{stderr}");
-        assert!(!stderr.contains("TASKS_POISON"), "{stderr}");
-    }
+    let list = run_tak_output(root.path(), &["runs", "list"], &env).expect("list real runs");
+    assert!(
+        list.status.success(),
+        "{}",
+        String::from_utf8_lossy(&list.stderr)
+    );
+    assert!(list.stdout.is_empty() && list.stderr.is_empty());
+
+    let outputs = run_tak_output(
+        root.path(),
+        &["runs", "outputs", "run-1", "--to", &destination_arg],
+        &env,
+    )
+    .expect("retrieve missing run");
+    assert!(!outputs.status.success());
+    let stderr = String::from_utf8_lossy(&outputs.stderr);
+    assert!(stderr.contains("run not found"), "{stderr}");
+    assert!(!stderr.contains("protocol mismatch") && !stderr.contains("TASKS_POISON"));
     assert_eq!(
         fs::read_to_string(destination.join("keep.txt")).unwrap(),
         "keep"

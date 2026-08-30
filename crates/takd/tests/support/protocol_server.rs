@@ -9,9 +9,10 @@ pub fn spawn_protocol_server(
     db_path: PathBuf,
     socket_path: PathBuf,
 ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
-    let manager = new_shared_manager_with_db(db_path).expect("manager");
+    let manager = new_shared_manager_with_db(db_path.clone()).expect("manager");
     configure_manager(&manager);
-    spawn_protocol_server_with_manager(socket_path, manager)
+    let run_store = takd::RunStore::with_db_path(db_path).expect("run store");
+    spawn_protocol_server_with_manager(socket_path, manager, run_store)
 }
 
 pub fn seeded_protocol_server(
@@ -19,7 +20,7 @@ pub fn seeded_protocol_server(
     socket_path: PathBuf,
     request_id: &str,
 ) -> (tokio::task::JoinHandle<anyhow::Result<()>>, String) {
-    let manager = new_shared_manager_with_db(db_path).expect("manager");
+    let manager = new_shared_manager_with_db(db_path.clone()).expect("manager");
     configure_manager(&manager);
     let lease_id = {
         let mut guard = manager.lock().expect("lease manager lock");
@@ -29,7 +30,11 @@ pub fn seeded_protocol_server(
         }
     };
     (
-        spawn_protocol_server_with_manager(socket_path, manager),
+        spawn_protocol_server_with_manager(
+            socket_path,
+            manager,
+            takd::RunStore::with_db_path(db_path).expect("run store"),
+        ),
         lease_id,
     )
 }
@@ -43,8 +48,16 @@ fn configure_manager(manager: &SharedLeaseManager) {
 fn spawn_protocol_server_with_manager(
     socket_path: PathBuf,
     manager: SharedLeaseManager,
+    run_store: takd::RunStore,
 ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
-        super::local_runtime::run_local_server(&socket_path, manager, takd::TorBroker::new()).await
+        takd::run_server_with_broker_peers_and_run_store(
+            &socket_path,
+            manager,
+            takd::TorBroker::new(),
+            takd::PeerManager::default(),
+            run_store,
+        )
+        .await
     })
 }
