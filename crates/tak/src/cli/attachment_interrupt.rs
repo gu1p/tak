@@ -14,27 +14,19 @@ pub(super) enum CancellationOutcome {
 
 pub(super) struct State {
     cancellation_requested: bool,
-    signals: tokio::sync::mpsc::UnboundedReceiver<()>,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        let (sender, signals) = tokio::sync::mpsc::unbounded_channel();
-        tokio::spawn(async move {
-            loop {
-                if tokio::signal::ctrl_c().await.is_err() || sender.send(()).is_err() {
-                    break;
-                }
-            }
-        });
-        Self {
-            cancellation_requested: false,
-            signals,
-        }
-    }
+    signals: tokio::signal::unix::Signal,
 }
 
 impl State {
+    pub(super) fn new() -> Result<Self> {
+        let signals = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+            .context("register run attachment interrupt")?;
+        Ok(Self {
+            cancellation_requested: false,
+            signals,
+        })
+    }
+
     pub(super) async fn next(&mut self) -> Result<Action> {
         self.signals
             .recv()

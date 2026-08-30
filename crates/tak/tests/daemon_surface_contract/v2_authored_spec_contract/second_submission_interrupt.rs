@@ -17,7 +17,7 @@ fn second_ctrl_c_detaches_while_persisted_cancellation_is_pending() {
         .join("d.sock");
     let daemon = FakeRunDaemon::spawn(
         &socket,
-        Reply::DelayedCancellationFlow("UploadWorkspace", Duration::from_secs(30)),
+        Reply::DelayedCancellationFlow("UploadWorkspace", Duration::from_millis(500)),
     );
     let mut child = Command::new(tak_bin())
         .current_dir(&workspace)
@@ -30,6 +30,7 @@ fn second_ctrl_c_detaches_while_persisted_cancellation_is_pending() {
     wait_for_requests(&daemon, 2);
     interrupt(&child);
     wait_for_requests(&daemon, 3);
+    let second_sent = Instant::now();
     interrupt(&child);
     let exited = wait_for_exit(&mut child);
     if !exited {
@@ -43,6 +44,10 @@ fn second_ctrl_c_detaches_while_persisted_cancellation_is_pending() {
         .collect();
     assert_eq!(operations, ["SubmitRun", "UploadWorkspace", "CancelRun"]);
     assert!(exited, "second Ctrl-C did not detach");
+    assert!(
+        second_sent.elapsed() >= Duration::from_millis(400),
+        "detached before takd confirmed persisted cancellation"
+    );
     assert!(String::from_utf8_lossy(&output.stderr).contains("persisted cancellation continues"));
 }
 

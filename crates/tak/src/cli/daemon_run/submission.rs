@@ -14,6 +14,7 @@ pub(super) async fn submit_and_attach(
     submission: RunSubmission,
     archive: Vec<u8>,
 ) -> Result<()> {
+    let mut interrupts = crate::cli::attachment_interrupt::State::new()?;
     let response = exchange::response(
         &socket_path,
         &Request {
@@ -33,7 +34,6 @@ pub(super) async fn submit_and_attach(
         bail!("local takd returned an unexpected SubmitRun response")
     };
     println!("run_id={run_id}");
-    let mut interrupts = crate::cli::attachment_interrupt::State::default();
     if let WorkspaceDisposition::UploadRequired { next_offset } = workspace {
         let upload = upload::workspace(
             &socket_path,

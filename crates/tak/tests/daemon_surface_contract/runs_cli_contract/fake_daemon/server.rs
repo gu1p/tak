@@ -28,6 +28,10 @@ pub(super) fn serve(
             stream
                 .set_write_timeout(Some(Duration::from_secs(2)))
                 .expect("bound fake response write");
+            if matches!(reply, Reply::RawThenStall(_)) {
+                handle(stream, &reply, stop, requests);
+                continue;
+            }
             let reply = &reply;
             let requests = Arc::clone(requests);
             scope.spawn(move || handle(stream, reply, stop, &requests));

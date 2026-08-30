@@ -89,9 +89,15 @@ pub(super) async fn handle_interrupt(
         },
     };
     let cancellation = super::exchange::response(socket_path, &cancellation_request);
-    let response = tokio::select! {
-        response = cancellation => response?,
-        action = interrupts.next() => return Ok(matches!(action?, Action::Detach)),
+    tokio::pin!(cancellation);
+    let mut detach_requested = false;
+    let response = loop {
+        tokio::select! {
+            response = &mut cancellation => break response?,
+            action = interrupts.next(), if !detach_requested => {
+                detach_requested = matches!(action?, Action::Detach);
+            }
+        }
     };
     use crate::cli::attachment_interrupt::CancellationOutcome;
     match crate::cli::attachment_interrupt::validate_cancellation(run_id, &response)? {
@@ -102,5 +108,5 @@ pub(super) async fn handle_interrupt(
             eprintln!("Run {run_id} was already terminal; loading its final state.");
         }
     }
-    Ok(false)
+    Ok(detach_requested)
 }

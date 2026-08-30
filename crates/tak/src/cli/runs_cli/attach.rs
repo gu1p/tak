@@ -7,7 +7,7 @@ use super::{MISMATCH_DIAGNOSTIC, render, request};
 
 pub(super) async fn run(socket: &Path, run_id: &str) -> Result<()> {
     let mut after_event = 0;
-    let mut interrupts = crate::cli::attachment_interrupt::State::default();
+    let mut interrupts = crate::cli::attachment_interrupt::State::new()?;
     loop {
         let attached = request(
             socket,
@@ -87,9 +87,15 @@ async fn handle_interrupt(
         },
         true,
     );
-    let response = tokio::select! {
-        response = cancellation => response?,
-        action = interrupts.next() => return Ok(matches!(action?, Action::Detach)),
+    tokio::pin!(cancellation);
+    let mut detach_requested = false;
+    let response = loop {
+        tokio::select! {
+            response = &mut cancellation => break response?,
+            action = interrupts.next(), if !detach_requested => {
+                detach_requested = matches!(action?, Action::Detach);
+            }
+        }
     };
     use crate::cli::attachment_interrupt::CancellationOutcome;
     match crate::cli::attachment_interrupt::validate_cancellation(run_id, &response)? {
@@ -100,7 +106,7 @@ async fn handle_interrupt(
             eprintln!("Run {run_id} was already terminal; loading its final state.");
         }
     }
-    Ok(false)
+    Ok(detach_requested)
 }
 
 pub(crate) fn validate_event_page(
