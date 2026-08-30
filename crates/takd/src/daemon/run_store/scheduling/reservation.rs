@@ -33,6 +33,7 @@ pub(super) fn reserve(
             sqlite_i64(job.resources.memory_bytes, "memory reservation")?,
             i64::from(job.resources.execution_slots.get()), now],
     )?;
+    super::constraints::bind_affinity_home(transaction, run_id, job, &node.node_id, now)?;
     let updated = transaction.execute(
         "UPDATE run_jobs SET state = 'transferring', node_id = ?3, attempt = ?4, dispatch_generation = ?5, current_fencing_token = ?6, next_eligible_at_ms = 0 WHERE run_id = ?1 AND job_id = ?2 AND state IN ('ready', 'retrying')",
         params![run_id, job_id, node.node_id, authored_attempt, dispatch_generation,

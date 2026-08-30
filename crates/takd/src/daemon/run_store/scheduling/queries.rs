@@ -25,6 +25,7 @@ pub(super) struct ReadyJob {
     pub(super) run_id: String,
     pub(super) job_id: String,
     pub(super) definition: String,
+    pub(super) resolved_run: String,
     pub(super) max_parallel: u64,
     pub(super) workspace_fingerprint: String,
     pub(super) submitter_id: String,
@@ -32,7 +33,7 @@ pub(super) struct ReadyJob {
 
 pub(super) fn ready_jobs(transaction: &Transaction<'_>, now_ms: u64) -> Result<Vec<ReadyJob>> {
     let mut statement = transaction.prepare(
-        "SELECT j.run_id, j.job_id, j.definition_json, r.max_parallel_jobs, \
+        "SELECT j.run_id, j.job_id, j.definition_json, r.resolved_json, r.max_parallel_jobs, \
          r.workspace_fingerprint, r.submitter_id \
          FROM run_jobs j JOIN runs r ON r.run_id = j.run_id \
          LEFT JOIN scheduler_submitters submitter ON submitter.submitter_id = r.submitter_id \
@@ -45,15 +46,16 @@ pub(super) fn ready_jobs(transaction: &Transaction<'_>, now_ms: u64) -> Result<V
     )?;
     statement
         .query_map([i64::try_from(now_ms)?], |row| {
-            let max_parallel = row.get::<_, i64>(3)?;
+            let max_parallel = row.get::<_, i64>(4)?;
             Ok(ReadyJob {
                 run_id: row.get(0)?,
                 job_id: row.get(1)?,
                 definition: row.get(2)?,
+                resolved_run: row.get(3)?,
                 max_parallel: u64::try_from(max_parallel)
-                    .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(3, max_parallel))?,
-                workspace_fingerprint: row.get(4)?,
-                submitter_id: row.get(5)?,
+                    .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, max_parallel))?,
+                workspace_fingerprint: row.get(5)?,
+                submitter_id: row.get(6)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()

@@ -1,31 +1,56 @@
 use anyhow::Result;
 use rusqlite::TransactionBehavior;
-use tak_core::v2::ResolvedJob;
+use tak_core::v2::{ResolvedJob, ResolvedRun};
 
 use crate::daemon::scheduler::{DispatchCommand, SchedulerNode};
 
 use super::RunStore;
 use super::events::now_ms;
 
+mod constraints;
 mod queries;
 mod reservation;
 mod selection;
 
 use queries::{active_run_attempts, policy_cursor, ready_jobs, validate_nodes};
 use reservation::{advance_fairness, reserve, save_cursor};
-use selection::select_node;
+use selection::{AffinitySelection, select_node};
 
 impl RunStore {
     pub fn reserve_next(&self, nodes: &[SchedulerNode]) -> Result<Option<DispatchCommand>> {
         validate_nodes(nodes)?;
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let ready = ready_jobs(&transaction, now_ms()?)?;
+        let now = now_ms()?;
+        let ready = ready_jobs(&transaction, now)?;
         for ready_job in ready {
             if active_run_attempts(&transaction, &ready_job.run_id)? >= ready_job.max_parallel {
                 continue;
             }
             let job: ResolvedJob = serde_json::from_str(&ready_job.definition)?;
+            let run: ResolvedRun = serde_json::from_str(&ready_job.resolved_run)?;
+            if !constraints::can_acquire_shared_workspace(&transaction, &ready_job.run_id, &job)? {
+                continue;
+            }
+            let affinity_nodes = constraints::eligible_hard_affinity_nodes(
+                &transaction,
+                &ready_job.run_id,
+                &run,
+                &job,
+            )?;
+            let preferred_node =
+                constraints::preferred_affinity_home(&transaction, &ready_job.run_id, &job)?;
+            let affinity = AffinitySelection {
+                eligible_nodes: affinity_nodes.as_ref(),
+                preferred_node: preferred_node.as_deref(),
+            };
+            let constraint_context = constraints::Context {
+                run_id: &ready_job.run_id,
+                job_id: &ready_job.job_id,
+                submitter_id: &ready_job.submitter_id,
+                run: &run,
+                now_ms: now,
+            };
             let cursor = policy_cursor(&transaction, &ready_job.run_id, &job)?;
             let Some((node, next_cursor)) = select_node(
                 &transaction,
@@ -33,6 +58,8 @@ impl RunStore {
                 &job,
                 cursor,
                 &ready_job.workspace_fingerprint,
+                &affinity,
+                &constraint_context,
             )?
             else {
                 continue;

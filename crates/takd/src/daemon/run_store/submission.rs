@@ -7,8 +7,10 @@ use super::blob::verified_blob;
 use super::events::{append_event, now_ms, sqlite_i64};
 use super::{RunStore, SubmitRunResult};
 
+mod definition_conflicts;
 mod persistence;
 
+use definition_conflicts::reject_active_conflicts;
 use persistence::{insert_edges, insert_environment, insert_jobs, insert_run};
 
 impl RunStore {
@@ -30,6 +32,7 @@ impl RunStore {
             }
             return Ok(result);
         }
+        reject_active_conflicts(&transaction, submission, submitter_id)?;
         let run_id = format!("run-{}", uuid::Uuid::new_v4());
         let workspace = workspace_disposition(self, &transaction, submission, 0)?;
         insert_run(&transaction, &run_id, submission, submitter_id, &workspace)?;

@@ -9,4 +9,6 @@ mod v2_domain_contract;
 mod v2_resolved_run_consistency_contract;
 mod v2_resolved_run_contract;
 mod v2_resolved_run_support;
+mod v2_scheduler_constraint_model_contract;
 mod v2_scheduler_model_contract;
+mod v2_session_projection_contract;

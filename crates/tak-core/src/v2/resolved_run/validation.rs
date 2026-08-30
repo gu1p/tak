@@ -75,6 +75,11 @@ fn validate_tasks(
         }
         require_references("task dependency", task.dependencies.iter(), tasks)?;
         validate_names(&task.pass_env_names)?;
+        if let Some(affinity) = &task.affinity {
+            affinity
+                .validate()
+                .map_err(|error| ResolvedRunError::new(error.to_string()))?;
+        }
     }
     Ok(())
 }
@@ -97,6 +102,11 @@ fn validate_jobs(run: &ResolvedRun, tasks: &BTreeSet<String>) -> Result<(), Reso
         }
         require_references("job task", job.task_ids.iter(), tasks)?;
         validate_names(&job.pass_env_names)?;
+        if let Some(affinity) = &job.affinity {
+            affinity
+                .validate()
+                .map_err(|error| ResolvedRunError::new(error.to_string()))?;
+        }
         for path in &job.context_manifest.paths {
             if !paths.contains(path.as_str()) {
                 return Err(ResolvedRunError::new(format!(
@@ -143,17 +153,45 @@ fn validate_definitions(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
         "limiter",
         run.limiter_definitions.iter().map(|item| item.name()),
     )?;
+    let limiter_definitions = run
+        .limiter_definitions
+        .iter()
+        .map(|definition| (definition.name(), definition))
+        .collect::<BTreeMap<_, _>>();
     for job in &run.jobs {
         if let Some(queue) = &job.queue
             && !queues.contains(queue)
         {
             return Err(ResolvedRunError::new(format!("unknown queue `{queue}`")));
         }
+        let mut claims = BTreeSet::new();
         for claim in &job.limiter_claims {
             if !limiters.contains(&claim.name) {
                 return Err(ResolvedRunError::new(format!(
                     "unknown limiter `{}`",
                     claim.name
+                )));
+            }
+            if !claims.insert(claim.name.as_str()) {
+                return Err(ResolvedRunError::new(format!(
+                    "job `{}` has duplicate limiter claim `{}`",
+                    job.job_id, claim.name
+                )));
+            }
+            let definition = limiter_definitions[claim.name.as_str()];
+            let capacity = definition.capacity_millis();
+            if claim.amount_millis.get() > capacity {
+                return Err(ResolvedRunError::new(format!(
+                    "job `{}` limiter claim `{}` exceeds capacity",
+                    job.job_id, claim.name
+                )));
+            }
+            if matches!(definition, super::LimiterDefinition::Lock { .. })
+                && claim.amount_millis.get() != capacity
+            {
+                return Err(ResolvedRunError::new(format!(
+                    "job `{}` lock claim `{}` must acquire the whole lock",
+                    job.job_id, claim.name
                 )));
             }
         }

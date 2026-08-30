@@ -76,6 +76,20 @@ impl LimiterDefinition {
             | Self::Resource { name, .. } => name,
         }
     }
+
+    pub(super) fn capacity_millis(&self) -> u64 {
+        match self {
+            Self::Lock { .. } => 1_000,
+            Self::RateLimit { permits, .. }
+            | Self::ProcessCap {
+                max_processes: permits,
+                ..
+            } => u64::from(permits.get()) * 1_000,
+            Self::Resource {
+                capacity_millis, ..
+            } => capacity_millis.get(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

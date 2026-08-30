@@ -9,6 +9,7 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
         .map(|task| (task.task_id.as_str(), task))
         .collect::<BTreeMap<_, _>>();
     validate_edges(run, &tasks)?;
+    let mut sessions = BTreeMap::new();
     for job in &run.jobs {
         let units = job
             .task_ids
@@ -34,6 +35,24 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
             session
                 .validate()
                 .map_err(|error| ResolvedRunError::new(error.to_string()))?;
+            let effective = session
+                .effective_affinity(job.affinity.as_ref())
+                .map_err(|error| ResolvedRunError::new(error.to_string()))?;
+            if effective != job.affinity {
+                return Err(ResolvedRunError::new(format!(
+                    "job `{}` did not inherit its session affinity",
+                    job.job_id
+                )));
+            }
+            if sessions
+                .insert(session.id.as_str(), session)
+                .is_some_and(|existing| existing != session)
+            {
+                return Err(ResolvedRunError::new(format!(
+                    "session `{}` has conflicting definitions",
+                    session.id
+                )));
+            }
         }
     }
     Ok(())

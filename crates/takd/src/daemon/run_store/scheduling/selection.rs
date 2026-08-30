@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Result;
 use rusqlite::Transaction;
@@ -6,8 +6,15 @@ use tak_core::v2::{RemoteSelection, ResolvedJob, ResourceRequest};
 
 use crate::daemon::scheduler::SchedulerNode;
 
+use super::constraints::{self, Context};
+
 #[cfg(test)]
 mod tests;
+
+pub(super) struct AffinitySelection<'a> {
+    pub(super) eligible_nodes: Option<&'a BTreeSet<String>>,
+    pub(super) preferred_node: Option<&'a str>,
+}
 
 pub(super) fn select_node<'a>(
     transaction: &Transaction<'_>,
@@ -15,13 +22,22 @@ pub(super) fn select_node<'a>(
     job: &ResolvedJob,
     cursor: u64,
     workspace_fingerprint: &str,
+    affinity: &AffinitySelection<'_>,
+    constraint_context: &Context<'_>,
 ) -> Result<Option<(&'a SchedulerNode, Option<u64>)>> {
     let nodes_by_id = nodes
         .iter()
         .map(|node| (node.node_id.as_str(), node))
         .collect::<BTreeMap<_, _>>();
     if job.placement_policy.selection == RemoteSelection::Balanced {
-        return select_balanced(transaction, &nodes_by_id, job, workspace_fingerprint);
+        return select_balanced(
+            transaction,
+            &nodes_by_id,
+            job,
+            workspace_fingerprint,
+            affinity,
+            constraint_context,
+        );
     }
     let count = job.placement_candidates.len();
     let start = match job.placement_policy.selection {
@@ -32,11 +48,19 @@ pub(super) fn select_node<'a>(
     for offset in 0..count {
         let index = (start + offset) % count;
         let candidate = &job.placement_candidates[index];
+        if affinity
+            .eligible_nodes
+            .is_some_and(|eligible| !eligible.contains(&candidate.node_id))
+        {
+            continue;
+        }
         let Some(node) = nodes_by_id.get(candidate.node_id.as_str()) else {
             continue;
         };
         let usage = reserved_usage(transaction, node)?;
-        if has_capacity(node, usage, job.resources) {
+        if has_capacity(node, usage, job.resources)
+            && constraints::can_acquire(transaction, constraint_context, job, &node.node_id)?
+        {
             let next = (job.placement_policy.selection == RemoteSelection::RoundRobin)
                 .then_some(((index + 1) % count) as u64);
             return Ok(Some((node, next)));
@@ -50,9 +74,17 @@ fn select_balanced<'a>(
     nodes: &BTreeMap<&str, &'a SchedulerNode>,
     job: &ResolvedJob,
     workspace_fingerprint: &str,
+    affinity: &AffinitySelection<'_>,
+    constraint_context: &Context<'_>,
 ) -> Result<Option<(&'a SchedulerNode, Option<u64>)>> {
     let mut best = None;
     for (index, candidate) in job.placement_candidates.iter().enumerate() {
+        if affinity
+            .eligible_nodes
+            .is_some_and(|eligible| !eligible.contains(&candidate.node_id))
+        {
+            continue;
+        }
         let Some(node) = nodes.get(candidate.node_id.as_str()).copied() else {
             continue;
         };
@@ -60,7 +92,11 @@ fn select_balanced<'a>(
         if !has_capacity(node, usage, job.resources) {
             continue;
         }
-        let locality = node.cached_content.contains(workspace_fingerprint);
+        if !constraints::can_acquire(transaction, constraint_context, job, &node.node_id)? {
+            continue;
+        }
+        let locality = node.cached_content.contains(workspace_fingerprint)
+            || affinity.preferred_node == Some(node.node_id.as_str());
         let score = score_node(node, usage, job.resources, locality);
         if best
             .as_ref()

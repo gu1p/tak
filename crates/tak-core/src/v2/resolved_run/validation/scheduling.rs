@@ -1,9 +1,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::{PlacementKind, ResolvedRun, ResolvedRunError};
+use super::super::{PlacementKind, QueueDiscipline, ResolvedRun, ResolvedRunError};
 use super::validate_identifier;
+use crate::v2::Affinity;
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
+    if run
+        .queue_definitions
+        .iter()
+        .any(|queue| queue.discipline == QueueDiscipline::Priority)
+    {
+        return Err(ResolvedRunError::new(
+            "priority queues require resolved job priorities",
+        ));
+    }
     let mut policies = BTreeMap::new();
     for job in &run.jobs {
         let policy = &job.placement_policy;
@@ -26,6 +36,34 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
                 job.job_id
             )));
         }
+    }
+    validate_hard_affinity(run)?;
+    Ok(())
+}
+
+fn validate_hard_affinity(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
+    let mut candidates = BTreeMap::<&str, BTreeSet<&str>>::new();
+    for job in &run.jobs {
+        let Some(Affinity::RequireSameNode { group }) = &job.affinity else {
+            continue;
+        };
+        let job_nodes = job
+            .placement_candidates
+            .iter()
+            .map(|candidate| candidate.node_id.as_str())
+            .collect::<BTreeSet<_>>();
+        candidates
+            .entry(group)
+            .and_modify(|common| common.retain(|node| job_nodes.contains(node)))
+            .or_insert(job_nodes);
+    }
+    if let Some(group) = candidates
+        .into_iter()
+        .find_map(|(group, nodes)| nodes.is_empty().then_some(group))
+    {
+        return Err(ResolvedRunError::new(format!(
+            "hard affinity group `{group}` has no common placement candidate"
+        )));
     }
     Ok(())
 }

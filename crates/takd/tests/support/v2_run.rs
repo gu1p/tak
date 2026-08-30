@@ -9,6 +9,7 @@ use tak_core::v2::{
     WorkspaceManifest,
 };
 
+pub mod constraints;
 pub mod scheduler;
 
 pub static ARCHIVE: LazyLock<Vec<u8>> = LazyLock::new(|| {

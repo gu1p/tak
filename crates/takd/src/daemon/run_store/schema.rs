@@ -13,7 +13,7 @@ impl RunStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         migration::apply(&transaction)?;
         transaction.execute(
-            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 3) \
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 4) \
              ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
             [],
         )?;
@@ -99,6 +99,14 @@ CREATE TABLE IF NOT EXISTS run_policy_cursors (
     policy_id TEXT NOT NULL,
     next_assignment INTEGER NOT NULL,
     PRIMARY KEY (run_id, policy_id),
+    FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS run_affinity_bindings (
+    run_id TEXT NOT NULL,
+    affinity_group TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    bound_at_ms INTEGER NOT NULL,
+    PRIMARY KEY (run_id, affinity_group),
     FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS scheduler_state (
