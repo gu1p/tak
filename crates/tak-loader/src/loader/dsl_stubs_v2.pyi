@@ -41,6 +41,79 @@ class AffinitySpec(TypedDict):
     group: str
 
 
+class ScopedReference(TypedDict):
+    name: str
+    scope: Literal["machine", "user", "project", "worktree"]
+
+
+class NeedSpec(TypedDict):
+    limiter: ScopedReference
+    slots: float
+    hold: Literal["during", "at_start"]
+
+
+class QueueUseSpec(TypedDict):
+    queue: ScopedReference
+    slots: int
+    priority: int
+
+
+class ResourceLimiterSpec(TypedDict):
+    kind: Literal["resource"]
+    name: str
+    scope: Literal["machine", "user", "project", "worktree"]
+    capacity: float
+    unit: str | None
+
+
+class LockLimiterSpec(TypedDict):
+    kind: Literal["lock"]
+    name: str
+    scope: Literal["machine", "user", "project", "worktree"]
+
+
+class RateLimitSpec(TypedDict):
+    kind: Literal["rate_limit"]
+    name: str
+    scope: Literal["machine", "user", "project", "worktree"]
+    burst: int
+    refill_per_second: float
+
+
+class ProcessCapSpec(TypedDict):
+    kind: Literal["process_cap"]
+    name: str
+    scope: Literal["machine", "user", "project", "worktree"]
+    max_running: int
+    match: str | None
+
+
+class QueueDefinition(TypedDict):
+    name: str
+    scope: Literal["machine", "user", "project", "worktree"]
+    slots: int
+    discipline: Literal["fifo", "priority"]
+    max_pending: int | None
+
+
+class FixedBackoffSpec(TypedDict):
+    kind: Literal["fixed"]
+    seconds: float
+
+
+class ExpJitterBackoffSpec(TypedDict):
+    kind: Literal["exp_jitter"]
+    min_s: float
+    max_s: float
+    jitter: str
+
+
+class RetrySpec(TypedDict):
+    attempts: int
+    on_exit: list[int]
+    backoff: FixedBackoffSpec | ExpJitterBackoffSpec
+
+
 class ReuseSpec(TypedDict, total=False):
     kind: Literal["workspace", "paths", "shared_workspace", "container"]
     paths: list[PathSelector | GlobOutput]
@@ -80,8 +153,8 @@ class ExecutionSpec(TypedDict, total=False):
 
 class DefaultsSpec(TypedDict):
     __tak_kind: Literal["defaults_v2"]
-    queue: object | None
-    retry: object | None
+    queue: QueueUseSpec | None
+    retry: RetrySpec | None
     container: object | None
     execution: ExecutionSpec | None
     tags: list[str]
@@ -92,9 +165,9 @@ class TaskSpec(TypedDict):
     name: str
     deps: list[str]
     steps: list[CommandStepSpec | ScriptStepSpec]
-    needs: list[object]
-    queue: object | None
-    retry: object | None
+    needs: list[NeedSpec]
+    queue: QueueUseSpec | None
+    retry: RetrySpec | None
     timeout_s: int | None
     context: object | None
     outputs: list[PathSelector | GlobOutput]
@@ -113,8 +186,8 @@ class ModuleSpec(TypedDict):
     spec_version: Literal[2]
     project_id: str | None
     tasks: list[TaskSpec]
-    limiters: list[object]
-    queues: list[object]
+    limiters: list[ResourceLimiterSpec | LockLimiterSpec | RateLimitSpec | ProcessCapSpec]
+    queues: list[QueueDefinition]
     exclude: list[str]
     includes: list[PathSelector]
     defaults: DefaultsSpec
@@ -127,6 +200,23 @@ class RemoteSelection:
     def Sequential() -> RemoteSelectionSpec: ...
     @staticmethod
     def RoundRobin() -> RemoteSelectionSpec: ...
+
+
+class Scope:
+    Machine: Literal["machine"]
+    User: Literal["user"]
+    Project: Literal["project"]
+    Worktree: Literal["worktree"]
+
+
+class Hold:
+    During: Literal["during"]
+    AtStart: Literal["at_start"]
+
+
+class QueueDiscipline:
+    Fifo: Literal["fifo"]
+    Priority: Literal["priority"]
 
 
 class Affinity:
@@ -163,11 +253,21 @@ class Execution:
     def Remote(pool: str | None = ..., required_tags: list[str] | None = ..., required_capabilities: list[str] | None = ..., transport: TransportSpec | None = ..., container: object | None = ..., selection: RemoteSelectionSpec | None = ..., session: SessionSpec | None = ...) -> ExecutionSpec: ...
 
 
-def Defaults(container: object | None = ..., execution: ExecutionSpec | None = ..., retry: object | None = ..., queue: object | None = ..., tags: list[str] | None = ..., pass_env: list[str] | None = ...) -> DefaultsSpec: ...
-def module_spec(tasks: list[TaskSpec], *, spec_version: Literal[2], limiters: list[object] | None = ..., queues: list[object] | None = ..., exclude: list[str] | None = ..., includes: list[PathSelector] | None = ..., defaults: DefaultsSpec | None = ..., project_id: str | None = ...) -> ModuleSpec: ...
+def Defaults(container: object | None = ..., execution: ExecutionSpec | None = ..., retry: RetrySpec | None = ..., queue: QueueUseSpec | None = ..., tags: list[str] | None = ..., pass_env: list[str] | None = ...) -> DefaultsSpec: ...
+def module_spec(tasks: list[TaskSpec], *, spec_version: Literal[2], limiters: list[ResourceLimiterSpec | LockLimiterSpec | RateLimitSpec | ProcessCapSpec] | None = ..., queues: list[QueueDefinition] | None = ..., exclude: list[str] | None = ..., includes: list[PathSelector] | None = ..., defaults: DefaultsSpec | None = ..., project_id: str | None = ...) -> ModuleSpec: ...
 def session(name: str | None = ..., execution: ExecutionSpec | None = ..., reuse: ReuseSpec | None = ..., context: object | None = ..., affinity: AffinitySpec | None = ...) -> SessionSpec: ...
-def task(name: str, deps: list[str | TaskSpec] | str | TaskSpec | None = ..., steps: list[CommandStepSpec | ScriptStepSpec] | None = ..., needs: list[object] | None = ..., queue: object | None = ..., retry: object | None = ..., timeout_s: int | None = ..., context: object | None = ..., outputs: list[PathSelector | GlobOutput] | None = ..., execution: ExecutionSpec | None = ..., use_session: SessionSpec | None = ..., cascade_session: bool = ..., tags: list[str] | None = ..., doc: str | None = ..., idempotent: bool = ..., pass_env: list[str] | None = ..., affinity: AffinitySpec | None = ...) -> TaskSpec: ...
+def task(name: str, deps: list[str | TaskSpec] | str | TaskSpec | None = ..., steps: list[CommandStepSpec | ScriptStepSpec] | None = ..., needs: list[NeedSpec] | None = ..., queue: QueueUseSpec | None = ..., retry: RetrySpec | None = ..., timeout_s: int | None = ..., context: object | None = ..., outputs: list[PathSelector | GlobOutput] | None = ..., execution: ExecutionSpec | None = ..., use_session: SessionSpec | None = ..., cascade_session: bool = ..., tags: list[str] | None = ..., doc: str | None = ..., idempotent: bool = ..., pass_env: list[str] | None = ..., affinity: AffinitySpec | None = ...) -> TaskSpec: ...
 def cmd(*argv: str, cwd: str | None = ..., env: dict[str, str] | None = ...) -> CommandStepSpec: ...
 def script(path: str, *argv: str, interpreter: str | None = ..., cwd: str | None = ..., env: dict[str, str] | None = ...) -> ScriptStepSpec: ...
 def path(value: str) -> PathSelector: ...
 def glob(value: str) -> GlobOutput: ...
+def need(name: str, slots: float = ..., scope: Literal["machine", "user", "project", "worktree"] = ..., hold: Literal["during", "at_start"] = ...) -> NeedSpec: ...
+def queue_use(name: str, scope: Literal["machine", "user", "project", "worktree"] = ..., slots: int = ..., priority: int = ...) -> QueueUseSpec: ...
+def resource(name: str, capacity: float, unit: str | None = ..., scope: Literal["machine", "user", "project", "worktree"] = ...) -> ResourceLimiterSpec: ...
+def lock(name: str, scope: Literal["machine", "user", "project", "worktree"] = ...) -> LockLimiterSpec: ...
+def queue_def(name: str, slots: int, discipline: Literal["fifo", "priority"] = ..., max_pending: int | None = ..., scope: Literal["machine", "user", "project", "worktree"] = ...) -> QueueDefinition: ...
+def rate_limit(name: str, burst: int, refill_per_second: float, scope: Literal["machine", "user", "project", "worktree"] = ...) -> RateLimitSpec: ...
+def process_cap(name: str, max_running: int, match: str | None = ..., scope: Literal["machine", "user", "project", "worktree"] = ...) -> ProcessCapSpec: ...
+def retry(attempts: int = ..., on_exit: list[int] | None = ..., backoff: FixedBackoffSpec | ExpJitterBackoffSpec | None = ...) -> RetrySpec: ...
+def fixed(seconds: float) -> FixedBackoffSpec: ...
+def exp_jitter(min_s: float = ..., max_s: float = ..., jitter: str = ...) -> ExpJitterBackoffSpec: ...

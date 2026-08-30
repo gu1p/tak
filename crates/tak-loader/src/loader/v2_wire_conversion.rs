@@ -1,19 +1,35 @@
 use anyhow::{Result, bail};
-use tak_core::v2::{
-    Affinity, AuthoredDefaults, AuthoredModule, AuthoredTask, Execution, LocalExecution, PassEnv,
-    RemoteExecution, RemoteSelection, Session, SessionReuse,
-};
+use tak_core::v2::{AuthoredDefaults, AuthoredModule, AuthoredTask, PassEnv};
 
 use super::v2_wire as wire;
 use super::v2_wire_primitives::{convert_output, convert_step};
+
+mod execution;
+mod scheduling;
+
+use execution::{convert_affinity, convert_execution, convert_session, validate_task_affinity};
+use scheduling::{claim, limiter, queue, queue_use, retry};
+
+#[cfg(test)]
+mod scheduling_tests;
+
+#[cfg(test)]
+use scheduling::{duration_millis, scaled_positive_millis, scope};
 
 pub(super) fn into_domain(module: wire::Module) -> Result<AuthoredModule> {
     if module.kind != "module_spec_v2" || module.spec_version != 2 {
         bail!("expected the selected module_spec(spec_version=2) value");
     }
-    if !module.limiters.is_empty() || !module.queues.is_empty() {
-        bail!("v2 limiter and queue decoding is not active in this build");
-    }
+    let limiter_definitions = module
+        .limiters
+        .into_iter()
+        .map(limiter)
+        .collect::<Result<Vec<_>>>()?;
+    let queue_definitions = module
+        .queues
+        .into_iter()
+        .map(queue)
+        .collect::<Result<Vec<_>>>()?;
     let defaults = convert_defaults(module.defaults)?;
     let tasks = module
         .tasks
@@ -23,12 +39,15 @@ pub(super) fn into_domain(module: wire::Module) -> Result<AuthoredModule> {
     for task in &tasks {
         validate_task_affinity(
             task.execution.as_ref().or(defaults.execution.as_ref()),
+            task.session.as_ref(),
             task.affinity.as_ref(),
         )?;
     }
     Ok(AuthoredModule {
         project_id: module.project_id,
         tasks,
+        limiter_definitions,
+        queue_definitions,
         includes: module.includes.into_iter().map(convert_output).collect(),
         exclude: module.exclude,
         defaults,
@@ -39,30 +58,38 @@ fn convert_defaults(defaults: wire::Defaults) -> Result<AuthoredDefaults> {
     if defaults.kind != "defaults_v2" {
         bail!("module_spec(defaults=...) must be produced by Defaults(...)");
     }
-    if defaults.queue.is_some() || defaults.retry.is_some() || defaults.container.is_some() {
-        bail!("v2 queue, retry, and container defaults are not active in this build");
+    if defaults.container.is_some() {
+        bail!("v2 container defaults are not active in this build");
     }
     Ok(AuthoredDefaults {
         execution: defaults.execution.map(convert_execution).transpose()?,
+        retry: defaults.retry.map(retry).transpose()?,
+        queue: defaults.queue.map(queue_use).transpose()?,
         pass_env: PassEnv::new(defaults.pass_env)?,
         tags: defaults.tags,
     })
 }
 
 fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
-    if !task.needs.is_empty()
-        || task.queue.is_some()
-        || task.retry.is_some()
-        || task.context.is_some()
-        || task.timeout_s.is_some()
-        || task.session.is_some()
-        || task.cascade_session
-    {
+    if task.context.is_some() || task.timeout_s.is_some() || task.cascade_session {
         bail!("this v2 task uses fields not active in this build");
     }
     let execution = task.execution.map(convert_execution).transpose()?;
+    let session = task
+        .session
+        .map(|session| convert_session(*session))
+        .transpose()?;
+    if execution.is_some() && session.is_some() {
+        bail!("a v2 task cannot use both execution and use_session")
+    }
+    if session
+        .as_ref()
+        .is_some_and(|session| session.execution.is_none())
+    {
+        bail!("task(use_session=...) requires a session with execution")
+    }
     let affinity = task.affinity.map(convert_affinity).transpose()?;
-    validate_task_affinity(execution.as_ref(), affinity.as_ref())?;
+    validate_task_affinity(execution.as_ref(), session.as_ref(), affinity.as_ref())?;
     Ok(AuthoredTask {
         name: task.name,
         doc: task.doc,
@@ -70,117 +97,18 @@ fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
         steps: task.steps.into_iter().map(convert_step).collect(),
         outputs: task.outputs.into_iter().map(convert_output).collect(),
         execution,
+        retry: task.retry.map(retry).transpose()?,
+        queue: task.queue.map(queue_use).transpose()?,
+        limiter_claims: task
+            .needs
+            .into_iter()
+            .map(claim)
+            .collect::<Result<Vec<_>>>()?,
+        session,
+        cascade_session: task.cascade_session,
         idempotent: task.idempotent,
         pass_env: PassEnv::new(task.pass_env)?,
         affinity,
         tags: task.tags,
     })
-}
-
-fn validate_task_affinity(
-    execution: Option<&Execution>,
-    task_affinity: Option<&Affinity>,
-) -> Result<()> {
-    let session = match execution {
-        Some(Execution::LocalOnly { local }) => local.session.as_deref(),
-        Some(Execution::RemoteOnly { remote }) => remote.session.as_deref(),
-        None => None,
-    };
-    if let Some(session) = session {
-        session.effective_affinity(task_affinity)?;
-    }
-    Ok(())
-}
-
-fn convert_execution(execution: wire::Execution) -> Result<Execution> {
-    match execution {
-        wire::Execution::LocalOnly { local } => {
-            if local.container.is_some() {
-                bail!("v2 local containers are not active in this build");
-            }
-            Ok(Execution::LocalOnly {
-                local: LocalExecution {
-                    session: local
-                        .session
-                        .map(|session| convert_session(*session))
-                        .transpose()?
-                        .map(Box::new),
-                },
-            })
-        }
-        wire::Execution::RemoteOnly { remote } => {
-            if remote.container.is_some() {
-                bail!("v2 remote containers are not active in this build");
-            }
-            Ok(Execution::RemoteOnly {
-                remote: RemoteExecution {
-                    pool: remote.pool,
-                    required_tags: remote.required_tags,
-                    required_capabilities: remote.required_capabilities,
-                    transport: remote.transport.map(convert_transport),
-                    selection: convert_selection(remote.selection),
-                    session: remote
-                        .session
-                        .map(|session| convert_session(*session))
-                        .transpose()?
-                        .map(Box::new),
-                },
-            })
-        }
-    }
-}
-
-fn convert_session(session: wire::Session) -> Result<Session> {
-    if session.kind != "session_v2" || session.context.is_some() {
-        bail!("invalid v2 session payload");
-    }
-    let reuse = convert_reuse(session.reuse)?;
-    let affinity = session.affinity.map(convert_affinity).transpose()?;
-    let display_name = session.name.clone().unwrap_or_else(|| session.id.clone());
-    let mut result = Session::new(display_name, reuse, affinity)?;
-    result.id = session.id;
-    result.name = session.name;
-    result.execution = session
-        .execution
-        .map(|execution| convert_execution(*execution))
-        .transpose()?
-        .map(Box::new);
-    Ok(result)
-}
-
-fn convert_reuse(reuse: wire::Reuse) -> Result<SessionReuse> {
-    match reuse {
-        wire::Reuse::Workspace => Ok(SessionReuse::Workspace),
-        wire::Reuse::Paths { paths } => Ok(SessionReuse::Paths {
-            paths: paths.into_iter().map(convert_output).collect(),
-        }),
-        wire::Reuse::SharedWorkspace { max_parallel_tasks } => {
-            Ok(SessionReuse::shared_workspace(max_parallel_tasks)?)
-        }
-        wire::Reuse::Container => Ok(SessionReuse::Container),
-    }
-}
-
-fn convert_affinity(affinity: wire::Affinity) -> Result<Affinity> {
-    match affinity {
-        wire::Affinity::PreferSameNode { group } => Ok(Affinity::prefer_same_node(group)?),
-        wire::Affinity::RequireSameNode { group } => Ok(Affinity::require_same_node(group)?),
-    }
-}
-
-fn convert_selection(selection: wire::Selection) -> RemoteSelection {
-    match selection {
-        wire::Selection::Balanced => RemoteSelection::Balanced,
-        wire::Selection::Sequential => RemoteSelection::Sequential,
-        wire::Selection::RoundRobin => RemoteSelection::RoundRobin,
-    }
-}
-
-fn convert_transport(transport: wire::Transport) -> String {
-    match transport {
-        wire::Transport::Direct => "direct",
-        wire::Transport::Any => "any",
-        wire::Transport::Tor => "tor",
-    }
-    .to_owned()
 }

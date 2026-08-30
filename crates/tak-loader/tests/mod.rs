@@ -37,4 +37,6 @@ mod typed_stub_contract;
 mod v2_authored_root_contract;
 mod v2_default_affinity_contract;
 mod v2_legacy_isolation_contract;
+mod v2_scheduling_fields_contract;
+mod v2_scheduling_rejection_contract;
 mod workspace_resolution_contract;

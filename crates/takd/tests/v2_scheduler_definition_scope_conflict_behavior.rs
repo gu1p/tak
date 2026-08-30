@@ -38,6 +38,40 @@ fn node_definition_conflicts_require_overlapping_candidates() {
     assert!(store.submit(&disjoint, "carol").is_ok());
 }
 
+#[test]
+fn worktree_definition_conflicts_follow_the_stable_owner_key() {
+    std::fs::create_dir_all(".tmp").unwrap();
+    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let store = RunStore::with_db_path(temp.path().join("takd.sqlite")).unwrap();
+    let mut first = scoped_lock(
+        independent_jobs("tree-a", 1),
+        DefinitionScope::Worktree,
+        Some("worktree-a"),
+        HoldMode::AtStart,
+    );
+    first.run.project_id = "project-a".into();
+    let mut changed = scoped_lock(
+        independent_jobs("tree-b", 1),
+        DefinitionScope::Worktree,
+        Some("worktree-a"),
+        HoldMode::During,
+    );
+    changed.run.project_id = "project-b".into();
+    for candidate in &mut changed.run.jobs[0].placement_candidates {
+        candidate.node_id = format!("other-{}", candidate.node_id);
+    }
+    let mut different = scoped_lock(
+        independent_jobs("tree-c", 1),
+        DefinitionScope::Worktree,
+        Some("worktree-b"),
+        HoldMode::During,
+    );
+    different.run.project_id = "project-c".into();
+    store.submit(&first, "alice").unwrap();
+    assert!(store.submit(&changed, "bob").is_err());
+    assert!(store.submit(&different, "carol").is_ok());
+}
+
 fn lock(key: &str, scope: DefinitionScope, hold: HoldMode) -> tak_core::v2::RunSubmission {
     scoped_lock(independent_jobs(key, 1), scope, None, hold)
 }

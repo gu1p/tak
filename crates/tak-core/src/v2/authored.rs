@@ -5,6 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{Affinity, Execution, PassEnv};
 
+mod scheduling;
+
+pub use scheduling::{
+    AuthoredLimiterClaim, AuthoredLimiterDefinition, AuthoredQueueDefinition, AuthoredQueueUse,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OutputSelector {
@@ -66,6 +72,8 @@ fn redacted_env(env: &BTreeMap<String, String>) -> BTreeMap<&str, &str> {
 #[serde(deny_unknown_fields)]
 pub struct AuthoredDefaults {
     pub execution: Option<Execution>,
+    pub retry: Option<super::RetryPolicy>,
+    pub queue: Option<AuthoredQueueUse>,
     pub pass_env: PassEnv,
     pub tags: Vec<String>,
 }
@@ -79,6 +87,11 @@ pub struct AuthoredTask {
     pub steps: Vec<Step>,
     pub outputs: Vec<OutputSelector>,
     pub execution: Option<Execution>,
+    pub retry: Option<super::RetryPolicy>,
+    pub queue: Option<AuthoredQueueUse>,
+    pub limiter_claims: Vec<AuthoredLimiterClaim>,
+    pub session: Option<super::Session>,
+    pub cascade_session: bool,
     pub idempotent: bool,
     pub pass_env: PassEnv,
     pub affinity: Option<Affinity>,
@@ -90,6 +103,8 @@ pub struct AuthoredTask {
 pub struct AuthoredModule {
     pub project_id: Option<String>,
     pub tasks: Vec<AuthoredTask>,
+    pub limiter_definitions: Vec<AuthoredLimiterDefinition>,
+    pub queue_definitions: Vec<AuthoredQueueDefinition>,
     pub includes: Vec<OutputSelector>,
     pub exclude: Vec<String>,
     pub defaults: AuthoredDefaults,

@@ -8,6 +8,7 @@ pub enum DefinitionScope {
     Run,
     Submitter,
     Project,
+    Worktree,
     Node,
 }
 

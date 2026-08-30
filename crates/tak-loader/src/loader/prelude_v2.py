@@ -1,5 +1,16 @@
 _TAK_NEXT_SESSION_ID = 0
 
+_Scope_Machine = "machine"
+_Scope_User = "user"
+_Scope_Project = "project"
+_Scope_Worktree = "worktree"
+
+_Hold_During = "during"
+_Hold_AtStart = "at_start"
+
+_QueueDiscipline_Fifo = "fifo"
+_QueueDiscipline_Priority = "priority"
+
 
 def _next_session_id():
     global _TAK_NEXT_SESSION_ID
@@ -176,6 +187,87 @@ def task(name, deps=None, steps=None, needs=None, queue=None, retry=None, timeou
         "idempotent": idempotent,
         "pass_env": _or_empty_list(pass_env),
         "affinity": affinity,
+    }
+
+
+def need(name, slots=1, scope=_Scope_Project, hold=_Hold_During):
+    return {
+        "limiter": {"name": name, "scope": scope},
+        "slots": slots,
+        "hold": hold,
+    }
+
+
+def queue_use(name, scope=_Scope_Machine, slots=1, priority=0):
+    return {
+        "queue": {"name": name, "scope": scope},
+        "slots": slots,
+        "priority": priority,
+    }
+
+
+def resource(name, capacity, unit=None, scope=_Scope_Machine):
+    return {
+        "kind": "resource",
+        "name": name,
+        "scope": scope,
+        "capacity": capacity,
+        "unit": unit,
+    }
+
+
+def lock(name, scope=_Scope_Machine):
+    return {"kind": "lock", "name": name, "scope": scope}
+
+
+def queue_def(name, slots, discipline=_QueueDiscipline_Fifo, max_pending=None, scope=_Scope_Machine):
+    return {
+        "name": name,
+        "scope": scope,
+        "slots": slots,
+        "discipline": discipline,
+        "max_pending": max_pending,
+    }
+
+
+def rate_limit(name, burst, refill_per_second, scope=_Scope_Machine):
+    return {
+        "kind": "rate_limit",
+        "name": name,
+        "scope": scope,
+        "burst": burst,
+        "refill_per_second": refill_per_second,
+    }
+
+
+def process_cap(name, max_running, match=None, scope=_Scope_Machine):
+    return {
+        "kind": "process_cap",
+        "name": name,
+        "scope": scope,
+        "max_running": max_running,
+        "match": match,
+    }
+
+
+def fixed(seconds):
+    return {"kind": "fixed", "seconds": seconds}
+
+
+def exp_jitter(min_s=1, max_s=60, jitter="full"):
+    return {
+        "kind": "exp_jitter",
+        "min_s": min_s,
+        "max_s": max_s,
+        "jitter": jitter,
+    }
+
+
+def retry(attempts=1, on_exit=None, backoff=None):
+    return {
+        "attempts": attempts,
+        "on_exit": _or_empty_list(on_exit),
+        "backoff": backoff if backoff is not None else fixed(0),
     }
 
 

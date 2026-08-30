@@ -6,6 +6,10 @@ mod includes_inactive;
 mod remote_selection_migration;
 #[path = "v2_authored_spec_contract/retry_submission.rs"]
 mod retry_submission;
+#[path = "v2_authored_spec_contract/scheduling_rejection.rs"]
+mod scheduling_rejection;
+#[path = "v2_authored_spec_contract/scheduling_submission.rs"]
+mod scheduling_submission;
 #[path = "v2_authored_spec_contract/submission.rs"]
 mod submission;
 #[path = "v2_authored_spec_contract/submission_support.rs"]
@@ -14,3 +18,5 @@ mod submission_support;
 mod v1_migration;
 #[path = "v2_authored_spec_contract/v2_refusal.rs"]
 mod v2_refusal;
+#[path = "v2_authored_spec_contract/worktree_scope.rs"]
+mod worktree_scope;

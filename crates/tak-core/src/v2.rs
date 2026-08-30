@@ -6,7 +6,10 @@ mod placement;
 mod resolved_run;
 mod session;
 
-pub use authored::{AuthoredDefaults, AuthoredModule, AuthoredTask, OutputSelector, Step};
+pub use authored::{
+    AuthoredDefaults, AuthoredLimiterClaim, AuthoredLimiterDefinition, AuthoredModule,
+    AuthoredQueueDefinition, AuthoredQueueUse, AuthoredTask, OutputSelector, Step,
+};
 pub use environment::PassEnv;
 pub use placement::{Execution, LocalExecution, RemoteExecution, RemoteSelection};
 pub use resolved_run::*;

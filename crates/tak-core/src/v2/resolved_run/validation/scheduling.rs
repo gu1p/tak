@@ -2,9 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::super::{PlacementKind, QueueDiscipline, ResolvedRun, ResolvedRunError};
 use super::validate_identifier;
-use crate::v2::Affinity;
+use crate::v2::{Affinity, DefinitionScope, LimiterDefinition};
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
+    validate_worktree_scope_keys(run)?;
     if run
         .queue_definitions
         .iter()
@@ -38,6 +39,43 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
         }
     }
     validate_hard_affinity(run)?;
+    Ok(())
+}
+
+fn validate_worktree_scope_keys(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
+    for queue in &run.queue_definitions {
+        validate_worktree_key(&queue.scope, queue.scope_key.as_deref())?;
+    }
+    for limiter in &run.limiter_definitions {
+        let (scope, scope_key) = match limiter {
+            LimiterDefinition::Lock {
+                scope, scope_key, ..
+            }
+            | LimiterDefinition::RateLimit {
+                scope, scope_key, ..
+            }
+            | LimiterDefinition::ProcessCap {
+                scope, scope_key, ..
+            }
+            | LimiterDefinition::Resource {
+                scope, scope_key, ..
+            } => (scope, scope_key.as_deref()),
+        };
+        validate_worktree_key(scope, scope_key)?;
+    }
+    Ok(())
+}
+
+fn validate_worktree_key(
+    scope: &DefinitionScope,
+    scope_key: Option<&str>,
+) -> Result<(), ResolvedRunError> {
+    if *scope == DefinitionScope::Worktree {
+        let key = scope_key.ok_or_else(|| {
+            ResolvedRunError::new("worktree scheduling scope requires a stable scope key")
+        })?;
+        validate_identifier("worktree scope key", key)?;
+    }
     Ok(())
 }
 

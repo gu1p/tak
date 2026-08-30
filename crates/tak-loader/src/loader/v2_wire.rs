@@ -1,5 +1,9 @@
 use serde::Deserialize;
 
+mod scheduling;
+
+pub(super) use scheduling::{Backoff, Limiter, Need, QueueDefinition, QueueUse, Retry};
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Module {
@@ -8,8 +12,8 @@ pub(super) struct Module {
     pub(super) spec_version: u32,
     pub(super) project_id: Option<String>,
     pub(super) tasks: Vec<Task>,
-    pub(super) limiters: Vec<Unsupported>,
-    pub(super) queues: Vec<Unsupported>,
+    pub(super) limiters: Vec<Limiter>,
+    pub(super) queues: Vec<QueueDefinition>,
     pub(super) exclude: Vec<String>,
     pub(super) includes: Vec<Output>,
     pub(super) defaults: Defaults,
@@ -20,8 +24,8 @@ pub(super) struct Module {
 pub(super) struct Defaults {
     #[serde(rename = "__tak_kind")]
     pub(super) kind: String,
-    pub(super) queue: Option<Unsupported>,
-    pub(super) retry: Option<Unsupported>,
+    pub(super) queue: Option<QueueUse>,
+    pub(super) retry: Option<Retry>,
     pub(super) container: Option<Unsupported>,
     pub(super) execution: Option<Execution>,
     pub(super) tags: Vec<String>,
@@ -34,9 +38,9 @@ pub(super) struct Task {
     pub(super) name: String,
     pub(super) deps: Vec<String>,
     pub(super) steps: Vec<Step>,
-    pub(super) needs: Vec<Unsupported>,
-    pub(super) queue: Option<Unsupported>,
-    pub(super) retry: Option<Unsupported>,
+    pub(super) needs: Vec<Need>,
+    pub(super) queue: Option<QueueUse>,
+    pub(super) retry: Option<Retry>,
     pub(super) timeout_s: Option<u64>,
     pub(super) context: Option<Unsupported>,
     pub(super) outputs: Vec<Output>,

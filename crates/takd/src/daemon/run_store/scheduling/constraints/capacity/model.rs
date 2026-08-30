@@ -84,7 +84,7 @@ pub(super) fn constraints(
                 &definition.scope,
                 definition.scope_key.as_deref(),
                 node_id,
-            ),
+            )?,
             1,
             u64::from(definition.max_parallel_tasks.get()),
             Lease::During,
@@ -101,7 +101,7 @@ pub(super) fn constraints(
         result.push(constraint(
             "limiter",
             &claim.name,
-            owner(context, scope, scope_key, node_id),
+            owner(context, scope, scope_key, node_id)?,
             claim.amount_millis.get(),
             capacity,
             lease,
@@ -138,16 +138,18 @@ fn owner(
     scope: &DefinitionScope,
     scope_key: Option<&str>,
     node_id: &str,
-) -> Owner {
+) -> Result<Owner> {
     let identity = match scope {
         DefinitionScope::Run => context.run_id,
         DefinitionScope::Submitter => context.submitter_id,
         DefinitionScope::Project => context.run.project_id.as_str(),
+        DefinitionScope::Worktree => scope_key
+            .ok_or_else(|| anyhow::anyhow!("worktree scheduling scope is missing its owner key"))?,
         DefinitionScope::Node => node_id,
     };
-    Owner {
+    Ok(Owner {
         scope: scope.clone(),
         identity: identity.into(),
         scope_key: scope_key.map(str::to_owned),
-    }
+    })
 }

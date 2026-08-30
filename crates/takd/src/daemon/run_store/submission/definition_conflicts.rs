@@ -119,6 +119,7 @@ fn owners_overlap(
         DefinitionScope::Run => false,
         DefinitionScope::Submitter => existing_submitter == submitted_submitter,
         DefinitionScope::Project => existing.project_id == submitted.project_id,
+        DefinitionScope::Worktree => true,
         DefinitionScope::Node => !existing_nodes.is_disjoint(&submitted_nodes),
     }
 }

@@ -139,4 +139,6 @@ mod v2_scheduler_scope_key_behavior;
 mod v2_scheduler_shared_workspace_behavior;
 mod v2_scheduler_soft_affinity_behavior;
 mod v2_scheduler_soft_node_loss_behavior;
+mod v2_scheduler_worktree_queue_conflict_behavior;
+mod v2_scheduler_worktree_scope_behavior;
 mod workspace_wormhole_upload_contract;
