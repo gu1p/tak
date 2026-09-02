@@ -54,7 +54,7 @@ jobs:
         run: tak --version
 
       - name: Run Tak CI
-        run: tak run //:ci
+        run: RUSTUP_HOME="$(rustup show home)" tak run //:ci --local-no-container --pass-env CARGO_HOME --pass-env RUSTUP_HOME
 
       - name: Upload coverage artifact
         if: always()
@@ -124,4 +124,4 @@ jobs:
         run: tak --version
 
       - name: Build binaries via Tak
-        run: tak run "${{ matrix.tak_task }}"
+        run: RUSTUP_HOME="$(rustup show home)" tak run "${{ matrix.tak_task }}" --pass-env CARGO_HOME --pass-env RUSTUP_HOME
