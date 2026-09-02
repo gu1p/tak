@@ -1,68 +1,47 @@
 use crate::support;
 
 use std::net::TcpListener;
-use std::process::{Command as StdCommand, Stdio};
+use std::process::Stdio;
+
+use support::daemon_command_paths::DaemonCommandPaths;
 
 #[test]
 fn status_reports_verified_reachability_after_tor_token_is_published() {
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
+    let paths = DaemonCommandPaths::new(&config_root, &state_root);
     let bind_addr = {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         listener.local_addr().expect("addr").to_string()
     };
 
-    let init = StdCommand::new(support::takd_bin())
-        .args([
-            "init",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-            "--node-id",
-            "builder-status",
-        ])
+    let init = paths
+        .rooted_command(&support::takd_bin(), "init")
+        .args(["--node-id", "builder-status"])
         .output()
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut child = StdCommand::new(support::takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let mut child = paths
+        .rooted_command(&support::takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .env("TAKD_TEST_TOR_HS_BIND_ADDR", &bind_addr)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(support::takd_bin())
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "30",
-        ])
+    let show = paths
+        .state_command(&support::takd_bin(), &["token", "show"])
+        .args(["--wait", "--timeout-secs", "30"])
         .output()
         .expect("run takd token show");
     assert!(show.status.success(), "takd token show should succeed");
 
-    let status = StdCommand::new(support::takd_bin())
-        .args([
-            "status",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let status = paths
+        .rooted_command(&support::takd_bin(), "status")
         .output()
         .expect("run takd status");
 
@@ -83,7 +62,11 @@ fn status_reports_verified_reachability_after_tor_token_is_published() {
     assert!(
         stdout.contains(&format!(
             "log_path: {}",
-            state_root.join("service.log").display()
+            state_root
+                .strip_prefix(temp.path())
+                .expect("relative state root")
+                .join("service.log")
+                .display()
         )) && stdout.contains("log_state: present"),
         "missing log metadata:\n{stdout}"
     );

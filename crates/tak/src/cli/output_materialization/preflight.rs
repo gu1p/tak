@@ -12,21 +12,11 @@ pub(super) fn check(
     outputs: &WorkspaceManifest,
 ) -> Result<()> {
     let submitted = entries(submitted);
-    let output_entries = entries(outputs);
     let mut conflicts = BTreeSet::new();
     for output_root in output_roots(outputs) {
         conflicts.extend(unsafe_ancestors(root, &output_root.path)?);
-        let current = if output_root.entry_type == WorkspaceEntryType::Directory {
-            snapshot::tree(root, &output_root.path)?
-        } else {
-            snapshot::one(root, &output_root.path)?
-        };
-        conflicts.extend(changed_paths(
-            &output_root.path,
-            &submitted,
-            &output_entries,
-            &current,
-        ));
+        let current = snapshot::tree(root, &output_root.path)?;
+        conflicts.extend(changed_paths(&output_root.path, &submitted, &current));
     }
     if conflicts.is_empty() {
         return Ok(());
@@ -40,21 +30,16 @@ pub(super) fn check(
 fn changed_paths(
     root: &str,
     submitted: &BTreeMap<String, WorkspaceEntry>,
-    outputs: &BTreeMap<String, WorkspaceEntry>,
     current: &BTreeMap<String, WorkspaceEntry>,
 ) -> Vec<String> {
     let keys = submitted
         .keys()
-        .chain(outputs.keys())
         .chain(current.keys())
         .filter(|path| within(path, root))
         .cloned()
         .collect::<BTreeSet<_>>();
     keys.into_iter()
-        .filter(|path| {
-            let value = current.get(path);
-            value != submitted.get(path) && value != outputs.get(path)
-        })
+        .filter(|path| current.get(path) != submitted.get(path))
         .collect()
 }
 

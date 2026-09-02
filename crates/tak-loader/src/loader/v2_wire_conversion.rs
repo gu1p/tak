@@ -4,17 +4,21 @@ use tak_core::v2::{AuthoredDefaults, AuthoredModule, AuthoredTask, PassEnv};
 use super::v2_wire as wire;
 use super::v2_wire_primitives::{convert_output, convert_step};
 
+mod context;
 mod execution;
+mod runtime;
 mod scheduling;
 
-use execution::{convert_affinity, convert_execution, convert_session, validate_task_affinity};
+use context::convert_context;
+use execution::{
+    convert_affinity, convert_execution, convert_session, validate_first_available,
+    validate_task_affinity,
+};
+use runtime::{convert_container, with_default_runtime};
 use scheduling::{claim, limiter, queue, queue_use, retry};
 
 #[cfg(test)]
 mod scheduling_tests;
-
-#[cfg(test)]
-use scheduling::{duration_millis, scaled_positive_millis, scope};
 
 pub(super) fn into_domain(module: wire::Module) -> Result<AuthoredModule> {
     if module.kind != "module_spec_v2" || module.spec_version != 2 {
@@ -58,11 +62,12 @@ fn convert_defaults(defaults: wire::Defaults) -> Result<AuthoredDefaults> {
     if defaults.kind != "defaults_v2" {
         bail!("module_spec(defaults=...) must be produced by Defaults(...)");
     }
-    if defaults.container.is_some() {
-        bail!("v2 container defaults are not active in this build");
-    }
+    let runtime = defaults.container.map(convert_container).transpose()?;
+    let execution = defaults.execution.map(convert_execution).transpose()?;
+    let execution = with_default_runtime(execution, runtime);
+    validate_first_available(execution.as_ref())?;
     Ok(AuthoredDefaults {
-        execution: defaults.execution.map(convert_execution).transpose()?,
+        execution,
         retry: defaults.retry.map(retry).transpose()?,
         queue: defaults.queue.map(queue_use).transpose()?,
         pass_env: PassEnv::new(defaults.pass_env)?,
@@ -71,10 +76,8 @@ fn convert_defaults(defaults: wire::Defaults) -> Result<AuthoredDefaults> {
 }
 
 fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
-    if task.context.is_some() || task.timeout_s.is_some() {
-        bail!("this v2 task uses fields not active in this build");
-    }
     let execution = task.execution.map(convert_execution).transpose()?;
+    validate_first_available(execution.as_ref())?;
     let session = task
         .session
         .map(|session| convert_session(*session))
@@ -99,6 +102,7 @@ fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
         deps: task.deps,
         steps: task.steps.into_iter().map(convert_step).collect(),
         outputs: task.outputs.into_iter().map(convert_output).collect(),
+        context: task.context.map(convert_context).transpose()?,
         execution,
         retry: task.retry.map(retry).transpose()?,
         queue: task.queue.map(queue_use).transpose()?,
@@ -113,5 +117,6 @@ fn convert_task(task: wire::Task) -> Result<AuthoredTask> {
         pass_env: PassEnv::new(task.pass_env)?,
         affinity,
         tags: task.tags,
+        timeout_s: task.timeout_s,
     })
 }

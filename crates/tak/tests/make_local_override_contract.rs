@@ -2,7 +2,7 @@
 
 #![cfg(unix)]
 
-use crate::support::make_runtime::install_fake_make;
+use crate::support::make_runtime::{install_fake_make, start_local_daemon};
 use crate::support::run_tak_output;
 
 use std::collections::BTreeMap;
@@ -24,14 +24,23 @@ fn local_no_container_overrides_remote_image_annotation() -> Result<()> {
         workspace.path(),
         "#!/bin/sh\nprintf 'goal=%s\\nsource=%s\\n' \"$1\" \"$TAK_RUNTIME_SOURCE\"\n",
     )?;
-    let env = BTreeMap::from([
+    let mut env = BTreeMap::from([
         ("PATH".to_string(), path),
         ("TAK_RUNTIME_SOURCE".to_string(), "host".to_string()),
     ]);
+    let _daemon = start_local_daemon(workspace.path(), &mut env);
 
     let output = run_tak_output(
         workspace.path(),
-        &["make", "--local-no-container", "check"],
+        &[
+            "make",
+            "--local-no-container",
+            "check",
+            "--pass-env",
+            "PATH",
+            "--pass-env",
+            "TAK_RUNTIME_SOURCE",
+        ],
         &env,
     )?;
 
@@ -41,9 +50,7 @@ fn local_no_container_overrides_remote_image_annotation() -> Result<()> {
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "goal=check\nsource=host\n"
-    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("goal=check\nsource=host\n"), "{stdout}");
     Ok(())
 }

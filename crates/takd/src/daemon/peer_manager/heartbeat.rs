@@ -16,6 +16,7 @@ pub(super) struct HeartbeatTarget {
     pub(super) node_id: String,
     pub(super) endpoint: String,
     pub(super) bearer_token: String,
+    pub(super) transport: String,
 }
 
 pub(super) fn should_ping(state: PeerState) -> bool {
@@ -31,12 +32,18 @@ pub(super) fn should_ping(state: PeerState) -> bool {
 
 pub(super) async fn ping_peer(manager: &PeerManager, broker: &TorBroker, target: &HeartbeatTarget) {
     let started = std::time::Instant::now();
-    let ping = broker.get_protobuf(
-        &target.endpoint,
-        &target.node_id,
-        "/v1/node/ping",
-        &target.bearer_token,
-    );
+    let connection = crate::daemon::worker_registry::WorkerConnectionTarget {
+        node_id: target.node_id.clone(),
+        endpoint: target.endpoint.clone(),
+        bearer_token: target.bearer_token.clone(),
+        transport: target.transport.clone(),
+    };
+    let ping = async {
+        let response = broker
+            .worker_v2_http_exchange(&connection, "GET", "/v2/worker/ping", &[])
+            .await?;
+        Ok::<_, anyhow::Error>((response.status, response.body))
+    };
     match tokio::time::timeout(heartbeat_timeout(), ping).await {
         Err(_) => {
             tracing::warn!(
@@ -58,18 +65,20 @@ fn handle_ping_result(
     result: anyhow::Result<(u16, Vec<u8>)>,
 ) {
     match result {
-        Ok((200, body)) => match NodePingResponse::decode(body.as_slice()) {
+        Ok((200, body)) => match tak_proto::worker_v2::decode_display_payload(&body)
+            .and_then(|payload| NodePingResponse::decode(payload.as_slice()).map_err(Into::into))
+        {
             Ok(ping) => {
                 let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
                 tracing::debug!(node_id = %target.node_id, elapsed_ms, "peer heartbeat ping ok");
                 manager.mark_ping_success(&target.node_id, ping, elapsed_ms);
             }
-            Err(err) => {
-                manager.mark_protocol_mismatch(&target.node_id, format!("invalid ping: {err:#}"));
-            }
+            Err(_) => manager
+                .mark_protocol_mismatch(&target.node_id, "upgrade tak, takd, and workers together"),
         },
         Ok((401 | 403, _)) => manager.mark_auth_failed(&target.node_id, "auth rejected"),
-        Ok((404 | 501, _)) => manager.mark_protocol_mismatch(&target.node_id, "unsupported ping"),
+        Ok((404 | 426 | 501, _)) => manager
+            .mark_protocol_mismatch(&target.node_id, "upgrade tak, takd, and workers together"),
         Ok((status, _)) => manager.mark_ping_failure(&target.node_id, format!("http {status}")),
         Err(err) => {
             tracing::warn!(node_id = %target.node_id, error = %format!("{err:#}"), "peer heartbeat ping failed");

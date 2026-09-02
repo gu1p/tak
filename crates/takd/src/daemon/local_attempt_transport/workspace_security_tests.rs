@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::workspace::prepare;
 use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
+use tak_core::v2::JobContextManifest;
 
 #[cfg(unix)]
 #[test]
@@ -67,6 +68,7 @@ fn snapshot(
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Shared(shared.to_owned()),
         overlays: Vec::new(),
+        context_manifest: JobContextManifest { paths: Vec::new() },
     }
 }
 

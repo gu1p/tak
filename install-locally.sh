@@ -148,6 +148,8 @@ main() {
 
   [[ -f "$tak_artifact" ]] || err "missing build artifact $tak_artifact"
   [[ -f "$takd_artifact" ]] || err "missing build artifact $takd_artifact"
+  "$takd_artifact" update --legacy-drain-check \
+    --state-root "${XDG_STATE_HOME:-$HOME/.local/state}/takd"
 
   install -m 0755 "$tak_artifact" "$dir/tak"
   install -m 0755 "$takd_artifact" "$dir/takd"

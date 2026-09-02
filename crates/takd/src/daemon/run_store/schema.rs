@@ -1,10 +1,10 @@
+use super::RunStore;
 use anyhow::Result;
 use rusqlite::TransactionBehavior;
-
-use super::RunStore;
-
 mod migration;
 mod output;
+mod remote;
+mod upload;
 
 impl RunStore {
     pub(super) fn ensure_schema(&self) -> Result<()> {
@@ -12,10 +12,12 @@ impl RunStore {
         migration::reject_newer_schema(&connection)?;
         connection.execute_batch(SCHEMA)?;
         connection.execute_batch(output::SCHEMA)?;
+        connection.execute_batch(remote::SCHEMA)?;
+        connection.execute_batch(upload::SCHEMA)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         migration::apply(&transaction)?;
         transaction.execute(
-            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 7) \
+            "INSERT INTO run_schema_version (singleton, version) VALUES (1, 14) \
              ON CONFLICT(singleton) DO UPDATE SET version = excluded.version",
             [],
         )?;
@@ -41,6 +43,10 @@ CREATE TABLE IF NOT EXISTS runs (
     max_parallel_jobs INTEGER NOT NULL,
     keep_going INTEGER NOT NULL,
     dispatch_stopped INTEGER NOT NULL DEFAULT 0,
+    exit_code INTEGER,
+    logs_expired INTEGER NOT NULL DEFAULT 0,
+    outputs_expired INTEGER NOT NULL DEFAULT 0,
+    output_error TEXT,
     last_scheduled_turn INTEGER NOT NULL DEFAULT 0,
     workspace_fingerprint TEXT NOT NULL,
     archive_sha256 TEXT NOT NULL,
@@ -65,6 +71,7 @@ CREATE TABLE IF NOT EXISTS run_jobs (
     definition_json TEXT NOT NULL,
     node_id TEXT,
     attempt INTEGER NOT NULL DEFAULT 0,
+    cache TEXT,
     dispatch_generation INTEGER NOT NULL DEFAULT 0,
     current_fencing_token TEXT,
     next_eligible_at_ms INTEGER NOT NULL DEFAULT 0,
@@ -143,15 +150,19 @@ CREATE TABLE IF NOT EXISTS run_attempts (
     dispatch_generation INTEGER NOT NULL,
     fencing_token TEXT NOT NULL UNIQUE,
     node_id TEXT NOT NULL,
+    transport TEXT,
+    worker_event_cursor INTEGER NOT NULL DEFAULT 0,
     state TEXT NOT NULL,
     cpu_millis INTEGER NOT NULL,
     memory_bytes INTEGER NOT NULL,
     execution_slots INTEGER NOT NULL,
     reserved_at_ms INTEGER NOT NULL,
+    dispatch_started_at_ms INTEGER,
     accepted_at_ms INTEGER,
     finished_at_ms INTEGER,
     outcome TEXT,
     terminal_digest TEXT,
+    exit_code INTEGER,
     released_at_ms INTEGER,
     PRIMARY KEY (run_id, job_id, authored_attempt, dispatch_generation),
     FOREIGN KEY (run_id, job_id) REFERENCES run_jobs(run_id, job_id) ON DELETE CASCADE
@@ -183,12 +194,5 @@ CREATE TABLE IF NOT EXISTS run_cancel_outbox (
     FOREIGN KEY (run_id, job_id, authored_attempt, dispatch_generation)
         REFERENCES run_attempts(run_id, job_id, authored_attempt, dispatch_generation)
         ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS workspace_blobs (
-    fingerprint TEXT PRIMARY KEY,
-    archive_sha256 TEXT NOT NULL,
-    archive_size INTEGER NOT NULL,
-    path TEXT NOT NULL,
-    last_accessed_ms INTEGER NOT NULL
 );
 "#;

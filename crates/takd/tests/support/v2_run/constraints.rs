@@ -46,6 +46,7 @@ pub fn project_resource(mut request: RunSubmission, amount: u64) -> RunSubmissio
         scope: DefinitionScope::Project,
         scope_key: None,
         capacity_millis: NonZeroU64::new(1_000).unwrap(),
+        unit: None,
         hold: HoldMode::During,
     }];
     request.run.jobs[0].limiter_claims = vec![LimiterClaim {
@@ -61,6 +62,7 @@ pub fn project_process_cap(mut request: RunSubmission) -> RunSubmission {
         scope: DefinitionScope::Project,
         scope_key: None,
         max_processes: NonZeroU32::MIN,
+        match_pattern: None,
         hold: HoldMode::During,
     }];
     claim(&mut request, "processes");

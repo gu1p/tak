@@ -21,7 +21,7 @@ say "=== peers AFTER run ==="
 docker exec takd-b takd peers >>"$REP" 2>&1
 
 say "=== A service.log: submit/worker/exec lines ==="
-docker exec takd-a sh -c 'grep -iE "submit|worker|exec|TAK_REMOTE_OK_MARKER|mock|simulat|/v1/" /root/.local/state/takd/service.log 2>/dev/null | tail -30' >>"$REP" 2>&1
+docker exec takd-a sh -c 'grep -iE "dispatch|worker|exec|TAK_REMOTE_OK_MARKER|mock|simulat|/v2/worker" /root/.local/state/takd/service.log 2>/dev/null | tail -30' >>"$REP" 2>&1
 
 say "=== B service.log: place/broker/peer/submit lines ==="
 docker exec takd-b sh -c 'grep -iE "place|broker|peer|submit|remote|dial|http2|select|node-a" /root/.local/state/takd/service.log 2>/dev/null | tail -40' >>"$REP" 2>&1

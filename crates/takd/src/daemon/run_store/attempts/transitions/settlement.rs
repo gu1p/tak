@@ -3,24 +3,38 @@ use rusqlite::{Transaction, params};
 use tak_core::v2::ResolvedJob;
 use tak_proto::local_daemon::v2::RunEventKind;
 
-use crate::daemon::scheduler::DispatchCommand;
+use crate::daemon::scheduler::{AttemptRuntimeMetadata, DispatchCommand};
 
 use super::super::super::events::{
-    append_event, append_job_event, append_skipped_event, now_ms, sqlite_i64,
+    TerminalDetails, append_job_terminal_event, append_skipped_event, now_ms, sqlite_i64,
 };
+
+mod run_state;
+mod terminal_metadata;
+pub(in crate::daemon::run_store::attempts) use run_state::refresh_run_state;
 
 pub(in crate::daemon::run_store::attempts) fn finish_job(
     transaction: &Transaction<'_>,
     command: &DispatchCommand,
     job: &ResolvedJob,
     succeeded: bool,
+    exit_code: Option<i32>,
+    runtime: Option<&AttemptRuntimeMetadata>,
 ) -> Result<()> {
     let message = if succeeded {
         "job succeeded"
     } else {
         "job failed"
     };
-    settle_job(transaction, command, job, succeeded, message)
+    settle_job(
+        transaction,
+        command,
+        job,
+        succeeded,
+        message,
+        exit_code,
+        runtime,
+    )
 }
 
 pub(in crate::daemon::run_store::attempts) fn fail_job(
@@ -28,8 +42,9 @@ pub(in crate::daemon::run_store::attempts) fn fail_job(
     command: &DispatchCommand,
     job: &ResolvedJob,
     message: &str,
+    runtime: Option<&AttemptRuntimeMetadata>,
 ) -> Result<()> {
-    settle_job(transaction, command, job, false, message)
+    settle_job(transaction, command, job, false, message, None, runtime)
 }
 
 fn settle_job(
@@ -38,6 +53,8 @@ fn settle_job(
     job: &ResolvedJob,
     succeeded: bool,
     message: &str,
+    exit_code: Option<i32>,
+    runtime: Option<&AttemptRuntimeMetadata>,
 ) -> Result<()> {
     let state = if succeeded { "succeeded" } else { "failed" };
     let updated = transaction.execute(
@@ -52,14 +69,19 @@ fn settle_job(
     } else {
         RunEventKind::Failed
     };
-    append_job_event(
+    let terminal_message =
+        terminal_metadata::render(transaction, command, job, message, exit_code, runtime)?;
+    append_job_terminal_event(
         transaction,
         &command.run_id,
         kind,
         &command.job_id,
         &job.task_ids,
         &command.node_id,
-        message,
+        TerminalDetails {
+            message: &terminal_message,
+            exit_code,
+        },
     )?;
     if succeeded {
         promote_dependencies(transaction, &command.run_id)?;
@@ -135,49 +157,5 @@ pub(in crate::daemon::run_store::attempts) fn rearm_scheduler(
         "INSERT INTO run_outbox (run_id, kind, payload_json) VALUES (?1, 'scheduler_wakeup', '{}') ON CONFLICT(run_id, kind) DO UPDATE SET delivered_at_ms = NULL",
         [run_id],
     )?;
-    Ok(())
-}
-
-pub(in crate::daemon::run_store::attempts) fn refresh_run_state(
-    transaction: &Transaction<'_>,
-    run_id: &str,
-) -> Result<()> {
-    let (nonterminal, failed, active) = transaction.query_row(
-        "SELECT SUM(CASE WHEN state NOT IN ('succeeded','failed','cancelled','skipped') THEN 1 ELSE 0 END), SUM(CASE WHEN state IN ('failed','skipped') THEN 1 ELSE 0 END), SUM(CASE WHEN state IN ('transferring','running','output_committing','cancelling') THEN 1 ELSE 0 END) FROM run_jobs WHERE run_id = ?1",
-        [run_id],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)),
-    )?;
-    let state = if nonterminal == 0 {
-        if failed == 0 { "succeeded" } else { "failed" }
-    } else if active > 0 {
-        "running"
-    } else {
-        "queued"
-    };
-    let previous = transaction.query_row(
-        "SELECT state FROM runs WHERE run_id = ?1",
-        [run_id],
-        |row| row.get::<_, String>(0),
-    )?;
-    transaction.execute(
-        "UPDATE runs SET state = ?2, updated_at_ms = ?3 WHERE run_id = ?1",
-        params![run_id, state, sqlite_i64(now_ms()?, "timestamp")?],
-    )?;
-    if previous != state && matches!(state, "succeeded" | "failed") {
-        append_event(
-            transaction,
-            run_id,
-            if state == "succeeded" {
-                RunEventKind::Succeeded
-            } else {
-                RunEventKind::Failed
-            },
-            if state == "succeeded" {
-                "run succeeded"
-            } else {
-                "run failed"
-            },
-        )?;
-    }
     Ok(())
 }

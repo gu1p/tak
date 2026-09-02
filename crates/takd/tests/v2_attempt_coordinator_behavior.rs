@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use futures::future::{BoxFuture, FutureExt};
 use takd::{
-    AttemptCoordinator, AttemptObservation, AttemptTransport, DispatchCommand, RunStore,
-    SchedulerNode,
+    AttemptCoordinator, AttemptDispatch, AttemptObservation, AttemptTransport, DispatchCommand,
+    RunStore, SchedulerNode,
 };
 
 use crate::support::v2_run::scheduler::{commit, independent_jobs};
@@ -49,10 +49,13 @@ struct RecordingTransport {
 }
 
 impl AttemptTransport for RecordingTransport {
-    fn dispatch<'a>(&'a self, command: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {
+    fn dispatch<'a>(
+        &'a self,
+        command: &'a DispatchCommand,
+    ) -> BoxFuture<'a, Result<AttemptDispatch>> {
         async move {
             self.record("dispatch", command);
-            Ok(())
+            Ok(AttemptDispatch::Accepted)
         }
         .boxed()
     }

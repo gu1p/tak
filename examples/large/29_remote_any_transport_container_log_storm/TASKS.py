@@ -3,11 +3,13 @@
 # Scenario: transport-agnostic remote container log storm
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_large_29",
   includes=[path("apps/logstorm")],
   tasks=[
     task(
       "prepare_local_input",
+      outputs=[path("out/local-input.txt")],
       steps=[
         cmd(
           "sh",

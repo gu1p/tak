@@ -3,6 +3,18 @@ use tak_proto::local_daemon::v2::{
 };
 
 #[test]
+fn daemon_status_is_strictly_versioned_correlated_and_typed() {
+    let raw = br#"{"protocol_version":2,"type":"DaemonStatus","request_id":"status","status":{"active_leases":0,"pending_requests":0,"limiter_count":3}}"#;
+    let Response::DaemonStatus { status, .. } = decode_response(raw, "status").unwrap() else {
+        panic!("expected daemon status")
+    };
+    assert_eq!(status.active_leases, 0);
+    assert_eq!(status.pending_requests, 0);
+    assert_eq!(status.limiter_count, 3);
+    assert!(decode_response(raw, "other").is_err());
+}
+
+#[test]
 fn correlated_submission_flow_successes_decode_without_accepting_other_shapes() {
     let submitted = br#"{"protocol_version":2,"type":"RunSubmitted","request_id":"submit","run_id":"run-1","workspace":{"status":"upload_required","next_offset":0}}"#;
     assert!(matches!(
@@ -16,6 +28,18 @@ fn correlated_submission_flow_successes_decode_without_accepting_other_shapes() 
         decode_response(committed, "commit").unwrap(),
         Response::RunCommitted { run_id, .. } if run_id == "run-1"
     ));
+}
+
+#[test]
+fn remote_candidate_snapshot_is_strictly_correlated_and_typed() {
+    let raw = br#"{"protocol_version":2,"type":"RemoteCandidates","request_id":"candidates","candidates":[{"node_id":"worker-a","kind":"remote","transport":"direct","reason":"healthy protocol-v2 worker"}]}"#;
+    let Response::RemoteCandidates { candidates, .. } = decode_response(raw, "candidates").unwrap()
+    else {
+        panic!("expected candidates")
+    };
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].node_id, "worker-a");
+    assert!(decode_response(raw, "another-request").is_err());
 }
 
 #[test]

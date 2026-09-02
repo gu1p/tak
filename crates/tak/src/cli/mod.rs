@@ -9,22 +9,24 @@ mod command_model;
 mod daemon_run;
 mod docker_cli;
 mod exec_cli;
+#[cfg(test)]
+mod exec_cli_tests;
 mod graph_output;
 mod make_cli;
 mod output_materialization;
 mod remote_add;
-mod remote_http;
+mod remote_daemon;
+#[cfg(test)]
+mod remote_daemon_deadline_tests;
 mod remote_inventory;
 mod remote_logs;
-mod remote_probe;
-mod remote_probe_support;
+mod remote_read;
 mod remote_scan;
 mod remote_status;
 mod remote_tasks;
 mod run_checkout_store;
 mod run_cli;
 mod run_command;
-mod run_output;
 mod run_override_runtime;
 #[cfg(test)]
 mod run_override_runtime_tests;
@@ -37,7 +39,6 @@ mod run_overrides_remote_tests;
 mod run_overrides_support;
 #[cfg(test)]
 mod run_overrides_test_support;
-mod run_visualization;
 mod runs_cli;
 mod status;
 mod task_history;
@@ -50,7 +51,6 @@ use exec_cli::{ExecCliArgs, run_exec_command};
 use graph_output::print_dot_graph;
 use make_cli::run_make_command;
 use run_command::{RunCliArgs, run_task_command};
-use run_visualization::RunVisualizationObserver;
 use status::{run_local_status, run_status};
 use task_history::{print_task_history, print_task_logs};
 use workspace_helpers::{canonical_label, load_workspace_from_cwd, parse_input_label};

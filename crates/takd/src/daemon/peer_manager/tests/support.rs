@@ -24,6 +24,7 @@ impl PeerManager {
                 node_id: entry.snapshot.node_id.clone(),
                 endpoint: entry.snapshot.endpoint.clone(),
                 bearer_token: entry.bearer_token.clone(),
+                transport: entry.snapshot.transport.clone(),
             })
             .collect()
     }
@@ -58,7 +59,7 @@ pub(super) fn record(
 pub(super) fn ping() -> NodePingResponse {
     NodePingResponse {
         node_id: "builder-a".to_string(),
-        protocol_version: "v1".to_string(),
+        protocol_version: "v2".to_string(),
         health: "healthy".to_string(),
         active_job_count: 1,
         queue_depth: 0,
@@ -67,7 +68,7 @@ pub(super) fn ping() -> NodePingResponse {
 }
 
 pub(super) fn encoded_ping_body() -> Vec<u8> {
-    ping().encode_to_vec()
+    tak_proto::worker_v2::encode_display_payload(&ping().encode_to_vec()).unwrap()
 }
 
 pub(super) async fn read_http_request(stream: &mut tokio::net::TcpStream) -> String {

@@ -85,5 +85,6 @@ fn success() -> AttemptCompletion {
 fn failed() -> AttemptCompletion {
     AttemptCompletion::Failed {
         terminal_digest: "b".repeat(64),
+        exit_code: None,
     }
 }

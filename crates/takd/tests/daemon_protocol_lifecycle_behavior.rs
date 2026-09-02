@@ -1,56 +1,36 @@
-use takd::{ReleaseLeaseRequest, RenewLeaseRequest, Request, Response};
-
 use crate::support;
 
-use support::protocol::send_request;
-use support::protocol_server::seeded_protocol_server;
+use support::protocol::send_raw_frame;
+use support::protocol_server::spawn_protocol_server;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn run_server_serves_renew_lease_request() {
+async fn run_server_rejects_versionless_renew_lease_request() {
     let temp = tempfile::tempdir().expect("tempdir");
     let socket_path = temp.path().join("run/takd.sock");
-    let (server, lease_id) = seeded_protocol_server(
-        temp.path().join("state/takd.sqlite"),
-        socket_path.clone(),
-        "renew-seed",
-    );
+    let server = spawn_protocol_server(temp.path().join("state/takd.sqlite"), socket_path.clone());
 
-    let renewed = send_request(
+    let renewed = send_raw_frame(
         &socket_path,
-        &Request::RenewLease(RenewLeaseRequest {
-            request_id: "renew".into(),
-            lease_id,
-            ttl_ms: 15_000,
-        }),
+        r#"{"type":"RenewLease","request_id":"renew","lease_id":"lease-1","ttl_ms":15000}"#,
     )
     .await;
 
-    assert!(matches!(
-        renewed,
-        Response::LeaseRenewed { ttl_ms: 15_000, .. }
-    ));
+    assert!(renewed.contains(r#""code":"protocol_version_unsupported""#));
     server.abort();
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn run_server_serves_release_lease_request() {
+async fn run_server_rejects_versionless_release_lease_request() {
     let temp = tempfile::tempdir().expect("tempdir");
     let socket_path = temp.path().join("run/takd.sock");
-    let (server, lease_id) = seeded_protocol_server(
-        temp.path().join("state/takd.sqlite"),
-        socket_path.clone(),
-        "release-seed",
-    );
+    let server = spawn_protocol_server(temp.path().join("state/takd.sqlite"), socket_path.clone());
 
-    let released = send_request(
+    let released = send_raw_frame(
         &socket_path,
-        &Request::ReleaseLease(ReleaseLeaseRequest {
-            request_id: "release".into(),
-            lease_id,
-        }),
+        r#"{"type":"ReleaseLease","request_id":"release","lease_id":"lease-1"}"#,
     )
     .await;
 
-    assert!(matches!(released, Response::LeaseReleased { .. }));
+    assert!(released.contains(r#""code":"protocol_version_unsupported""#));
     server.abort();
 }

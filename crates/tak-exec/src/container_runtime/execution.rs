@@ -10,11 +10,26 @@ pub(super) async fn run_step_in_container(
     run_context: &ContainerStepRunContext<'_>,
 ) -> Result<StepRunResult> {
     let container_name = format!("tak-step-{}", Uuid::new_v4());
-    let bind_mount = format!(
+    let workspace_bind = format!(
         "{}:{}:rw",
         run_context.workspace_root.display(),
         run_context.workspace_root.display()
     );
+    let mut binds = vec![workspace_bind];
+    if let Some(private_root) = run_context.private_root {
+        binds.push(format!(
+            "{}:/tmp/tak-home:rw",
+            private_root.join("home").display()
+        ));
+        binds.push(format!(
+            "{}:/tmp/tak-tmp:rw",
+            private_root.join("tmp").display()
+        ));
+    }
+    binds.extend(authored_mount_binds(
+        run_context.workspace_root,
+        run_context.mounts,
+    )?);
     let env = step
         .env
         .iter()
@@ -32,7 +47,7 @@ pub(super) async fn run_step_in_container(
         attach_stderr: Some(true),
         tty: Some(false),
         host_config: Some(HostConfig {
-            binds: Some(vec![bind_mount]),
+            binds: Some(binds),
             ..Default::default()
         }),
         ..Default::default()
@@ -63,6 +78,34 @@ pub(super) async fn run_step_in_container(
     let log_result = finish_container_log_task(log_task, cleanup_result.is_ok()).await;
 
     finish_container_step(step_result, cleanup_result, log_result)
+}
+
+pub(super) fn authored_mount_binds(
+    workspace_root: &std::path::Path,
+    mounts: &[tak_core::model::ContainerMountSpec],
+) -> Result<Vec<String>> {
+    let canonical_workspace = std::fs::canonicalize(workspace_root)
+        .context("resolve daemon-owned container workspace")?;
+    mounts
+        .iter()
+        .map(|mount| {
+            let source = std::fs::canonicalize(workspace_root.join(&mount.source)).with_context(
+                || format!("resolve container mount source `{}`", mount.source),
+            )?;
+            if !source.starts_with(&canonical_workspace) {
+                bail!(
+                    "container mount source `{}` is a symlink escape outside the daemon-owned workspace",
+                    mount.source
+                );
+            }
+            Ok(format!(
+                "{}:{}:{}",
+                source.display(),
+                mount.target,
+                if mount.read_only { "ro" } else { "rw" }
+            ))
+        })
+        .collect()
 }
 
 async fn start_and_wait_for_container_step(

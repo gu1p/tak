@@ -1,31 +1,21 @@
 //! Contract for repo-root task context declarations.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
 use anyhow::Result;
-use tak_core::label::parse_label;
-use tak_core::model::{IgnoreSourceSpec, PathAnchor};
-use tak_loader::{LoadOptions, load_workspace};
 
-fn repo_root() -> &'static Path {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("workspace root")
-}
+use crate::support::root_task_contracts::{load_root_module, task};
 
 #[test]
 fn repo_root_check_task_opts_into_gitignore_context() -> Result<()> {
-    let spec = load_workspace(repo_root(), &LoadOptions::default())?;
-    let label = parse_label("//:check", "//").expect("check label");
-    let task = spec.tasks.get(&label).expect("check task");
+    let module = load_root_module()?;
+    let context = task(&module, "//:check")
+        .context
+        .as_ref()
+        .expect("check context");
 
     assert!(
-        task.context
-            .ignored
-            .iter()
-            .any(|source| matches!(source, IgnoreSourceSpec::GitIgnore)),
+        context.use_gitignore,
         "expected //:check to declare gitignore() in its context"
     );
     Ok(())
@@ -33,15 +23,14 @@ fn repo_root_check_task_opts_into_gitignore_context() -> Result<()> {
 
 #[test]
 fn repo_root_check_context_keeps_cataloged_remote_example_fixtures() -> Result<()> {
-    let spec = load_workspace(repo_root(), &LoadOptions::default())?;
-    let label = parse_label("//:check", "//").expect("check label");
-    let task = spec.tasks.get(&label).expect("check task");
-    let includes: BTreeSet<_> = task
+    let module = load_root_module()?;
+    let includes: BTreeSet<_> = task(&module, "//:check")
         .context
+        .as_ref()
+        .expect("check context")
         .include
         .iter()
-        .filter(|path| path.anchor == PathAnchor::Workspace)
-        .map(|path| path.path.as_str())
+        .map(String::as_str)
         .collect();
 
     for path in [

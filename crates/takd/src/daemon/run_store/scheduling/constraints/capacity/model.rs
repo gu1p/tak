@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tak_core::v2::{DefinitionScope, ResolvedJob, ResolvedRun};
 
-use super::limiter::{limiter_name, properties};
+use super::limiter::{limiter_name, process_match_pattern, properties};
 
 pub(in crate::daemon::run_store::scheduling) struct Context<'a> {
     pub(in crate::daemon::run_store::scheduling) run_id: &'a str,
@@ -36,6 +36,7 @@ pub(super) struct Constraint {
     pub(super) key: Key,
     pub(super) amount: u64,
     pub(super) capacity: u64,
+    pub(super) process_match_pattern: Option<String>,
     lease: Lease,
     pub(super) reserved_at_ms: u64,
     pub(super) accepted: bool,
@@ -83,7 +84,7 @@ pub(super) fn constraints(
                 definition.scope_key.as_deref(),
                 node_id,
             )?,
-            1,
+            u64::from(job.queue_slots.get()),
             u64::from(definition.max_parallel_tasks.get()),
             Lease::During,
         ));
@@ -98,14 +99,16 @@ pub(super) fn constraints(
         let Some((scope, scope_key, capacity, lease)) = properties(definition) else {
             continue;
         };
-        result.push(constraint(
+        let mut request = constraint(
             "limiter",
             &claim.name,
             owner(context, scope, scope_key, node_id)?,
             claim.amount_millis.get(),
             capacity,
             lease,
-        ));
+        );
+        request.process_match_pattern = process_match_pattern(definition).map(str::to_owned);
+        result.push(request);
     }
     Ok(result)
 }
@@ -126,6 +129,7 @@ fn constraint(
         },
         amount,
         capacity,
+        process_match_pattern: None,
         lease,
         reserved_at_ms: 0,
         accepted: false,

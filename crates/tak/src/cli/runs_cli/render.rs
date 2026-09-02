@@ -7,18 +7,25 @@ use tak_proto::local_daemon::v2::{RunDetails, RunEvent, RunEventKind, RunSummary
 pub(super) fn list(runs: &[RunSummary]) {
     for run in runs {
         println!(
-            "{} {} jobs={}/{} targets={}",
+            "{} {} jobs={}/{} targets={} exit_code={}",
             run.run_id,
             run.state.as_str(),
             run.terminal_jobs,
             run.total_jobs,
-            run.targets.join(",")
+            run.targets.join(","),
+            run.exit_code
+                .map_or_else(|| "-".into(), |code| code.to_string())
         );
     }
 }
 
 pub(super) fn details(run: &RunDetails) {
     list(std::slice::from_ref(&run.summary));
+    println!(
+        "payloads logs={} outputs={}",
+        availability(run.logs_expired),
+        availability(run.outputs_expired)
+    );
     for job in &run.jobs {
         println!(
             "{} {} tasks={} node={} attempt={} cache={}",
@@ -30,6 +37,10 @@ pub(super) fn details(run: &RunDetails) {
             job.cache.as_deref().unwrap_or("-")
         );
     }
+}
+
+fn availability(expired: bool) -> &'static str {
+    if expired { "expired" } else { "available" }
 }
 
 pub(super) fn events(events: &[RunEvent]) -> Result<()> {

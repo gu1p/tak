@@ -6,6 +6,7 @@ use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use super::resource_admission::ResourceCapacity;
 use super::resource_envelope::HostResourceBaseline;
 use super::runtime::RemoteRuntimeConfig;
+use super::status_resources::effective_available_memory;
 
 const MAX_BASELINE_SAMPLES: u32 = 20;
 const BYTES_PER_MIB: u64 = 1024 * 1024;
@@ -80,11 +81,16 @@ fn sample_host_usage(
             thread::sleep(interval);
             system.refresh_cpu_usage();
             system.refresh_memory();
+            let total_memory = system.total_memory();
+            let available_memory = effective_available_memory(
+                total_memory,
+                system.used_memory(),
+                system.available_memory(),
+            );
             ResourceCapacity {
                 cpu_cores: f64::from(system.global_cpu_usage()) * logical_cores / 100.0,
-                memory_mb: system
-                    .total_memory()
-                    .saturating_sub(system.available_memory())
+                memory_mb: total_memory
+                    .saturating_sub(available_memory)
                     .div_ceil(BYTES_PER_MIB),
             }
         })

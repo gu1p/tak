@@ -1,26 +1,15 @@
 use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
 use std::path::Path;
-use std::process::{Command as StdCommand, Output};
 use std::thread;
 
 use prost::Message;
 use tak_proto::NodeStatusResponse;
 
-use crate::support::takd_bin;
+#[path = "takd_tasks/command.rs"]
+mod command;
 
-pub fn run_takd_tasks(config_root: &Path, state_root: &Path) -> Output {
-    StdCommand::new(takd_bin())
-        .args([
-            "tasks",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
-        .output()
-        .expect("run takd tasks")
-}
+pub use command::run_takd_tasks;
 
 pub fn spawn_status_socket(
     state_root: &Path,
@@ -30,7 +19,8 @@ pub fn spawn_status_socket(
     std::fs::create_dir_all(state_root).expect("create state root");
     let socket_path = state_root.join("agent-control.sock");
     let _ = std::fs::remove_file(&socket_path);
-    let listener = UnixListener::bind(socket_path).expect("bind fake control socket");
+    let listener = UnixListener::bind(super::socket_path::bind_path(&socket_path))
+        .expect("bind fake control socket");
     let bearer_token = bearer_token.to_string();
     thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept control request");
@@ -39,10 +29,19 @@ pub fn spawn_status_socket(
             request.contains(&format!("Authorization: Bearer {bearer_token}\r\n")),
             "missing bearer auth:\n{request}"
         );
-        let body = status.encode_to_vec();
+        assert!(
+            request.starts_with("GET /v2/worker/status HTTP/1.1\r\n"),
+            "unexpected control status route:\n{request}"
+        );
+        assert!(
+            request.contains("X-Tak-Protocol-Version: v2\r\n"),
+            "missing worker v2 protocol header:\n{request}"
+        );
+        let body = tak_proto::worker_v2::encode_display_payload(&status.encode_to_vec())
+            .expect("encode worker v2 status envelope");
         write!(
             stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/x-protobuf\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
             body.len()
         )
         .expect("write control response head");

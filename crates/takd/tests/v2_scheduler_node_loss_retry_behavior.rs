@@ -29,11 +29,8 @@ fn lost_active_attempts_retry_only_when_idempotent_and_reject_late_results() {
     );
     assert_eq!(state(&store, &retry_run), "retrying");
     assert_eq!(state(&store, &unsafe_id), "failed");
-    let nodes = [
-        SchedulerNode::with_execution_slots("worker-a", 2),
-        SchedulerNode::with_execution_slots("worker-b", 2),
-    ];
-    let retry = store.reserve_next(&nodes).unwrap().unwrap();
+    let survivors = [SchedulerNode::with_execution_slots("worker-b", 2)];
+    let retry = store.reserve_next(&survivors).unwrap().unwrap();
     assert_eq!(retry.node_id, "worker-b");
     assert_eq!(retry.authored_attempt, 2);
     assert_eq!(

@@ -55,7 +55,8 @@ fn lost_shared_workspace_home_fails_the_group_once_and_keeps_unrelated_work_runn
     assert_eq!(details.jobs[2].state, "failed");
     assert_eq!(details.jobs[3].state, "ready");
     assert!(store.pending_dispatches().unwrap().is_empty());
-    let unrelated = store.reserve_next(&nodes).unwrap().unwrap();
+    let survivors = [SchedulerNode::with_execution_slots("worker-b", 3)];
+    let unrelated = store.reserve_next(&survivors).unwrap().unwrap();
     assert_eq!(unrelated.node_id, "worker-b");
     assert_eq!(
         store.complete_attempt(&first, success()).unwrap(),

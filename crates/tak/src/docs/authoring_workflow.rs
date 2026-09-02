@@ -9,6 +9,11 @@
 //! not infer tasks from a Makefile. Add only the execution, retry, coordination, and remote
 //! constructs the project actually needs.
 //!
+//! Start local `takd serve` before executing either path. `tak run`, `tak make`, `tak exec`, and
+//! `tak docker run` always submit to the daemon; there is no client executor fallback. A disconnect
+//! does not cancel accepted work. Recover it with `tak runs list`, `tak runs show RUN_ID`, or
+//! `tak runs attach RUN_ID`.
+//!
 //! ### Annotate an existing Makefile
 //!
 //! Do not create a `TASKS.py` just to wrap an existing Make goal. Without annotations,
@@ -65,7 +70,8 @@
 //!
 //! `TASKS.py` is evaluated with Tak's DSL already in scope; do not add imports for `task`, `cmd`,
 //! or `module_spec`. Define task values, return them from one `module_spec(...)`, and leave that
-//! module spec as the file's final expression.
+//! module spec as the file's final expression. Every root and included module must pass the literal
+//! keyword `spec_version=2`.
 //!
 //! ```python
 //! build = task(
@@ -83,6 +89,7 @@
 //! )
 //!
 //! SPEC = module_spec(
+//!     spec_version=2,
 //!     project_id="acme_project",
 //!     tasks=[build, check],
 //! )
@@ -104,6 +111,10 @@
 //! ```text
 //! tak run //:check
 //! ```
+//!
+//! Use task/default `pass_env=["NAME"]` for required client environment variables, or
+//! `--pass-env NAME` for one invocation. Declare real `outputs=[...]`; session cache paths are not
+//! user-facing artifacts.
 //!
 //! For a larger project, select the closest entry in **Project Patterns** and **Example Chooser**
 //! below, copy its complete embedded source files, then change only what the project needs.

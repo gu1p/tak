@@ -2,6 +2,7 @@
 
 #![cfg(unix)]
 
+use crate::support::make_runtime::start_local_daemon;
 use crate::support::run_tak_output;
 
 use std::collections::BTreeMap;
@@ -35,7 +36,9 @@ test:
 "#,
     )?;
 
-    let output = run_tak_output(workspace.path(), &["make", "bla"], &BTreeMap::new())?;
+    let mut environment = BTreeMap::new();
+    let _daemon = start_local_daemon(workspace.path(), &mut environment);
+    let output = run_tak_output(workspace.path(), &["make", "bla"], &environment)?;
 
     assert!(
         output.status.success(),

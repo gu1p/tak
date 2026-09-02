@@ -78,6 +78,15 @@ pub struct AuthoredDefaults {
     pub tags: Vec<String>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaskContext {
+    pub roots: Vec<String>,
+    pub ignored_paths: Vec<String>,
+    pub use_gitignore: bool,
+    pub include: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AuthoredTask {
@@ -86,6 +95,7 @@ pub struct AuthoredTask {
     pub deps: Vec<String>,
     pub steps: Vec<Step>,
     pub outputs: Vec<OutputSelector>,
+    pub context: Option<TaskContext>,
     pub execution: Option<Execution>,
     pub retry: Option<super::RetryPolicy>,
     pub queue: Option<AuthoredQueueUse>,
@@ -96,6 +106,7 @@ pub struct AuthoredTask {
     pub pass_env: PassEnv,
     pub affinity: Option<Affinity>,
     pub tags: Vec<String>,
+    pub timeout_s: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

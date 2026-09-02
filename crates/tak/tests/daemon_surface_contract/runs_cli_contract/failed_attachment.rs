@@ -11,7 +11,7 @@ fn attach_remembers_failure_across_event_pages_and_exits_unsuccessfully() {
     let environment = BTreeMap::from([("TAKD_SOCKET".into(), socket.display().to_string())]);
 
     let output = run_tak_output(root.path(), &["runs", "attach", "run-1"], &environment).unwrap();
-    daemon.finish_expecting(2);
+    daemon.finish_expecting(3);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 

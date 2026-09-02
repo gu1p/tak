@@ -2,212 +2,78 @@
 
 ## Purpose
 
-`tak` is the user-facing interface over four subsystems:
+`tak` is the short-lived authoring, resolution, and presentation client. It inspects `TASKS.py` or
+Makefiles, resolves a complete v2 run, submits it to local `takd`, and renders persisted daemon
+events. It does not execute task attempts and has no legacy executor fallback.
 
-- `tak-make` for Makefile goal discovery and execution orchestration
-- `tak-loader` for workspace/task graph discovery
-- `tak-exec` for task execution
-- `takd serve` for daemon-owned Tor remote execution and optional local lease/status APIs
+Read-only workspace commands do not require takd. Every execution entry point—`run`, `make`,
+`exec`, and `docker run`—requires a reachable local daemon even for local host work.
 
-The CLI is query + action oriented: each command answers one operational question and prints a stable text response contract.
-Local execution remains daemon-optional. Tor remote execution fails clearly when local `takd serve`
-is not reachable.
+## Runtime flow
 
-## Runtime Shape
+1. Parse CLI intent and execution overrides.
+2. Load and validate a v2 `TASKS.py`, adapt a Make goal, or synthesize an exec/docker task.
+3. Evaluate Python policies and resolve concrete local/remote candidates.
+4. Snapshot context, collect allowlisted `pass_env` values, and construct a `RunSubmission`.
+5. send protocol v2 `SubmitRun` to local takd and persist the checkout association.
+6. Attach to the run's ordered event stream.
+7. On success, preflight and materialize declared outputs without overwriting changed checkout
+   paths.
 
-- `src/main.rs`: process entrypoint, delegates to library runtime.
-- `src/lib.rs`: clap parsing, command dispatch, and output formatting.
-- `src/cli/make_cli.rs`: Make-domain to synthetic Tak-task adapter.
+The socket comes from `TAKD_SOCKET` or the shared default runtime path. Connection failure names
+that socket, tells the user to start `takd serve`, and never falls back to client execution.
 
-High-level flow:
+## Command ownership
 
-1. Parse command with clap.
-2. For workspace commands, load `WorkspaceSpec` from current working directory.
-3. For `make`, resolve the annotated goal without loading `TASKS.py`.
-4. Dispatch to Make, loader, executor, or remote-inventory APIs.
-5. Print line-oriented response to stdout.
-6. Return non-zero exit on any `Result::Err`.
+| Command | Client responsibility | Daemon responsibility |
+|---|---|---|
+| `tak list/tree/explain/graph/web` | load and present the authored graph | none |
+| `tak run` | select graph, resolve policy/candidates/context/env | schedule and execute the graph |
+| `tak make` | parse annotations and resolve the Make plan | schedule synthetic Make jobs |
+| `tak exec` | resolve one synthetic command | execute and persist it |
+| `tak docker run` | parse Docker-shaped flags and resolve a container job | execute and persist it |
+| `tak runs list/show` | render persisted summaries | query the run store |
+| `tak runs attach` | replay/render events and safely materialize outputs | serve ordered events/artifacts |
+| `tak runs cancel` | request and report persisted cancellation | settle active work and descendants |
+| `tak runs outputs --to DIR` | validate and write a fresh explicit destination | serve committed artifacts |
 
-## Command Answer Matrix
+Remote inventory management remains a client configuration surface. At submission time tak asks
+takd for protocol-v2 direct/Tor candidates; the daemon later rechecks live inventory and capacity.
 
-| Command | Primary question answered | Backend calls | Output contract |
-|---|---|---|---|
-| `tak list` | "What tasks exist in this workspace?" | `load_workspace_from_cwd()` | ANSI-decorated list output with fully-qualified labels from the current directory workspace. |
-| `tak explain <label>` | "What is this task composed of?" | workspace load + guided label parse + task lookup | Structured text fields: `label`, `deps`, `steps`, `needs`, `timeout_s`, `retry_attempts`. |
-| `tak graph [label] --format dot` | "What dependency graph should I visualize?" | workspace load + optional guided label parse | DOT graph text (`digraph tak { ... }`). |
-| `tak web [label]` | "Show this graph interactively in browser" | workspace load + optional guided label parse + embedded local server | Prints local URL, serves embedded HTML/CSS/JS UI, runs until `Ctrl+C`. |
-| `tak run <label...> [-j N] [--keep-going]` | "Execute these targets with dependencies" | workspace load + guided label parsing + `run_tasks(...)`; Tor remotes require local `takd serve` placement | One result line per executed label with attempts, exit, placement, remote, transport, reason, context hash, and runtime fields. |
-| `tak exec -- <program> [args...]` | "Run one tool-native command through Tak" | synthetic one-step task + execution override resolution + `run_resolved_task(...)` | Streams wrapped command stdout/stderr live and exits with the wrapped command's exit code. |
-| `tak make <goal>` | "Run this existing Make build through Tak" | `tak-make` goal/parallel-plan resolution + synthetic Tak task graph + `run_resolved_task(...)` or `run_tasks(...)` | Preserves opaque Make behavior unless `parallel` is annotated; parallel lines are target-prefixed and may be live or grouped. |
-| `tak status [--node <id>...] [--watch] [--interval-ms N]` | "What is local Tak doing, and what are my daemon-managed remotes doing?" | XDG task history + local daemon `Status` + daemon `PeersList` when reachable | Local section plus remote node, container, and active-job sections; watch mode repeats snapshots. |
-| `tak local status [--watch] [--interval-ms N]` | "What is this local Tak client doing?" | XDG task history + local CPU/RAM/storage + optional `TAKD_SOCKET` status | Local resource line plus container and active-job sections. |
-| `tak remote add <token>` | "Add a remote execution agent" | secret invite/token decode + `/v1/node/info` probe (bounded retry for Tor onion remotes) + config write | `added remote <node_id>`. |
-| `tak remote add` | "Add a remote execution agent interactively" | method picker + word/token/secret Tor invite input + probe + confirmation before config write | Interactive TUI; final success line is `added remote <node_id>`. |
-| `tak remote add --words [word...]` | "Add a Tor remote execution agent by manual typing" | provided words stay non-interactive; empty `--words` opens the word-entry TUI; both use the same probe/confirmation/write path as appropriate | `added remote <node_id>`. |
-| `tak remote scan` | "Scan a remote execution agent from a QR code" | camera enumeration + live preview + QR decode + existing remote-add probe/write path | Interactive TUI; final success line is `added remote <node_id>`. |
-| `tak remote list` | "Which remote execution agents are configured?" | config read | One configured agent per line. |
-| `tak remote status [--node <id>...] [--watch] [--interval-ms N]` | "What is each daemon-managed remote node doing right now?" | daemon `PeersList` when reachable; direct legacy status fetch for direct remotes when no daemon is reachable | Node, container, and active-job sections; terminal watch mode uses a Ratatui dashboard for direct probes. |
-| `tak remote logs --node <id> [--all|--lines N]` | "What is this remote node's daemon log?" | config read + `/v1/node/logs` fetch | Raw remote service log bytes on stdout. |
-| `tak remote tasks --node <id> [--active] [--limit N]` | "Which task attempts does this remote node know about?" | config read + `/v1/tasks` fetch | `Remote Tasks` section with node, task label, task run id, attempt, and state. |
-| `tak remote task logs --node <id> <task-run-id>` | "What did this task emit on that remote node?" | config read + `/v1/tasks/<id>/events` polling | Remote stdout chunks to stdout and stderr chunks to stderr. |
-| `tak task list [--limit N]` | "Which task runs did this local Tak client start?" | XDG task history SQLite read | `Local Tasks` section with task label, task run id, attempts, state, placement, and remote node. |
-| `tak task logs <task-run-id>` | "What did this locally initiated task emit?" | XDG task history SQLite read | Captured stdout chunks to stdout and stderr chunks to stderr. |
+## Attachment semantics
 
-## Output Details Per Command
+Submission and attachment are separate. A timed-out or disconnected client does not cancel the
+accepted run. The run id is the recovery handle for `tak runs list`, `show`, and `attach`.
 
-### `list`
+The first Ctrl-C requests persisted cancellation and continues attaching until takd acknowledges
+terminal progress. A second Ctrl-C may detach. Cancellation continues in takd after detachment.
 
-- Success output: one human-readable line per task with canonical labels and dependency hints.
-- Typical use: scripting (`tak list | rg ...`).
+Event pages are validated for run identity, strict sequence, cursor continuity, lifecycle state,
+and safe stdout/stderr encoding. Terminal task exit codes are preserved as the CLI exit status.
 
-### `explain`
+## Output materialization
 
-- Success output shape:
-  - `label: <label>`
-  - `deps: (none)` or dependency list prefixed with `  - `
-  - `steps: <count>`
-  - `needs: <count>`
-  - `timeout_s: <seconds|none>`
-  - `retry_attempts: <count>`
+The client records the canonical checkout root and submitted manifest per `(daemon socket, run
+id)`. After a successful run it downloads outputs to a private staging directory, verifies that
+submitted/output paths did not change locally, then applies the entire manifest. A conflict applies
+nothing and points to `tak runs outputs RUN_ID --to DIR`.
 
-### `graph`
+Explicit output retrieval requires a destination that does not exist. It validates canonical
+relative paths, metadata, digests, and symlink targets before creating the destination; failure
+cleans the partial directory.
 
-- Only `--format dot` is supported.
-- Output is valid DOT suitable for Graphviz tooling.
+## Version boundary
 
-### `run`
+TASKS.py v2, local daemon protocol v2, and remote worker protocol v2 ship together. Invalid or
+unsupported versions produce upgrade-together guidance for tak, takd, and workers. No v1 request or
+execution fallback is attempted, including when the outcome of an exchange is unknown.
 
-- Requires at least one label.
-- Rejects path-like inputs such as `.`, `./foo`, or `/tmp/task` and points users to `tak list`.
-- Delegates retry, timeout, and lease behavior to `tak-exec`.
-- Streams task `stdout` and `stderr` live to the local terminal for local host, local containerized, and remote containerized execution.
-- Per-task status is printed after execution summary is available.
-- For Tor remotes, sends placement requirements to local `takd serve` and does not bootstrap
-  client-side Tor.
-- `tak run --local` bypasses daemon-owned Tor placement and works without a daemon.
+## Main files
 
-### `exec`
-
-- Does not require a `TASKS.py` workspace.
-- Builds one synthetic command task and reuses the same executor/runtime override path as `run`.
-- Streams wrapped command `stdout` and `stderr` live without adding a summary line to stdout.
-- Preserves the wrapped process exit code on command failure.
-
-### `make`
-
-- Does not require a `TASKS.py` workspace.
-- Searches `GNUmakefile`, `makefile`, then `Makefile` and resolves a literal single-target header.
-- Reads file-wide defaults from `# tak: default.<key>=<value>` comments.
-- Reads only contiguous `# tak:` comments directly above a goal; supported settings select
-  local/remote execution, an image or Dockerfile container source, parallel direct prerequisites,
-  and live/grouped output.
-- Builds one synthetic `make <goal>` task by default. An explicit `parallel=a,b` annotation instead
-  builds a recursive Tak DAG and uses `--assume-old` join invocations after promoted children.
-- Resolves CLI flags over goal annotations over global defaults over the implicit local-host
-  fallback.
-- Reports that implicit fallback on stderr and explains how to enable remote execution.
-- Prefixes each parallel logical output line with its Make target and preserves deterministic
-  first-failure exit semantics while unrelated branches finish.
-- Rejects annotated multi-target, pattern, double-colon, target-specific-variable, expanded,
-  included, or generated rule syntax rather than guessing.
-- Declares no output paths in the first version; a remote run does not copy generated files back.
-- CLI-created image and Dockerfile runtimes omit CPU/memory limits. Authored
-  `Container.Resources(...)` values remain explicit admission/container quotas.
-
-### `web`
-
-- Uses embedded frontend assets and vendored graph library files.
-- Binds `127.0.0.1` on a random available port.
-- Prints URL and serves graph UI until interrupted.
-- Auto-opens browser only in production-style runtime (`!debug_assertions`) and when `TAK_NO_BROWSER_OPEN` is not set.
-- If open fails, command keeps serving and prints the manual URL.
-
-### `status`
-
-- Combines `tak local status` with remote node snapshots from enabled remotes.
-- Missing local daemon status is reported as `daemon=unavailable` rather than failing the command.
-- When the local daemon is reachable, the remote section is rendered from daemon `PeersList`
-  snapshots, including `connected`, `degraded`, `unreachable`, and `auth_failed` peer states.
-- Non-terminal output is plain and section-oriented for scripts; terminal remote watch uses Ratatui.
-
-### `local status`
-
-- Reads active local task metadata from `$XDG_STATE_HOME/tak/tasks.sqlite`.
-- Samples local CPU, RAM, and storage through `sysinfo`.
-- Queries the optional local lease daemon through `TAKD_SOCKET` and reports unavailable daemon state as a warning field.
-
-### `remote status`
-
-- Uses daemon `PeersList` snapshots from local `takd serve` when reachable.
-- Falls back to direct remote v1 authenticated HTTP only for legacy direct remotes when the daemon
-  is not reachable.
-- Tor remote status does not bootstrap client-side Tor; it requires daemon peer state.
-- Tor peer state is peer-observed. A `degraded` peer may still be reachable: it means the last
-  authenticated `/v1/node/ping` succeeded but the remote reported non-healthy transport state.
-  That condition is polled on the normal heartbeat cadence, not reconnect backoff.
-- One-shot mode prints `Nodes`, `Containers`, and `Active Jobs` sections.
-- Terminal watch mode refreshes a Ratatui dashboard at the requested interval and restores the screen on clean interrupt.
-
-### `remote logs`, `remote tasks`, and `remote task logs`
-
-- Require an explicit `--node` and use the configured remote inventory to resolve transport, endpoint, and bearer token.
-- Direct and Tor transports share the same request path as remote status probing.
-- `remote logs` reads takd service logs; task stdout/stderr stays under the task-centered commands.
-
-### `task list` and `task logs`
-
-- `tak run` records locally initiated task metadata and output chunks under `$XDG_STATE_HOME/tak/tasks.sqlite`.
-- Run summary lines include `task_run_id=<id>` so the follow-up `tak task logs <id>` command is copyable.
-- Local task logs work for local and remote placements because they replay output captured by the initiating client.
-
-### `remote scan`
-
-- Linux-first camera onboarding flow with a pick-camera screen, live terminal preview, and confirmation step before config writes.
-- Reuses the same token decode, node probe, and inventory persistence contract as `tak remote add`.
-- Non-interactive terminals are rejected with a clear error.
-
-### `remote add`
-
-- No-argument mode opens a terminal method picker for word entry or secret token/invite paste.
-- `--words` with no following values skips the picker and opens the word-entry screen.
-- The word-entry screen uses numbered cells, validates dictionary words immediately, supports undo, and checks the phrase checksum before probing.
-- Interactive add confirms probed node details before writing client inventory.
-
-## Error and Exit Semantics
-
-All commands fail fast on errors and return non-zero exit status.
-
-Common failure classes:
-
-- Workspace load/parse errors (`TASKS.py`, label resolution).
-- Makefile read/annotation errors (missing file or goal, unsupported annotated declaration).
-- Invalid CLI input (unsupported graph format, missing run labels, bad label syntax).
-- Execution failures (`run` task failure, timeout, retry exhaustion).
-- Remote onboarding/probe failures.
-
-Representative user-facing errors:
-
-- `unsupported format: <format>`
-- `run requires at least one label`
-- `<value>` is not a valid task label
-- `node probe failed with HTTP <code>`
-- `failed to probe remote node <node_id> at <endpoint> via <transport>`
-
-## Environment-Driven Behavior
-
-`run`, `exec`, and `make` use environment overrides:
-
-- `TAKD_SOCKET` optional lease daemon socket path
-- `TAK_LEASE_TTL_MS` for lease TTL
-- `TAK_LEASE_POLL_MS` for pending poll interval
-- `TAK_SESSION_ID` optional session identifier
-- `TAK_USER` optional user override
-
-Remote inventory is loaded from XDG config when present.
-The shared inventory path is `$XDG_CONFIG_HOME/tak/remotes.toml` or `~/.config/tak/remotes.toml`;
-`tak remote add` writes it, while local `takd serve` reloads it for Tor peer management.
-
-## Main Files
-
-- `src/lib.rs`: command parser, dispatcher, and command output contracts.
-- `src/main.rs`: thin binary wrapper that calls `tak::run_cli`.
+- `src/cli/command_model.rs`: public command and flag surface.
+- `src/cli/run_command.rs`: v2 workspace run entrypoint.
+- `src/cli/daemon_run/`: graph resolution, candidate resolution, submission, and initial attach.
+- `src/cli/runs_cli.rs`: durable run recovery commands.
+- `src/cli/output_materialization.rs`: checkout-safe automatic output application.
+- `src/cli/run_checkout_store.rs`: private run-to-checkout association.
+- `src/cli/make_cli.rs`, `exec_cli.rs`, `docker_cli.rs`: synthetic v2 submission adapters.

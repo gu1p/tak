@@ -14,17 +14,19 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
     task(
       "build_remote",
       doc="Build the service remotely and return the declared artifact directory.",
       deps=["//:prepare_context"],
-      outputs=[path("//out")],
+      outputs=[path("//out/remote-build-artifact.txt"), path("//out/remote-build.log")],
       steps=[
         cmd(
           "sh",
           "-c",
           "mkdir -p out && echo artifact-from-remote-build > out/remote-build-artifact.txt && echo remote-build-ok > out/remote-build.log",
+          cwd="//",
         )
       ],
       execution=REMOTE,
@@ -33,11 +35,13 @@ SPEC = module_spec(
       "verify_artifact",
       doc="Verify the remote build artifact locally before promotion.",
       deps=[":build_remote"],
+      outputs=[path("//out/local-verify.log")],
       steps=[
         cmd(
           "sh",
           "-c",
           "grep -q artifact-from-remote-build out/remote-build-artifact.txt && echo verify-local-ok > out/local-verify.log",
+          cwd="//",
         )
       ],
     ),
@@ -45,11 +49,13 @@ SPEC = module_spec(
       "release",
       doc="Join the remote artifact and the local verification log into one release summary.",
       deps=[":verify_artifact"],
+      outputs=[path("//out/release-summary.txt")],
       steps=[
         cmd(
           "sh",
           "-c",
           "cat out/remote-build-artifact.txt out/local-verify.log > out/release-summary.txt",
+          cwd="//",
         )
       ],
     ),

@@ -1,4 +1,5 @@
 use super::*;
+use tak_runner::ProcessSqliteConnection;
 
 impl LeaseManager {
     /// Upserts one active lease row in SQLite storage.
@@ -122,7 +123,7 @@ impl LeaseManager {
     /// #     Ok(())
     /// # }
     /// ```
-    pub(super) fn open_connection(&self) -> Result<Option<Connection>> {
+    pub(super) fn open_connection(&self) -> Result<Option<ProcessSqliteConnection>> {
         let Some(db_path) = &self.db_path else {
             return Ok(None);
         };
@@ -133,7 +134,7 @@ impl LeaseManager {
             })?;
         }
 
-        let conn = Connection::open(db_path)
+        let conn = ProcessSqliteConnection::open(db_path)
             .with_context(|| format!("failed to open sqlite db {}", db_path.display()))?;
         Ok(Some(conn))
     }

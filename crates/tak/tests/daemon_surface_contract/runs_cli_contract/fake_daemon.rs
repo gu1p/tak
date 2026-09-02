@@ -6,8 +6,12 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+#[path = "fake_daemon/drop.rs"]
+mod drop;
 #[path = "fake_daemon/read.rs"]
 mod read;
+#[path = "fake_daemon/reply.rs"]
+mod reply;
 #[path = "fake_daemon/response.rs"]
 mod response;
 #[path = "fake_daemon/server.rs"]
@@ -15,26 +19,7 @@ mod server;
 #[path = "fake_daemon/write.rs"]
 mod write;
 
-pub(crate) enum Reply {
-    Inactive(&'static str),
-    SlowDripInactive(&'static str, Duration, usize),
-    Legacy(&'static str),
-    Raw(Vec<u8>),
-    RawThenStall(Vec<u8>),
-    Retryable(&'static str),
-    SubmissionFlow,
-    DelayedSubmissionFlow(&'static str, Duration),
-    DelayedCancellationFlow(&'static str, Duration, &'static str),
-    FailedSubmissionFlow,
-    RetrySubmissionFlow,
-    ManagementFlow,
-    FailedAttachFlow,
-    UnsafeOutputFlow,
-    SymlinkChainOutputFlow,
-    HugeOutputFlow,
-    Close,
-    Success,
-}
+pub(crate) use reply::Reply;
 
 pub(crate) struct FakeRunDaemon {
     socket_path: PathBuf,
@@ -45,8 +30,14 @@ pub(crate) struct FakeRunDaemon {
 
 impl FakeRunDaemon {
     pub(crate) fn spawn(socket_path: &Path, reply: Reply) -> Self {
-        let listener = std::os::unix::net::UnixListener::bind(socket_path)
-            .expect("bind fake run daemon socket");
+        let bind_path = crate::support::unix_socket_bind_path::short_bind_path(socket_path);
+        let listener = std::os::unix::net::UnixListener::bind(&bind_path).unwrap_or_else(|error| {
+            panic!(
+                "bind fake run daemon socket requested={} bind={}: {error}",
+                socket_path.display(),
+                bind_path.display()
+            )
+        });
         let stop = Arc::new(AtomicBool::new(false));
         let requests = Arc::new(Mutex::new(Vec::new()));
         let thread_stop = Arc::clone(&stop);
@@ -55,7 +46,7 @@ impl FakeRunDaemon {
             server::serve(listener, reply, &thread_stop, &thread_requests);
         });
         Self {
-            socket_path: socket_path.to_path_buf(),
+            socket_path: bind_path,
             stop,
             requests,
             thread: Some(thread),
@@ -89,11 +80,5 @@ impl FakeRunDaemon {
         if let Some(thread) = self.thread.take() {
             thread.join().expect("join fake run daemon");
         }
-    }
-}
-
-impl Drop for FakeRunDaemon {
-    fn drop(&mut self) {
-        self.stop_and_join();
     }
 }

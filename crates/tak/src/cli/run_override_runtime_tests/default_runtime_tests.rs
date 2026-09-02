@@ -8,10 +8,12 @@ fn explicit_cli_container_sources_do_not_add_resource_limits() {
         explicit_container_runtime_override(None, Some("docker/Dockerfile"), Some("docker")),
     ] {
         let runtime = runtime.expect("valid source").expect("container runtime");
-        let RemoteRuntimeSpec::Containerized {
-            resource_limits, ..
-        } = runtime;
-        assert_eq!(resource_limits, None);
+        match runtime {
+            RemoteRuntimeSpec::Containerized {
+                resource_limits, ..
+            } => assert_eq!(resource_limits, None),
+            other => panic!("expected CLI container runtime, got {other:?}"),
+        }
     }
 }
 

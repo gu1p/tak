@@ -1,232 +1,129 @@
 # Tak Architecture
 
-Tak is a project-local task orchestrator. A Tak-authored workspace starts from the current
-directory `TASKS.py`, expands only through explicit `module_spec(includes=[...])` links, and ends
-as one validated dependency graph. A Makefile workspace can instead use `tak make <goal>` to send
-one opaque Make invocation through the same local or remote execution boundary.
+Tak is a project-local task orchestrator with a short-lived authoring client and a durable
+execution daemon. A `TASKS.py` workspace starts in the current directory, expands only through
+explicit `module_spec(includes=[...])` links, and uses authoring schema v2. Makefile mode adapts one
+opaque goal, or an explicitly annotated parallel group, into the same daemon-owned run model.
 
-This document describes the shipped system shape. Crate-level architecture docs carry the lower
-level implementation details.
+## Ownership boundary
 
-## Runtime Boundaries
+The boundary is deliberately asymmetric:
 
-Tak is organized around six runtime boundaries:
+- Tak resolves Python policies, task labels, dependency closure, authored defaults, environment
+  allowlists, and concrete placement candidates.
+- takd owns scheduling, execution, retries, cancellation, artifacts, and events after it accepts a
+  run.
+- takd owns direct and Tor inventory, live capacity checks, final node placement, worker fencing,
+  and durable run state.
 
-1. CLI boundary (`tak`)
-   - parses user intent, renders output, and owns local/remote command contracts
-2. Make adapter boundary (`tak-make`)
-   - reads default Makefiles and resolves literal goal annotations through injected ports
-3. Loader boundary (`tak-loader`)
-   - resolves the current directory workspace and builds one validated `WorkspaceSpec`
-4. Core boundary (`tak-core`)
-   - shared label/model/planner logic plus shared runtime path and remote inventory helpers
-5. Execution boundary (`tak-exec`)
-   - runs local tasks, enforces retries/timeouts, and sends Tor remote execution to the local daemon
-6. Agent/runtime boundary (`takd`)
-   - hosts the unified local daemon, Tor peer manager, broker, and remote execution agent
+`tak run`, `tak make`, `tak exec`, and `tak docker run` never execute work in the client. They
+require the local `takd serve` socket and have no legacy executor or protocol fallback. Read-only
+workspace commands such as `tak list`, `tak explain`, and `tak graph` still run without a daemon.
 
-The `takd` crate contains one service command with related server-side capabilities:
-
-- unified `takd serve` used by `takd init`, `takd status`, `takd peers`, `takd logs`, and
-  `takd token show`
-- reusable local daemon, Tor broker, PeerManager, and remote server internals
-
-`tak` itself does not start or supervise daemon lifecycle. Local-only execution stays daemon
-optional, but Tor remote execution requires a reachable local `takd serve` socket.
-
-For remote onboarding, `tak` accepts either the raw secret `takd` invite/token string or the Tor-v3
-word phrase emitted by `takd token show --words`. The phrase encodes the onion host directly and
-includes a checksum word so typo rejection happens locally before probing the remote node.
-
-The Tor invite/address is a secret, not just a location.
-Anyone with it can submit jobs and read outputs/logs.
-Do not paste it into shared chats, issue trackers, screenshots, or logs.
-Rotate the onion address if exposed.
-Tak remote does not provide multi-user isolation.
-
-## Runtime Topology
+## Runtime topology
 
 ```mermaid
 flowchart LR
-    CLI[tak CLI] --> Loader[tak-loader]
-    CLI --> Make[tak-make]
-    Loader --> Core[tak-core]
-    Make --> Exec[tak-exec]
-    CLI --> Exec[tak-exec]
-    Exec -->|local tasks| Local[local host/container runtime]
-    Exec -->|Tor remote placement request| LocalTakd[local takd serve]
-    CLI -->|tak status / tak remote status / takd peers| LocalTakd
-    LocalTakd -->|warm Tor peer session| RemoteTakd[remote takd serve]
-    RemoteTakd --> AgentDb[(agent.sqlite)]
-    LocalTakd --> LeaseDb[(takd.sqlite)]
-    LocalTakd --> Inventory[`remotes.toml`]
+    User --> Client[tak CLI]
+    Client --> Loader[tak-loader]
+    Client --> Make[tak-make]
+    Loader --> Resolve[v2 run resolver]
+    Make --> Resolve
+    Resolve -->|protocol v2 submission| Daemon[local takd]
+    Daemon --> Store[(run SQLite + blob CAS)]
+    Daemon --> Local[local worker]
+    Daemon -->|direct or Tor| Remote[remote takd worker]
+    Client -->|list/show/attach/cancel/outputs| Daemon
 ```
 
-## Workspace Load and Graph Construction
+The client does not start or supervise daemon lifecycle. A missing socket is an actionable error
+that names the socket and tells the operator to start `takd serve`.
 
-All workspace-aware `tak` commands (`list`, `tree`, `explain`, `graph`, `web`, `run`) follow the
-same front half of the system:
+## Authoring and resolution
 
-1. resolve the current directory
-2. require a local `TASKS.py`
-3. follow only explicit `module_spec(includes=[...])` links
-4. evaluate each module with the DSL prelude
-5. convert runtime values into strict schema-backed structures
-6. merge tasks, queues, limiters, defaults, and scope keys into one `WorkspaceSpec`
-7. validate label references, unknown dependencies, and DAG acyclicity before any execution
+Every root and included `TASKS.py` module declares `module_spec(spec_version=2, ...)`. The loader:
 
-Important loader rules:
+1. fixes the current directory as the workspace root;
+2. evaluates only the root and explicitly included modules with the bounded DSL runtime;
+3. converts values into strict v2 domain objects;
+4. canonicalizes labels and validates dependencies and cycles;
+5. evaluates Python placement policies in the client; and
+6. resolves the selected graph, contexts, sessions, candidates, outputs, and environment names into
+   one immutable submission.
 
-- workspace scope never widens implicitly to parents or child directories
-- includes are explicit and relative to the including module
-- all merged task labels are canonical before execution
-- duplicate definitions fail during merge, not during task execution
+The submitted environment contains only names declared with `pass_env` or `--pass-env`. Secret
+values are carried in the submission envelope, not persisted in the authored graph or rendered in
+debug output.
 
-`tak make <goal>` bypasses this loader pipeline. `tak-make` reads GNU Make's default file-name
-order, accepts literal single-target headers, and passes one `make <goal>` process to `tak-exec`.
-Make remains responsible for its own prerequisite graph. Contiguous `# tak:` comments may select
-local/remote placement and a container image or Dockerfile. File-wide defaults use keys such as
-`# tak: default.execution=remote`; goal annotations override defaults, and CLI execution flags
-override both. With no applicable configuration, the CLI reports its implicit local-host,
-no-container fallback on stderr. The initial adapter declares no output paths, so remote Make
-output streams and status return to the client while files created in the remote execution root do
-not.
+## Daemon run lifecycle
 
-## Execution and Placement Flow
+takd validates and persists a submission before scheduling it. Its scheduler owns limiter and
+queue admission, node capacity, affinity, retry timing, unknown-attempt fencing, cancellation, and
+terminal propagation. Local host, local container, direct remote, and Tor remote attempts all use
+that path.
 
-`tak run` is the main execution path:
+Events and state are durable, so a client disconnect is not a cancellation signal. The initial
+command and `tak runs attach RUN_ID` consume the same ordered event stream. The first Ctrl-C asks
+takd to persist cancellation; a second may detach while cancellation continues. Operators recover
+with `tak runs list`, `show`, `attach`, `cancel`, and `outputs`.
 
-1. parse labels from CLI input
-2. reject path-like inputs such as `.` or `./task`
-3. expand the transitive dependency closure
-4. topologically sort the required graph
-5. execute each task attempt with retry and timeout policy
-6. choose local or remote placement for each task
+## Placement and sessions
 
-Local execution behavior:
+Tak supplies policy and concrete candidates; takd selects from candidates using live state:
 
-- command and script steps run with explicit `cwd` and `env` controls
-- task `stdout` and `stderr` stream directly to the local CLI while the step is running
-- retry policies apply around whole task attempts
-- task timeouts terminate slow work
-- `needs` coordination is optional and only activates when `TAKD_SOCKET` points at a unix socket
+- `Balanced` is the default and scores projected resource/queue pressure with bounded locality
+  credit.
+- `RoundRobin` advances a cursor stored by the daemon.
+- `Sequential` preserves candidate order.
 
-When `needs` coordination is active, `tak-exec` talks to the `takd` lease runtime over a unix
-socket using request/response messages such as `AcquireLease`, `RenewLease`, `ReleaseLease`, and
-`Status`.
+Session semantics are part of the submitted scheduling contract:
 
-Remote execution behavior:
+- `Workspace` is an isolated snapshot per job.
+- `Paths` is a private selected-path CAS cache.
+- `SharedWorkspace(max_parallel_tasks=N)` shares mutable state on a hard-affinity node.
+- `Container` fuses a cascaded task group into one job/container.
 
-1. for Tor remotes, connect to the local `takd serve` socket instead of opening client-side Tor
-2. send placement requirements and the task payload to daemon-owned placement APIs
-3. let the local daemon resolve node id, endpoint, transport, and auth from `remotes.toml`
-4. submit over a warm Tor peer session to the remote `takd serve` agent
-5. stream stdout/stderr events, fetch terminal result payloads, and materialize returned outputs/artifacts through the daemon
-6. print run summary metadata such as `placement`, `remote_node`, `transport`, `reason`,
-   `context_hash`, `runtime`, and `runtime_engine`
+Soft affinity is a preference; hard affinity restricts eligible nodes. Shared workspace reuse
+requires `RequireSameNode` and cannot be weakened by a task override.
 
-Direct daemon-owned remote execution is future work. Direct remotes continue to use the legacy
-direct HTTP path while Tor remote execution is daemon-owned.
+## Outputs and persistence
 
-## Agent and Remote Model
+Workers publish only declared outputs. takd validates producer identity and canonical paths before
+committing artifacts. A successful attachment may materialize them into the original checkout only
+after a snapshot conflict check; any conflict copies nothing. `tak runs outputs RUN_ID --to DIR`
+instead creates a fresh explicit destination and does not use the checkout association.
 
-The standalone remote worker flow is centered on the `takd` binary:
+The run store persists submissions, jobs, attempts, scheduling transitions, output events,
+cancellation, artifact manifests, and content-addressed blobs. Default maintenance expires terminal
+payloads after 7 days, retains terminal metadata for 30 days, and bounds workspace/path blobs to a
+20 GiB cache budget.
 
-1. `takd init`
-   - writes agent config/state roots and initial transport settings
-2. `takd serve`
-   - starts the local daemon socket, PeerManager, Tor broker, and standalone agent service
-   - serves remote v1 HTTP endpoints
-   - advertises a direct base URL or Tor onion endpoint when ready
-   - loads enabled Tor peers from `remotes.toml` and reloads the file with last-good semantics
-3. `tak remote add <token>`
-   - imports a secret onboarding invite/token into `remotes.toml` after probing the node
-4. `tak remote status`
-   - uses daemon peer snapshots when local `takd serve` is reachable
+## Protocols and upgrades
 
-The current user-facing remote agent commands are:
+The local unix-socket protocol v2 covers submit, attach, get, list, cancel, output manifest, and
+output chunk operations. Remote worker protocol v2 covers probe, dispatch, observe, acknowledge,
+cancel, and artifact retrieval over direct or Tor transport. Request identity, attempt generation,
+and fencing tokens prevent stale workers from committing late state.
 
-- `tak remote add <token>`
-- `tak remote list`
-- `tak remote remove`
-- `tak remote status`
-- `takd init`
-- `takd serve`
-- `takd peers`
-- `takd status`
-- `takd logs`
-- `takd token show`
+The v2 authoring schema and both protocol surfaces ship as a coordinated release. Version mismatch
+diagnostics require upgrading `tak`, `takd`, and workers together; no v1 fallback is attempted.
 
-## Protocol Surfaces
+## Security model
 
-Tak uses two distinct protocol families.
+- The Tor invite/address is a secret, not just a location.
+- Anyone with it can submit jobs and read outputs/logs.
+- Do not paste it into shared chats, issue trackers, screenshots, or logs.
+- Rotate the onion address if exposed.
+- Tak remote does not provide multi-user isolation.
 
-| Surface | Transport | Used By | Primary Shape |
-|---|---|---|---|
-| Lease coordination | unix socket | `tak-exec` when `TAKD_SOCKET` is set | line-delimited request/response messages for lease acquire, renew, release, and status |
-| Local daemon peer/task control | unix socket | `tak`, `tak-exec`, `takd peers` | `PeersList`, `PeersEligible`, `PlaceRemote`, `StreamTaskEvents`, `CancelTask`, `GetTaskResult`, `GetOutputRange` |
-| Remote agent control/status | remote v1 HTTP | `tak remote add <token>`, `tak remote status`, `takd serve` | authenticated `/v1/node/info` and `/v1/node/status` requests |
-| Remote task execution | remote v1 HTTP | `tak-exec` remote placement path | submit, events, result, and cancel flows for task runs and artifact roundtrip |
+## Crate map
 
-The remote agent surface is transport-agnostic at the CLI level:
+- `tak-core`: v2 authored/resolved domain types, labels, validation, and deterministic algorithms.
+- `tak-loader`: bounded `TASKS.py` evaluation and explicit include resolution.
+- `tak-make`: Makefile annotation and goal adapter.
+- `tak`: CLI resolution, submission, persisted-event UI, and safe output materialization.
+- `takd`: durable scheduler, local/remote attempt coordination, inventory, run store, and artifacts.
+- `tak-runner` / `tak-exec`: execution primitives used behind daemon worker boundaries.
 
-- direct transport uses ordinary HTTP listeners
-- Tor transport uses a daemon-owned onion endpoint session but keeps the same remote v1 HTTP contract
-- `/v1/node/ping` returns `NodePingResponse` for app-level PeerManager heartbeats
-
-## Persistence and Runtime State
-
-Tak keeps the loaded workspace graph in memory. Persistent runtime state lives in `takd`.
-
-Lease runtime persistence:
-
-- SQLite tables such as `active_leases` and `lease_history`
-- restart recovery rebuilds live limiter usage from non-expired rows
-
-Remote agent persistence:
-
-- `agent.sqlite` for remote submit attempts, streamed events, and terminal results
-- `<state_root>/agent-control.sock` for local live `takd tasks` inspection
-- config/state roots created by `takd init`
-- ready base URL or onion advertisement persisted for later `takd status` and token reads
-
-Tor peer state is in-memory for v1 and is never written back to `remotes.toml`. The local daemon
-polls that inventory file, preserves the last-good peer set on malformed reloads, and clears sticky
-`auth_failed` state only when the bearer token changes.
-
-## Invariants and Failure Surfaces
-
-System invariants:
-
-- the current directory is the only implicit workspace root
-- `TASKS.py` loading is explicit and bounded by includes
-- `tak make <goal>` never decomposes or reschedules Make's dependency graph
-- dependency graphs must validate before execution begins
-- labels are normalized before lookup and scheduling
-- lease coordination is optional, but when enabled it is all-or-none per request
-- remote execution requires a reachable, authenticated remote node
-
-Common failure classes:
-
-- missing or invalid `TASKS.py`
-- missing Makefiles, unknown literal Make goals, or unsupported annotated Make rule syntax
-- include-cycle or duplicate-definition errors
-- unknown dependency labels or DAG cycles
-- step launch failures, non-zero exits, retry exhaustion, or timeouts
-- lease transport/protocol failures on the unix socket path
-- remote probe/auth/connectivity failures on the remote v1 HTTP path
-- remote result or artifact materialization failures
-- remote infrastructure failures are classified separately from task failure and cancellation;
-  the executor excludes each failed physical node and tries every distinct eligible worker once
-  without consuming authored retry attempts
-- missing local `takd serve` when Tor remote execution is requested
-- no configured Tor peers, no eligible peer match, unreachable peers, or `auth_failed` peers
-
-## Navigation
-
-- CLI contract details: [`crates/tak/ARCHITECTURE.md`](crates/tak/ARCHITECTURE.md)
-- Makefile adapter: [`crates/tak-make/ARCHITECTURE.md`](crates/tak-make/ARCHITECTURE.md)
-- Core model + algorithms: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)
-- Loader pipeline: [`crates/tak-loader/ARCHITECTURE.md`](crates/tak-loader/ARCHITECTURE.md)
-- Execution semantics: [`crates/tak-exec/ARCHITECTURE.md`](crates/tak-exec/ARCHITECTURE.md)
-- Agent and daemon internals: [`crates/takd/ARCHITECTURE.md`](crates/takd/ARCHITECTURE.md)
+See [Daemon-Owned Runs and TASKS.py v2](docs/daemon-runs-v2.md) for the user-facing lifecycle and
+migration guide.

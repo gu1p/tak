@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::process::ExitCode;
 use std::time::Duration;
 
 use anyhow::{Result, bail};
@@ -9,8 +10,10 @@ pub(super) async fn run_with_interrupts(
     run_id: &str,
     mut interrupts: crate::cli::attachment_interrupt::State,
     checkout: &crate::cli::run_checkout_store::CheckoutContext,
-) -> Result<()> {
+    renderer: Option<&dyn super::super::PersistedEventRenderer>,
+) -> Result<ExitCode> {
     let mut after_event = 0;
+    let mut reported_expired_logs = false;
     loop {
         let request_frame = Request {
             request_id: super::exchange::request_id("attach"),
@@ -35,34 +38,63 @@ pub(super) async fn run_with_interrupts(
             next_event,
             state,
             terminal,
+            logs_expired,
+            exit_code,
             ..
         } = response
         else {
             bail!("local takd returned an unexpected AttachRun response")
         };
         crate::cli::runs_cli::attach::validate_event_page(
-            run_id,
-            &response_run,
-            after_event,
-            &events,
-            next_event,
-            state,
-            terminal,
+            crate::cli::runs_cli::attach::EventPage {
+                expected_run: run_id,
+                response_run: &response_run,
+                after_event,
+                events: &events,
+                next_event,
+                state,
+                terminal,
+                logs_expired,
+            },
         )?;
+        if logs_expired && !reported_expired_logs {
+            eprintln!("Run logs have expired.");
+            reported_expired_logs = true;
+        }
         for event in &events {
-            super::render::event(event)?;
+            if !renderer.map_or(Ok(false), |renderer| renderer.render(event))? {
+                super::render::event(event)?;
+            }
         }
         after_event = next_event;
         if terminal {
+            if !matches!(
+                state,
+                RunLifecycleState::Succeeded
+                    | RunLifecycleState::Failed
+                    | RunLifecycleState::Cancelled
+            ) {
+                bail!("local takd returned an invalid terminal run state")
+            }
+            if let Err(error) =
+                crate::cli::output_materialization::materialize(socket_path, run_id, checkout).await
+            {
+                if state == RunLifecycleState::Succeeded {
+                    return Err(error);
+                }
+                eprintln!("run {run_id} output materialization failed: {error:#}");
+            }
             return match state {
-                RunLifecycleState::Succeeded => {
-                    crate::cli::output_materialization::materialize(socket_path, run_id, checkout)
-                        .await
-                }
-                RunLifecycleState::Failed | RunLifecycleState::Cancelled => {
-                    bail!("run {run_id} did not succeed")
-                }
-                _ => bail!("local takd returned an invalid terminal run state"),
+                RunLifecycleState::Succeeded => Ok(ExitCode::SUCCESS),
+                RunLifecycleState::Failed => match exit_code {
+                    Some(code) => {
+                        eprintln!("run {run_id} failed with exit code {code}");
+                        Ok(ExitCode::from(code as u8))
+                    }
+                    None => bail!("run {run_id} did not succeed"),
+                },
+                RunLifecycleState::Cancelled => bail!("run {run_id} was cancelled"),
+                _ => unreachable!("terminal state was validated"),
             };
         }
         tokio::select! {

@@ -4,6 +4,8 @@ use tak_proto::local_daemon::v2::{RunEventKind, RunLifecycleState};
 
 use super::RunStore;
 use super::events::{append_event, now_ms, sqlite_i64};
+use super::output_artifacts::{self, FinalPublication};
+use super::workspace_uploads;
 
 mod attempts;
 
@@ -36,9 +38,14 @@ impl RunStore {
             "cancelling" => (RunLifecycleState::Cancelling, false),
             other => bail!("stored run has unknown state `{other}`"),
         };
+        let unused_owner = if remove_partial {
+            workspace_uploads::release_if_unused(&transaction, run_id)?
+        } else {
+            None
+        };
         transaction.commit()?;
-        if remove_partial {
-            remove_upload(&self.upload_path(run_id));
+        if let Some(owner) = unused_owner {
+            workspace_uploads::remove(&self.upload_path(&owner));
         }
         Ok(result)
     }
@@ -58,6 +65,7 @@ fn cancel_before_dispatch(transaction: &rusqlite::Transaction<'_>, run_id: &str)
         "DELETE FROM run_outbox WHERE run_id = ?1 AND kind = 'scheduler_wakeup'",
         [run_id],
     )?;
+    publish_cancelled_outputs(transaction, run_id)?;
     append_event(
         transaction,
         run_id,
@@ -65,6 +73,12 @@ fn cancel_before_dispatch(transaction: &rusqlite::Transaction<'_>, run_id: &str)
         "run cancelled before dispatch",
     )?;
     Ok(())
+}
+
+fn publish_cancelled_outputs(transaction: &rusqlite::Transaction<'_>, run_id: &str) -> Result<()> {
+    match output_artifacts::publish_final(transaction, run_id, None)? {
+        FinalPublication::Published | FinalPublication::Conflict(_) => Ok(()),
+    }
 }
 
 fn request_active_cancellation(
@@ -105,12 +119,4 @@ fn request_active_cancellation(
         "cancellation requested",
     )?;
     Ok(())
-}
-
-fn remove_upload(path: &std::path::Path) {
-    if let Err(error) = std::fs::remove_file(path)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!("could not remove cancelled v2 workspace upload: {error}");
-    }
 }

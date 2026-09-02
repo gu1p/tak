@@ -1,5 +1,9 @@
 # Remote Execution Diagnostics
 
+These placement messages are persisted daemon events in v2. Reconnect with
+`tak runs attach RUN_ID`; a client disconnect does not cancel the run. See
+[Daemon-Owned Runs and TASKS.py v2](daemon-runs-v2.md) for lifecycle and upgrade diagnostics.
+
 ## Before
 
 Tak used to expose the local daemon placement placeholder as if it were a

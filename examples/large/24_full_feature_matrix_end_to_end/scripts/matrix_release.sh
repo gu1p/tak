@@ -3,4 +3,10 @@
 # Scenario: full feature matrix end to end
 
 mkdir -p out
-echo matrix-release > out/full_matrix_release.txt
+cat \
+  out/full-bootstrap.txt \
+  out/full-seed.txt \
+  out/full-common-lint.txt \
+  out/full-qa-validate.txt \
+  > out/full_matrix_release.txt
+echo matrix-release >> out/full_matrix_release.txt

@@ -14,21 +14,24 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
     task(
       "unit_local",
       deps=["//:bootstrap_local"],
-      steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log")],
+      outputs=[path("//out/local-unit.log")],
+      steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log", cwd="//")],
     ),
     task(
       "remote_suite",
       deps=[":unit_local"],
-      outputs=[path("//out")],
+      outputs=[path("//out/remote-test-output.log"), path("//out/remote-failure-reason.txt")],
       steps=[
         cmd(
           "sh",
           "-c",
           "mkdir -p out && echo test_auth_pass > out/remote-test-output.log && echo test_payments_fail_expected_200_got_500 >> out/remote-test-output.log && echo failure_reason_assertion_mismatch_in_payments_handler > out/remote-failure-reason.txt && exit 3",
+          cwd="//",
         )
       ],
       execution=REMOTE,

@@ -34,8 +34,15 @@ impl RunStore {
             return Ok(ResultAcceptance::Stale);
         }
         let job = load_job(&transaction, command)?;
-        finish_attempt(&transaction, command, "failed", terminal_digest, false)?;
-        transitions::fail_job(&transaction, command, &job, message)?;
+        finish_attempt(
+            &transaction,
+            command,
+            "failed",
+            terminal_digest,
+            None,
+            false,
+        )?;
+        transitions::fail_job(&transaction, command, &job, message, None)?;
         transaction.commit()?;
         Ok(ResultAcceptance::Applied)
     }

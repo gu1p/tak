@@ -1,4 +1,4 @@
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 
 use super::super::heartbeat::{ping_peer, should_ping, unix_epoch_ms};
@@ -7,12 +7,15 @@ use super::support::{
     encoded_ping_body, inventory, read_http_request, record, request_contains_bearer_secret,
 };
 
+#[path = "heartbeat_io/probe.rs"]
+mod probe;
+
 #[tokio::test(flavor = "multi_thread")]
 async fn heartbeat_uses_inventory_bearer_token_for_ping() {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind ping");
     let addr = listener.local_addr().expect("listener addr");
     let server = tokio::spawn(async move {
-        accept_and_close_http2_probes(&listener).await;
+        probe::accept_and_close_http2_probe(&listener).await;
         let (mut stream, _) = listener.accept().await.expect("accept ping");
         let request = read_http_request(&mut stream).await;
         let authorized = request_contains_bearer_secret(&request);
@@ -54,6 +57,15 @@ async fn heartbeat_uses_inventory_bearer_token_for_ping() {
 
     let request = server.await.expect("ping server exits");
     assert!(request_contains_bearer_secret(&request));
+    assert!(
+        request.starts_with("GET /v2/worker/ping HTTP/"),
+        "{request}"
+    );
+    assert!(
+        request
+            .to_ascii_lowercase()
+            .contains("x-tak-protocol-version: v2")
+    );
     assert_eq!(manager.snapshots()[0].state, PeerState::Connected);
 }
 
@@ -62,7 +74,7 @@ async fn heartbeat_marks_protocol_mismatch_for_unsupported_ping() {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind ping");
     let addr = listener.local_addr().expect("listener addr");
     let server = tokio::spawn(async move {
-        accept_and_close_http2_probes(&listener).await;
+        probe::accept_and_close_http2_probe(&listener).await;
         let (mut stream, _) = listener.accept().await.expect("accept ping");
         let _request = read_http_request(&mut stream).await;
         stream
@@ -85,12 +97,4 @@ async fn heartbeat_marks_protocol_mismatch_for_unsupported_ping() {
     assert_eq!(snapshot.state, PeerState::ProtocolMismatch);
     assert!(should_ping(snapshot.state));
     assert!(manager.eligible(&PeerEligibility::default()).is_empty());
-}
-
-async fn accept_and_close_http2_probes(listener: &TcpListener) {
-    // The broker now makes a single HTTP/2 attempt against a cold peer and, on
-    // failure, falls straight through to HTTP/1.1 (no second doomed dial).
-    let (mut stream, _) = listener.accept().await.expect("accept h2 probe");
-    let mut buffer = [0_u8; 64];
-    let _ = stream.read(&mut buffer).await;
 }

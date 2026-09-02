@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroU64};
 use anyhow::{Result, bail};
 use tak_core::v2::{
     AuthoredLimiterClaim, AuthoredLimiterDefinition, AuthoredQueueDefinition, AuthoredQueueUse,
-    DefinitionScope, HoldMode, QueueDiscipline, RetryPolicy,
+    DefinitionScope, HoldMode, QueueDiscipline, RetryJitter, RetryPolicy,
 };
 
 use super::super::v2_wire as wire;
@@ -41,16 +41,12 @@ pub(super) fn limiter(value: wire::Limiter) -> Result<AuthoredLimiterDefinition>
             scope: raw,
             capacity,
             unit,
-        } => {
-            if unit.is_some() {
-                bail!("v2 resource units are not active; use numeric slots")
-            }
-            AuthoredLimiterDefinition::Resource {
-                name,
-                scope: scope(&raw)?,
-                capacity_millis: scaled_positive_millis(capacity, "resource capacity")?,
-            }
-        }
+        } => AuthoredLimiterDefinition::Resource {
+            name,
+            scope: scope(&raw)?,
+            capacity_millis: scaled_positive_millis(capacity, "resource capacity")?,
+            unit: nonempty_optional(unit, "resource unit")?,
+        },
         wire::Limiter::RateLimit {
             name,
             scope: raw,
@@ -70,22 +66,18 @@ pub(super) fn limiter(value: wire::Limiter) -> Result<AuthoredLimiterDefinition>
             scope: raw,
             max_running,
             match_pattern,
-        } => {
-            if match_pattern.is_some() {
-                bail!("v2 process-cap matching is not active in this build")
-            }
-            AuthoredLimiterDefinition::ProcessCap {
-                name,
-                scope: scope(&raw)?,
-                max_processes: positive_u32(max_running, "process cap")?,
-            }
-        }
+        } => AuthoredLimiterDefinition::ProcessCap {
+            name,
+            scope: scope(&raw)?,
+            max_processes: positive_u32(max_running, "process cap")?,
+            match_pattern: nonempty_optional(match_pattern, "process-cap match")?,
+        },
     })
 }
 
 pub(super) fn queue(value: wire::QueueDefinition) -> Result<AuthoredQueueDefinition> {
     if value.max_pending.is_some() {
-        bail!("v2 queue max_pending is not active in this build")
+        bail!("queue_def `max_pending` was removed in spec_version=2; use `slots`")
     }
     let discipline = match value.discipline.as_str() {
         "fifo" => QueueDiscipline::Fifo,
@@ -101,31 +93,42 @@ pub(super) fn queue(value: wire::QueueDefinition) -> Result<AuthoredQueueDefinit
 }
 
 pub(super) fn retry(value: wire::Retry) -> Result<RetryPolicy> {
-    if !value.on_exit.is_empty() {
-        bail!("v2 retry on_exit filtering is not active in this build")
-    }
     let max_attempts = positive_u32(value.attempts, "retry attempts")?;
-    let (backoff_millis, max_backoff_millis) = match value.backoff {
+    let (backoff_millis, max_backoff_millis, jitter) = match value.backoff {
         wire::Backoff::Fixed { seconds } => {
             let delay = duration_millis(seconds, "fixed retry backoff")?;
-            (delay, delay)
+            (delay, delay, RetryJitter::None)
         }
         wire::Backoff::ExpJitter {
             min_s,
             max_s,
             jitter,
         } => {
-            bail!(
-                "v2 exponential jitter retry is not active in this build \
-                 (min_s={min_s}, max_s={max_s}, jitter={jitter})"
-            )
+            let minimum = duration_millis(min_s, "minimum retry backoff")?;
+            let maximum = duration_millis(max_s, "maximum retry backoff")?;
+            if maximum < minimum {
+                bail!("maximum retry backoff must be at least the minimum")
+            }
+            if jitter != "full" {
+                bail!("unknown retry jitter mode `{jitter}`; use `full`")
+            }
+            (minimum, maximum, RetryJitter::Full)
         }
     };
     Ok(RetryPolicy {
         max_attempts,
+        on_exit: value.on_exit,
         backoff_millis,
         max_backoff_millis,
+        jitter,
     })
+}
+
+fn nonempty_optional(value: Option<String>, name: &str) -> Result<Option<String>> {
+    if value.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        bail!("{name} must not be empty")
+    }
+    Ok(value)
 }
 
 pub(super) fn scope(value: &str) -> Result<DefinitionScope> {

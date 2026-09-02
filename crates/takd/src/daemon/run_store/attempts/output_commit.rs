@@ -38,7 +38,7 @@ impl RunStore {
             )?;
         }
         transaction.execute(
-            "UPDATE run_attempts SET state='output_committing', accepted_at_ms=COALESCE(accepted_at_ms,?4) WHERE run_id=?1 AND fencing_token=?2 AND released_at_ms IS NULL AND state IN ('transferring','running') AND job_id=?3",
+            "UPDATE run_attempts SET state='output_committing', dispatch_started_at_ms=COALESCE(dispatch_started_at_ms,?4), accepted_at_ms=COALESCE(accepted_at_ms,?4) WHERE run_id=?1 AND fencing_token=?2 AND released_at_ms IS NULL AND state IN ('transferring','running') AND job_id=?3",
             params![command.run_id, command.fencing_token, command.job_id, now],
         )?;
         transaction.execute(

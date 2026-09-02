@@ -21,12 +21,4 @@ impl RemoteNodeContext {
             RemoteRuntimeConfig::isolated_for_test(),
         )
     }
-
-    pub(in crate::daemon::remote) fn active_execution_registry_is_unlocked_for_test(&self) -> bool {
-        self.active_executions.is_unlocked_for_test()
-    }
-
-    pub(crate) fn poison_resource_admission_for_tests(&self) {
-        self.resource_admission.poison_for_tests();
-    }
 }

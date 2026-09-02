@@ -1,6 +1,7 @@
 #![allow(clippy::await_holding_lock)]
 
-use takd::{Request, Response, StatusRequest, serve_agent};
+use tak_proto::local_daemon::v2::{Operation, Request, Response};
+use takd::serve_agent;
 
 use crate::support;
 use support::env::{EnvGuard, env_lock};
@@ -10,13 +11,19 @@ use support::protocol::send_request;
 async fn serve_agent_without_agent_config_starts_local_daemon_socket() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
-    let temp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir_all(".tmp").expect("create test temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
+    let root = super::super::relative_temp_root(&temp);
     env.set(
         "XDG_RUNTIME_DIR",
-        temp.path().join("runtime").display().to_string(),
+        root.join("runtime").display().to_string(),
     );
-    let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
+    env.set(
+        "TAKD_REMOTE_EXEC_ROOT",
+        root.join("remote-exec").display().to_string(),
+    );
+    let config_root = root.join("config");
+    let state_root = root.join("state");
     let socket_path = takd::default_socket_path();
 
     let config_for_task = config_root.clone();
@@ -25,7 +32,7 @@ async fn serve_agent_without_agent_config_starts_local_daemon_socket() {
 
     let status = wait_for_status(&socket_path).await;
     assert!(
-        matches!(status, Response::StatusSnapshot { .. }),
+        matches!(status, Response::DaemonStatus { .. }),
         "expected local daemon status without agent config, got {status:?}"
     );
 
@@ -37,9 +44,10 @@ async fn wait_for_status(socket_path: &std::path::Path) -> Response {
         if socket_path.exists() {
             return send_request(
                 socket_path,
-                &Request::Status(StatusRequest {
+                &Request {
                     request_id: "daemon-status".into(),
-                }),
+                    operation: Operation::GetDaemonStatus {},
+                },
             )
             .await;
         }

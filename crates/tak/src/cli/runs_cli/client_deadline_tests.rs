@@ -11,8 +11,9 @@ use super::client::send_response;
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_fragmented_response_can_complete_after_a_short_daemon_delay() {
-    let root = tempfile::tempdir().expect("temp root");
-    let socket = root.path().join("takd.sock");
+    let root = tempfile::tempdir_in(".").expect("temp root");
+    let socket = std::path::PathBuf::from(root.path().file_name().expect("temp root name"))
+        .join("takd.sock");
     let listener = UnixListener::bind(&socket).expect("bind fake daemon");
     let request_id = "delayed-list";
     let response = serde_json::to_vec(&ErrorResponse::v2_not_active(request_id.into()))

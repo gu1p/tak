@@ -1,27 +1,13 @@
 #![allow(dead_code)]
 use super::container_runtime::simulated_container_runtime_env;
+use super::short_daemon_paths::DaemonCommandPaths;
 use super::tor_smoke::{ChildGuard, assert_success_with_log};
-use std::path::{Path, PathBuf};
-use std::process::{Command as StdCommand, Stdio};
-pub struct LiveDirectRoots {
-    pub server_config_root: PathBuf,
-    pub server_state_root: PathBuf,
-    pub client_config_root: PathBuf,
-}
+use std::path::Path;
+use std::process::Stdio;
 
-impl LiveDirectRoots {
-    pub fn new(base: &Path) -> Self {
-        Self {
-            server_config_root: base.join("server-config"),
-            server_state_root: base.join("server-state"),
-            client_config_root: base.join("client-config"),
-        }
-    }
+mod roots;
 
-    pub fn service_log_path(&self) -> PathBuf {
-        self.server_state_root.join("service.log")
-    }
-}
+pub use roots::LiveDirectRoots;
 pub fn init_direct_agent(takd: &Path, roots: &LiveDirectRoots, node_id: &str) {
     init_direct_agent_with_base_url(takd, roots, node_id, "http://127.0.0.1:0");
 }
@@ -32,13 +18,10 @@ pub fn init_direct_agent_with_base_url(
     node_id: &str,
     base_url: &str,
 ) {
-    let output = StdCommand::new(takd)
+    let paths = DaemonCommandPaths::new(&roots.server_config_root, &roots.server_state_root);
+    let output = paths
+        .rooted_command(takd, "init")
         .args([
-            "init",
-            "--config-root",
-            &roots.server_config_root.display().to_string(),
-            "--state-root",
-            &roots.server_state_root.display().to_string(),
             "--node-id",
             node_id,
             "--transport",
@@ -71,23 +54,13 @@ pub fn spawn_direct_agent_with_env(
     roots: &LiveDirectRoots,
     extra_env: &[(String, String)],
 ) -> ChildGuard {
-    let mut command = StdCommand::new(takd);
-    command
-        .args([
-            "serve",
-            "--config-root",
-            &roots.server_config_root.display().to_string(),
-            "--state-root",
-            &roots.server_state_root.display().to_string(),
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    let temp_root = roots
-        .server_state_root
-        .parent()
-        .expect("live direct roots should share one temp root");
-    command.env("TAKD_REMOTE_EXEC_ROOT", temp_root.join("remote-exec"));
-    for (key, value) in simulated_container_runtime_env(temp_root) {
+    let paths = DaemonCommandPaths::new(&roots.server_config_root, &roots.server_state_root);
+    let mut command = paths.rooted_command(takd, "serve");
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command.env("XDG_CONFIG_HOME", paths.config_root());
+    command.env("XDG_RUNTIME_DIR", paths.runtime_root());
+    command.env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root());
+    for (key, value) in simulated_container_runtime_env(paths.command_root()) {
         command.env(key, value);
     }
     for (key, value) in extra_env {

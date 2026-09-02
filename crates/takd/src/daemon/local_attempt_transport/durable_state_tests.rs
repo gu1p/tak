@@ -4,6 +4,7 @@ use super::durable_state::{AttemptOwner, observe};
 use super::workspace::{mark_started, write_completion};
 use crate::daemon::attempt_coordinator::AttemptObservation;
 use crate::daemon::scheduler::AttemptCompletion;
+use crate::daemon::scheduler::AttemptRuntimeMetadata;
 
 #[test]
 fn live_owner_lock_fences_duplicate_wrappers() {
@@ -44,9 +45,32 @@ fn terminal_record_wins_over_the_owner_lock() {
     assert_private(&root.join("terminal.json"));
 }
 
+#[test]
+fn terminal_record_preserves_container_runtime_metadata() {
+    let (_temp, root) = attempt_root();
+    let _owner = AttemptOwner::try_acquire(&root).unwrap().unwrap();
+    let completion = AttemptCompletion::SucceededWithRuntime {
+        terminal_digest: "digest".into(),
+        runtime: AttemptRuntimeMetadata {
+            kind: "containerized".into(),
+            engine: "podman".into(),
+        },
+    };
+    write_completion(&root, &completion).unwrap();
+
+    assert_eq!(
+        observe(&root).unwrap(),
+        AttemptObservation::Completed(completion)
+    );
+}
+
 fn attempt_root() -> (tempfile::TempDir, PathBuf) {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let base = std::env::var_os("TAK_TEST_TMPDIR")
+        .or_else(|| std::env::var_os("TMPDIR"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(".tmp"));
+    std::fs::create_dir_all(&base).unwrap();
+    let temp = tempfile::tempdir_in(base).unwrap();
     let root = temp.path().join("attempt");
     (temp, root)
 }

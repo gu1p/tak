@@ -1,10 +1,8 @@
-use tak_core::v2::{EnvironmentValue, ResolvedRun};
+use tak_core::v2::{EnvironmentValue, RemoteRequirements, ResolvedRun};
 
 /// The safe result of classifying one local-daemon frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodeOutcome {
-    /// No top-level v2 marker was observed; the staged legacy decoder may try it.
-    LegacyCandidate,
     /// A complete, strict protocol v2 request.
     V2(Request),
 }
@@ -19,6 +17,27 @@ pub struct Request {
 /// A daemon-owned run operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
+    GetDaemonStatus {},
+    PreviewRemote {
+        invite: String,
+    },
+    AddRemote {
+        invite: String,
+    },
+    ListRemotes {},
+    RemoveRemote {
+        node_id: String,
+    },
+    GetRemoteStatus {
+        node_ids: Vec<String>,
+    },
+    ReadRemote {
+        node_id: String,
+        path: String,
+    },
+    ResolveRemoteCandidates {
+        requirements: RemoteRequirements,
+    },
     SubmitRun {
         idempotency_key: String,
         run: Box<ResolvedRun>,

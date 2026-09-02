@@ -1,15 +1,10 @@
-use std::collections::BTreeSet;
 use std::io::{Write, stdout};
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use tokio::time::sleep;
 
-use super::remote_inventory::{RemoteRecord, list_remotes};
-use super::remote_status::{
-    DaemonPeerStatusOutcome, RemoteStatusResult, fetch_daemon_peer_status_snapshot,
-    fetch_mixed_remote_status_snapshot, fetch_remote_status_snapshot,
-};
+use super::remote_status::{fail_on_remote_errors, fetch_remote_status_snapshot};
 
 mod daemon;
 mod local;
@@ -47,17 +42,7 @@ pub(super) async fn run_status(
 
     loop {
         let local = local_status_snapshot().await?;
-        let daemon_outcome = fetch_daemon_peer_status_snapshot(node_filters).await?;
-        let remotes = selected_status_remotes_or_empty_when_daemon_available(
-            node_filters,
-            daemon_outcome.daemon_reachable(),
-        )?;
-        let remote = match daemon_outcome {
-            DaemonPeerStatusOutcome::Snapshot(snapshot) => {
-                fetch_mixed_remote_status_snapshot(&remotes, snapshot).await
-            }
-            DaemonPeerStatusOutcome::Unavailable => fetch_remote_status_snapshot(&remotes).await,
-        };
+        let remote = fetch_remote_status_snapshot(node_filters).await?;
         print!("{}", render_status_snapshot(&local, &remote));
         stdout().flush().context("flush status output")?;
 
@@ -71,48 +56,6 @@ pub(super) async fn run_status(
         }
         sleep(poll_interval).await;
     }
-}
-
-fn fail_on_remote_errors(remote: &[RemoteStatusResult]) -> Result<()> {
-    if remote.iter().any(|result| result.error.is_some()) {
-        bail!("failed to query one or more remote nodes");
-    }
-    Ok(())
-}
-
-fn selected_status_remotes_or_empty_when_daemon_available(
-    node_filters: &[String],
-    daemon_available: bool,
-) -> Result<Vec<RemoteRecord>> {
-    match selected_status_remotes(node_filters) {
-        Ok(remotes) => Ok(remotes),
-        Err(_) if daemon_available => Ok(Vec::new()),
-        Err(err) => Err(err),
-    }
-}
-
-fn selected_status_remotes(node_filters: &[String]) -> Result<Vec<RemoteRecord>> {
-    let enabled = list_remotes()?
-        .into_iter()
-        .filter(|remote| remote.enabled)
-        .collect::<Vec<_>>();
-    if node_filters.is_empty() {
-        return Ok(enabled);
-    }
-
-    let wanted = node_filters
-        .iter()
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .collect::<BTreeSet<_>>();
-    let selected = enabled
-        .into_iter()
-        .filter(|remote| wanted.contains(remote.node_id.as_str()))
-        .collect::<Vec<_>>();
-    if selected.is_empty() {
-        bail!("no enabled remotes matched the requested node filters");
-    }
-    Ok(selected)
 }
 
 fn test_max_polls() -> Option<usize> {

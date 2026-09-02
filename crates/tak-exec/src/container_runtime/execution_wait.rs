@@ -1,4 +1,5 @@
 use super::*;
+use crate::deadline::{DeadlineOutcome, select_deadline_outcome};
 
 pub(super) async fn wait_for_container_step(
     docker: &Docker,
@@ -9,31 +10,46 @@ pub(super) async fn wait_for_container_step(
     cancellation: &RunCancellation,
 ) -> Result<Option<i32>> {
     let wait = wait_for_container_exit_code(docker, engine, podman_wait_socket, container_id);
-    tokio::pin!(wait);
     // Cancellation is authoritative: poll it first (`biased`) and, even if the
     // wait future also became ready in the same tick (e.g. the container's wait
     // stream resolved because cancellation tore the container down), still report
     // the run as cancelled rather than as a spurious exit/failure.
     if let Some(seconds) = timeout_s {
-        let timeout = tokio::time::sleep(Duration::from_secs(seconds));
-        tokio::pin!(timeout);
-        return tokio::select! {
-            biased;
-            _ = cancellation.cancelled() => Err(crate::engine::cancelled_error()),
-            result = &mut wait => wait_outcome(cancellation, result),
-            _ = &mut timeout => Ok(None),
-        };
+        return wait_for_container_completion(wait, seconds, cancellation).await;
     }
+    tokio::pin!(wait);
     tokio::select! {
         biased;
-        _ = cancellation.cancelled() => Err(crate::engine::cancelled_error()),
+        _ = cancellation.cancelled() => Err(crate::cancellation::cancelled_error()),
         result = &mut wait => wait_outcome(cancellation, result),
+    }
+}
+
+async fn wait_for_container_completion(
+    wait: impl std::future::Future<Output = Result<i32>>,
+    timeout_s: u64,
+    cancellation: &RunCancellation,
+) -> Result<Option<i32>> {
+    let outcome = if timeout_s == 0 {
+        select_deadline_outcome(wait, std::future::ready(()), cancellation).await
+    } else {
+        select_deadline_outcome(
+            wait,
+            tokio::time::sleep(Duration::from_secs(timeout_s)),
+            cancellation,
+        )
+        .await
+    };
+    match outcome {
+        DeadlineOutcome::Cancelled => Err(crate::cancellation::cancelled_error()),
+        DeadlineOutcome::TimedOut => Ok(None),
+        DeadlineOutcome::Completed(result) => wait_outcome(cancellation, result),
     }
 }
 
 fn wait_outcome(cancellation: &RunCancellation, result: Result<i32>) -> Result<Option<i32>> {
     if cancellation.is_cancelled() {
-        return Err(crate::engine::cancelled_error());
+        return Err(crate::cancellation::cancelled_error());
     }
     Ok(Some(result?))
 }

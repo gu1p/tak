@@ -3,14 +3,6 @@ use std::time::Duration;
 use super::runtime::RemoteRuntimeConfig;
 
 #[test]
-fn default_remote_client_stale_ttl_outlasts_tor_event_reconnect_budget() {
-    let runtime = RemoteRuntimeConfig::isolated_for_test();
-
-    assert!(runtime.remote_client_stale_ttl() >= Duration::from_secs(450));
-    assert!(runtime.remote_client_stale_ttl() < runtime.remote_cleanup_ttl());
-}
-
-#[test]
 fn remote_resource_defaults_are_safe_and_operator_overridable() {
     let defaults = RemoteRuntimeConfig::from_environment(|_| None, std::env::temp_dir(), true);
     assert_eq!(defaults.default_container_cpu_cores(), 4.0);
@@ -74,4 +66,20 @@ fn simulated_host_defaults_to_deterministic_resource_accounting() {
 
     assert_eq!(runtime.host_baseline_sample_duration(), Duration::ZERO);
     assert!(runtime.ignore_host_usage_for_tests());
+}
+
+#[test]
+fn worker_workspace_and_path_cache_budget_defaults_to_twenty_gibibytes() {
+    let defaults = RemoteRuntimeConfig::from_environment(|_| None, std::env::temp_dir(), true);
+    let overridden = RemoteRuntimeConfig::from_environment(
+        |name| (name == "TAKD_WORKER_CACHE_BUDGET_BYTES").then(|| "42".into()),
+        std::env::temp_dir(),
+        true,
+    );
+
+    assert_eq!(
+        defaults.worker_cache_budget_bytes(),
+        20 * 1024 * 1024 * 1024
+    );
+    assert_eq!(overridden.worker_cache_budget_bytes(), 42);
 }

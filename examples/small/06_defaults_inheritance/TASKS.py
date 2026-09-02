@@ -3,6 +3,7 @@
 # Scenario: defaults inheritance
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_small_06",
   defaults=Defaults(
     retry=retry(attempts=2, on_exit=[9], backoff=fixed(0)),
@@ -11,6 +12,7 @@ SPEC = module_spec(
   tasks=[
     task(
       "apply_defaults",
+      outputs=[path("out/defaults.txt")],
       steps=[cmd("sh", "-c", "mkdir -p out && echo defaults > out/defaults.txt")]
     )
   ]

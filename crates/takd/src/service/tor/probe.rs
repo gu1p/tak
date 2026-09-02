@@ -1,22 +1,18 @@
-use std::future::Future;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use endpoint::{endpoint_host_port, endpoint_socket_addr};
-use prost::Message;
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 use tor_rtcompat::Runtime;
 
+use attempt::{probe_worker_identity, record_startup_failure, run_with_attempt_timeout};
 use health_detail::{log_probe_progress, record_probe_failure};
-use http_client::{RemoteStream, send_node_info_request};
-use startup_failure::{
-    StartupTorClientRestart, StartupTorFailureDecision, StartupTorFailureTracker,
-    startup_probe_error,
-};
+use startup_failure::{StartupTorClientRestart, StartupTorFailureTracker, startup_probe_error};
 
 use super::startup_policy::CappedExponentialBackoff;
 
+mod attempt;
 mod endpoint;
 mod health_detail;
 mod http_client;
@@ -117,13 +113,13 @@ where
                     attempt,
                     started_at,
                     options.timeout,
-                    "probing /v1/node/info through takd onion service",
+                    "probing /v2/worker/identity through takd onion service",
                 );
                 match run_with_attempt_timeout(
                     deadline,
                     MAX_PROBE_ATTEMPT_TIMEOUT,
                     "probe takd hidden-service startup endpoint",
-                    probe_node_info(Box::new(stream), &authority, bearer_token, base_url),
+                    probe_worker_identity(Box::new(stream), &authority, bearer_token, base_url),
                 )
                 .await
                 {
@@ -180,51 +176,6 @@ where
 
 pub(super) fn requires_tor_client_restart(err: &anyhow::Error) -> bool {
     err.downcast_ref::<StartupTorClientRestart>().is_some()
-}
-
-fn record_startup_failure(tracker: &mut StartupTorFailureTracker, detail: &str) -> Result<()> {
-    match tracker.record_failure(detail) {
-        StartupTorFailureDecision::KeepWaiting => Ok(()),
-        StartupTorFailureDecision::RestartTorClient { reason } => {
-            Err(StartupTorClientRestart::new(reason).into())
-        }
-    }
-}
-
-async fn probe_node_info(
-    stream: RemoteStream,
-    authority: &str,
-    bearer_token: &str,
-    base_url: &str,
-) -> Result<()> {
-    let (status, body) = send_node_info_request(stream, authority, bearer_token, base_url).await?;
-    if status != 200 {
-        bail!("node probe failed with HTTP {status}");
-    }
-    tak_proto::NodeInfo::decode(body.as_slice()).context("decode node info protobuf")?;
-    Ok(())
-}
-
-async fn run_with_attempt_timeout<T, F, E>(
-    deadline: Instant,
-    max_timeout: Duration,
-    stage: &str,
-    future: F,
-) -> Result<T>
-where
-    F: Future<Output = std::result::Result<T, E>>,
-    E: Into<anyhow::Error>,
-{
-    let attempt_timeout = deadline
-        .saturating_duration_since(Instant::now())
-        .min(max_timeout);
-    if attempt_timeout.is_zero() {
-        bail!("{stage} timed out before the attempt started");
-    }
-    timeout(attempt_timeout, future)
-        .await
-        .map_err(|_| anyhow!("{stage} timed out after {}ms", attempt_timeout.as_millis()))?
-        .map_err(Into::into)
 }
 
 mod http_connection_cleanup_tests;

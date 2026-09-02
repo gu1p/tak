@@ -16,19 +16,24 @@ REMOTE = Execution.Remote(
 WORKSPACE_SESSION = session(
     "workspace-state",
     execution=REMOTE,
-    reuse=SessionReuse.Workspace(),
+    reuse=SessionReuse.SharedWorkspace(max_parallel_tasks=2),
+    affinity=Affinity.RequireSameNode("workspace-state"),
 )
 
 SPEC = module_spec(
+    spec_version=2,
     project_id="example_large_31",
     tasks=[
         task(
             "prepare_workspace",
+            outputs=[path("out/prepare-workspace.txt")],
             steps=[
                 cmd(
                     "sh",
                     "-c",
-                    "mkdir -p .session && printf 'prepared\\n' > .session/state.txt",
+                    "mkdir -p .session out && "
+                    "printf 'prepared\\n' > .session/state.txt && "
+                    "printf 'workspace-prepared\\n' > out/prepare-workspace.txt",
                 )
             ],
             use_session=WORKSPACE_SESSION,

@@ -5,7 +5,7 @@ use tokio::time::sleep;
 use crate::agent::{
     TransportHealth, persist_ready_base_url, ready_context_with_state_root, write_transport_health,
 };
-use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
+use crate::daemon::remote::{SubmitAttemptStore, run_worker_http_server};
 use crate::service::control::AgentControlState;
 
 use super::TorSessionExit;
@@ -43,12 +43,12 @@ pub(super) async fn serve_test_bind_session(
         .with_context(|| format!("bind takd tor test listener at {bind_addr}"))?;
     persist_ready_base_url(config_root, state_root, &base_url)?;
     write_transport_health(state_root, &TransportHealth::ready(Some(base_url.clone())))?;
-    tracing::info!("takd remote v1 onion service ready at {}", base_url);
+    tracing::info!("takd worker v2 onion service ready at {}", base_url);
     let context = ready_context_with_state_root(&ready_config(config, &base_url), state_root)?;
     let context = control_state.set_context(context)?;
 
     if let Some(delay) = take_test_force_recovery_after(state_root) {
-        let mut server = tokio::spawn(run_remote_v1_http_server(listener, store, context.clone()));
+        let mut server = tokio::spawn(run_worker_http_server(listener, store, context.clone()));
         tokio::select! {
             result = &mut server => match result {
                 Ok(Ok(())) => recovering_exit(
@@ -77,7 +77,7 @@ pub(super) async fn serve_test_bind_session(
             }
         }
     } else {
-        run_remote_v1_http_server(listener, store, context.clone()).await?;
+        run_worker_http_server(listener, store, context.clone()).await?;
         recovering_exit(
             &context,
             state_root,

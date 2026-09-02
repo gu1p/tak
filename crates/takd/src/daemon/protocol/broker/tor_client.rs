@@ -13,7 +13,6 @@ mod connect;
 mod construction;
 mod default;
 mod http2_session;
-mod protobuf;
 mod protocol_memory;
 mod remote_exchange;
 mod session_pool;
@@ -29,7 +28,7 @@ pub(super) use http2_session::BrokerBody;
 use http2_session::Http2Session;
 use protocol_memory::RemoteProtocol;
 pub use types::BrokerForwardResponse;
-pub(in crate::daemon::protocol) use types::BrokerRemoteHttpRequest;
+use types::BrokerRemoteHttpRequest;
 pub(super) use types::BrokerRemoteStream;
 
 const DEFAULT_TOR_CONNECT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -74,21 +73,30 @@ impl TorBroker {
         Ok(())
     }
 
-    pub async fn get_protobuf(
+    pub async fn worker_v2_http_exchange(
         &self,
-        endpoint: &str,
-        node_id: &str,
+        target: &crate::daemon::worker_registry::WorkerConnectionTarget,
+        method: &str,
         path: &str,
-        bearer_token: &str,
-    ) -> Result<(u16, Vec<u8>)> {
-        protobuf::get_protobuf(self, endpoint, node_id, path, bearer_token).await
-    }
-
-    pub(in crate::daemon::protocol) async fn remote_http_exchange(
-        &self,
-        remote_request: BrokerRemoteHttpRequest<'_>,
+        body: &[u8],
     ) -> Result<BrokerForwardResponse> {
-        remote_exchange::remote_http_exchange(self, remote_request).await
+        let headers = [
+            ("X-Tak-Protocol-Version".to_string(), "v2".to_string()),
+            ("Content-Type".to_string(), "application/json".to_string()),
+        ];
+        remote_exchange::remote_http_exchange(
+            self,
+            BrokerRemoteHttpRequest {
+                endpoint: &target.endpoint,
+                node_id: &target.node_id,
+                bearer_token: &target.bearer_token,
+                method,
+                path,
+                headers: &headers,
+                body,
+            },
+        )
+        .await
     }
 
     pub(super) async fn connect(&self, endpoint: &str) -> Result<BrokerRemoteStream> {
@@ -123,23 +131,6 @@ impl TorBroker {
                 } else {
                     Err(first)
                 }
-            }
-        }
-    }
-
-    pub(super) async fn http2_exchange_stream(
-        &self,
-        endpoint: &str,
-        request: BrokerHttp2StreamRequest,
-    ) -> std::result::Result<BrokerHttp2Response, BrokerHttpError> {
-        let session_key = request.session_key(endpoint);
-        let (session, _) = self.http2_session(endpoint, &session_key).await?;
-        match session.send_stream(request).await {
-            Ok(response) => Ok(response),
-            Err(err) => {
-                self.evict_session_if_unchanged(&session_key, &session)
-                    .await;
-                Err(err)
             }
         }
     }

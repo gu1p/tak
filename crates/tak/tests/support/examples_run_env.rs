@@ -27,8 +27,8 @@ pub fn setup_example_run(
     let spec = load_workspace(workspace_root, &LoadOptions::default())
         .with_context(|| format!("load staged workspace for {}", entry.name))?;
     let mut env = BTreeMap::new();
-    let (direct_agent, tor_agent, client_config_root, fixture_env) =
-        remote_fixture(entry, temp_root, workspace_root)?;
+    let (direct_agent, tor_agent, fixture_daemon, client_config_root, fixture_env) =
+        remote_fixture(entry, temp_root, workspace_root, &spec)?;
     if let Some(config_root) = client_config_root {
         env.insert(
             "XDG_CONFIG_HOME".to_string(),
@@ -36,7 +36,7 @@ pub fn setup_example_run(
         );
     }
     env.extend(fixture_env);
-    let local_daemon = daemon_guard(entry, temp_root, &spec, &mut env);
+    let local_daemon = fixture_daemon.or_else(|| daemon_guard(entry, temp_root, &spec, &mut env));
     if entry.remote_fixture.as_deref() == Some("tor_onion_http") {
         insert_live_tor_probe_env(&mut env);
     }
@@ -54,8 +54,7 @@ fn daemon_guard(
     spec: &tak_core::model::WorkspaceSpec,
     env: &mut BTreeMap<String, String>,
 ) -> Option<LocalDaemonGuard> {
-    let needs_tor_broker = entry.remote_fixture.as_deref() == Some("tor_onion_http");
-    if !entry.requires_daemon && !needs_tor_broker {
+    if !entry.requires_daemon {
         return None;
     }
     let socket_path = temp_root.join("takd.sock");
@@ -63,21 +62,5 @@ fn daemon_guard(
         "TAKD_SOCKET".to_string(),
         socket_path.to_string_lossy().into_owned(),
     );
-    Some(
-        match (
-            env.get("TAK_TEST_TOR_ONION_DIAL_ADDR"),
-            env.get("XDG_CONFIG_HOME"),
-        ) {
-            (Some(dial_addr), Some(config_root)) => LocalDaemonGuard::spawn_with_tor_inventory(
-                &socket_path,
-                spec,
-                dial_addr.clone(),
-                Path::new(config_root).join("tak/remotes.toml"),
-            ),
-            (Some(dial_addr), None) => {
-                LocalDaemonGuard::spawn_with_tor_dial_addr(&socket_path, spec, dial_addr.clone())
-            }
-            (None, _) => LocalDaemonGuard::spawn(&socket_path, spec),
-        },
-    )
+    Some(LocalDaemonGuard::spawn(&socket_path, spec))
 }

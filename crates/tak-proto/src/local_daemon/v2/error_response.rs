@@ -12,6 +12,8 @@ const IDEMPOTENCY_CONFLICT_MESSAGE: &str =
 const RUN_NOT_FOUND_MESSAGE: &str = "The requested run does not exist.";
 const WORKSPACE_INVALID_MESSAGE: &str = "The workspace upload is invalid.";
 const RUN_STATE_INVALID_MESSAGE: &str = "The requested operation is invalid for this run state.";
+const REMOTE_INVITE_UNSUPPORTED_MESSAGE: &str =
+    "Direct v1 onboarding is unsupported; upgrade tak, takd, and workers together.";
 const INTERNAL_MESSAGE: &str = "The local daemon could not complete the request.";
 
 /// A redacted protocol v2 error frame.
@@ -65,6 +67,22 @@ impl ErrorResponse {
             Some(request_id),
             RUN_STATE_INVALID_MESSAGE,
             "run_state_invalid",
+        )
+    }
+
+    pub fn remote_invite_unsupported(request_id: String) -> Self {
+        Self::new(
+            Some(request_id),
+            REMOTE_INVITE_UNSUPPORTED_MESSAGE,
+            "remote_invite_unsupported",
+        )
+    }
+
+    pub fn protocol_version_unsupported(request_id: String) -> Self {
+        Self::new(
+            Some(request_id),
+            UNSUPPORTED_VERSION_MESSAGE,
+            "protocol_version_unsupported",
         )
     }
 

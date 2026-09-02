@@ -21,8 +21,8 @@ fn first_interrupt_persists_cancellation_and_waits_for_daemon_confirmation() {
     let socket = std::path::PathBuf::from(".tmp")
         .join(temp.path().file_name().unwrap())
         .join("d.sock");
-    let _daemon = LocalDaemonGuard::spawn(&socket, &support::empty_spec(&workspace));
-    let store = RunStore::with_db_path(socket.with_extension("v2.sqlite")).unwrap();
+    let daemon = LocalDaemonGuard::spawn(&socket, &support::empty_spec(&workspace));
+    let store = RunStore::with_db_path(daemon.db_path().to_path_buf()).unwrap();
     let probe = temp.path().canonicalize().unwrap().join("probe");
     let mut child = Command::new(tak_bin())
         .current_dir(&workspace)

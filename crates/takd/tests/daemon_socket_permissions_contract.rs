@@ -1,4 +1,4 @@
-use takd::{Request, Response, StatusRequest};
+use tak_proto::local_daemon::v2::{Operation, Request, Response};
 
 use crate::support;
 
@@ -20,12 +20,13 @@ async fn run_server_preserves_existing_socket_parent_permissions() {
 
     let status = send_request(
         &socket_path,
-        &Request::Status(StatusRequest {
+        &Request {
             request_id: "status".into(),
-        }),
+            operation: Operation::GetDaemonStatus {},
+        },
     )
     .await;
-    assert!(matches!(status, Response::StatusSnapshot { .. }));
+    assert!(matches!(status, Response::DaemonStatus { .. }));
 
     let parent_mode = std::fs::metadata(&socket_parent)
         .expect("parent metadata")
@@ -48,12 +49,13 @@ async fn run_server_locks_down_created_socket_parent() {
 
     let status = send_request(
         &socket_path,
-        &Request::Status(StatusRequest {
+        &Request {
             request_id: "status".into(),
-        }),
+            operation: Operation::GetDaemonStatus {},
+        },
     )
     .await;
-    assert!(matches!(status, Response::StatusSnapshot { .. }));
+    assert!(matches!(status, Response::DaemonStatus { .. }));
 
     let parent_mode = std::fs::metadata(&socket_parent)
         .expect("parent metadata")

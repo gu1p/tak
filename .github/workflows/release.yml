@@ -115,9 +115,6 @@ jobs:
           cargo build --locked --bins -p tak -p takd
           echo "$PWD/target/debug" >> "$GITHUB_PATH"
 
-      - name: Show Tak version
-        run: tak --version
-
       - name: Setup Zig
         if: matrix.use_zig
         uses: mlugg/setup-zig@v2
@@ -126,8 +123,14 @@ jobs:
         if: matrix.use_zig
         run: cargo install cargo-zigbuild --locked
 
+      - name: Start local Tak daemon
+        run: bash scripts/start-local-takd.sh
+
+      - name: Show Tak version
+        run: tak --version
+
       - name: Build and package via Tak
-        run: tak run "${{ matrix.tak_task }}"
+        run: tak run "${{ matrix.tak_task }}" --pass-env TAK_RELEASE_TAG --pass-env TAK_BUILD_VERSION
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

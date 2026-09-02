@@ -87,7 +87,7 @@ fn record(node_id: &str, transport: &str, enabled: bool, bearer_token: &str) -> 
 fn ping() -> NodePingResponse {
     NodePingResponse {
         node_id: "builder-a".to_string(),
-        protocol_version: "v1".to_string(),
+        protocol_version: "v2".to_string(),
         health: "healthy".to_string(),
         active_job_count: 1,
         queue_depth: 0,

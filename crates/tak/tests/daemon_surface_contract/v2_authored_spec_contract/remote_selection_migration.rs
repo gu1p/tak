@@ -36,7 +36,11 @@ fn v2_shuffle_points_to_balanced_and_balanced_reaches_validation() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "stderr:\n{stderr}");
     assert!(
-        stderr.contains("takd remote placement candidate resolution"),
+        stderr.contains("Local takd is unavailable"),
+        "stderr:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("no client execution fallback"),
         "stderr:\n{stderr}"
     );
     assert!(!stderr.contains("Shuffle"), "stderr:\n{stderr}");

@@ -1,21 +1,23 @@
 //! Black-box contract for `tak exec --remote` runtime requirements.
 
-use crate::support;
+use std::collections::BTreeMap;
+use std::fs;
 
 use anyhow::Result;
 
-use support::direct_remote_runtime::{client_env, start_direct_agent};
-use support::run_tak_output;
+use crate::support::run_tak_output;
 
 #[test]
 fn exec_remote_requires_resolvable_container_runtime() -> Result<()> {
-    let temp = tempfile::tempdir()?;
-    let _agent = start_direct_agent(temp.path(), temp.path(), "exec-remote-runtime-required");
+    fs::create_dir_all(".tmp")?;
+    let temp = tempfile::tempdir_in(".tmp")?;
+    let workspace = temp.path().join("workspace");
+    fs::create_dir_all(&workspace)?;
 
     let output = run_tak_output(
-        temp.path(),
+        &workspace,
         &["exec", "--remote", "--", "sh", "-c", "echo should-not-run"],
-        &client_env(temp.path()),
+        &BTreeMap::new(),
     )?;
 
     assert!(
@@ -26,7 +28,7 @@ fn exec_remote_requires_resolvable_container_runtime() -> Result<()> {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "task //:exec requires a container for --remote; provide --container-image, --container-dockerfile, Execution.Remote(..., container=Container.Image(...)), or TASKS.py defaults.container"
+            "tak exec requires --container-image or --container-dockerfile for container execution"
         ),
         "stderr:\n{stderr}"
     );

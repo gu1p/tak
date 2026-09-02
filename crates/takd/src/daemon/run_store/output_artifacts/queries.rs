@@ -7,7 +7,7 @@ use tak_core::v2::{WorkspaceEntry, WorkspaceEntryType};
 use tak_proto::local_daemon::v2::{MAX_WORKSPACE_CHUNK_BYTES, OutputArtifact};
 
 use super::cas;
-use crate::daemon::run_store::{OutputArtifactChunk, RunStore};
+use crate::daemon::run_store::{OutputArtifactChunk, RunOutputManifest, RunStore};
 
 pub(super) fn attempt_task_entries(
     transaction: &Transaction<'_>,
@@ -30,20 +30,37 @@ pub(super) fn attempt_task_entries(
         .collect()
 }
 
-pub(super) fn manifest(store: &RunStore, run_id: &str) -> Result<Option<Vec<OutputArtifact>>> {
+pub(super) fn manifest_status(store: &RunStore, run_id: &str) -> Result<Option<RunOutputManifest>> {
     let connection = store.open_connection()?;
     let state = connection
-        .query_row("SELECT state FROM runs WHERE run_id=?1", [run_id], |row| {
-            row.get::<_, String>(0)
-        })
+        .query_row(
+            "SELECT state,outputs_expired,output_error FROM runs WHERE run_id=?1",
+            [run_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, bool>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
+        )
         .optional()?;
-    let Some(state) = state else {
+    let Some((state, expired, output_error)) = state else {
         return Ok(None);
     };
     ensure!(
         matches!(state.as_str(), "succeeded" | "failed" | "cancelled"),
         "run outputs are not available before terminal state"
     );
+    if let Some(error) = output_error {
+        bail!("run output manifest conflict: {error}");
+    }
+    if expired {
+        return Ok(Some(RunOutputManifest {
+            expired,
+            artifacts: Vec::new(),
+        }));
+    }
     let mut statement = connection.prepare(
         "SELECT output.artifact_id, attempt.entry_json FROM run_final_outputs output \
          JOIN run_attempt_outputs attempt ON attempt.artifact_id=output.artifact_id \
@@ -54,13 +71,14 @@ pub(super) fn manifest(store: &RunStore, run_id: &str) -> Result<Option<Vec<Outp
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    rows.into_iter()
+    let artifacts = rows
+        .into_iter()
         .map(|(artifact_id, encoded)| {
             let entry: WorkspaceEntry = serde_json::from_str(&encoded)?;
             Ok(protocol_artifact(entry, artifact_id))
         })
-        .collect::<Result<Vec<_>>>()
-        .map(Some)
+        .collect::<Result<Vec<_>>>()?;
+    Ok(Some(RunOutputManifest { expired, artifacts }))
 }
 
 pub(super) fn chunk(
@@ -77,7 +95,8 @@ pub(super) fn chunk(
     let encoded = connection
         .query_row(
             "SELECT attempt.entry_json FROM run_final_outputs output JOIN run_attempt_outputs \
-             attempt ON attempt.artifact_id=output.artifact_id WHERE output.artifact_id=?1",
+             attempt ON attempt.artifact_id=output.artifact_id JOIN runs run ON \
+             run.run_id=output.run_id WHERE output.artifact_id=?1 AND run.outputs_expired=0",
             [artifact_id],
             |row| row.get::<_, String>(0),
         )

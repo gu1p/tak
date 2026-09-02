@@ -8,21 +8,22 @@ use tokio::net::UnixStream;
 
 pub async fn send_broker_get(socket_path: &Path, node_id: &str) -> Vec<u8> {
     let request = format!(
-        "GET /v1/node/info HTTP/1.1\r\nHost: {node_id}.onion\r\nAuthorization: Bearer secret\r\nX-Tak-Broker-Version: 1\r\nX-Tak-Remote-Node: {node_id}\r\nX-Tak-Remote-Endpoint: http://{node_id}.onion\r\nX-Tak-Remote-Transport: tor\r\nConnection: close\r\n\r\n"
+        "GET /v2/worker/identity HTTP/1.1\r\nHost: {node_id}.onion\r\nAuthorization: Bearer secret\r\nX-Tak-Protocol-Version: v2\r\nX-Tak-Broker-Version: 1\r\nX-Tak-Remote-Node: {node_id}\r\nX-Tak-Remote-Endpoint: http://{node_id}.onion\r\nX-Tak-Remote-Transport: tor\r\nConnection: close\r\n\r\n"
     );
     send_raw_http(socket_path, request.as_bytes()).await
 }
 
 pub async fn send_broker_get_h2(socket_path: &Path, node_id: &str) -> Vec<u8> {
     let request = format!(
-        "GET /v1/node/info HTTP/1.1\r\nHost: {node_id}.onion\r\nAuthorization: Bearer secret\r\nX-Tak-Broker-Version: 1\r\nX-Tak-Remote-Node: {node_id}\r\nX-Tak-Remote-Endpoint: http://{node_id}.onion\r\nX-Tak-Remote-Protocol: h2\r\nX-Tak-Remote-Transport: tor\r\nConnection: close\r\n\r\n"
+        "GET /v2/worker/identity HTTP/1.1\r\nHost: {node_id}.onion\r\nAuthorization: Bearer secret\r\nX-Tak-Protocol-Version: v2\r\nX-Tak-Broker-Version: 1\r\nX-Tak-Remote-Node: {node_id}\r\nX-Tak-Remote-Endpoint: http://{node_id}.onion\r\nX-Tak-Remote-Protocol: h2\r\nX-Tak-Remote-Transport: tor\r\nConnection: close\r\n\r\n"
     );
     send_raw_http(socket_path, request.as_bytes()).await
 }
 
 pub async fn send_raw_http(socket_path: &Path, request: &[u8]) -> Vec<u8> {
+    let connection_path = super::socket_path::bind_path(socket_path);
     for _ in 0..50 {
-        if let Ok(mut stream) = UnixStream::connect(socket_path).await {
+        if let Ok(mut stream) = UnixStream::connect(&connection_path).await {
             stream.write_all(request).await.expect("write request");
             stream.shutdown().await.expect("shutdown write");
             let mut response = Vec::new();

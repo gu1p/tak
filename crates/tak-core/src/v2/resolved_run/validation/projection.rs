@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::{ResolvedRun, ResolvedRunError, ResolvedTaskUnit};
+use crate::v2::{SessionReuse, TaskRuntime};
+
+use super::super::{ResolvedRun, ResolvedRunError, ResolvedTaskUnit, ResourceRequest};
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
     let tasks = run
@@ -16,12 +18,42 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
             .iter()
             .map(|id| tasks[id.as_str()])
             .collect::<Vec<_>>();
+        if units.len() > 1
+            && !matches!(
+                job.session.as_ref().map(|session| &session.reuse),
+                Some(SessionReuse::Container)
+            )
+        {
+            return Err(ResolvedRunError::new(format!(
+                "job `{}` owns multiple tasks without SessionReuse.Container",
+                job.job_id
+            )));
+        }
         let pass_env_names = units
             .iter()
             .flat_map(|task| task.pass_env_names.iter().cloned())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
+        if units
+            .iter()
+            .any(|task| projected_resources(task) != job.resources)
+        {
+            return Err(ResolvedRunError::new(format!(
+                "job `{}` resources do not match every task runtime",
+                job.job_id
+            )));
+        }
+        if units.len() > 1
+            && units[1..]
+                .iter()
+                .any(|task| task.runtime != units[0].runtime)
+        {
+            return Err(ResolvedRunError::new(format!(
+                "job `{}` fused task runtime definitions must be identical",
+                job.job_id
+            )));
+        }
         if job.idempotent != units.iter().all(|task| task.idempotent)
             || job.pass_env_names != pass_env_names
             || units.iter().any(|task| task.affinity != job.affinity)
@@ -56,6 +88,17 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
         }
     }
     Ok(())
+}
+
+fn projected_resources(task: &ResolvedTaskUnit) -> ResourceRequest {
+    task.runtime
+        .as_ref()
+        .and_then(TaskRuntime::resources)
+        .map_or_else(ResourceRequest::default, |resources| ResourceRequest {
+            cpu_millis: resources.cpu_millis,
+            memory_bytes: resources.memory_bytes,
+            ..ResourceRequest::default()
+        })
 }
 
 fn validate_edges(

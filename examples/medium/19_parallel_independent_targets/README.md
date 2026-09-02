@@ -23,7 +23,7 @@ Medium tier: combines multiple runtime and modeling features.
 - `run`: expected success is `true`.
 
 ## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
+- Required daemon: `true` (Required. Start `takd serve` before running this example.)
 - Required output files on successful run: `out/parallel.log`
 
 ## File Layout

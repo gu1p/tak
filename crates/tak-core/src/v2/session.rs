@@ -1,8 +1,9 @@
 use std::num::NonZeroU32;
+use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 
-use super::{Execution, OutputSelector, ValidationError};
+use super::{Execution, OutputSelector, TaskContext, ValidationError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -57,6 +58,7 @@ pub struct Session {
     pub reuse: SessionReuse,
     pub affinity: Option<Affinity>,
     pub execution: Option<Box<Execution>>,
+    pub context: Option<TaskContext>,
 }
 
 impl Session {
@@ -72,6 +74,7 @@ impl Session {
             reuse,
             affinity,
             execution: None,
+            context: None,
         };
         session.validate()?;
         Ok(session)
@@ -83,6 +86,27 @@ impl Session {
         }
         if let Some(affinity) = &self.affinity {
             affinity.validate()?;
+        }
+        if matches!(&self.reuse, SessionReuse::Paths { paths } if paths.is_empty()) {
+            return Err(ValidationError::EmptySessionPaths);
+        }
+        if let SessionReuse::Paths { paths } = &self.reuse {
+            for selector in paths {
+                let value = match selector {
+                    OutputSelector::Path { value } | OutputSelector::Glob { value } => value,
+                };
+                if value.is_empty()
+                    || value.contains('\\')
+                    || Path::new(value).components().any(|part| {
+                        matches!(
+                            part,
+                            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+                        )
+                    })
+                {
+                    return Err(ValidationError::InvalidSessionPath);
+                }
+            }
         }
         validate_shared_affinity(&self.reuse, self.affinity.as_ref())
     }

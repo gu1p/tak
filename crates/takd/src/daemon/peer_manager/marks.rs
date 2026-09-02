@@ -12,10 +12,13 @@ impl PeerManager {
             );
             return;
         }
-        if ping.protocol_version != "v1" {
+        if ping.protocol_version != "v2" {
             self.mark_protocol_mismatch(
                 node_id,
-                format!("unsupported protocol version {}", ping.protocol_version),
+                format!(
+                    "unsupported protocol version {}; upgrade tak, takd, and workers together",
+                    ping.protocol_version
+                ),
             );
             return;
         }

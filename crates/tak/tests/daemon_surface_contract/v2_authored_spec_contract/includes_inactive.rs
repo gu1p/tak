@@ -3,43 +3,29 @@ use std::collections::BTreeMap;
 use crate::support::{run_tak_output, write_tasks};
 
 #[test]
-fn v2_includes_stop_before_child_lookup_or_evaluation() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let env = BTreeMap::from([(
-        "XDG_STATE_HOME".into(),
-        temp.path().join("state").display().to_string(),
-    )]);
-    for (name, child) in [("missing", "missing-child"), ("poison", "poison-child")] {
-        let workspace = temp.path().join(name);
-        write_tasks(
-            &workspace,
-            &format!(
-                "SPEC = module_spec(spec_version=2, tasks=[], includes=[path(\"{child}\")])\nSPEC\n"
-            ),
-        )
-        .expect("write root tasks");
-        if name == "poison" {
-            write_tasks(&workspace.join(child), "CHILD_MUST_NOT_BE_EVALUATED\n")
-                .expect("write poison child");
-        }
+fn v2_includes_are_loaded_for_existing_read_commands() {
+    std::fs::create_dir_all(".tmp").unwrap();
+    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let workspace = temp.path().join("workspace");
+    write_tasks(
+        &workspace,
+        "SPEC=module_spec(spec_version=2, tasks=[], includes=[path('apps/web')])\nSPEC\n",
+    )
+    .unwrap();
+    write_tasks(
+        &workspace.join("apps/web"),
+        r#"SPEC=module_spec(spec_version=2, tasks=[
+  task("check", doc="Included web check", steps=[cmd("true")]),
+])
+SPEC
+"#,
+    )
+    .unwrap();
 
-        let output = run_tak_output(&workspace, &["run", "//:check"], &env).expect("run tak");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(!output.status.success(), "stderr:\n{stderr}");
-        for token in [
-            "module_spec(spec_version=2) declares includes",
-            "v2 include resolution is not active",
-            "no child TASKS.py was evaluated",
-            "no legacy include fallback was attempted",
-        ] {
-            assert!(stderr.contains(token), "missing `{token}`: {stderr}");
-        }
-        for stale in [
-            "does not resolve to a TASKS.py file",
-            "CHILD_MUST_NOT_BE_EVALUATED",
-            "does not load or execute v2 modules",
-        ] {
-            assert!(!stderr.contains(stale), "unexpected `{stale}`: {stderr}");
-        }
-    }
+    let output = run_tak_output(&workspace, &["list"], &BTreeMap::new()).unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    assert!(stdout.contains("//apps/web:check"), "{stdout}");
+    assert!(stdout.contains("Included web check"), "{stdout}");
 }

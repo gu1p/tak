@@ -1,8 +1,11 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
-use tak_core::v2::{EnvironmentValue, ResolvedRun, RunSubmission};
+use tak_core::v2::{EnvironmentValue, RemoteRequirements, ResolvedRun, RunSubmission};
 
 use super::identifier::is_valid_identifier;
+use super::request_validation::{
+    valid_digest, valid_invite, valid_node_ids, valid_remote_path, valid_requirements,
+};
 use super::{MAX_WORKSPACE_CHUNK_BYTES, Operation, PROTOCOL_VERSION, Request};
 
 #[derive(Deserialize)]
@@ -16,6 +19,27 @@ struct WireRequest {
 #[derive(Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
 enum WireOperation {
+    GetDaemonStatus {},
+    PreviewRemote {
+        invite: String,
+    },
+    AddRemote {
+        invite: String,
+    },
+    ListRemotes {},
+    RemoveRemote {
+        node_id: String,
+    },
+    GetRemoteStatus {
+        node_ids: Vec<String>,
+    },
+    ReadRemote {
+        node_id: String,
+        path: String,
+    },
+    ResolveRemoteCandidates {
+        requirements: RemoteRequirements,
+    },
     SubmitRun {
         idempotency_key: String,
         run: Box<ResolvedRun>,
@@ -58,6 +82,30 @@ pub(super) fn decode_strict(raw: &str) -> Option<Request> {
         return None;
     }
     let operation = match wire.operation {
+        WireOperation::GetDaemonStatus {} => Operation::GetDaemonStatus {},
+        WireOperation::PreviewRemote { invite } if valid_invite(&invite) => {
+            Operation::PreviewRemote { invite }
+        }
+        WireOperation::AddRemote { invite } if valid_invite(&invite) => {
+            Operation::AddRemote { invite }
+        }
+        WireOperation::ListRemotes {} => Operation::ListRemotes {},
+        WireOperation::RemoveRemote { node_id } if is_valid_identifier(&node_id) => {
+            Operation::RemoveRemote { node_id }
+        }
+        WireOperation::GetRemoteStatus { node_ids } if valid_node_ids(&node_ids) => {
+            Operation::GetRemoteStatus { node_ids }
+        }
+        WireOperation::ReadRemote { node_id, path }
+            if is_valid_identifier(&node_id) && valid_remote_path(&path) =>
+        {
+            Operation::ReadRemote { node_id, path }
+        }
+        WireOperation::ResolveRemoteCandidates { requirements }
+            if valid_requirements(&requirements) =>
+        {
+            Operation::ResolveRemoteCandidates { requirements }
+        }
         WireOperation::SubmitRun {
             idempotency_key,
             run,
@@ -127,7 +175,13 @@ pub(super) fn decode_strict(raw: &str) -> Option<Request> {
                 max_bytes,
             }
         }
-        WireOperation::UploadWorkspace { .. }
+        WireOperation::PreviewRemote { .. }
+        | WireOperation::AddRemote { .. }
+        | WireOperation::RemoveRemote { .. }
+        | WireOperation::GetRemoteStatus { .. }
+        | WireOperation::ReadRemote { .. }
+        | WireOperation::ResolveRemoteCandidates { .. }
+        | WireOperation::UploadWorkspace { .. }
         | WireOperation::CommitRun { .. }
         | WireOperation::GetRun { .. }
         | WireOperation::AttachRun { .. }
@@ -139,11 +193,4 @@ pub(super) fn decode_strict(raw: &str) -> Option<Request> {
         request_id: wire.request_id,
         operation,
     })
-}
-
-fn valid_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }

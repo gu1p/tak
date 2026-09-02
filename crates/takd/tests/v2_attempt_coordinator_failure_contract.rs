@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::{Result, bail};
 use futures::future::{BoxFuture, FutureExt};
 use takd::{
-    AttemptCoordinator, AttemptObservation, AttemptTransport, DispatchCommand, RunStore,
-    SchedulerNode,
+    AttemptCoordinator, AttemptDispatch, AttemptObservation, AttemptTransport, DispatchCommand,
+    RunStore, SchedulerNode,
 };
 
 use crate::support::v2_run::scheduler::{commit, independent_jobs};
@@ -58,8 +58,8 @@ struct FailingCancel;
 struct StalledCancel;
 
 impl AttemptTransport for FailingCancel {
-    fn dispatch<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {
-        async { Ok(()) }.boxed()
+    fn dispatch<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<AttemptDispatch>> {
+        async { Ok(AttemptDispatch::Accepted) }.boxed()
     }
 
     fn cancel_and_wait<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {
@@ -75,8 +75,8 @@ impl AttemptTransport for FailingCancel {
 }
 
 impl AttemptTransport for StalledCancel {
-    fn dispatch<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {
-        async { Ok(()) }.boxed()
+    fn dispatch<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<AttemptDispatch>> {
+        async { Ok(AttemptDispatch::Accepted) }.boxed()
     }
 
     fn cancel_and_wait<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {

@@ -49,6 +49,13 @@ pub(super) fn limiter_name(definition: &LimiterDefinition) -> &str {
     }
 }
 
+pub(super) fn process_match_pattern(definition: &LimiterDefinition) -> Option<&str> {
+    match definition {
+        LimiterDefinition::ProcessCap { match_pattern, .. } => match_pattern.as_deref(),
+        _ => None,
+    }
+}
+
 fn hold_lease(hold: HoldMode) -> Lease {
     match hold {
         HoldMode::During => Lease::During,

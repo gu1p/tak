@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -8,14 +7,12 @@ use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse};
 use super::query_helpers::unix_epoch_ms;
 use super::resource_admission::ResourceRequest;
 use super::status_resources::{
-    cpu_admission_available, host_cpu_cores_used, memory_admission_available, non_tak_cpu_cores,
-    non_tak_memory_bytes,
+    cpu_admission_available, effective_available_memory, host_cpu_cores_used,
+    memory_admission_available, non_tak_cpu_cores, non_tak_memory_bytes,
 };
 use super::status_state_helpers::{active_job_value, aggregate_need_usage, storage_usage};
 use super::tak_container_usage::SharedTakContainerUsage;
 use super::types::RemoteImageCacheRuntimeConfig;
-
-pub(crate) use super::status_job_metadata::{ActiveJobMetadata, ActiveJobMetadataInput};
 
 pub(crate) type SharedNodeStatusState = Arc<Mutex<NodeStatusState>>;
 
@@ -24,7 +21,6 @@ pub(crate) struct NodeStatusState {
     disks: Disks,
     cpu_usage_ready: bool,
     tak_container_usage: SharedTakContainerUsage,
-    active_jobs: BTreeMap<String, ActiveJobMetadata>,
 }
 
 pub(crate) fn new_shared_node_status_state(
@@ -43,7 +39,6 @@ pub(crate) fn new_shared_node_status_state(
         disks: Disks::new_with_refreshed_list(),
         cpu_usage_ready: true,
         tak_container_usage,
-        active_jobs: BTreeMap::new(),
     }))
 }
 
@@ -52,48 +47,22 @@ impl NodeStatusState {
         (self.system.total_swap(), self.system.free_swap())
     }
 
-    pub(crate) fn register_job(&mut self, idempotency_key: String, job: ActiveJobMetadata) {
-        self.active_jobs.insert(idempotency_key, job);
-    }
-
-    pub(crate) fn finish_job(&mut self, idempotency_key: &str) {
-        self.active_jobs.remove(idempotency_key);
-    }
-
-    pub(crate) fn update_job_label(
-        &mut self,
-        idempotency_key: &str,
-        task_label: &str,
-        execution_label: Option<String>,
-    ) {
-        let Some(job) = self.active_jobs.get_mut(idempotency_key) else {
-            return;
-        };
-        job.task_label = task_label.to_string();
-        job.execution_label = execution_label;
-    }
-
-    pub(crate) fn active_job_keys(&self) -> Vec<String> {
-        self.active_jobs.keys().cloned().collect()
-    }
-
     pub(crate) fn snapshot(
         &mut self,
         node: &NodeInfo,
         execution_root_base: &std::path::Path,
         image_cache: Option<&RemoteImageCacheRuntimeConfig>,
-        queued_jobs: Vec<ResourceRequest>,
+        admitted_jobs: Vec<ResourceRequest>,
     ) -> Result<NodeStatusResponse> {
         self.system.refresh_memory();
         self.system.refresh_cpu_usage();
         self.disks
             .refresh_specifics(false, DiskRefreshKind::everything());
 
-        let mut active_jobs = self
-            .active_jobs
-            .values()
+        let mut active_jobs = admitted_jobs
+            .iter()
             .map(active_job_value)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Vec<_>>();
         active_jobs.sort_unstable_by(|left, right| {
             left.task_label
                 .cmp(&right.task_label)
@@ -133,7 +102,12 @@ impl NodeStatusState {
         };
         self.cpu_usage_ready = true;
         let memory_total_bytes = self.system.total_memory();
-        let memory_available_bytes = self.system.available_memory();
+        let memory_used_bytes = self.system.used_memory();
+        let memory_available_bytes = effective_available_memory(
+            memory_total_bytes,
+            memory_used_bytes,
+            self.system.available_memory(),
+        );
         let host_used_bytes = memory_total_bytes.saturating_sub(memory_available_bytes);
         let non_tak_used_bytes = non_tak_memory_bytes(host_used_bytes, tak_usage.memory_bytes);
         let tak_reserved_bytes = tak_reserved_memory_bytes(&active_jobs);
@@ -143,7 +117,7 @@ impl NodeStatusState {
             sampled_at_ms: unix_epoch_ms(),
             cpu: Some(cpu),
             memory: Some(MemoryUsage {
-                used_bytes: self.system.used_memory(),
+                used_bytes: memory_used_bytes,
                 total_bytes: memory_total_bytes,
                 available_bytes: Some(memory_available_bytes),
                 non_tak_used_bytes: Some(non_tak_used_bytes),
@@ -170,11 +144,7 @@ impl NodeStatusState {
                 )
                 .ok()
             }),
-            queued_jobs: queued_jobs
-                .iter()
-                .enumerate()
-                .map(|(index, job)| super::status_state_helpers::queued_job_value(job, index + 1))
-                .collect(),
+            queued_jobs: Vec::new(),
             resource_envelope: None,
             resource_pressure: None,
         })

@@ -121,6 +121,7 @@ pub fn image_cache_status(
     let conn = open_cache_connection(db_path)?;
     let entries = load_entries(&conn)?;
     let used_bytes = unique_image_usage_bytes(&entries);
+    drop(conn);
     let filesystem =
         filesystem_status(db_path, low_disk_min_free_percent, low_disk_min_free_bytes)?;
     Ok(ImageCacheStatus {
@@ -132,4 +133,16 @@ pub fn image_cache_status(
         filesystem_total_bytes: filesystem.total_bytes,
         free_floor_bytes: filesystem.free_floor_bytes,
     })
+}
+
+#[doc(hidden)]
+pub fn cached_image_content_keys(db_path: &Path) -> Result<Vec<String>> {
+    let conn = open_cache_connection(db_path)?;
+    Ok(load_entries(&conn)?
+        .into_iter()
+        .filter(|entry| entry.is_current)
+        .map(|entry| entry.cache_key)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect())
 }

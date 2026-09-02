@@ -40,10 +40,10 @@ pub struct RemoteSpec {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum RemoteSelectionSpec {
-    Sequential,
     #[default]
+    Balanced,
+    Sequential,
     RoundRobin,
-    Shuffle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +61,13 @@ pub enum ContainerRuntimeSourceSpec {
 pub enum RemoteRuntimeSpec {
     Containerized {
         source: ContainerRuntimeSourceSpec,
+        resource_limits: Option<ContainerResourceLimitsSpec>,
+    },
+    ContainerizedV2 {
+        source: ContainerRuntimeSourceSpec,
+        mounts: Vec<ContainerMountSpec>,
+        env: BTreeMap<String, String>,
+        private_root: PathBuf,
         resource_limits: Option<ContainerResourceLimitsSpec>,
     },
 }

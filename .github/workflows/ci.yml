@@ -39,9 +39,6 @@ jobs:
           cargo build --locked --bins -p tak -p takd
           echo "$PWD/target/debug" >> "$GITHUB_PATH"
 
-      - name: Show Tak version
-        run: tak --version
-
       - name: Install ripgrep
         run: |
           sudo apt-get update
@@ -49,6 +46,12 @@ jobs:
 
       - name: Install coverage tool
         run: cargo install cargo-llvm-cov --locked
+
+      - name: Start local Tak daemon
+        run: bash scripts/start-local-takd.sh
+
+      - name: Show Tak version
+        run: tak --version
 
       - name: Run Tak CI
         run: tak run //:ci
@@ -106,9 +109,6 @@ jobs:
           cargo build --locked --bins -p tak -p takd
           echo "$PWD/target/debug" >> "$GITHUB_PATH"
 
-      - name: Show Tak version
-        run: tak --version
-
       - name: Setup Zig
         if: matrix.use_zig
         uses: mlugg/setup-zig@v2
@@ -116,6 +116,12 @@ jobs:
       - name: Install cargo-zigbuild
         if: matrix.use_zig
         run: cargo install cargo-zigbuild --locked
+
+      - name: Start local Tak daemon
+        run: bash scripts/start-local-takd.sh
+
+      - name: Show Tak version
+        run: tak --version
 
       - name: Build binaries via Tak
         run: tak run "${{ matrix.tak_task }}"

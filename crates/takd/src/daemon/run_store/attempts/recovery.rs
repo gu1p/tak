@@ -8,8 +8,8 @@ impl RunStore {
     pub fn running_attempts_for_reconciliation(&self) -> Result<Vec<DispatchCommand>> {
         let connection = self.open_connection()?;
         let mut statement = connection.prepare(
-            "SELECT attempt.run_id, attempt.job_id, attempt.node_id, attempt.authored_attempt, \
-             attempt.dispatch_generation, attempt.fencing_token FROM run_attempts attempt \
+            "SELECT attempt.run_id, attempt.job_id, attempt.node_id, attempt.transport, \
+             attempt.authored_attempt, attempt.dispatch_generation, attempt.fencing_token FROM run_attempts attempt \
              JOIN run_jobs job USING (run_id, job_id) JOIN runs run USING (run_id) \
              WHERE attempt.state IN ('running','output_committing') AND attempt.released_at_ms IS NULL \
              AND job.state IN ('running','output_committing') AND job.current_fencing_token = attempt.fencing_token \
@@ -23,16 +23,17 @@ impl RunStore {
 }
 
 fn command_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DispatchCommand> {
-    let attempt = row.get::<_, i64>(3)?;
-    let generation = row.get::<_, i64>(4)?;
+    let attempt = row.get::<_, i64>(4)?;
+    let generation = row.get::<_, i64>(5)?;
     Ok(DispatchCommand {
         run_id: row.get(0)?,
         job_id: row.get(1)?,
         node_id: row.get(2)?,
+        transport: row.get(3)?,
         authored_attempt: u32::try_from(attempt)
-            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(3, attempt))?,
+            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, attempt))?,
         dispatch_generation: u32::try_from(generation)
-            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, generation))?,
-        fencing_token: row.get(5)?,
+            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(5, generation))?,
+        fencing_token: row.get(6)?,
     })
 }

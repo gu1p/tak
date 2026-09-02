@@ -29,7 +29,6 @@ impl RemoteNodeContext {
             node: Arc::new(Mutex::new(node)),
             bearer_token,
             status_state: new_shared_node_status_state(tak_container_usage.clone()),
-            active_executions: SharedActiveExecutions::default(),
             resource_admission,
             resource_policy,
             tak_container_usage,

@@ -1,21 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::{PlacementKind, QueueDiscipline, ResolvedRun, ResolvedRunError};
+use super::super::{PlacementKind, ResolvedRun, ResolvedRunError};
 use super::validate_identifier;
 use crate::v2::{Affinity, DefinitionScope, LimiterDefinition};
 
 pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
     validate_worktree_scope_keys(run)?;
     validate_rate_ranges(run)?;
-    if run
-        .queue_definitions
-        .iter()
-        .any(|queue| queue.discipline == QueueDiscipline::Priority)
-    {
-        return Err(ResolvedRunError::new(
-            "priority queues require resolved job priorities",
-        ));
-    }
+    validate_queue_reservations(run)?;
     let mut policies = BTreeMap::new();
     for job in &run.jobs {
         let policy = &job.placement_policy;
@@ -40,6 +32,34 @@ pub(super) fn validate(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
         }
     }
     validate_hard_affinity(run)?;
+    Ok(())
+}
+
+fn validate_queue_reservations(run: &ResolvedRun) -> Result<(), ResolvedRunError> {
+    for job in &run.jobs {
+        let Some(name) = &job.queue else {
+            if job.queue_slots.get() != 1 || job.queue_priority != 0 {
+                return Err(ResolvedRunError::new(format!(
+                    "job `{}` has a queue reservation without a queue",
+                    job.job_id
+                )));
+            }
+            continue;
+        };
+        let Some(definition) = run
+            .queue_definitions
+            .iter()
+            .find(|definition| definition.name == *name)
+        else {
+            continue;
+        };
+        if job.queue_slots > definition.max_parallel_tasks {
+            return Err(ResolvedRunError::new(format!(
+                "job `{}` queue reservation exceeds `{name}` capacity",
+                job.job_id
+            )));
+        }
+    }
     Ok(())
 }
 

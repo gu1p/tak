@@ -1,12 +1,13 @@
 use anyhow::Result;
 
-use super::remote_inventory::{RemoteRecord, resolve_remote_record, save_remote_record};
+use super::remote_inventory::{RemoteRecord, add_remote, preview_remote};
 
 mod app;
 #[cfg(test)]
 mod app_tests;
 mod buffer_text;
 mod frame;
+mod location_input;
 mod render;
 mod scripted;
 mod terminal;
@@ -38,14 +39,14 @@ async fn handle_command(app: &mut RemoteAddApp, command: AppCommand) -> Result<C
         AppCommand::Continue => Ok(CommandOutcome::Continue),
         AppCommand::Cancel => Ok(CommandOutcome::Cancelled),
         AppCommand::Probe(token) => {
-            match resolve_remote_record(&token).await {
-                Ok(remote) => app.show_remote(remote),
+            match preview_remote(&token).await {
+                Ok(remote) => app.show_remote(remote, token),
                 Err(err) => app.show_error(format!("{err:#}")),
             }
             Ok(CommandOutcome::Continue)
         }
-        AppCommand::Save(remote) => {
-            save_remote_record(&remote)?;
+        AppCommand::Save(invite) => {
+            let remote = add_remote(&invite).await?;
             Ok(CommandOutcome::Saved(remote))
         }
     }

@@ -3,6 +3,7 @@
 # MOCK_CONTAINER the remote node simulates the container. Tiny on purpose: a
 # ~1 KB workspace upload removes the "large upload over a slow onion" variable.
 SPEC = module_spec(
+    spec_version=2,
     project_id="remote_probe",
     tasks=[
         task(

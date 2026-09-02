@@ -17,7 +17,7 @@ fn independent_dependency_outputs_fail_once_before_the_consumer_runs() {
     let socket = std::path::PathBuf::from(".tmp")
         .join(temp.path().file_name().unwrap())
         .join("d.sock");
-    let _daemon = LocalDaemonGuard::spawn(&socket, &empty_spec(&workspace));
+    let daemon = LocalDaemonGuard::spawn(&socket, &empty_spec(&workspace));
     let mut child = Command::new(tak_bin())
         .current_dir(&workspace)
         .args(["run", "//:consume"])
@@ -27,7 +27,7 @@ fn independent_dependency_outputs_fail_once_before_the_consumer_runs() {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let store = RunStore::with_db_path(socket.with_extension("v2.sqlite")).unwrap();
+    let store = RunStore::with_db_path(daemon.db_path().to_path_buf()).unwrap();
     wait_for_terminal(&store, &mut child);
     let output = child.wait_with_output().unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);

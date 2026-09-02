@@ -10,7 +10,7 @@ fn run_dot_fails_with_guidance_and_discovered_targets() -> Result<()> {
     write_tasks(
         temp.path(),
         r#"
-SPEC = module_spec(tasks=[
+SPEC = module_spec(spec_version=2, tasks=[
   task("hello", steps=[cmd("sh", "-c", "mkdir -p out && echo hello > out/hello.txt")]),
   task("test", deps=[":hello"], steps=[cmd("echo", "ok")]),
 ])

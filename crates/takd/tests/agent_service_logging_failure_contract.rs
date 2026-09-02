@@ -2,41 +2,33 @@ use crate::support;
 
 use std::fs;
 use std::net::TcpListener;
-use std::process::{Command as StdCommand, Stdio};
+use std::process::Stdio;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use support::daemon_command_paths::DaemonCommandPaths;
 
 #[test]
 fn logs_include_retryable_tor_startup_failure_details() {
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
     let state_root = temp.path().join("state");
+    let paths = DaemonCommandPaths::new(&config_root, &state_root);
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
     let bind_addr = listener.local_addr().expect("addr").to_string();
     drop(listener);
 
-    let init = StdCommand::new(support::takd_bin())
-        .args([
-            "init",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-            "--node-id",
-            "builder-log-failure",
-        ])
+    let init = paths
+        .rooted_command(&support::takd_bin(), "init")
+        .args(["--node-id", "builder-log-failure"])
         .output()
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut child = StdCommand::new(support::takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let mut child = paths
+        .rooted_command(&support::takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .env("TAKD_TEST_TOR_HS_BIND_ADDR", &bind_addr)
         .env("TAKD_TEST_TOR_FAIL_STARTUP_ONCE", "1")
         .env("TAKD_TOR_RECOVERY_INITIAL_BACKOFF_MS", "50")
@@ -46,24 +38,17 @@ fn logs_include_retryable_tor_startup_failure_details() {
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(support::takd_bin())
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "30",
-        ])
+    let show = paths
+        .state_command(&support::takd_bin(), &["token", "show"])
+        .args(["--wait", "--timeout-secs", "30"])
         .output()
         .expect("run token show");
     assert!(show.status.success(), "token show should succeed");
 
     let expected = "test startup failure hook triggered";
     wait_for_log(&state_root, expected);
-    let logs = StdCommand::new(support::takd_bin())
-        .args(["logs", "--state-root", &state_root.display().to_string()])
+    let logs = paths
+        .state_command(&support::takd_bin(), &["logs"])
         .output()
         .expect("run takd logs");
     child.kill().expect("kill takd serve");

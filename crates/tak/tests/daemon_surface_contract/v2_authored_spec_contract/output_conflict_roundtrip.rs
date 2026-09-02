@@ -19,7 +19,7 @@ fn foreground_reports_every_changed_destination_and_copies_nothing() {
     let socket = std::path::PathBuf::from(".tmp")
         .join(temp.path().file_name().unwrap())
         .join("d.sock");
-    let _daemon = LocalDaemonGuard::spawn(&socket, &empty_spec(&workspace));
+    let daemon = LocalDaemonGuard::spawn(&socket, &empty_spec(&workspace));
     let child = Command::new(tak_bin())
         .current_dir(&workspace)
         .args(["run", "//:produce"])
@@ -29,7 +29,7 @@ fn foreground_reports_every_changed_destination_and_copies_nothing() {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let store = RunStore::with_db_path(socket.with_extension("v2.sqlite")).unwrap();
+    let store = RunStore::with_db_path(daemon.db_path().to_path_buf()).unwrap();
     let run_id = wait_for_running(&store);
     std::fs::write(workspace.join("existing.txt"), "local-existing").unwrap();
     std::fs::write(workspace.join("new.txt"), "local-new").unwrap();

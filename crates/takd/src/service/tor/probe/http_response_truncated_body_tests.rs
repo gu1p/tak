@@ -1,6 +1,6 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt, duplex};
 
-use super::probe_node_info;
+use super::probe_worker_identity;
 
 #[tokio::test]
 async fn startup_probe_rejects_truncated_bodies() {
@@ -15,7 +15,7 @@ async fn startup_probe_rejects_truncated_bodies() {
         server.flush().await.expect("flush truncated response");
     });
 
-    let err = probe_node_info(
+    let err = probe_worker_identity(
         Box::new(client),
         "builder-a.onion:80",
         "secret",

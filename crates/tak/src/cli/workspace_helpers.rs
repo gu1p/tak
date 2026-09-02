@@ -52,7 +52,7 @@ pub(super) fn parse_input_label(
     Ok(label)
 }
 
-fn looks_like_path_input(value: &str) -> bool {
+pub(in crate::cli) fn looks_like_path_input(value: &str) -> bool {
     value == "."
         || value == ".."
         || value.starts_with("./")
@@ -61,20 +61,23 @@ fn looks_like_path_input(value: &str) -> bool {
 }
 
 fn label_guidance(spec: &WorkspaceSpec, command: &str) -> String {
-    let mut lines = vec![
-        format!("Use `tak {command} <label>` with labels like `//:task` or `//pkg:task`."),
-        "Run `tak list` to inspect the current directory workspace.".to_string(),
-    ];
-
     let available = spec
         .tasks
         .keys()
         .take(8)
         .map(canonical_label)
         .collect::<Vec<_>>();
+    label_guidance_for(command, &available)
+}
+
+pub(in crate::cli) fn label_guidance_for(command: &str, available: &[String]) -> String {
+    let mut lines = vec![
+        format!("Use `tak {command} <label>` with labels like `//:task` or `//pkg:task`."),
+        "Run `tak list` to inspect the current directory workspace.".to_string(),
+    ];
     if !available.is_empty() {
         lines.push("Available targets:".to_string());
-        lines.extend(available.into_iter().map(|label| format!("  - {label}")));
+        lines.extend(available.iter().map(|label| format!("  - {label}")));
     }
 
     lines.join("\n")

@@ -5,6 +5,8 @@ use std::sync::atomic::Ordering;
 use tokio::net::UnixListener;
 use tokio::task::JoinHandle;
 
+use crate::support::unix_socket_path::short_socket_bind_path;
+
 use super::server::run_fake_docker_daemon;
 use super::state::FakeDockerDaemonState;
 use super::{BuildRecord, CreateRecord, PullRecord, RemoveRecord};
@@ -19,7 +21,7 @@ pub struct FakeDockerDaemon {
 
 impl FakeDockerDaemon {
     pub fn spawn(root: &Path) -> Self {
-        let socket_path = root.join("docker.sock");
+        let socket_path = short_socket_bind_path(&root.join("docker.sock"));
         if socket_path.exists() {
             std::fs::remove_file(&socket_path).expect("remove stale fake docker socket");
         }

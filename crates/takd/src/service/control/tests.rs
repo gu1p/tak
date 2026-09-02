@@ -6,21 +6,16 @@ use super::AgentControlState;
 use crate::daemon::remote::{RemoteNodeContext, RemoteRuntimeConfig};
 
 #[test]
-fn replacing_the_same_tor_node_preserves_its_remote_work_context() {
+fn replacing_the_same_tor_node_preserves_its_v2_runtime_services() {
     let state = AgentControlState::default();
     let first = state
         .set_context(context("http://first.onion", "ready"))
         .expect("install first context");
     assert!(first.claim_remote_runtime_services());
-    first
-        .register_active_execution("accepted:1".into(), "accepted", 1)
-        .expect("register accepted work");
-
     let second = state
         .set_context(context("http://second.onion", "pending"))
         .expect("replace transport context");
 
-    assert_eq!(second.active_execution_keys().unwrap(), ["accepted:1"]);
     assert!(
         !second.claim_remote_runtime_services(),
         "recovery must retain the first context's runtime-service ownership"

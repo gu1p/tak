@@ -3,11 +3,17 @@
 # Scenario: multi package monorepo
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
     task(
       "all",
       deps=["//apps/api:build", "//libs/common:lint"],
-      steps=[cmd("sh", "-c", "mkdir -p out && echo web-all >> out/monorepo.log")]
+      outputs=[path("//out/monorepo.log")],
+      steps=[cmd(
+        "sh", "-c",
+        "cat out/bootstrap.txt out/api-build.txt out/common-lint.txt > out/monorepo.log && echo web-all >> out/monorepo.log",
+        cwd="//",
+      )]
     )
   ]
 )

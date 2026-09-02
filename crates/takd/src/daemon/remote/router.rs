@@ -1,15 +1,15 @@
 use super::*;
 
-/// Handles one remote V1 HTTP request, including transport-provided headers.
+/// Handles one authenticated worker HTTP request, including transport headers.
 ///
 /// ```rust
 /// # use takd::{RemoteNodeContext, SubmitAttemptStore};
-/// # use takd::daemon::remote::handle_remote_v1_request;
+/// # use takd::daemon::remote::handle_worker_http_request;
 /// # fn example(
 /// #     context: &RemoteNodeContext,
 /// #     store: &SubmitAttemptStore,
 /// # ) -> anyhow::Result<()> {
-/// let response = handle_remote_v1_request(
+/// let response = handle_worker_http_request(
 ///     context,
 ///     store,
 ///     "GET",
@@ -21,75 +21,33 @@ use super::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn handle_remote_v1_request(
+pub fn handle_worker_http_request(
     context: &RemoteNodeContext,
     store: &SubmitAttemptStore,
     method: &str,
     path: &str,
     headers: &[(String, String)],
     body: Option<&[u8]>,
-) -> Result<RemoteV1Response> {
+) -> Result<WorkerHttpResponse> {
     let method = method.trim().to_ascii_uppercase();
     let (path_only, query) = split_path_and_query(path);
-    refresh_task_liveness(context, path_only, query)?;
 
-    if let Some(response) = handle_node_metadata_route(context, &method, path_only) {
-        return Ok(response);
-    }
-    if let Some(response) = handle_node_logs_route(context, &method, path_only, query) {
-        return Ok(response);
-    }
-    if let Some(response) = handle_remote_tasks_route(store, &method, path_only, query)? {
+    if let Some(response) = reject_v1_route(path_only) {
         return Ok(response);
     }
 
-    if method == "POST" && path_only == "/v1/tasks/submit" {
-        return handle_remote_submit_route(context, store, body);
-    }
-    if let Some(response) = handle_workspace_upload_route(context, &method, path_only, query, body)?
-    {
-        return Ok(response);
-    }
-
-    if let Some(response) = handle_remote_events_route(context, store, &method, path_only, query)? {
-        return Ok(response);
-    }
     if let Some(response) =
-        handle_remote_outputs_route(context, store, &method, path_only, query, headers)?
+        handle_worker_v2_route(context, store, &method, path_only, query, headers, body)
     {
-        return Ok(response);
+        return response;
     }
-    if let Some(response) = handle_remote_result_route(store, &method, path_only, query)? {
-        return Ok(response);
-    }
-
-    if let Some(response) = handle_remote_cancel_route(context, &method, path_only, query) {
-        return Ok(response);
-    }
-
     Ok(error_response(
         404,
         &format!("not_found:{method}:{path_only}"),
     ))
 }
 
-fn refresh_task_liveness(
-    context: &RemoteNodeContext,
-    path_only: &str,
-    query: Option<&str>,
-) -> Result<()> {
-    let Some(task_run_id) = remote_task_run_id_from_path(path_only) else {
-        return Ok(());
-    };
-    let attempt = query_param_u64(query, "attempt").and_then(|value| u32::try_from(value).ok());
-    context.refresh_active_client(task_run_id, attempt)
-}
-
-fn remote_task_run_id_from_path(path_only: &str) -> Option<&str> {
-    let tail = path_only.strip_prefix("/v1/tasks/")?;
-    let (task_run_id, suffix) = tail.split_once('/')?;
-    if task_run_id.is_empty() || suffix.is_empty() {
-        return None;
-    }
-    Some(task_run_id)
+fn reject_v1_route(path: &str) -> Option<WorkerHttpResponse> {
+    path.starts_with("/v1/")
+        .then(|| text_response(426, PROTOCOL_V2_UPGRADE_MESSAGE))
 }

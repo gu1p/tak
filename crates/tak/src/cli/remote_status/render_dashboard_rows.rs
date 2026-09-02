@@ -68,7 +68,7 @@ fn row_summary(row: &RemoteStatusRow) -> RowSummary {
         RemoteStatusRow::Checking { remote } => RowSummary {
             badge: "CHECKING",
             style: STYLE_CHECKING,
-            detail: format!("{} probing /v1/node/status", remote.transport),
+            detail: format!("{} querying local takd", remote.transport),
         },
         RemoteStatusRow::Complete(result) => complete_row_summary(result),
     }

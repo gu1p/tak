@@ -2,7 +2,8 @@
 
 ## Purpose
 
-`tak-core` is the shared domain layer. It contains model types and deterministic algorithms used by loader, executor, daemon, and CLI crates.
+`tak-core` is the shared domain layer. Its v2 types are the contract between authoring, client
+resolution, daemon scheduling, and worker execution.
 
 Most code here is pure model/planner logic. The crate also owns narrowly scoped shared path and
 inventory helpers so `tak`, `tak-exec`, and `takd` agree on runtime socket and `remotes.toml`
@@ -10,7 +11,8 @@ locations.
 
 ## Responsibilities
 
-- Canonical model definitions (`TaskLabel`, task specs, limiters, retries, workspace spec).
+- Canonical v2 authored and resolved-run definitions: tasks, jobs, placement, sessions, affinity,
+  outputs, limiters, retries, workspace manifests, and submissions.
 - Label parsing and validation helpers.
 - DAG topological planning with cycle/missing-node detection.
 - Shared runtime path helpers such as the default local daemon unix socket path.
@@ -21,7 +23,7 @@ locations.
 - `label::parse_label(raw, current_package) -> Result<TaskLabel, LabelError>`
 - `label::normalize_package(package) -> String`
 - `planner::topo_sort(dep_map) -> Result<Vec<TaskLabel>>`
-- `model::*` canonical structs/enums used across all crates
+- `v2::*` strict authored, resolved-run, runtime, placement, and validation types
 - `runtime_paths::default_daemon_socket_path() -> PathBuf`
 - `remote_inventory::{RemoteInventory, RemoteRecord}` plus load/save helpers
 
@@ -39,6 +41,8 @@ locations.
 - Task names must be non-empty.
 - Topological planner returns dependency-first order.
 - Cyclic graphs fail deterministically.
+- A resolved run's task/job projections, outputs, environment allowlist, and sessions agree.
+- Shared workspaces require hard same-node affinity.
 
 ## Error Model
 
@@ -55,6 +59,7 @@ locations.
 ## Main Files
 
 - `src/model.rs`: shared type system for task/workspace/limiter/retry entities.
+- `src/v2.rs`: daemon-run domain surface and validation modules.
 - `src/label.rs`: parser and validation for task labels.
 - `src/planner.rs`: topological ordering and graph validation.
 - `src/runtime_paths.rs`: shared local daemon socket path resolution.

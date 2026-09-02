@@ -38,24 +38,32 @@ async fn protocol_errors_correlate_only_safe_ids_and_never_echo_request_secrets(
     let malformed_legacy =
         format!(r#"{{"type":"Status","request_id":"legacy","credential":"{secret}""#);
     let response = daemon.exchange(&malformed_legacy).await;
-    assert_eq!(
-        response,
-        concat!(
-            r#"{"type":"Error","request_id":"unknown","message":"Invalid daemon request.","retryable":false}"#,
-            "\n"
-        )
+    super::assert_json_response(
+        &response,
+        serde_json::json!({
+            "protocol_version": 2,
+            "type": "Error",
+            "request_id": null,
+            "message": "This takd requires protocol v2. Upgrade tak, takd, and workers together.",
+            "code": "protocol_version_unsupported",
+            "retryable": false
+        }),
     );
     assert!(!response.contains(secret));
 
     let valid_legacy_error =
         format!(r#"{{"type":"NoSuchRequest","request_id":"legacy","credential":"{secret}"}}"#);
     let response = daemon.exchange(&valid_legacy_error).await;
-    assert_eq!(
-        response,
-        concat!(
-            r#"{"type":"Error","request_id":"unknown","message":"Invalid daemon request.","retryable":false}"#,
-            "\n"
-        )
+    super::assert_json_response(
+        &response,
+        serde_json::json!({
+            "protocol_version": 2,
+            "type": "Error",
+            "request_id": "legacy",
+            "message": "This takd requires protocol v2. Upgrade tak, takd, and workers together.",
+            "code": "protocol_version_unsupported",
+            "retryable": false
+        }),
     );
     assert!(!response.contains(secret));
 }

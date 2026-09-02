@@ -44,9 +44,7 @@ pub(super) fn render_local_snapshot(snapshot: &LocalStatusSnapshot) -> String {
     if let LocalDaemonStatus::Available(status) = &snapshot.daemon {
         output.push_str(&format!(
             "  leases={} pending={} limiters={}\n",
-            status.active_leases,
-            status.pending_requests,
-            status.usage.len()
+            status.active_leases, status.pending_requests, status.limiter_count
         ));
     }
 

@@ -140,6 +140,8 @@ main() {
   tar -xzf "$archive_path" -C "$temp_dir"
   [[ -f "$temp_dir/tak" ]] || err "archive missing tak binary"
   [[ -f "$temp_dir/takd" ]] || err "archive missing takd binary"
+  "$temp_dir/takd" update --legacy-drain-check \
+    --state-root "${XDG_STATE_HOME:-$HOME/.local/state}/takd"
 
   mkdir -p "$TAK_INSTALL_DIR"
   install -m 0755 "$temp_dir/tak" "$TAK_INSTALL_DIR/tak"

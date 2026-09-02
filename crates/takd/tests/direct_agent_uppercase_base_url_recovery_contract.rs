@@ -2,9 +2,12 @@ use crate::support;
 
 use std::fs;
 use std::net::TcpListener;
-use std::process::{Command as StdCommand, Stdio};
+use std::process::Stdio;
 
-use support::cli::{roots, takd_bin};
+use support::{
+    cli::{roots, takd_bin},
+    daemon_command_paths::DaemonCommandPaths,
+};
 use tak_proto::decode_remote_token;
 use takd::agent::AgentConfig;
 
@@ -12,6 +15,7 @@ use takd::agent::AgentConfig;
 fn direct_serve_normalizes_existing_uppercase_fixed_port_base_url() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = roots(temp.path());
+    let paths = DaemonCommandPaths::new(&config_root, &state_root);
     fs::create_dir_all(&config_root).expect("create config root");
     fs::create_dir_all(&state_root).expect("create state root");
 
@@ -24,29 +28,18 @@ fn direct_serve_normalizes_existing_uppercase_fixed_port_base_url() {
     )
     .expect("write agent config");
 
-    let mut child = StdCommand::new(takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let mut child = paths
+        .rooted_command(&takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(takd_bin())
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "5",
-        ])
+    let show = paths
+        .state_command(&takd_bin(), &["token", "show"])
+        .args(["--wait", "--timeout-secs", "5"])
         .output()
         .expect("run token show");
     child.kill().expect("kill takd serve");

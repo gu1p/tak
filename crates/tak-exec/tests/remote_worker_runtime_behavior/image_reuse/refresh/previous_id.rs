@@ -25,7 +25,7 @@ async fn mutable_refresh_keeps_previous_image_id_tracked_for_later_pruning() {
     assert_eq!(initial.entry_count, 1);
     assert_eq!(initial.used_bytes, 1024);
 
-    let conn = rusqlite::Connection::open(&db_path).expect("open image cache db");
+    let conn = tak_exec::ProcessSqliteConnection::open(&db_path).expect("open image cache db");
     conn.execute(
         "UPDATE image_cache_entries SET last_refreshed_at_ms = 0",
         [],

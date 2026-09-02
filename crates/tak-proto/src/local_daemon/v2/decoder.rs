@@ -3,8 +3,7 @@ use super::{DecodeOutcome, RequestDecodeError};
 
 /// Classifies and strictly decodes one local-daemon request frame.
 ///
-/// Only `LegacyCandidate` authorizes the staged legacy decoder. Any observed
-/// top-level v2 marker fails closed.
+/// Versionless and mismatched requests fail closed with upgrade guidance.
 ///
 /// ```rust
 /// use tak_proto::local_daemon::v2::{DecodeOutcome, decode_request};
@@ -21,7 +20,6 @@ pub fn decode_request(raw: &str) -> Result<DecodeOutcome, RequestDecodeError> {
     }
     let probe = Probe::inspect(raw);
     match probe.decide() {
-        Decision::Legacy => Ok(DecodeOutcome::LegacyCandidate),
         Decision::Reject(code) => Err(RequestDecodeError {
             code,
             request_id: probe.request_id(),

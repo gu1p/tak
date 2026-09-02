@@ -1,23 +1,17 @@
-use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use rusqlite::{Connection, OpenFlags, params};
+use rusqlite::{OpenFlags, params};
+use tak_exec::ProcessSqliteConnection;
 
 mod active;
-mod open;
-mod write;
 
 pub(in crate::cli) use active::ActiveTaskRow;
 
 #[derive(Clone)]
 pub(in crate::cli) struct TaskHistoryStore {
     db_path: PathBuf,
-}
-
-pub(in crate::cli::task_history) struct TaskHistoryWriter {
-    conn: Connection,
 }
 
 pub(super) struct TaskHistoryRow {
@@ -91,12 +85,15 @@ impl TaskHistoryStore {
         collect_rows(rows)
     }
 
-    fn open_read_connection(&self) -> Result<Option<Connection>> {
+    fn open_read_connection(&self) -> Result<Option<ProcessSqliteConnection>> {
         if !self.db_path.exists() {
             return Ok(None);
         }
-        let conn = Connection::open_with_flags(&self.db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .with_context(|| format!("open task history db {}", self.db_path.display()))?;
+        let conn = ProcessSqliteConnection::open_with_flags(
+            &self.db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .with_context(|| format!("open task history db {}", self.db_path.display()))?;
         conn.busy_timeout(Duration::from_secs(5))
             .context("configure task history sqlite busy timeout")?;
         Ok(Some(conn))
@@ -110,46 +107,6 @@ impl TaskHistoryStore {
         let mut rows = stmt.query(params![task_run_id.trim()])?;
         Ok(rows.next()?.is_some())
     }
-}
-
-fn configure_write_connection(conn: &Connection) -> Result<()> {
-    conn.busy_timeout(Duration::from_secs(30))
-        .context("configure task history sqlite busy timeout")?;
-    conn.pragma_update(None, "journal_mode", "WAL")
-        .context("enable task history sqlite WAL mode")?;
-    conn.pragma_update(None, "synchronous", "NORMAL")
-        .context("configure task history sqlite sync mode")?;
-    Ok(())
-}
-
-fn ensure_schema(conn: &Connection) -> Result<()> {
-    conn.execute_batch(include_str!("schema.sql"))?;
-    ensure_task_runs_column(conn, "origin", "TEXT NOT NULL DEFAULT 'task'")?;
-    ensure_task_runs_column(conn, "runtime", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_task_runs_column(conn, "runtime_source", "TEXT NOT NULL DEFAULT ''")?;
-    ensure_task_runs_column(conn, "command", "TEXT NOT NULL DEFAULT ''")?;
-    Ok(())
-}
-
-fn ensure_task_runs_column(conn: &Connection, name: &str, definition: &str) -> Result<()> {
-    let columns = task_runs_columns(conn)?;
-    if columns.contains(name) {
-        return Ok(());
-    }
-    conn.execute_batch(&format!(
-        "ALTER TABLE task_runs ADD COLUMN {name} {definition}"
-    ))?;
-    Ok(())
-}
-
-fn task_runs_columns(conn: &Connection) -> Result<BTreeSet<String>> {
-    let mut stmt = conn.prepare("PRAGMA table_info(task_runs)")?;
-    let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
-    let mut columns = BTreeSet::new();
-    for row in rows {
-        columns.insert(row?);
-    }
-    Ok(columns)
 }
 
 fn collect_rows<T>(rows: impl Iterator<Item = rusqlite::Result<T>>) -> Result<Vec<T>> {
@@ -169,11 +126,4 @@ fn state_home() -> Result<PathBuf> {
 
 fn default_db_path() -> Result<PathBuf> {
     Ok(state_home()?.join("tak").join("tasks.sqlite"))
-}
-
-fn unix_epoch_ms() -> i64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_millis() as i64,
-        Err(_) => 0,
-    }
 }

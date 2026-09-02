@@ -52,6 +52,9 @@ pub(super) enum Commands {
         /// Inject one environment variable in `KEY=VALUE` form.
         #[arg(long = "env", value_name = "KEY=VALUE")]
         env: Vec<String>,
+        /// Pass one named client environment variable to the command.
+        #[arg(long = "pass-env", value_name = "NAME")]
+        pass_env: Vec<String>,
         /// Force local placement; a declared container runtime may still be used.
         #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
         local: bool,
@@ -154,6 +157,9 @@ pub(super) enum Commands {
     },
     /// Update the installed tak and takd binaries from signed GitHub releases.
     Update {
+        /// Daemon state root inspected before replacement; active legacy attempts must finish.
+        #[arg(long)]
+        state_root: Option<std::path::PathBuf>,
         /// Only report whether a newer version exists; do not install.
         #[arg(long, default_value_t = false)]
         check: bool,

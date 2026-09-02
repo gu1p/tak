@@ -1,4 +1,6 @@
-use std::path::Path;
+use std::borrow::Cow;
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use tak_proto::local_daemon::v2::{
@@ -44,7 +46,8 @@ async fn exchange_response(
     request: &Request,
 ) -> Result<Response, RunDaemonClientError> {
     let payload = encode_request(request).map_err(classify_request_error)?;
-    let mut stream = UnixStream::connect(socket_path)
+    let connection_path = short_connection_path(socket_path);
+    let mut stream = UnixStream::connect(connection_path.as_ref())
         .await
         .map_err(|_| RunDaemonClientError::ConnectFailed)?;
     stream
@@ -62,6 +65,51 @@ async fn exchange_response(
     let response = read_response_frame(&mut stream, MAX_RESPONSE_FRAME_BYTES).await?;
     decode_response(&response, &request.request_id)
         .map_err(|_| RunDaemonClientError::ProtocolMismatch)
+}
+
+fn short_connection_path(socket_path: &Path) -> Cow<'_, Path> {
+    if !socket_path.is_absolute() || unix_path_fits(socket_path) {
+        return Cow::Borrowed(socket_path);
+    }
+    let Ok(current_dir) = std::env::current_dir() else {
+        return Cow::Borrowed(socket_path);
+    };
+    let Some(relative) = lexical_relative_path(socket_path, &current_dir) else {
+        return Cow::Borrowed(socket_path);
+    };
+    if relative.as_os_str().is_empty() || !unix_path_fits(&relative) {
+        return Cow::Borrowed(socket_path);
+    }
+    Cow::Owned(relative)
+}
+
+fn lexical_relative_path(target: &Path, base: &Path) -> Option<PathBuf> {
+    let target = target.components().collect::<Vec<_>>();
+    let base = base.components().collect::<Vec<_>>();
+    let common = target
+        .iter()
+        .zip(&base)
+        .take_while(|(target, base)| target == base)
+        .count();
+    if common == 0 {
+        return None;
+    }
+    let mut relative = PathBuf::new();
+    for component in &base[common..] {
+        match component {
+            Component::Normal(_) => relative.push(".."),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    for component in &target[common..] {
+        relative.push(component.as_os_str());
+    }
+    Some(relative)
+}
+
+fn unix_path_fits(path: &Path) -> bool {
+    path.as_os_str().as_bytes().len() <= 103
 }
 
 fn classify_request_error(error: RequestEncodeError) -> RunDaemonClientError {

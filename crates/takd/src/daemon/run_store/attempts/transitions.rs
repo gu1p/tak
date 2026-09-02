@@ -23,7 +23,11 @@ pub(super) fn schedule_retry(
 ) -> Result<()> {
     let now = now_ms()?;
     let eligible = now
-        .saturating_add(retry::delay(&job.retry, command.authored_attempt))
+        .saturating_add(retry::delay(
+            &job.retry,
+            command.authored_attempt,
+            &command.fencing_token,
+        ))
         .min(i64::MAX as u64);
     let updated = transaction.execute(
         "UPDATE run_jobs SET state = 'retrying', node_id = NULL, current_fencing_token = NULL, next_eligible_at_ms = ?4, ready_order = (SELECT COALESCE(MAX(other.ready_order), 0) + 1 FROM run_jobs other WHERE other.run_id = ?1) WHERE run_id = ?1 AND job_id = ?2 AND current_fencing_token = ?3",

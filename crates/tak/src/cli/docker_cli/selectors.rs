@@ -1,31 +1,18 @@
-use anyhow::{Result, bail};
-use tak_core::model::RemoteTransportKind;
+use anyhow::Result;
 
 use super::super::remote_inventory::{RemoteRecord, list_remotes};
 use super::DockerCliSelectors;
 
-pub(in crate::cli::docker_cli) fn matching_remotes(
+pub(in crate::cli::docker_cli) async fn matching_remotes(
     selectors: &DockerCliSelectors,
 ) -> Result<Vec<RemoteRecord>> {
-    let remotes = list_remotes()?
+    let remotes = list_remotes()
+        .await?
         .into_iter()
         .filter(|remote| remote.enabled)
         .filter(|remote| selector_matches_remote(selectors, remote))
         .collect::<Vec<_>>();
     Ok(remotes)
-}
-
-pub(in crate::cli::docker_cli) fn selected_transport_kind(
-    transport: Option<&str>,
-) -> Result<RemoteTransportKind> {
-    match transport {
-        None | Some("any") => Ok(RemoteTransportKind::Any),
-        Some("direct") => Ok(RemoteTransportKind::Direct),
-        Some("tor") => Ok(RemoteTransportKind::Tor),
-        Some(other) => {
-            bail!("unsupported remote transport `{other}`; expected direct, tor, or any")
-        }
-    }
 }
 
 fn selector_matches_remote(selectors: &DockerCliSelectors, remote: &RemoteRecord) -> bool {

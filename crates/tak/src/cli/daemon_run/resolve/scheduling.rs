@@ -1,25 +1,18 @@
 use anyhow::{Result, bail};
 use tak_core::v2::{
-    AuthoredLimiterClaim, AuthoredLimiterDefinition, AuthoredModule, AuthoredQueueDefinition,
-    AuthoredQueueUse, AuthoredTask, HoldMode, LimiterClaim, LimiterDefinition, QueueDefinition,
-    QueueDiscipline, RetryPolicy,
+    AuthoredLimiterClaim, AuthoredLimiterDefinition, AuthoredModule, AuthoredTask, HoldMode,
+    LimiterClaim, LimiterDefinition, RetryPolicy,
 };
+
+mod queue;
+
+pub(super) use queue::{definitions as queues, resolved_use as queue};
 
 pub(super) fn retry(module: &AuthoredModule, task: &AuthoredTask) -> RetryPolicy {
     task.retry
         .clone()
         .or_else(|| module.defaults.retry.clone())
         .unwrap_or_default()
-}
-
-pub(super) fn queue_name(module: &AuthoredModule, task: &AuthoredTask) -> Result<Option<String>> {
-    let Some(queue) = queue_use(module, task) else {
-        return Ok(None);
-    };
-    if queue.slots.get() != 1 || queue.priority != 0 {
-        bail!("v2 queue uses currently require slots=1 and priority=0")
-    }
-    Ok(Some(queue.name.clone()))
 }
 
 pub(super) fn claims(task: &AuthoredTask) -> Vec<LimiterClaim> {
@@ -30,44 +23,6 @@ pub(super) fn claims(task: &AuthoredTask) -> Vec<LimiterClaim> {
             amount_millis: claim.amount_millis,
         })
         .collect()
-}
-
-pub(super) fn queues(
-    module: &AuthoredModule,
-    tasks: &[&AuthoredTask],
-    worktree_scope_key: &str,
-) -> Result<Vec<QueueDefinition>> {
-    let mut uses = Vec::<&AuthoredQueueUse>::new();
-    for task in tasks {
-        if let Some(queue) = queue_use(module, task)
-            && !uses
-                .iter()
-                .any(|item| item.name == queue.name && item.scope == queue.scope)
-        {
-            uses.push(queue);
-        }
-    }
-    let mut result = Vec::new();
-    for queue_use in uses {
-        let definition = unique_queue(module, queue_use)?;
-        if definition.discipline != QueueDiscipline::Fifo {
-            bail!("v2 priority queues are not active in this build")
-        }
-        if result
-            .iter()
-            .any(|existing: &QueueDefinition| existing.name == definition.name)
-        {
-            bail!("v2 resolved queues require unique names across scopes")
-        }
-        result.push(QueueDefinition {
-            name: definition.name.clone(),
-            scope: definition.scope.clone(),
-            scope_key: resolved_scope_key(&definition.scope, worktree_scope_key),
-            max_parallel_tasks: definition.max_parallel_tasks,
-            discipline: definition.discipline,
-        });
-    }
-    Ok(result)
 }
 
 pub(super) fn limiters(
@@ -99,29 +54,6 @@ pub(super) fn limiters(
         result.push(resolve_limiter(definition, claim.hold, worktree_scope_key)?);
     }
     Ok(result)
-}
-
-fn queue_use<'a>(
-    module: &'a AuthoredModule,
-    task: &'a AuthoredTask,
-) -> Option<&'a AuthoredQueueUse> {
-    task.queue.as_ref().or(module.defaults.queue.as_ref())
-}
-
-fn unique_queue<'a>(
-    module: &'a AuthoredModule,
-    reference: &AuthoredQueueUse,
-) -> Result<&'a AuthoredQueueDefinition> {
-    let matches = module
-        .queue_definitions
-        .iter()
-        .filter(|item| item.name == reference.name && item.scope == reference.scope)
-        .collect::<Vec<_>>();
-    match matches.as_slice() {
-        [definition] => Ok(definition),
-        [] => bail!("unknown scoped queue `{}`", reference.name),
-        _ => bail!("duplicate scoped queue `{}`", reference.name),
-    }
 }
 
 fn unique_limiter<'a>(
@@ -156,22 +88,26 @@ fn resolve_limiter(
             name,
             scope,
             capacity_millis,
+            unit,
         } => LimiterDefinition::Resource {
             name: name.clone(),
             scope: scope.clone(),
             scope_key: resolved_scope_key(scope, worktree_scope_key),
             capacity_millis: *capacity_millis,
+            unit: unit.clone(),
             hold,
         },
         AuthoredLimiterDefinition::ProcessCap {
             name,
             scope,
             max_processes,
+            match_pattern,
         } => LimiterDefinition::ProcessCap {
             name: name.clone(),
             scope: scope.clone(),
             scope_key: resolved_scope_key(scope, worktree_scope_key),
             max_processes: *max_processes,
+            match_pattern: match_pattern.clone(),
             hold,
         },
         AuthoredLimiterDefinition::RateLimit {

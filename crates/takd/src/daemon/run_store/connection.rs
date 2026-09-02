@@ -2,12 +2,12 @@ use std::fs;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use rusqlite::Connection;
+use tak_runner::ProcessSqliteConnection;
 
 use super::RunStore;
 
 impl RunStore {
-    pub(super) fn open_connection(&self) -> Result<Connection> {
+    pub(super) fn open_connection(&self) -> Result<ProcessSqliteConnection> {
         if let Some(parent) = self.db_path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("create run-store directory {}", parent.display()))?;
@@ -16,7 +16,7 @@ impl RunStore {
         fs::create_dir_all(&self.blob_root)
             .with_context(|| format!("create blob directory {}", self.blob_root.display()))?;
         set_owner_only_dir(&self.blob_root)?;
-        let connection = Connection::open(&self.db_path)
+        let connection = ProcessSqliteConnection::open(&self.db_path)
             .with_context(|| format!("open run store {}", self.db_path.display()))?;
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch(

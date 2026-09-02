@@ -24,3 +24,17 @@ fn shared_error_response_owns_stable_v2_wire_codes_and_safe_correlation() {
         })
     );
 }
+
+#[test]
+fn unsupported_remote_invites_have_redacted_upgrade_guidance() {
+    let response = ErrorResponse::remote_invite_unsupported("add".into());
+    let value = serde_json::to_value(response).expect("encode response");
+    assert_eq!(value["code"], "remote_invite_unsupported");
+    assert!(
+        value["message"]
+            .as_str()
+            .unwrap()
+            .contains("upgrade tak, takd, and workers together")
+    );
+    assert!(!value.to_string().contains("secret"));
+}

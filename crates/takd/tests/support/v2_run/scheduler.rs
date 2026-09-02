@@ -41,6 +41,8 @@ pub fn independent_jobs(key: &str, count: usize) -> tak_core::v2::RunSubmission 
                 kind: PlacementKind::Remote,
                 transport: Some("direct".into()),
                 reason: "healthy protocol-v2 worker".into(),
+                tier: 0,
+                requirements: None,
             })
             .collect();
         result.run.targets.push(task_id);

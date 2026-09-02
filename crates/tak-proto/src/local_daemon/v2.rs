@@ -13,12 +13,18 @@ mod identifier;
 mod probe;
 #[path = "v2/request_encoder.rs"]
 mod request_encoder;
+#[path = "v2/request_encoder_wire.rs"]
+mod request_encoder_wire;
+#[path = "v2/request_validation.rs"]
+mod request_validation;
 #[path = "v2/response.rs"]
 mod response;
 #[path = "v2/response_decoder.rs"]
 mod response_decoder;
 #[path = "v2/response_models.rs"]
 mod response_models;
+#[path = "v2/response_validation.rs"]
+mod response_validation;
 #[path = "v2/types.rs"]
 mod types;
 #[path = "v2/wire.rs"]

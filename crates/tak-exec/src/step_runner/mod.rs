@@ -8,9 +8,8 @@ use tak_core::model::StepDef;
 use tak_core::model::TaskLabel;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-use crate::engine::cancelled_error;
-use crate::engine::{ContainerExecutionIdentity, RunCancellation};
-use crate::{OutputStream, TaskOutputObserver};
+use crate::cancellation::cancelled_error;
+use crate::{ContainerExecutionIdentity, OutputStream, RunCancellation, TaskOutputObserver};
 
 mod child_process;
 mod command;

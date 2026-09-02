@@ -11,7 +11,9 @@ use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use super::RemoteNodeContext;
 use super::resource_admission::{ResourceCapacity, SharedResourceAdmission};
 use super::runtime::RemoteRuntimeConfig;
-use super::status_resources::{host_cpu_cores_used, non_tak_cpu_cores, non_tak_memory_bytes};
+use super::status_resources::{
+    effective_available_memory, host_cpu_cores_used, non_tak_cpu_cores, non_tak_memory_bytes,
+};
 
 mod docker;
 mod stats;
@@ -129,14 +131,20 @@ fn update_host_usage(
     let tak = usage.latest();
     let logical_cores = u32::try_from(host.cpus().len()).unwrap_or(u32::MAX);
     let host_cpu = host_cpu_cores_used(f64::from(host.global_cpu_usage()), logical_cores);
-    let host_used_memory = host.total_memory().saturating_sub(host.available_memory());
+    let host_total_memory = host.total_memory();
+    let host_available_memory = effective_available_memory(
+        host_total_memory,
+        host.used_memory(),
+        host.available_memory(),
+    );
+    let host_used_memory = host_total_memory.saturating_sub(host_available_memory);
     admission.update_host_usage(
         ResourceCapacity {
             cpu_cores: non_tak_cpu_cores(host_cpu, tak.cpu_cores),
             memory_mb: non_tak_memory_bytes(host_used_memory, tak.memory_bytes)
                 .div_ceil(1024 * 1024),
         },
-        host.available_memory().div_ceil(1024 * 1024),
+        host_available_memory.div_ceil(1024 * 1024),
     )
 }
 

@@ -15,8 +15,7 @@ pub(crate) use memory_pressure_settings::MemoryPressureSettings;
 
 const DEFAULT_REMOTE_CLEANUP_TTL_MS: u64 = 15 * 60 * 1000;
 const DEFAULT_REMOTE_CLEANUP_INTERVAL_MS: u64 = 60 * 1000;
-const DEFAULT_REMOTE_CLIENT_STALE_TTL_MS: u64 = 600 * 1000;
-const DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS: u64 = 1000;
+const DEFAULT_WORKER_CACHE_BUDGET_BYTES: u64 = 20 * 1024 * 1024 * 1024;
 const DEFAULT_RESOURCE_SAMPLE_INTERVAL_MS: u64 = 250;
 const DEFAULT_HOST_BASELINE_SAMPLE_MS: u64 = 5_000;
 const REMOTE_EXEC_ROOT_DIR: &str = "takd-remote-exec";
@@ -30,15 +29,10 @@ pub struct RemoteRuntimeConfig {
     explicit_remote_exec_root: Option<PathBuf>,
     temp_dir: PathBuf,
     docker_host: Option<String>,
-    podman_socket: Option<String>,
-    runtime_dir: Option<String>,
-    uid: Option<String>,
     use_temp_dir_default_exec_root: bool,
-    skip_exec_root_probe: bool,
     remote_cleanup_ttl: Duration,
     remote_cleanup_interval: Duration,
-    remote_client_stale_ttl: Duration,
-    remote_client_watchdog_interval: Duration,
+    worker_cache_budget_bytes: u64,
     memory_pressure: MemoryPressureSettings,
     admission_oversubscribe_x: u64,
     default_container_cpu_cores: f64,
@@ -88,13 +82,7 @@ impl RemoteRuntimeConfig {
                 .map(PathBuf::from),
             temp_dir,
             docker_host: optional_trimmed_env(&read_env, "DOCKER_HOST"),
-            podman_socket: optional_trimmed_env(&read_env, "TAK_PODMAN_SOCKET"),
-            runtime_dir: optional_trimmed_env(&read_env, "XDG_RUNTIME_DIR"),
-            uid: optional_trimmed_env(&read_env, "UID"),
             use_temp_dir_default_exec_root,
-            skip_exec_root_probe: simulated_host
-                || read_env("TAK_TEST_CONTAINER_LIFECYCLE_FAILURES").is_some()
-                || bool_from_env(&read_env, "MOCK_CONTAINER", false),
             remote_cleanup_ttl: Duration::from_millis(duration_from_env(
                 &read_env,
                 "TAKD_REMOTE_CLEANUP_TTL_MS",
@@ -105,16 +93,11 @@ impl RemoteRuntimeConfig {
                 "TAKD_REMOTE_CLEANUP_INTERVAL_MS",
                 DEFAULT_REMOTE_CLEANUP_INTERVAL_MS,
             )),
-            remote_client_stale_ttl: Duration::from_millis(duration_from_env(
+            worker_cache_budget_bytes: u64_from_env(
                 &read_env,
-                "TAKD_REMOTE_CLIENT_STALE_TTL_MS",
-                DEFAULT_REMOTE_CLIENT_STALE_TTL_MS,
-            )),
-            remote_client_watchdog_interval: Duration::from_millis(duration_from_env(
-                &read_env,
-                "TAKD_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS",
-                DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS,
-            )),
+                "TAKD_WORKER_CACHE_BUDGET_BYTES",
+                DEFAULT_WORKER_CACHE_BUDGET_BYTES,
+            ),
             memory_pressure: MemoryPressureSettings::from_environment(&read_env),
             admission_oversubscribe_x: u64_from_env(
                 &read_env,

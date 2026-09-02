@@ -31,7 +31,7 @@ async fn prewarmed_mutable_image_is_recorded_and_later_refreshed_after_ttl() {
     assert_eq!(status.entry_count, 1);
     assert_eq!(status.used_bytes, 1024);
 
-    let conn = rusqlite::Connection::open(&db_path).expect("open image cache db");
+    let conn = tak_exec::ProcessSqliteConnection::open(&db_path).expect("open image cache db");
     conn.execute(
         "UPDATE image_cache_entries SET last_refreshed_at_ms = 0",
         [],

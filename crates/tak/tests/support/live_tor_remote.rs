@@ -6,14 +6,11 @@ use std::path::Path;
 use super::live_tor::LiveTorRoots;
 use super::tor_smoke::{assert_success_with_log, tak_command};
 
-pub fn add_remote(workspace_root: &Path, roots: &LiveTorRoots, token: &str) {
-    add_remote_with_env(workspace_root, roots, token, &BTreeMap::new());
-}
-
 pub fn add_remote_with_env(
     workspace_root: &Path,
     roots: &LiveTorRoots,
     token: &str,
+    daemon_socket: &Path,
     extra_env: &BTreeMap<String, String>,
 ) {
     roots.prepare_poisoned_client_ambient_dirs();
@@ -25,6 +22,7 @@ pub fn add_remote_with_env(
     for (key, value) in extra_env {
         command.env(key, value);
     }
+    command.env("TAKD_SOCKET", daemon_socket);
     let output = command.output().expect("run tak remote add");
     assert_success_with_log(
         &output,
@@ -33,11 +31,17 @@ pub fn add_remote_with_env(
     );
 }
 
-pub fn assert_remote_list(workspace_root: &Path, roots: &LiveTorRoots, node_id: &str) {
+pub fn assert_remote_list(
+    workspace_root: &Path,
+    roots: &LiveTorRoots,
+    node_id: &str,
+    daemon_socket: &Path,
+) {
     roots.prepare_poisoned_client_ambient_dirs();
     let output = tak_command(workspace_root, &roots.client_config_root)
         .env("XDG_DATA_HOME", roots.poisoned_client_data_home())
         .env("XDG_CACHE_HOME", roots.poisoned_client_cache_home())
+        .env("TAKD_SOCKET", daemon_socket)
         .args(["remote", "list"])
         .output()
         .expect("run tak remote list");
@@ -58,14 +62,11 @@ pub fn assert_remote_list(workspace_root: &Path, roots: &LiveTorRoots, node_id: 
     );
 }
 
-pub fn assert_remote_status_ok(workspace_root: &Path, roots: &LiveTorRoots, node_id: &str) {
-    assert_remote_status_ok_with_env(workspace_root, roots, node_id, &BTreeMap::new());
-}
-
 pub fn assert_remote_status_ok_with_env(
     workspace_root: &Path,
     roots: &LiveTorRoots,
     node_id: &str,
+    daemon_socket: &Path,
     extra_env: &BTreeMap<String, String>,
 ) {
     roots.prepare_poisoned_client_ambient_dirs();
@@ -77,6 +78,7 @@ pub fn assert_remote_status_ok_with_env(
     for (key, value) in extra_env {
         command.env(key, value);
     }
+    command.env("TAKD_SOCKET", daemon_socket);
     let output = command.output().expect("run tak remote status");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(

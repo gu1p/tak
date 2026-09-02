@@ -1,7 +1,7 @@
 use std::fs;
 
 use serde_json::json;
-use tak_loader::{AuthoredRootModule, LoadOptions, inspect_authored_root_module};
+use tak_loader::{LoadOptions, inspect_authored_root_module};
 
 #[test]
 fn v2_loader_preserves_scheduling_fields_and_direct_session_use() {
@@ -25,11 +25,7 @@ SPEC
     )
     .unwrap();
 
-    let AuthoredRootModule::V2(root) =
-        inspect_authored_root_module(temp.path(), &LoadOptions::default()).unwrap()
-    else {
-        panic!("expected v2 root")
-    };
+    let root = inspect_authored_root_module(temp.path(), &LoadOptions::default()).unwrap();
     let module = serde_json::to_value(root.module).unwrap();
     assert_eq!(module["defaults"]["retry"]["max_attempts"], 3);
     assert_eq!(
@@ -46,4 +42,10 @@ SPEC
         json!({"name": "cpu", "scope": "project", "amount_millis": 1500,
                "hold": "during"})
     );
+}
+
+#[test]
+fn v2_queue_typing_does_not_advertise_removed_max_pending() {
+    let stubs = include_str!("../src/loader/dsl_stubs_v2.pyi");
+    assert!(!stubs.contains("max_pending"), "{stubs}");
 }

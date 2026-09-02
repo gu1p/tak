@@ -57,6 +57,8 @@ fn exercise(pending: &'static str, expected: &[&str]) {
         child.kill().unwrap();
     }
     let output = child.wait_with_output().unwrap();
+    let mut expected = expected.to_vec();
+    expected.push("GetOutputManifest");
     let requests = daemon.finish_expecting(expected.len());
     let operations: Vec<_> = requests
         .iter()
@@ -64,7 +66,7 @@ fn exercise(pending: &'static str, expected: &[&str]) {
         .collect();
     assert_eq!(operations, expected);
     assert_eq!(
-        requests[expected.len() - 2]["operation"]["run_id"],
+        requests[expected.len() - 3]["operation"]["run_id"],
         "run-123"
     );
     assert!(exited, "cancellation waited for the pending {pending}");

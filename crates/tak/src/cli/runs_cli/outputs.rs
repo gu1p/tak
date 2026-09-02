@@ -7,8 +7,12 @@ use tak_proto::local_daemon::v2::{Operation, OutputArtifact, Response};
 
 #[path = "outputs/download.rs"]
 mod download;
+#[path = "outputs/exchange.rs"]
+mod exchange;
 #[path = "outputs/materialize.rs"]
 mod materialize;
+
+use exchange::Policy;
 
 pub(super) async fn retrieve(socket: &Path, run_id: &str, destination: &Path) -> Result<()> {
     let bundle = fetch(socket, run_id).await?;
@@ -21,15 +25,31 @@ pub(crate) struct ValidatedOutputBundle {
 }
 
 pub(crate) async fn fetch(socket: &Path, run_id: &str) -> Result<ValidatedOutputBundle> {
-    let response = super::request(
-        socket,
-        "tak-runs-outputs",
-        Operation::GetOutputManifest {
-            run_id: run_id.to_owned(),
-        },
-        false,
-    )
-    .await?;
+    fetch_with_policy(socket, run_id, Policy::Management).await
+}
+
+pub(crate) async fn fetch_foreground(socket: &Path, run_id: &str) -> Result<ValidatedOutputBundle> {
+    fetch_with_policy(socket, run_id, Policy::Foreground).await
+}
+
+async fn fetch_with_policy(
+    socket: &Path,
+    run_id: &str,
+    policy: Policy,
+) -> Result<ValidatedOutputBundle> {
+    let response = policy
+        .response(
+            socket,
+            "tak-runs-outputs",
+            Operation::GetOutputManifest {
+                run_id: run_id.to_owned(),
+            },
+        )
+        .await?;
+    validated_bundle(run_id, response)
+}
+
+fn validated_bundle(run_id: &str, response: Response) -> Result<ValidatedOutputBundle> {
     let Response::OutputManifest {
         run_id: response_run,
         expired,
@@ -57,6 +77,23 @@ pub(crate) async fn write_fresh(
     destination: &Path,
     bundle: &ValidatedOutputBundle,
 ) -> Result<()> {
+    write_fresh_with_policy(socket, destination, bundle, Policy::Management).await
+}
+
+pub(crate) async fn write_fresh_foreground(
+    socket: &Path,
+    destination: &Path,
+    bundle: &ValidatedOutputBundle,
+) -> Result<()> {
+    write_fresh_with_policy(socket, destination, bundle, Policy::Foreground).await
+}
+
+async fn write_fresh_with_policy(
+    socket: &Path,
+    destination: &Path,
+    bundle: &ValidatedOutputBundle,
+    policy: Policy,
+) -> Result<()> {
     if fs::symlink_metadata(destination).is_ok() {
         bail!("run output destination already exists");
     }
@@ -68,7 +105,7 @@ pub(crate) async fn write_fresh(
     fs::create_dir(destination)
         .with_context(|| format!("create run output destination {}", destination.display()))?;
     let mut fresh = FreshDestination::new(destination);
-    materialize::all(socket, destination, &bundle.artifacts).await?;
+    materialize::all(socket, destination, &bundle.artifacts, policy).await?;
     fresh.keep();
     Ok(())
 }

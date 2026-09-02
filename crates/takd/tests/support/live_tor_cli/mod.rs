@@ -2,7 +2,7 @@
 mod command_assert;
 
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command as StdCommand, Stdio};
+use std::process::{Child, Stdio};
 
 use self::command_assert::{assert_success, assert_success_with_log};
 use super::cli::takd_bin;
@@ -33,13 +33,11 @@ impl Drop for ChildGuard {
 }
 
 pub fn init_tor_agent(roots: &LiveTorRoots, node_id: &str) {
-    let output = StdCommand::new(takd_bin())
+    let paths =
+        super::daemon_command_paths::DaemonCommandPaths::new(&roots.config_root, &roots.state_root);
+    let output = paths
+        .rooted_command(&takd_bin(), "init")
         .args([
-            "init",
-            "--config-root",
-            &roots.config_root.display().to_string(),
-            "--state-root",
-            &roots.state_root.display().to_string(),
             "--node-id",
             node_id,
             "--pool",
@@ -55,14 +53,12 @@ pub fn init_tor_agent(roots: &LiveTorRoots, node_id: &str) {
 }
 
 pub fn spawn_tor_agent(roots: &LiveTorRoots) -> ChildGuard {
-    let child = StdCommand::new(takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &roots.config_root.display().to_string(),
-            "--state-root",
-            &roots.state_root.display().to_string(),
-        ])
+    let paths =
+        super::daemon_command_paths::DaemonCommandPaths::new(&roots.config_root, &roots.state_root);
+    let child = paths
+        .rooted_command(&takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .env("MOCK_CONTAINER", "true")
         .env("TAK_TEST_IGNORE_HOST_USAGE", "true")
         .env("TAKD_HOST_BASELINE_SAMPLE_MS", "0")
@@ -79,16 +75,11 @@ pub fn spawn_tor_agent(roots: &LiveTorRoots) -> ChildGuard {
 }
 
 pub fn wait_for_token(roots: &LiveTorRoots) -> String {
-    let output = StdCommand::new(takd_bin())
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &roots.state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "360",
-        ])
+    let paths =
+        super::daemon_command_paths::DaemonCommandPaths::new(&roots.config_root, &roots.state_root);
+    let output = paths
+        .state_command(&takd_bin(), &["token", "show"])
+        .args(["--wait", "--timeout-secs", "360"])
         .output()
         .expect("run takd token show --wait");
     let log_path = roots.state_root.join("service.log");

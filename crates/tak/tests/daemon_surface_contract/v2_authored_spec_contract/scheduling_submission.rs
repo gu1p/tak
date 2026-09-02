@@ -24,7 +24,7 @@ fn authored_v2_scheduling_and_session_fields_reach_the_daemon() {
         daemon.finish_expecting(0);
         panic!("{}", String::from_utf8_lossy(&output.stderr));
     }
-    let requests = daemon.finish_expecting(4);
+    let requests = daemon.finish_expecting(5);
     let run = &requests[0]["operation"]["run"];
     let target = run["jobs"]
         .as_array()
@@ -34,9 +34,12 @@ fn authored_v2_scheduling_and_session_fields_reach_the_daemon() {
         .unwrap();
     assert_eq!(
         target["retry"],
-        json!({"max_attempts": 3, "backoff_millis": 250, "max_backoff_millis": 250})
+        json!({"max_attempts": 3, "on_exit": [], "backoff_millis": 250,
+               "max_backoff_millis": 250, "jitter": "none"})
     );
     assert_eq!(target["queue"], "build");
+    assert_eq!(target["queue_slots"], 2);
+    assert_eq!(target["queue_priority"], 100);
     assert_eq!(
         target["limiter_claims"],
         json!([{"name": "cpu", "amount_millis": 1500}])
@@ -57,12 +60,13 @@ fn authored_v2_scheduling_and_session_fields_reach_the_daemon() {
     assert_eq!(
         run["queue_definitions"][0],
         json!({"name": "build", "scope": "project", "scope_key": null,
-               "max_parallel_tasks": 2, "discipline": "fifo"})
+               "max_parallel_tasks": 2, "discipline": "priority"})
     );
     assert_eq!(
         run["limiter_definitions"][0],
         json!({"kind": "resource", "name": "cpu", "scope": "project",
-               "scope_key": null, "capacity_millis": 2000, "hold": "during"})
+               "scope_key": null, "capacity_millis": 2000, "unit": null,
+               "hold": "during"})
     );
 }
 
@@ -75,11 +79,12 @@ const TASKS: &str = r#"SHARED = session(
 SPEC = module_spec(
   spec_version=2,
   limiters=[resource("cpu", 2, scope=Scope.Project)],
-  queues=[queue_def("build", slots=2, scope=Scope.Project)],
+  queues=[queue_def("build", slots=2, discipline=QueueDiscipline.Priority,
+                    scope=Scope.Project)],
   defaults=Defaults(
     execution=Execution.Local(),
     retry=retry(attempts=3, backoff=fixed(0.25)),
-    queue=queue_use("build", scope=Scope.Project),
+    queue=queue_use("build", scope=Scope.Project, slots=2, priority=100),
   ),
   tasks=[
     task("dep", steps=[cmd("true")]),

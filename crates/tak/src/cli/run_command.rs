@@ -1,10 +1,3 @@
-use std::sync::Arc;
-
-use tak_exec::{RunCancellation, RunOptions, RunSummary, run_tasks};
-
-use super::run_overrides::{
-    RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
-};
 use super::*;
 
 pub(super) struct RunCliArgs {
@@ -21,119 +14,11 @@ pub(super) struct RunCliArgs {
     pub(super) container_build_context: Option<String>,
 }
 
-pub(super) async fn run_task_command(args: RunCliArgs) -> Result<()> {
+pub(super) async fn run_task_command(args: RunCliArgs) -> Result<std::process::ExitCode> {
     if args.labels.is_empty() {
         bail!("run requires at least one label");
     }
     let cwd = std::env::current_dir().context("resolve current directory")?;
-    if let tak_loader::AuthoredRootModule::V2(root) =
-        tak_loader::inspect_authored_root_module(&cwd, &LoadOptions::default())?
-    {
-        if !root.module.includes.is_empty() {
-            bail!(
-                "module_spec(spec_version=2) declares includes, but v2 include resolution is not active in this build; no child TASKS.py was evaluated and no legacy include fallback was attempted"
-            );
-        }
-        return super::daemon_run::execute(*root, args).await;
-    }
-    let visualization = Arc::new(RunVisualizationObserver::new(args.jobs)?);
-    visualization.start_refresh()?;
-    let result = run_task_command_with_visualization(args, visualization.clone()).await;
-    visualization.finish_run(result.as_ref().err())?;
-    result
-}
-
-async fn run_task_command_with_visualization(
-    args: RunCliArgs,
-    visualization: Arc<RunVisualizationObserver>,
-) -> Result<()> {
-    let spec = load_workspace_from_cwd()?;
-    let targets = args
-        .labels
-        .iter()
-        .map(|label| parse_input_label(&spec, label, "run"))
-        .collect::<Result<Vec<_>>>()?;
-    if warn_redundant_remote_container_flag(args.remote, args.container) {
-        visualization.write_notice(
-            "warning: --container is redundant with --remote; remote execution already implies a container",
-        )?;
-    }
-    let spec = apply_run_execution_overrides(
-        &spec,
-        &targets,
-        RunExecutionOverrideArgs {
-            local: args.local,
-            local_no_container: args.local_no_container,
-            remote: args.remote,
-            container: args.container,
-            container_image: args.container_image.as_deref(),
-            container_dockerfile: args.container_dockerfile.as_deref(),
-            container_build_context: args.container_build_context.as_deref(),
-        },
-    )?;
-
-    let cancellation = RunCancellation::new();
-    let options = RunOptions {
-        jobs: args.jobs,
-        keep_going: args.keep_going,
-        lease_socket: std::env::var_os("TAKD_SOCKET").map(std::path::PathBuf::from),
-        lease_ttl_ms: 30_000,
-        lease_poll_interval_ms: 200,
-        session_id: std::env::var("TAK_SESSION_ID").ok(),
-        user: std::env::var("TAK_USER").ok(),
-        output_observer: Some(visualization.clone()),
-        cancellation: cancellation.clone(),
-    };
-    let summary = run_tasks_until_interrupted(
-        &spec,
-        &targets,
-        &options,
-        cancellation,
-        visualization.as_ref(),
-    )
-    .await?;
-
-    for (label, result) in summary.results {
-        visualization.write_result_line(&format!(
-            "{}: {} (task_run_id={}, attempts={}, exit_code={}, placement={}, remote_node={}, transport={}, reason={}, context_hash={}, runtime={}, runtime_engine={}, session={}, reuse={})",
-            canonical_label(&label),
-            if result.success { "ok" } else { "failed" },
-            result.task_run_id,
-            result.attempts,
-            result
-                .exit_code
-                .map_or_else(|| "none".to_string(), |code| code.to_string()),
-            result.placement_mode.as_str(),
-            result.remote_node_id.as_deref().unwrap_or("none"),
-            result.remote_transport_kind.as_deref().unwrap_or("none"),
-            result.decision_reason.as_deref().unwrap_or("none"),
-            result.context_manifest_hash.as_deref().unwrap_or("none"),
-            result.remote_runtime_kind.as_deref().unwrap_or("none"),
-            result.remote_runtime_engine.as_deref().unwrap_or("none"),
-            result.session_name.as_deref().unwrap_or("none"),
-            result.session_reuse.as_deref().unwrap_or("none")
-        ))?;
-    }
-    Ok(())
-}
-
-async fn run_tasks_until_interrupted(
-    spec: &tak_core::model::WorkspaceSpec,
-    targets: &[tak_core::model::TaskLabel],
-    options: &RunOptions,
-    cancellation: RunCancellation,
-    visualization: &RunVisualizationObserver,
-) -> Result<RunSummary> {
-    let run = run_tasks(spec, targets, options);
-    tokio::pin!(run);
-    tokio::select! {
-        result = &mut run => result,
-        signal = tokio::signal::ctrl_c() => {
-            if signal.is_ok() {
-                visualization.write_notice("cancelling tasks…")?;
-            }
-            cancellation.cancel();
-            run.await
-        }
-    }
+    let root = tak_loader::inspect_authored_root_module(&cwd, &LoadOptions::default())?;
+    super::daemon_run::execute(root, args).await
 }

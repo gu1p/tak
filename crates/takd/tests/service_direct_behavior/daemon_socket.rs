@@ -1,8 +1,9 @@
 #![allow(clippy::await_holding_lock)]
 
 use tak_proto::decode_remote_token;
+use tak_proto::local_daemon::v2::{Operation, Request, Response};
 use takd::agent::{InitAgentOptions, init_agent, read_token_wait};
-use takd::{Request, Response, StatusRequest, serve_agent};
+use takd::serve_agent;
 
 use crate::support;
 use support::env::{EnvGuard, env_lock};
@@ -16,13 +17,19 @@ mod without_agent_config;
 async fn serve_agent_direct_starts_local_daemon_socket_and_remote_agent() {
     let _env_lock = env_lock();
     let mut env = EnvGuard::default();
-    let temp = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir_all(".tmp").expect("create test temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
+    let root = super::relative_temp_root(&temp);
     env.set(
         "XDG_RUNTIME_DIR",
-        temp.path().join("runtime").display().to_string(),
+        root.join("runtime").display().to_string(),
     );
-    let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
+    env.set(
+        "TAKD_REMOTE_EXEC_ROOT",
+        root.join("remote-exec").display().to_string(),
+    );
+    let config_root = root.join("config");
+    let state_root = root.join("state");
     init_agent(
         &config_root,
         &state_root,
@@ -62,13 +69,14 @@ async fn serve_agent_direct_starts_local_daemon_socket_and_remote_agent() {
 
     let status = send_request(
         &socket_path,
-        &Request::Status(StatusRequest {
+        &Request {
             request_id: "daemon-status".into(),
-        }),
+            operation: Operation::GetDaemonStatus {},
+        },
     )
     .await;
     assert!(
-        matches!(status, Response::StatusSnapshot { .. }),
+        matches!(status, Response::DaemonStatus { .. }),
         "expected local daemon status, got {status:?}"
     );
 

@@ -97,6 +97,7 @@ pub async fn run_cli() -> Result<ExitCode> {
         Commands::Exec {
             cwd,
             env,
+            pass_env,
             local,
             local_no_container,
             remote,
@@ -109,6 +110,7 @@ pub async fn run_cli() -> Result<ExitCode> {
             return run_exec_command(ExecCliArgs {
                 cwd,
                 env,
+                pass_env,
                 local,
                 local_no_container,
                 remote,
@@ -134,7 +136,7 @@ pub async fn run_cli() -> Result<ExitCode> {
             container_dockerfile,
             container_build_context,
         } => {
-            run_task_command(RunCliArgs {
+            return run_task_command(RunCliArgs {
                 labels,
                 jobs,
                 keep_going,
@@ -147,7 +149,7 @@ pub async fn run_cli() -> Result<ExitCode> {
                 container_dockerfile,
                 container_build_context,
             })
-            .await?;
+            .await;
         }
         Commands::Runs { command } => return super::runs_cli::run_runs_command(command).await,
         Commands::Docker { argv } => {
@@ -179,11 +181,13 @@ pub async fn run_cli() -> Result<ExitCode> {
             run_status(&node_ids, watch, interval_ms).await?;
         }
         Commands::Update {
+            state_root,
             check,
             force,
             version,
         } => {
             super::update_cli::run_update_command(super::update_cli::UpdateArgs {
+                state_root,
                 check,
                 force,
                 version,

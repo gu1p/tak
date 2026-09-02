@@ -1,6 +1,11 @@
 use std::collections::BTreeMap;
 
-use tak_core::v2::{Affinity, PassEnv, RemoteSelection, Session, SessionReuse, Step};
+use serde_json::json;
+use tak_core::v2::{
+    Affinity, ContainerSource, PassEnv, RemoteSelection, Session, SessionReuse, Step, TaskRuntime,
+};
+
+use super::v2_resolved_run_support::sample_run;
 
 #[test]
 fn balanced_is_the_v2_remote_selection_default() {
@@ -33,6 +38,22 @@ fn shared_workspace_requires_positive_parallelism_and_hard_affinity() {
 }
 
 #[test]
+fn paths_session_requires_at_least_one_cache_selector() {
+    let empty = Session::new("compiler", SessionReuse::Paths { paths: vec![] }, None);
+    assert!(empty.is_err());
+    let escaping = Session::new(
+        "compiler",
+        SessionReuse::Paths {
+            paths: vec![tak_core::v2::OutputSelector::Path {
+                value: "../secret".into(),
+            }],
+        },
+        None,
+    );
+    assert!(escaping.is_err());
+}
+
+#[test]
 fn shared_workspace_task_cannot_weaken_or_change_its_home() {
     let hard = Affinity::require_same_node("build").expect("hard affinity");
     let reuse = SessionReuse::shared_workspace(1).expect("reuse");
@@ -55,4 +76,21 @@ fn authored_step_debug_redacts_environment_values() {
     let debug = format!("{step:?}");
     assert!(debug.contains("TOKEN"), "{debug}");
     assert!(!debug.contains("never-debug-this"), "{debug}");
+}
+
+#[test]
+fn resolved_tasks_preserve_timeout_and_container_runtime() {
+    let mut run = sample_run();
+    run.tasks[0].timeout_s = Some(7);
+    run.tasks[0].runtime = Some(TaskRuntime::container(ContainerSource::Image {
+        image: "alpine:3.20".into(),
+    }));
+
+    run.validate().unwrap();
+    let encoded = serde_json::to_value(run).unwrap();
+    assert_eq!(encoded["tasks"][0]["timeout_s"], 7);
+    assert_eq!(
+        encoded["tasks"][0]["runtime"],
+        json!({"kind":"container","source":{"kind":"image","image":"alpine:3.20"}})
+    );
 }

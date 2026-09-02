@@ -3,8 +3,8 @@ use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use tak_core::v2::RunSubmission;
 use tak_proto::local_daemon::v2::{RunEventKind, WorkspaceDisposition};
 
-use super::blob::verified_blob;
 use super::events::{append_event, now_ms, sqlite_i64};
+use super::workspace_uploads;
 use super::{RunStore, SubmitRunResult};
 
 mod definition_conflicts;
@@ -27,14 +27,17 @@ impl RunStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if let Some(result) = existing_submission(self, &transaction, submission, submitter_id)? {
             transaction.commit()?;
-            if matches!(&result.workspace, WorkspaceDisposition::Present) {
-                remove_partial(&self.upload_path(&result.run_id));
-            }
             return Ok(result);
         }
         reject_active_conflicts(&transaction, submission, submitter_id)?;
         let run_id = format!("run-{}", uuid::Uuid::new_v4());
-        let workspace = workspace_disposition(self, &transaction, submission, 0)?;
+        let workspace = workspace_uploads::disposition(
+            self,
+            &transaction,
+            &run_id,
+            &submission.run.workspace,
+            0,
+        )?;
         insert_run(&transaction, &run_id, submission, submitter_id, &workspace)?;
         insert_environment(&transaction, &run_id, submission)?;
         insert_jobs(&transaction, &run_id, submission)?;
@@ -71,10 +74,16 @@ fn existing_submission(
     }
     let offset =
         u64::try_from(offset).map_err(|_| anyhow::anyhow!("stored upload offset is invalid"))?;
-    let mut workspace = if is_post_commit(&state) {
+    let workspace = if is_post_commit(&state) {
         WorkspaceDisposition::Present
     } else {
-        workspace_disposition(store, transaction, submission, offset)?
+        workspace_uploads::disposition(
+            store,
+            transaction,
+            &run_id,
+            &submission.run.workspace,
+            offset,
+        )?
     };
     if matches!(workspace, WorkspaceDisposition::Present) && state == "awaiting_workspace" {
         transaction.execute(
@@ -87,33 +96,19 @@ fn existing_submission(
             RunEventKind::WorkspaceUploading,
             "workspace cache hit",
         )?;
-    } else if matches!(workspace, WorkspaceDisposition::UploadRequired { .. })
-        && (state == "awaiting_commit"
-            || !partial_matches_offset(&store.upload_path(&run_id), offset)?)
+    } else if let WorkspaceDisposition::UploadRequired { next_offset } = &workspace
+        && matches!(state.as_str(), "awaiting_workspace" | "awaiting_commit")
     {
         transaction.execute(
-            "UPDATE runs SET state = 'awaiting_workspace', upload_offset = 0, updated_at_ms = ?2 WHERE run_id = ?1",
-            params![run_id, sqlite_i64(now_ms()?, "timestamp")?],
+            "UPDATE runs SET state = 'awaiting_workspace', upload_offset = ?2, updated_at_ms = ?3 WHERE run_id = ?1",
+            params![
+                run_id,
+                sqlite_i64(*next_offset, "upload offset")?,
+                sqlite_i64(now_ms()?, "timestamp")?
+            ],
         )?;
-        workspace = WorkspaceDisposition::UploadRequired { next_offset: 0 };
-        remove_partial(&store.upload_path(&run_id));
     }
     Ok(Some(SubmitRunResult { run_id, workspace }))
-}
-
-fn workspace_disposition(
-    store: &RunStore,
-    transaction: &Transaction<'_>,
-    submission: &RunSubmission,
-    next_offset: u64,
-) -> Result<WorkspaceDisposition> {
-    let workspace = &submission.run.workspace;
-    let present = verified_blob(store, transaction, &workspace.manifest.fingerprint)?.is_some();
-    Ok(if present {
-        WorkspaceDisposition::Present
-    } else {
-        WorkspaceDisposition::UploadRequired { next_offset }
-    })
 }
 
 fn is_post_commit(state: &str) -> bool {
@@ -121,20 +116,4 @@ fn is_post_commit(state: &str) -> bool {
         state,
         "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled"
     )
-}
-
-fn partial_matches_offset(path: &std::path::Path, offset: u64) -> Result<bool> {
-    match std::fs::metadata(path) {
-        Ok(metadata) => Ok(metadata.is_file() && metadata.len() == offset),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(offset == 0),
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn remove_partial(path: &std::path::Path) {
-    if let Err(error) = std::fs::remove_file(path)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!("could not remove stale v2 workspace upload: {error}");
-    }
 }

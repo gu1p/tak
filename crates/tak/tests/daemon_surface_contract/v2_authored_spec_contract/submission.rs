@@ -27,7 +27,7 @@ fn explicit_v2_submits_uploads_commits_and_attaches_without_client_execution() {
         &environment(&socket),
     )
     .expect("run tak");
-    let requests = daemon.finish_expecting(4);
+    let requests = daemon.finish_expecting(5);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 

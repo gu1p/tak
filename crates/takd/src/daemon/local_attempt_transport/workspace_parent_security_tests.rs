@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::workspace::prepare;
 use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
+use tak_core::v2::JobContextManifest;
 
 #[cfg(unix)]
 #[test]
@@ -24,6 +25,7 @@ fn shared_preparation_rejects_a_symlinked_storage_parent() {
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Shared(parent.join("shared")),
         overlays: Vec::new(),
+        context_manifest: JobContextManifest { paths: Vec::new() },
     };
 
     assert!(prepare(snapshot).is_err());

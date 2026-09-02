@@ -5,6 +5,7 @@
 use std::path::Path;
 
 use anyhow::Result;
+use tak_update::legacy_drain::ensure_legacy_attempts_drained;
 use tak_update::plan::{UpdateAction, UpdateOutcome};
 use tak_update::release_client::{DEFAULT_REPO, RELEASE_PUBLIC_KEY};
 use tak_update::runner::{SelfUpdateRequest, self_update};
@@ -12,10 +13,18 @@ use takd::agent::read_config;
 
 pub(super) fn run_update_command(
     config_root: &Path,
+    state_root: &Path,
     check: bool,
     force: bool,
     version: Option<String>,
+    legacy_drain_check: bool,
 ) -> Result<()> {
+    if legacy_drain_check {
+        return ensure_legacy_attempts_drained(state_root);
+    }
+    if !check {
+        ensure_legacy_attempts_drained(state_root)?;
+    }
     // Config is optional: it only supplies a repo override and the sibling toggle.
     let config = read_config(config_root).ok();
     let repo = config

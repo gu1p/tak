@@ -9,7 +9,6 @@ pub(in crate::daemon::protocol::broker) type BrokerRemoteStream =
 #[derive(Debug, Clone)]
 pub struct BrokerForwardResponse {
     pub status: u16,
-    pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
 }
 

@@ -21,8 +21,9 @@ fn peer_manager_loads_enabled_tor_remotes_only() {
 fn malformed_reload_preserves_last_good_peer_state() {
     let manager =
         super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
+    let generation = manager.begin_inventory_reload();
 
-    manager.apply_inventory_result(Err(anyhow::anyhow!("invalid toml")));
+    manager.apply_inventory_reload(generation, Err(anyhow::anyhow!("invalid toml")));
 
     assert_eq!(manager.snapshots()[0].node_id, "builder-a");
 }

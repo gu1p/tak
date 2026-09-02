@@ -7,12 +7,13 @@ use crate::daemon::scheduler::{DispatchCommand, ResultAcceptance};
 
 use super::super::RunStore;
 use super::super::events::{append_event, append_job_event, now_ms, sqlite_i64};
+use super::publish_cancelled_outputs;
 
 impl RunStore {
     pub fn pending_cancellations(&self) -> Result<Vec<DispatchCommand>> {
         let connection = self.open_connection()?;
         let mut statement = connection.prepare(
-            "SELECT outbox.run_id, outbox.job_id, outbox.node_id, outbox.authored_attempt, outbox.dispatch_generation, outbox.fencing_token \
+            "SELECT outbox.run_id, outbox.job_id, outbox.node_id, attempt.transport, outbox.authored_attempt, outbox.dispatch_generation, outbox.fencing_token \
              FROM run_cancel_outbox outbox JOIN run_attempts attempt USING (run_id, job_id, authored_attempt, dispatch_generation) \
              WHERE outbox.delivered_at_ms IS NULL AND attempt.state = 'cancelling' AND attempt.released_at_ms IS NULL ORDER BY outbox.rowid",
         )?;
@@ -27,15 +28,18 @@ impl RunStore {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let attempt = transaction
             .query_row(
-                "SELECT fencing_token, node_id, state FROM run_attempts WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4",
+                "SELECT fencing_token, node_id, transport, state FROM run_attempts WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4",
                 params![command.run_id, command.job_id, command.authored_attempt, command.dispatch_generation],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, String>(3)?)),
             )
             .optional()?;
-        let Some((token, node_id, state)) = attempt else {
+        let Some((token, node_id, transport, state)) = attempt else {
             return Ok(ResultAcceptance::Stale);
         };
-        if token != command.fencing_token || node_id != command.node_id {
+        if token != command.fencing_token
+            || node_id != command.node_id
+            || transport != command.transport
+        {
             return Ok(ResultAcceptance::Stale);
         }
         if state == "cancelled" {
@@ -103,10 +107,14 @@ fn finish_run_if_settled(
     if active != 0 {
         return Ok(());
     }
-    transaction.execute(
+    let settled = transaction.execute(
         "UPDATE runs SET state = 'cancelled', updated_at_ms = ?2 WHERE run_id = ?1 AND state = 'cancelling'",
         params![run_id, now],
     )?;
+    if settled == 1 {
+        super::super::remote_attempts::rearm_terminal_run(transaction, run_id)?;
+    }
+    publish_cancelled_outputs(transaction, run_id)?;
     append_event(
         transaction,
         run_id,
@@ -117,16 +125,17 @@ fn finish_run_if_settled(
 }
 
 fn command_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DispatchCommand> {
-    let attempt = row.get::<_, i64>(3)?;
-    let generation = row.get::<_, i64>(4)?;
+    let attempt = row.get::<_, i64>(4)?;
+    let generation = row.get::<_, i64>(5)?;
     Ok(DispatchCommand {
         run_id: row.get(0)?,
         job_id: row.get(1)?,
         node_id: row.get(2)?,
+        transport: row.get(3)?,
         authored_attempt: u32::try_from(attempt)
-            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(3, attempt))?,
+            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, attempt))?,
         dispatch_generation: u32::try_from(generation)
-            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, generation))?,
-        fencing_token: row.get(5)?,
+            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(5, generation))?,
+        fencing_token: row.get(6)?,
     })
 }

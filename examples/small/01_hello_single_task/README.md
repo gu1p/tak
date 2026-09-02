@@ -8,6 +8,7 @@ This is the minimum useful Tak setup: one task, one step, one artifact. Use it a
 
 ```python
 SPEC = module_spec(
+    spec_version=2,
     tasks=[
         task(
             "hello",

@@ -8,13 +8,15 @@ use tak_core::label::parse_label;
 use tak_core::model::StepDef;
 use tak_core::v2::{ResolvedTaskUnit, Step};
 use tak_runner::{
-    OutputStream, RemoteWorkerExecutionSpec, RunCancellation, TaskOutputChunk, TaskOutputObserver,
-    execute_remote_worker_steps_with_output_and_cancellation,
+    OutputStream, RemoteWorkerExecutionOutcome, RemoteWorkerExecutionSpec, RunCancellation,
+    TaskOutputChunk, TaskOutputObserver, execute_remote_worker_steps_with_output_and_cancellation,
 };
 
 use super::super::run_store::RunStore;
 use super::super::run_store::execution::LocalExecutionSnapshot;
-use super::super::scheduler::{AttemptCompletion, AttemptOutputStream, DispatchCommand};
+use super::super::scheduler::{
+    AttemptCompletion, AttemptOutputStream, AttemptRuntimeMetadata, DispatchCommand,
+};
 
 pub(super) async fn run(
     store: &RunStore,
@@ -23,6 +25,7 @@ pub(super) async fn run(
     workspace_root: &Path,
     cancellation: &RunCancellation,
 ) -> Result<AttemptCompletion> {
+    let mut runtime = None;
     for (index, task) in snapshot.tasks.iter().enumerate() {
         let observer: Arc<dyn TaskOutputObserver> = Arc::new(DurableObserver {
             store: store.clone(),
@@ -37,12 +40,15 @@ pub(super) async fn run(
             cancellation,
         )
         .await?;
+        let task_runtime = runtime_metadata(&result);
         if !result.success {
-            return Ok(failed(anyhow::anyhow!(
-                "task exited {:?}",
-                result.exit_code
-            )));
+            return Ok(failed_with_exit_code(
+                anyhow::anyhow!("task exited {:?}", result.exit_code),
+                result.exit_code,
+            )
+            .with_runtime(task_runtime));
         }
+        runtime = task_runtime;
         if index + 1 == snapshot.tasks.len()
             && matches!(
                 store.begin_output_commit(command)?,
@@ -55,6 +61,14 @@ pub(super) async fn run(
     }
     Ok(AttemptCompletion::Succeeded {
         terminal_digest: digest(b"succeeded"),
+    }
+    .with_runtime(runtime))
+}
+
+fn runtime_metadata(result: &RemoteWorkerExecutionOutcome) -> Option<AttemptRuntimeMetadata> {
+    Some(AttemptRuntimeMetadata {
+        kind: result.runtime_kind.clone()?,
+        engine: result.runtime_engine.clone()?,
     })
 }
 
@@ -80,8 +94,11 @@ fn worker_spec(
         steps: task.steps.iter().map(step).collect(),
         base_environment: environment,
         clear_environment: true,
-        timeout_s: None,
-        runtime: None,
+        timeout_s: task.timeout_s,
+        runtime: super::super::task_runtime::runner_runtime(
+            task.runtime.as_ref(),
+            &snapshot.attempt_root,
+        )?,
         node_id: command.node_id.clone(),
         container_user: None,
         image_cache: None,
@@ -100,10 +117,6 @@ fn target_environment(
     std::fs::create_dir_all(&home)?;
     std::fs::create_dir_all(&temporary)?;
     let mut result = BTreeMap::from([
-        (
-            "PATH".into(),
-            std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()),
-        ),
         ("HOME".into(), home.display().to_string()),
         ("TMPDIR".into(), temporary.display().to_string()),
         ("TMP".into(), temporary.display().to_string()),
@@ -115,6 +128,10 @@ fn target_environment(
         ("TAK_ATTEMPT".into(), command.authored_attempt.to_string()),
         ("TAK_WORKSPACE".into(), workspace_root.display().to_string()),
     ]);
+    super::super::task_runtime::insert_host_path_for_native_runtime(
+        &mut result,
+        task.runtime.as_ref(),
+    );
     result.insert(
         "TAK_DISPATCH_GENERATION".into(),
         command.dispatch_generation.to_string(),
@@ -146,8 +163,13 @@ fn step(value: &Step) -> StepDef {
 }
 
 pub(super) fn failed(error: anyhow::Error) -> AttemptCompletion {
+    failed_with_exit_code(error, None)
+}
+
+fn failed_with_exit_code(error: anyhow::Error, exit_code: Option<i32>) -> AttemptCompletion {
     AttemptCompletion::Failed {
         terminal_digest: digest(format!("failed:{error:#}").as_bytes()),
+        exit_code,
     }
 }
 

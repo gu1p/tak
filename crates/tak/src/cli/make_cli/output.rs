@@ -13,6 +13,7 @@ use super::task::ParallelMakeGoal;
 use lines::{complete_lines, flush_partials, record_make_exit_code, stream_key, write_prefixed};
 
 mod lines;
+mod persisted;
 
 struct GoalOutput {
     name: String,

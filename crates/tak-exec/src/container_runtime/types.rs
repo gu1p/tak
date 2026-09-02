@@ -9,6 +9,8 @@ pub(crate) struct ContainerStepSpec {
 
 pub(super) struct ContainerStepRunContext<'a> {
     pub(super) workspace_root: &'a Path,
+    pub(super) mounts: &'a [tak_core::model::ContainerMountSpec],
+    pub(super) private_root: Option<&'a Path>,
     pub(super) task_label: &'a TaskLabel,
     pub(super) task_run_id: &'a str,
     pub(super) attempt: u32,

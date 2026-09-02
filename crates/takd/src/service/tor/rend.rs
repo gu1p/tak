@@ -2,7 +2,7 @@ use futures::StreamExt;
 use tokio::sync::mpsc;
 use tor_cell::relaycell::msg::Connected;
 
-use crate::daemon::remote::{SubmitAttemptStore, handle_remote_v1_stream};
+use crate::daemon::remote::{SubmitAttemptStore, handle_worker_stream};
 
 use super::monitor::TorHealthEvent;
 
@@ -35,7 +35,7 @@ pub(super) fn spawn_rend_request(
                         // protocol) and HTTP/1.1, matching the TCP path. Calling
                         // the HTTP/1.1-only reader here made the broker's HTTP/2
                         // preface unreadable, timing out every heartbeat.
-                        if let Err(err) = handle_remote_v1_stream(stream, store, context).await {
+                        if let Err(err) = handle_worker_stream(stream, store, context).await {
                             tracing::error!("takd onion service stream handling failed: {err}");
                         }
                     }));
@@ -55,7 +55,7 @@ pub(crate) fn handle_accepted_stream_side_effects(
 ) {
     // Accepted client streams are observational only. Transport readiness should
     // advance only from takd's self-probe so client requests cannot clear a
-    // recovering state before `/v1/node/info` or `tak remote status` observes it.
+    // recovering state before `/v2/worker/identity` observes it.
 }
 
 #[path = "rend_tests.rs"]

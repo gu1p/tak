@@ -8,7 +8,7 @@ use takd::serve_agent;
 
 use crate::support;
 
-use support::env::env_lock;
+use support::env::{EnvGuard, env_lock};
 use support::http::{fetch_node_info, fetch_node_status};
 
 #[path = "service_direct_behavior/daemon_socket.rs"]
@@ -17,9 +17,20 @@ mod daemon_socket;
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
     let _env_lock = env_lock();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
+    let mut env = EnvGuard::default();
+    std::fs::create_dir_all(".tmp").expect("create test temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
+    let root = relative_temp_root(&temp);
+    env.set(
+        "XDG_RUNTIME_DIR",
+        root.join("runtime").display().to_string(),
+    );
+    env.set(
+        "TAKD_REMOTE_EXEC_ROOT",
+        root.join("remote-exec").display().to_string(),
+    );
+    let config_root = root.join("config");
+    let state_root = root.join("state");
     let pools = vec!["build".to_string()];
     let tags = vec!["builder".to_string()];
     let capabilities = vec!["linux".to_string()];
@@ -72,4 +83,12 @@ async fn serve_agent_direct_persists_ready_base_url_and_serves_node_info() {
             .contains(&node.base_url)
     );
     server.abort();
+}
+
+pub(super) fn relative_temp_root(temp: &tempfile::TempDir) -> std::path::PathBuf {
+    let current = std::env::current_dir().expect("current test directory");
+    temp.path()
+        .strip_prefix(current)
+        .expect("test temp root below current directory")
+        .to_path_buf()
 }

@@ -7,7 +7,7 @@ use tak_proto::ErrorResponse;
 use tokio::io::AsyncWriteExt;
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, handle_remote_v1_http_stream};
+use crate::daemon::remote::{RemoteNodeContext, SubmitAttemptStore, handle_worker_http_stream};
 
 const CONTROL_SOCKET_FILE: &str = "agent-control.sock";
 
@@ -110,7 +110,7 @@ async fn handle_agent_control_stream(
         write_status_unavailable(&mut stream).await?;
         return Ok(());
     };
-    handle_remote_v1_http_stream(&mut stream, &store, &context).await
+    handle_worker_http_stream(&mut stream, &store, &context).await
 }
 
 async fn write_status_unavailable(stream: &mut UnixStream) -> Result<()> {

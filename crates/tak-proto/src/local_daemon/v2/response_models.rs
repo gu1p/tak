@@ -1,6 +1,59 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DaemonStatusSnapshot {
+    pub active_leases: usize,
+    pub pending_requests: usize,
+    pub limiter_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RemoteInventoryEntry {
+    pub node_id: String,
+    pub display_name: String,
+    pub base_url: String,
+    pub pools: Vec<String>,
+    pub tags: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub transport: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RemotePeerHealth {
+    pub node_id: String,
+    pub display_name: String,
+    pub transport: String,
+    pub endpoint: String,
+    pub state: String,
+    pub last_heartbeat_ms: Option<i64>,
+    pub last_successful_connection_ms: Option<i64>,
+    pub last_error_summary: Option<String>,
+    pub active_job_count: Option<u32>,
+    pub queue_depth: Option<u32>,
+    pub resource_summary: Option<String>,
+    pub protocol_version: Option<String>,
+    pub heartbeat_rtt_ms: Option<u64>,
+    pub reconnect_attempts: u32,
+    pub pools: Vec<String>,
+    pub tags: Vec<String>,
+    pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RemoteStatusEntry {
+    pub remote: RemoteInventoryEntry,
+    pub snapshot: Option<crate::worker_v2::WorkerSnapshot>,
+    pub detail_base64: Option<String>,
+    pub error: Option<String>,
+    pub peer: Option<RemotePeerHealth>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkspaceDisposition {
     Present,
@@ -71,6 +124,8 @@ pub struct RunEvent {
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunk_base64: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,6 +138,8 @@ pub struct RunSummary {
     pub targets: Vec<String>,
     pub total_jobs: u32,
     pub terminal_jobs: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +158,10 @@ pub struct RunJobSummary {
 pub struct RunDetails {
     pub summary: RunSummary,
     pub jobs: Vec<RunJobSummary>,
+    #[serde(default)]
+    pub logs_expired: bool,
+    #[serde(default)]
+    pub outputs_expired: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

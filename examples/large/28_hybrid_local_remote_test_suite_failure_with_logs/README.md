@@ -19,14 +19,17 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
     tasks=[
         task(
             "unit_local",
-            steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log")],
+            outputs=[path("//out/local-unit.log")],
+            steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log", cwd="//")],
         ),
         task(
             "remote_suite",
             deps=[":unit_local"],
+            outputs=[path("//out/remote-test-output.log"), path("//out/remote-failure-reason.txt")],
             steps=[
                 cmd(
                     "sh",
@@ -36,6 +39,7 @@ SPEC = module_spec(
                     "echo test_payments_fail_expected_200_got_500 >> out/remote-test-output.log && "
                     "echo failure_reason_assertion_mismatch_in_payments_handler > out/remote-failure-reason.txt && "
                     "exit 3",
+                    cwd="//",
                 )
             ],
             execution=REMOTE,
@@ -74,12 +78,11 @@ If the remote server does not come up cleanly, inspect it in place with `takd lo
 ## Expected Signals
 
 - Command exits non-zero for `remote_suite`.
-- Stderr reports task failure.
-- Failure diagnostics remain in `out/` for inspection.
+- Stderr reports the daemon-owned run failure and exit code.
+- The failing attempt's stdout and stderr remain available through `tak runs attach`/`show`.
+- Its declared files are not published because only successful attempts can publish outputs.
 
 ## Artifacts
 
-- `out/local-bootstrap.log`
-- `out/local-unit.log`
-- `out/remote-test-output.log`
-- `out/remote-failure-reason.txt`
+- No checkout artifacts are promised for this terminally failed run. Retrieve retained daemon
+  artifacts explicitly with `tak runs outputs RUN_ID --to DIR`.

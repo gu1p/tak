@@ -3,10 +3,11 @@
 #![cfg(unix)]
 
 use crate::support::direct_remote_runtime::{client_env, start_direct_agent};
-use crate::support::make_runtime::install_fake_make;
+use crate::support::make_runtime::{install_fake_make, start_local_daemon};
 use crate::support::run_tak_output;
 
 use std::fs;
+use std::path::Path;
 
 use anyhow::Result;
 
@@ -24,11 +25,23 @@ fn remote_dockerfile_cli_override_wins_over_local_image_annotations() -> Result<
          \t@exit 91\n",
     )?;
     install_fake_make(
-        temp.path(),
+        &workspace,
         "#!/bin/sh\nprintf 'goal=%s\\nruntime=%s\\nsource=%s\\n' \
          \"$1\" \"$TAK_REMOTE_RUNTIME\" \"$TAK_RUNTIME_SOURCE\"\n",
     )?;
-    let _agent = start_direct_agent(temp.path(), &workspace, "make-cli-override-remote");
+    let mut environment = client_env(temp.path());
+    environment.insert("PATH".into(), "bin:/usr/bin:/bin".into());
+    let _daemon = start_local_daemon(&workspace, &mut environment);
+    let daemon_socket = environment
+        .get("TAKD_SOCKET")
+        .expect("local daemon socket")
+        .clone();
+    let _agent = start_direct_agent(
+        temp.path(),
+        &workspace,
+        "make-cli-override-remote",
+        Path::new(&daemon_socket),
+    );
 
     let output = run_tak_output(
         &workspace,
@@ -40,14 +53,17 @@ fn remote_dockerfile_cli_override_wins_over_local_image_annotations() -> Result<
             "--container-build-context",
             ".",
             "check",
+            "--pass-env",
+            "PATH",
         ],
-        &client_env(temp.path()),
+        &environment,
     )?;
 
     assert!(output.status.success(), "status: {:?}", output.status);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "goal=check\nruntime=containerized\nsource=dockerfile\n"
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("goal=check\nruntime=containerized\nsource=dockerfile\n"),
+        "{stdout}"
     );
     Ok(())
 }

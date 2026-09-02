@@ -26,8 +26,8 @@ pub(super) fn read_token_state(state_root: &Path) -> std::result::Result<String,
     if token.is_empty() {
         return Err(ReadTokenError::NotReady);
     }
-    if decode_remote_token(&token).is_err() {
-        let _ = decode_tor_invite(&token).map_err(ReadTokenError::Invalid)?;
+    if decode_tor_invite(&token).is_err() {
+        let _ = decode_remote_token(&token).map_err(ReadTokenError::Invalid)?;
     }
     Ok(token)
 }

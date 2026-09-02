@@ -1,81 +1,55 @@
-//! Black-box contract for explicit remote glob output syncing.
-
-use crate::support;
-
 use std::fs;
 
 use anyhow::Result;
 
-use support::remote_declared_outputs::{attach_direct_remote, remote_env};
-use support::{run_tak_expect_failure, run_tak_expect_success, write_tasks};
+use crate::support::exec_daemon::ExecDaemon;
+use crate::support::{run_tak_expect_failure, run_tak_expect_success, write_tasks};
 
 #[test]
-fn run_remote_syncs_declared_output_globs_only() -> Result<()> {
-    let temp = tempfile::tempdir()?;
-    let workspace_root = temp.path().join("workspace");
-    let roots = support::live_direct::LiveDirectRoots::new(temp.path());
-    fs::create_dir_all(&workspace_root)?;
-    write_tasks(
-        &workspace_root,
-        r#"SPEC = module_spec(tasks=[task(
-  "check",
-  outputs=[glob("reports/**")],
-  execution=Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))),
-  steps=[cmd("sh", "-ceu", """
-mkdir -p reports/nested artifacts
-printf 'keep-one\n' > reports/summary.txt
-printf 'keep-two\n' > reports/nested/detail.txt
-printf 'skip\n' > artifacts/detail.json
-""")],
-)])
-SPEC
-"#,
-    )?;
-    let _agent = attach_direct_remote(&workspace_root, &roots);
+fn daemon_run_materializes_only_declared_output_globs() -> Result<()> {
+    fs::create_dir_all(".tmp")?;
+    let temp = tempfile::tempdir_in(".tmp")?;
+    let workspace = temp.path().join("workspace");
+    write_tasks(&workspace, SUCCESS_TASKS)?;
+    let daemon = ExecDaemon::spawn(temp.path(), &workspace);
 
-    let stdout = run_tak_expect_success(&workspace_root, &["run", "check"], &remote_env(&roots))?;
+    let stdout = run_tak_expect_success(&workspace, &["run", "//:check"], daemon.environment())?;
 
-    assert!(stdout.contains("placement=remote"), "stdout:\n{stdout}");
-    assert_eq!(
-        fs::read_to_string(workspace_root.join("reports/summary.txt"))?,
-        "keep-one\n"
-    );
-    assert_eq!(
-        fs::read_to_string(workspace_root.join("reports/nested/detail.txt"))?,
-        "keep-two\n"
-    );
-    assert!(
-        !workspace_root.join("artifacts/detail.json").exists(),
-        "non-matching glob output should not be synced"
-    );
+    assert!(stdout.contains("output_committing"), "{stdout}");
+    assert_eq!(fs::read(workspace.join("reports/summary.txt"))?, b"one\n");
+    assert_eq!(fs::read(workspace.join("reports/nested.txt"))?, b"two\n");
+    assert!(!workspace.join("scratch/leak.txt").exists());
     Ok(())
 }
 
 #[test]
-fn run_remote_fails_when_declared_output_is_missing() -> Result<()> {
-    let temp = tempfile::tempdir()?;
-    let workspace_root = temp.path().join("workspace");
-    let roots = support::live_direct::LiveDirectRoots::new(temp.path());
-    fs::create_dir_all(&workspace_root)?;
-    write_tasks(
-        &workspace_root,
-        r#"SPEC = module_spec(tasks=[task(
-  "check",
-  outputs=[path("out/missing.txt")],
-  execution=Execution.Remote(pool="build", required_tags=["builder"], required_capabilities=["linux"], transport=Transport.DirectHttps(), container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))),
-  steps=[cmd("sh", "-c", "printf 'done\n'")],
-)])
-SPEC
-"#,
-    )?;
-    let _agent = attach_direct_remote(&workspace_root, &roots);
+fn daemon_run_reports_missing_declared_output_after_task_stderr() -> Result<()> {
+    fs::create_dir_all(".tmp")?;
+    let temp = tempfile::tempdir_in(".tmp")?;
+    let workspace = temp.path().join("workspace");
+    write_tasks(&workspace, MISSING_TASKS)?;
+    let daemon = ExecDaemon::spawn(temp.path(), &workspace);
 
-    let (_stdout, stderr) =
-        run_tak_expect_failure(&workspace_root, &["run", "check"], &remote_env(&roots))?;
-
+    let (stdout, stderr) =
+        run_tak_expect_failure(&workspace, &["run", "//:check"], daemon.environment())?;
+    assert!(stderr.contains("diagnostic-line"), "{stdout}\n{stderr}");
     assert!(
-        stderr.contains("declared output"),
-        "stderr should mention the missing declared output:\n{stderr}"
+        stdout.contains("declared output") || stderr.contains("declared output"),
+        "{stdout}\n{stderr}"
     );
     Ok(())
 }
+
+const SUCCESS_TASKS: &str = r#"SPEC = module_spec(spec_version=2, tasks=[task(
+  "check", outputs=[glob("reports/**")], steps=[cmd("sh", "-c",
+  "mkdir -p reports scratch && echo one > reports/summary.txt && echo two > reports/nested.txt && echo leak > scratch/leak.txt")],
+)])
+SPEC
+"#;
+
+const MISSING_TASKS: &str = r#"SPEC = module_spec(spec_version=2, tasks=[task(
+  "check", outputs=[path("reports/missing.txt")],
+  steps=[cmd("sh", "-c", "echo diagnostic-line >&2")],
+)])
+SPEC
+"#;

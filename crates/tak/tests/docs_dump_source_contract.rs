@@ -22,10 +22,10 @@ const REQUIRED_ROOT_CLI_DOC_TOKENS: [&str; 7] = [
     "`tak --transport`",
 ];
 const REQUIRED_DSL_DOC_TOKENS: [&str; 4] = [
-    "Declare the module boundary that Tak loads from one TASKS.py file.",
-    "Declare one task, including its steps, dependencies, execution policy, and outputs.",
-    "Force a task to run remotely. Remote execution requires a container.",
-    "Capture the current workspace contents as an execution input snapshot.",
+    "Declare a version 2 module boundary loaded from one TASKS.py file.",
+    "Declare one version 2 task and its daemon execution contract.",
+    "Force daemon-owned scheduling onto matching remote workers.",
+    "Capture current workspace contents as an execution input snapshot.",
 ];
 const REQUIRED_EXAMPLE_DOC_TOKENS: [&str; 6] = [
     "- Scenario: hello single task",
@@ -36,11 +36,12 @@ const REQUIRED_EXAMPLE_DOC_TOKENS: [&str; 6] = [
     "- `release`: Join the remote artifact and the local verification log into one release \
 summary.",
 ];
-const REQUIRED_TYPED_STUB_DOC_TOKENS: [&str; 4] = [
-    "Top-level TASKS.py module payload returned by `module_spec(...)`.",
-    "Task dictionary returned by `task(...)` after dependency normalization.",
+const REQUIRED_TYPED_STUB_DOC_TOKENS: [&str; 5] = [
+    "Top-level version 2 TASKS.py payload returned by `module_spec(...)`.",
+    "Version 2 task dictionary returned by `task(...)`.",
     "Machine-wide coordination scope.",
     "Return an explicit local placement decision from a custom policy.",
+    "Share one session workspace with bounded task concurrency.",
 ];
 
 fn run_docs_dump(cwd: &Path) -> Result<String> {

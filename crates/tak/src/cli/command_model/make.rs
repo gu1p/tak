@@ -8,6 +8,9 @@ pub(in crate::cli) enum MakeParallelOutputArg {
 pub(in crate::cli) struct MakeArgs {
     /// The Make goal to execute.
     pub(in crate::cli) goal: String,
+    /// Pass one named client environment variable to the Make run.
+    #[arg(long = "pass-env", value_name = "NAME")]
+    pub(in crate::cli) pass_env: Vec<String>,
     /// Force local placement; an annotated container runtime may still be used.
     #[arg(long = "local", default_value_t = false, conflicts_with = "remote")]
     pub(in crate::cli) local: bool,

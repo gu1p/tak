@@ -39,7 +39,7 @@ pub(super) fn seed_cache_entry_for_engine(
     size_bytes: u64,
 ) {
     let _ = image_cache_status(db_path, 1, 0.0, 0).expect("initialize cache db");
-    let conn = rusqlite::Connection::open(db_path).expect("open cache db");
+    let conn = tak_exec::ProcessSqliteConnection::open(db_path).expect("open cache db");
     conn.execute(
         "
         INSERT INTO image_cache_entries (

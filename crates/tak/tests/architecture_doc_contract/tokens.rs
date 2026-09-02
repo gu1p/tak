@@ -1,16 +1,16 @@
 pub(super) const REQUIRED_TOKENS: [&str; 12] = [
     "current directory",
     "`TASKS.py`",
-    "`tak make <goal>`",
-    "`# tak: default.execution=remote`",
+    "`tak make`",
     "`tak-make`",
-    "`module_spec(includes=[...])`",
-    "`takd init`",
+    "`module_spec(spec_version=2, ...)`",
     "`takd serve`",
-    "`tak remote add <token>`",
-    "`tak remote status`",
-    "unix socket",
-    "remote v1 HTTP",
+    "`tak runs attach RUN_ID`",
+    "`tak runs outputs RUN_ID --to DIR`",
+    "`Balanced`",
+    "`SharedWorkspace(max_parallel_tasks=N)`",
+    "20 GiB",
+    "unix-socket",
 ];
 
 pub(super) const REMOVED_TOKENS: [&str; 3] = [
@@ -19,19 +19,13 @@ pub(super) const REMOVED_TOKENS: [&str; 3] = [
     "`tak daemon start`",
 ];
 
-pub(super) const TOR_FIRST_TOKENS: [&str; 12] = [
-    "`takd peers`",
-    "PeerManager",
-    "`/v1/node/ping`",
-    "`NodePingResponse`",
-    "`PeersList`",
-    "`PeersEligible`",
-    "`PlaceRemote`",
-    "`StreamTaskEvents`",
-    "`GetTaskResult`",
-    "`GetOutputRange`",
-    "`remotes.toml`",
-    "last-good",
+pub(super) const TOR_FIRST_TOKENS: [&str; 6] = [
+    "direct and Tor inventory",
+    "concrete placement candidates",
+    "direct or Tor transport",
+    "Remote worker protocol v2",
+    "fencing tokens",
+    "protocol fallback",
 ];
 
 pub(super) const TOR_FIRST_REMOVED_TOKENS: [&str; 3] = [

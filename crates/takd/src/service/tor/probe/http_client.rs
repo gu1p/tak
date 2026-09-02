@@ -28,7 +28,7 @@ impl<T> Drop for AbortOnDrop<T> {
     }
 }
 
-pub(super) async fn send_node_info_request<S>(
+pub(super) async fn send_worker_identity_request<S>(
     stream: S,
     authority: &str,
     bearer_token: &str,
@@ -46,8 +46,9 @@ where
     }));
     let request = Request::builder()
         .method("GET")
-        .uri("/v1/node/info")
+        .uri("/v2/worker/identity")
         .header(hyper::header::HOST, authority)
+        .header("X-Tak-Protocol-Version", "v2")
         .header(
             hyper::header::AUTHORIZATION,
             format!("Bearer {}", bearer_token.trim()),

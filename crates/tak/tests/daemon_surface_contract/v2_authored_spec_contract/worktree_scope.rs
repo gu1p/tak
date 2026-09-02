@@ -23,7 +23,7 @@ fn worktree_scheduling_submits_one_stable_opaque_owner_key() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = daemon.finish_expecting(4);
+    let requests = daemon.finish_expecting(5);
     let run = &requests[0]["operation"]["run"];
     let queue = &run["queue_definitions"][0];
     let limiter = &run["limiter_definitions"][0];

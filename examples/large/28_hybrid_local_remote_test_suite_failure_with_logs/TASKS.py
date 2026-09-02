@@ -3,11 +3,13 @@
 # Scenario: hybrid local + remote test suite (failure path with logs)
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_large_28",
   includes=[path("apps/web")],
   tasks=[
     task(
       "bootstrap_local",
+      outputs=[path("out/local-bootstrap.log")],
       steps=[cmd("sh", "-c", "mkdir -p out && echo bootstrap-local-ok > out/local-bootstrap.log")],
     ),
   ]

@@ -2,7 +2,7 @@ use rusqlite::Connection;
 use takd::RunStore;
 
 #[test]
-fn v5_store_upgrades_to_durable_rate_bucket_schema_v6() {
+fn v5_store_upgrades_through_the_current_durable_schema() {
     std::fs::create_dir_all(".tmp").unwrap();
     let temp = tempfile::tempdir_in(".tmp").unwrap();
     let db = temp.path().join("takd.sqlite");
@@ -24,7 +24,7 @@ fn v5_store_upgrades_to_durable_rate_bucket_schema_v6() {
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, 14);
     let columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('scheduler_rate_buckets') \

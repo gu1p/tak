@@ -31,7 +31,7 @@ async fn remote_worker_refreshes_mutable_image_after_ttl_then_reuses_again() {
     run_worker(&workspace_root, &spec).await;
     assert_eq!(daemon.pull_records().len(), 1);
 
-    let conn = rusqlite::Connection::open(&db_path).expect("open image cache db");
+    let conn = tak_exec::ProcessSqliteConnection::open(&db_path).expect("open image cache db");
     conn.execute(
         "UPDATE image_cache_entries SET last_refreshed_at_ms = 0",
         [],

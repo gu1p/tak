@@ -8,10 +8,8 @@ use monty_type_checking::{SourceFile, type_check};
 use tak_core::v2::AuthoredModule;
 
 use super::{
-    DSL_STUBS_V2, LoadOptions, PRELUDE_V2,
-    authored_source::{prepare_v2_authored_source, runtime_input_names, runtime_inputs},
-    monty_deserializer::deserialize_from_monty,
-    v2_wire, v2_wire_conversion,
+    DSL_STUBS_V2, LoadOptions, PRELUDE_V2, authored_source::prepare_v2_authored_source,
+    monty_deserializer::deserialize_from_monty, v2_wire, v2_wire_conversion,
 };
 
 pub(super) fn evaluate(path: &Path, options: &LoadOptions) -> Result<AuthoredModule> {
@@ -20,14 +18,14 @@ pub(super) fn evaluate(path: &Path, options: &LoadOptions) -> Result<AuthoredMod
     type_check_authored(path, options, &prepared.authored_source)?;
     let code = format!("{PRELUDE_V2}\n\n{}", prepared.runtime_source);
     let limits = ResourceLimits::new()
-        .max_duration(Duration::from_secs(2))
+        .max_duration(Duration::from_secs(30))
         .max_memory(64 * 1024 * 1024)
         .max_allocations(200_000);
-    let runner = MontyRun::new(code, &path.to_string_lossy(), runtime_input_names())
+    let runner = MontyRun::new(code, &path.to_string_lossy(), Vec::new())
         .map_err(|error| anyhow!("failed to compile {}: {error}", path.display()))?;
     let value = runner
         .run(
-            runtime_inputs(),
+            Vec::new(),
             LimitedTracker::new(limits),
             PrintWriter::Disabled,
         )

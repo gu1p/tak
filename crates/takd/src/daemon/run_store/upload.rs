@@ -1,7 +1,4 @@
-use std::fs::OpenOptions;
-use std::io::{Seek, SeekFrom, Write};
-
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use tak_core::v2::ResolvedRun;
 use tak_proto::local_daemon::v2::{MAX_WORKSPACE_CHUNK_BYTES, RunEventKind, RunSummary};
@@ -10,6 +7,7 @@ use super::blob::{
     ensure_private_parent, publish_blob, verified_blob, verify_archive_manifest, verify_file,
 };
 use super::events::{append_event, now_ms, sqlite_i64};
+use super::workspace_uploads;
 use super::{RunStore, UploadProgress};
 
 impl RunStore {
@@ -26,24 +24,24 @@ impl RunStore {
         }
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let (expected_fingerprint, archive_digest, archive_size, current_offset, state, resolved_json) =
+        let (expected_fingerprint, archive_size, current_offset, state, resolved_json) =
             transaction
                 .query_row(
-                    "SELECT workspace_fingerprint, archive_sha256, archive_size, upload_offset, state, resolved_json FROM runs WHERE run_id = ?1",
+                    "SELECT workspace_fingerprint, archive_size, upload_offset, state, resolved_json FROM runs WHERE run_id = ?1",
                     [run_id],
-                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?)),
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?)),
                 )
                 .optional()?
                 .ok_or_else(|| anyhow::anyhow!("run not found"))?;
         let archive_size = u64::try_from(archive_size)
             .map_err(|_| anyhow::anyhow!("stored archive size is invalid"))?;
-        let current_offset = u64::try_from(current_offset)
+        let fallback_offset = u64::try_from(current_offset)
             .map_err(|_| anyhow::anyhow!("stored upload offset is invalid"))?;
         if fingerprint != expected_fingerprint || declared_archive_size != archive_size {
             bail!("workspace upload does not match the pending run");
         }
         if state != "awaiting_workspace"
-            && current_offset == archive_size
+            && fallback_offset == archive_size
             && verified_blob(self, &transaction, fingerprint)?.is_some()
         {
             transaction.commit()?;
@@ -56,6 +54,16 @@ impl RunStore {
         if state != "awaiting_workspace" {
             bail!("workspace upload does not match the pending run");
         }
+        let resolved: ResolvedRun = serde_json::from_str(&resolved_json)
+            .map_err(|error| anyhow::anyhow!("stored resolved run is invalid: {error}"))?;
+        let upload = workspace_uploads::resolve(
+            self,
+            &transaction,
+            run_id,
+            &resolved.workspace,
+            fallback_offset,
+        )?;
+        let current_offset = upload.next_offset;
         if offset != current_offset {
             transaction.commit()?;
             return Ok(UploadProgress {
@@ -65,29 +73,22 @@ impl RunStore {
             });
         }
         let next_offset = offset.saturating_add(chunk.len() as u64);
-        if next_offset > archive_size {
+        if next_offset > upload.archive_size {
             bail!("workspace upload exceeds declared archive size");
         }
-        let upload_path = self.upload_path(run_id);
+        let upload_path = self.upload_path(&upload.owner_run_id);
         ensure_private_parent(&upload_path)?;
-        append_chunk(&upload_path, offset, chunk)?;
-        let complete = next_offset == archive_size;
+        workspace_uploads::append(&upload_path, offset, chunk)?;
+        let complete = next_offset == upload.archive_size;
         if complete {
             let verification =
-                verify_file(&upload_path, &archive_digest, archive_size).and_then(|()| {
-                    let resolved: ResolvedRun =
-                        serde_json::from_str(&resolved_json).map_err(|error| {
-                            anyhow::anyhow!("stored resolved run is invalid: {error}")
-                        })?;
-                    verify_archive_manifest(&upload_path, &resolved.workspace.manifest)
-                });
+                verify_file(&upload_path, &upload.archive_sha256, upload.archive_size).and_then(
+                    |()| verify_archive_manifest(&upload_path, &resolved.workspace.manifest),
+                );
             if let Err(error) = verification {
-                transaction.execute(
-                    "UPDATE runs SET upload_offset = 0, state = 'awaiting_workspace', updated_at_ms = ?2 WHERE run_id = ?1",
-                    params![run_id, sqlite_i64(now_ms()?, "timestamp")?],
-                )?;
+                workspace_uploads::reset(&transaction, fingerprint)?;
                 transaction.commit()?;
-                remove_upload(&upload_path);
+                workspace_uploads::remove(&upload_path);
                 return Err(error);
             }
             publish_blob(
@@ -95,33 +96,23 @@ impl RunStore {
                 &transaction,
                 &upload_path,
                 fingerprint,
-                &archive_digest,
-                archive_size,
+                &upload.archive_sha256,
+                upload.archive_size,
             )?;
+        }
+        let completed_runs =
+            workspace_uploads::record_progress(&transaction, fingerprint, next_offset, complete)?;
+        for completed_run in completed_runs {
             append_event(
                 &transaction,
-                run_id,
+                &completed_run,
                 RunEventKind::WorkspaceUploading,
                 "workspace upload complete",
             )?;
         }
-        let state = if complete {
-            "awaiting_commit"
-        } else {
-            "awaiting_workspace"
-        };
-        transaction.execute(
-            "UPDATE runs SET upload_offset = ?2, state = ?3, updated_at_ms = ?4 WHERE run_id = ?1",
-            params![
-                run_id,
-                sqlite_i64(next_offset, "upload offset")?,
-                state,
-                sqlite_i64(now_ms()?, "timestamp")?
-            ],
-        )?;
         transaction.commit()?;
         if complete {
-            let _ = std::fs::remove_file(upload_path);
+            workspace_uploads::remove(&upload_path);
         }
         Ok(UploadProgress {
             chunk_accepted: true,
@@ -146,9 +137,8 @@ impl RunStore {
             "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled"
         ) {
             transaction.commit()?;
-            return self
-                .summary(run_id)?
-                .ok_or_else(|| anyhow::anyhow!("run not found"));
+            drop(connection);
+            return self.summary(run_id)?.context("run not found");
         }
         if state != "awaiting_commit" || verified_blob(self, &transaction, &fingerprint)?.is_none()
         {
@@ -169,32 +159,7 @@ impl RunStore {
             [run_id],
         )?;
         transaction.commit()?;
-        self.summary(run_id)?
-            .ok_or_else(|| anyhow::anyhow!("run not found"))
-    }
-}
-
-fn append_chunk(path: &std::path::Path, offset: u64, chunk: &[u8]) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(path)?;
-    if file.metadata()?.len() < offset {
-        bail!("workspace upload file is shorter than its durable offset");
-    }
-    file.set_len(offset)?;
-    file.seek(SeekFrom::Start(offset))?;
-    file.write_all(chunk)?;
-    file.sync_data()?;
-    Ok(())
-}
-
-fn remove_upload(path: &std::path::Path) {
-    if let Err(error) = std::fs::remove_file(path)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!("could not remove invalid v2 workspace upload: {error}");
+        drop(connection);
+        self.summary(run_id)?.context("run not found")
     }
 }

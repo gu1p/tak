@@ -93,7 +93,7 @@ where
                     Ok(()) => {
                         persist_ready_base_url(params.config_root, params.state_root, params.base_url)?;
                         mark_transport_ready(params.context, params.state_root, params.base_url)?;
-                        tracing::info!("takd remote v1 onion service ready at {}", params.base_url);
+                        tracing::info!("takd worker v2 onion service ready at {}", params.base_url);
                         return Ok(StartupReadiness::Ready(ReadyLiveTorService {
                             _running_service: running_service,
                             rend_requests,
@@ -183,7 +183,7 @@ where
                 if matches!(maybe_event, Some(TorHealthEvent::ProbeSucceeded)) {
                     persist_ready_base_url(params.config_root, params.state_root, params.base_url)?;
                     mark_transport_ready(params.context, params.state_root, params.base_url)?;
-                    tracing::info!("takd remote v1 onion service ready at {}", params.base_url);
+                    tracing::info!("takd worker v2 onion service ready at {}", params.base_url);
                     return Ok(StartupReadiness::Ready(ReadyLiveTorService {
                         _running_service: running_service,
                         rend_requests,

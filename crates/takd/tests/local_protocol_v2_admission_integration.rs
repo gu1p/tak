@@ -1,7 +1,6 @@
 use tak_core::model::Scope;
-use takd::{Request, new_shared_manager_with_db};
+use takd::new_shared_manager_with_db;
 
-use crate::support::protocol::acquire_request;
 use crate::support::raw_local_protocol::RawLocalProtocol;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -13,8 +12,7 @@ async fn v2_admission_rejects_hybrids_before_legacy_state_can_change() {
         .expect("manager lock")
         .set_capacity("cpu", Scope::Machine, None, 1.0);
     let mut daemon = RawLocalProtocol::start_with_manager(manager.clone()).await;
-    let legacy = serde_json::to_string(&Request::AcquireLease(acquire_request("hybrid")))
-        .expect("encode legacy request");
+    let legacy = r#"{"type":"AcquireLease","request_id":"hybrid","client":{"user":"alice","pid":7,"session_id":"s"},"task":{"label":"//:check","attempt":1},"needs":[],"ttl_ms":30000}"#;
     let hybrid = legacy.replacen('{', r#"{"protocol_version":2,"#, 1);
 
     let response = daemon.exchange(&hybrid).await;

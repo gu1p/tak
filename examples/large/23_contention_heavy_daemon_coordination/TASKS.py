@@ -3,6 +3,7 @@
 # Scenario: contention heavy daemon coordination
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_large_23",
   includes=[path("apps/a"), path("apps/b"), path("apps/c")],
   limiters=[lock("ui_lock", scope=Scope.Machine)],
@@ -10,7 +11,8 @@ SPEC = module_spec(
     task(
       "orchestrate",
       deps=["//apps/a:ui", "//apps/b:ui", "//apps/c:ui"],
-      steps=[cmd("sh", "-c", "mkdir -p out && echo orchestrate >> out/contention.log")]
+      outputs=[path("out/contention.log")],
+      steps=[cmd("sh", "-c", "cat out/app-a-ui.txt out/app-b-ui.txt out/app-c-ui.txt > out/contention.log && echo orchestrate >> out/contention.log")]
     )
   ]
 )

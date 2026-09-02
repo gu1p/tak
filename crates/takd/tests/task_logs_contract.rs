@@ -1,6 +1,7 @@
 use crate::support;
 
 use std::process::Command as StdCommand;
+use tak_proto::worker_v2::WorkerAttemptState;
 use takd::daemon::remote::SubmitAttemptStore;
 
 #[path = "task_logs_contract/support.rs"]
@@ -58,5 +59,39 @@ fn task_logs_reports_missing_task_run_id() {
     assert!(
         stderr.contains("not found"),
         "missing actionable error:\n{stderr}"
+    );
+}
+
+#[test]
+fn task_logs_read_handle_does_not_mark_live_v2_work_missing() {
+    std::fs::create_dir_all(".tmp").unwrap();
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
+    let state_root = temp.path().join("state");
+    let store = SubmitAttemptStore::with_db_path(state_root.join("agent.sqlite")).expect("store");
+    let request = support::v2_worker::dispatch(1, 1, "live-fence");
+    store.register_worker_v2_attempt(&request).unwrap();
+    let key = contract_support::register_task_with_logs(&store, temp.path(), "legacy-logs");
+    store
+        .set_result_payload(&key, r#"{"success":true}"#)
+        .unwrap();
+
+    let output = StdCommand::new(support::takd_bin())
+        .args([
+            "task",
+            "logs",
+            "legacy-logs",
+            "--state-root",
+            &state_root.display().to_string(),
+        ])
+        .output()
+        .expect("run takd task logs");
+
+    assert!(output.status.success());
+    assert_eq!(
+        store
+            .observe_worker_v2_attempt(&request.identity, 0)
+            .unwrap()
+            .state,
+        WorkerAttemptState::Running
     );
 }

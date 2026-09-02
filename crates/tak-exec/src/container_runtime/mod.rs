@@ -16,8 +16,8 @@ use futures::StreamExt;
 use tak_core::model::{ContainerResourceLimitsSpec, ResolvedTask, StepDef, TaskLabel};
 use uuid::Uuid;
 
+use crate::RunCancellation;
 use crate::container_engine::ContainerEngine;
-use crate::engine::RunCancellation;
 use crate::step_runner::{StepRunContext, StepRunResult, resolve_cwd};
 use crate::{
     ContainerExecutionPlan, OutputStream, TaskOutputObserver, TaskStatusEvent, TaskStatusPhase,
@@ -28,6 +28,7 @@ mod execution;
 mod execution_wait;
 mod foundation;
 mod log_stream;
+mod step_spec;
 mod tar_archive;
 mod types;
 
@@ -37,6 +38,7 @@ use execution::run_step_in_container;
 use execution_wait::{cleanup_container, wait_for_container_step};
 pub(crate) use foundation::connect_container_engine;
 use log_stream::{ContainerLogTask, finish_container_log_task, spawn_container_log_task};
+use step_spec::build_container_step_spec;
 use tar_archive::{append_tar_entry, tar_builder};
 use types::{ContainerStepExecutor, ContainerStepRunContext, ContainerStepSpec};
 
@@ -50,6 +52,8 @@ pub(crate) async fn run_task_steps_in_container(
     let client = connect_container_engine(plan.engine).await?;
     let run_context = ContainerStepRunContext {
         workspace_root: context.workspace_root,
+        mounts: &plan.mounts,
+        private_root: plan.private_root.as_deref(),
         task_label: context.task_label,
         task_run_id: context.task_run_id,
         attempt: context.attempt,
@@ -69,18 +73,19 @@ pub(crate) async fn run_task_steps_in_container(
     };
     tokio::select! {
         result = ensure_container_runtime_source(executor.docker, context.workspace_root, plan, &run_context) => result?,
-        _ = context.cancellation.cancelled() => return Err(crate::engine::cancelled_error()),
+        _ = context.cancellation.cancelled() => return Err(crate::cancellation::cancelled_error()),
     }
 
     for step in &task.steps {
         if context.cancellation.is_cancelled() {
-            return Err(crate::engine::cancelled_error());
+            return Err(crate::cancellation::cancelled_error());
         }
         let mut step_spec = build_container_step_spec(
             step,
             context.workspace_root,
             context.base_environment,
             context.runtime_env,
+            plan.private_root.as_deref(),
         )?;
         apply_container_user_defaults(
             &mut step_spec,
@@ -99,64 +104,6 @@ pub(crate) async fn run_task_steps_in_container(
         exit_code: Some(0),
         container_oom_killed: None,
     })
-}
-
-pub(crate) fn build_container_step_spec(
-    step: &StepDef,
-    workspace_root: &Path,
-    base_environment: Option<&BTreeMap<String, String>>,
-    runtime_env: Option<&BTreeMap<String, String>>,
-) -> Result<ContainerStepSpec> {
-    match step {
-        StepDef::Cmd { argv, cwd, env } => {
-            if argv.is_empty() {
-                bail!("cmd step requires a non-empty argv");
-            }
-            let mut env_map = BTreeMap::new();
-            if let Some(base_environment) = base_environment {
-                env_map.extend(base_environment.clone());
-            }
-            if let Some(runtime_env) = runtime_env {
-                env_map.extend(runtime_env.clone());
-            }
-            env_map.extend(env.clone());
-            Ok(ContainerStepSpec {
-                argv: argv.clone(),
-                cwd: resolve_cwd(workspace_root, cwd),
-                env: env_map,
-            })
-        }
-        StepDef::Script {
-            path,
-            argv,
-            interpreter,
-            cwd,
-            env,
-        } => {
-            let mut full_argv = Vec::with_capacity(argv.len() + 2);
-            if let Some(interpreter) = interpreter {
-                full_argv.push(interpreter.clone());
-                full_argv.push(path.clone());
-            } else {
-                full_argv.push(path.clone());
-            }
-            full_argv.extend(argv.clone());
-
-            let mut env_map = BTreeMap::new();
-            if let Some(base_environment) = base_environment {
-                env_map.extend(base_environment.clone());
-            }
-            if let Some(runtime_env) = runtime_env {
-                env_map.extend(runtime_env.clone());
-            }
-            env_map.extend(env.clone());
-            Ok(ContainerStepSpec {
-                argv: full_argv,
-                cwd: resolve_cwd(workspace_root, cwd),
-                env: env_map,
-            })
-        }
-    }
 }
 
 fn apply_container_user_defaults(

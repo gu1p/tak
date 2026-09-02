@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
@@ -6,13 +7,24 @@ use anyhow::{Context, Result, anyhow, bail};
 use sha2::{Digest, Sha256};
 use tak_core::v2::{WorkspaceDescriptor, WorkspaceEntry, WorkspaceEntryType, WorkspaceManifest};
 
-pub(super) struct WorkspaceBundle {
-    pub(super) descriptor: WorkspaceDescriptor,
-    pub(super) archive: Vec<u8>,
+mod collect;
+
+pub(in crate::cli) struct WorkspaceBundle {
+    pub(in crate::cli) descriptor: WorkspaceDescriptor,
+    pub(in crate::cli) archive: Vec<u8>,
+    pub(in crate::cli) gitignored_paths: BTreeSet<String>,
 }
 
 pub(super) fn build(root: &Path) -> Result<WorkspaceBundle> {
-    let entries = collect_entries(root)?;
+    build_for_contexts(root, &[])
+}
+
+pub(super) fn build_for_contexts(
+    root: &Path,
+    contexts: &[&tak_core::v2::TaskContext],
+) -> Result<WorkspaceBundle> {
+    let collected = collect::for_contexts(root, contexts)?;
+    let entries = collected.entries;
     let manifest = WorkspaceManifest::new(entries)?;
     let archive = build_archive(root, &manifest.entries)?;
     Ok(WorkspaceBundle {
@@ -22,34 +34,11 @@ pub(super) fn build(root: &Path) -> Result<WorkspaceBundle> {
             archive_size: archive.len() as u64,
         },
         archive,
+        gitignored_paths: collected.gitignored_paths,
     })
 }
 
-fn collect_entries(root: &Path) -> Result<Vec<WorkspaceEntry>> {
-    let mut walker = ignore::WalkBuilder::new(root);
-    walker
-        .hidden(false)
-        .ignore(false)
-        .git_global(false)
-        .git_ignore(true)
-        .git_exclude(true)
-        .parents(true)
-        .require_git(false);
-    let mut entries = Vec::new();
-    for entry in walker.build() {
-        let entry = entry.context("scan workspace")?;
-        if entry.path() == root || is_git_metadata(root, entry.path()) {
-            continue;
-        }
-        let relative = relative_path(root, entry.path())?;
-        let metadata = fs::symlink_metadata(entry.path())
-            .with_context(|| format!("inspect workspace entry {relative}"))?;
-        entries.push(entry_from_metadata(entry.path(), relative, &metadata)?);
-    }
-    Ok(entries)
-}
-
-fn entry_from_metadata(
+pub(super) fn entry_from_metadata(
     absolute: &Path,
     relative: String,
     metadata: &fs::Metadata,
@@ -127,7 +116,7 @@ fn append_entry(
     Ok(())
 }
 
-fn relative_path(root: &Path, path: &Path) -> Result<String> {
+pub(super) fn relative_path(root: &Path, path: &Path) -> Result<String> {
     let relative = path.strip_prefix(root)?;
     let components = relative
         .components()
@@ -141,7 +130,7 @@ fn relative_path(root: &Path, path: &Path) -> Result<String> {
     Ok(components.join("/"))
 }
 
-fn is_git_metadata(root: &Path, path: &Path) -> bool {
+pub(super) fn is_git_metadata(root: &Path, path: &Path) -> bool {
     path.strip_prefix(root)
         .ok()
         .and_then(|relative| relative.components().next())

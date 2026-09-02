@@ -30,10 +30,6 @@ impl RemoteStatusView {
         }
     }
 
-    pub(super) fn advance(&mut self) {
-        self.tick = self.tick.saturating_add(1);
-    }
-
     pub(super) fn mark_complete(&mut self, result: RemoteStatusResult) {
         let node_id = result.remote.node_id.as_str();
         if let Some(row) = self.rows.iter_mut().find(|row| row.node_id() == node_id) {
@@ -47,11 +43,6 @@ impl RemoteStatusView {
 
     pub(super) fn rows(&self) -> &[RemoteStatusRow] {
         &self.rows
-    }
-
-    #[cfg(test)]
-    pub(super) fn node_ids(&self) -> Vec<&str> {
-        self.rows.iter().map(RemoteStatusRow::node_id).collect()
     }
 
     pub(super) fn total_count(&self) -> usize {
@@ -77,14 +68,6 @@ impl RemoteStatusView {
                 RemoteStatusRow::Complete(result) => Some((**result).clone()),
             })
             .collect()
-    }
-
-    #[cfg(test)]
-    pub(super) fn has_errors(&self) -> bool {
-        self.rows.iter().any(|row| match row {
-            RemoteStatusRow::Checking { .. } => false,
-            RemoteStatusRow::Complete(result) => result.error.is_some(),
-        })
     }
 }
 

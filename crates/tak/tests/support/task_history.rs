@@ -2,7 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use rusqlite::{Connection, params};
+use rusqlite::params;
+use tak_exec::ProcessSqliteConnection;
 
 #[allow(dead_code)]
 pub fn write_active_container_run(state_root: &Path) {
@@ -52,7 +53,7 @@ fn write_active_container_run_for(
 ) {
     let db_path = db_path(state_root);
     fs::create_dir_all(db_path.parent().expect("task history parent")).expect("create state dir");
-    let conn = Connection::open(&db_path).expect("open task history");
+    let conn = ProcessSqliteConnection::open(&db_path).expect("open task history");
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS task_runs (

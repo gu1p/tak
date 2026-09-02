@@ -1,26 +1,18 @@
-use tak_proto::local_daemon::v2::{
-    DecodeOutcome, RequestDecodeError, RequestDecodeErrorCode, decode_request,
-};
+use tak_proto::local_daemon::v2::{RequestDecodeError, RequestDecodeErrorCode, decode_request};
 
 #[test]
-fn only_truly_versionless_legacy_frames_are_fallback_candidates() {
+fn every_versionless_legacy_frame_is_rejected_as_an_unsupported_protocol() {
     let legacy = r#"{"type":"Status","request_id":"legacy"}"#;
-    assert!(matches!(
-        decode_request(legacy).expect("legacy candidate"),
-        DecodeOutcome::LegacyCandidate
-    ));
+    let error = assert_code(legacy, RequestDecodeErrorCode::VersionUnsupported);
+    assert_eq!(error.request_id.as_deref(), Some("legacy"));
 
     let malformed_legacy = r#"{"type":"Status","credential":"secret""#;
-    assert!(matches!(
-        decode_request(malformed_legacy).expect("legacy parser owns malformed legacy frames"),
-        DecodeOutcome::LegacyCandidate
-    ));
+    let error = assert_code(malformed_legacy, RequestDecodeErrorCode::VersionUnsupported);
+    assert_eq!(error.request_id, None);
 
     let nested_marker = r#"{"type":"Status","request_id":"legacy","metadata":{"protocol_version":2,"operation":true}}"#;
-    assert!(matches!(
-        decode_request(nested_marker).expect("top-level fields decide admission"),
-        DecodeOutcome::LegacyCandidate
-    ));
+    let error = assert_code(nested_marker, RequestDecodeErrorCode::VersionUnsupported);
+    assert_eq!(error.request_id.as_deref(), Some("legacy"));
 
     let versionless_v2 = r#"{"type":"Status","oper\u0061tion":{"type":"ListRuns"}}"#;
     assert_code(versionless_v2, RequestDecodeErrorCode::VersionInvalid);

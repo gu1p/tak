@@ -12,7 +12,7 @@ use tak_update::runner::{SelfUpdateRequest, self_update};
 use crate::agent::{AutoUpdateConfig, read_config};
 use crate::daemon::remote::SubmitAttemptStore;
 
-use super::drain::{DrainOutcome, wait_until_idle};
+use super::drain::wait_until_idle;
 use super::state;
 
 /// Spawn the background auto-update loop. No-op when disabled, when the kill
@@ -92,8 +92,11 @@ async fn run_tick(config_root: &Path, state_root: &Path, store: &SubmitAttemptSt
         return Ok(());
     }
     let deadline = Duration::from_secs(auto.drain_timeout_secs);
-    if wait_until_idle(store, deadline).await == DrainOutcome::DeadlineExceeded {
-        tracing::warn!("takd auto-update: drain deadline exceeded; applying anyway");
+    if !wait_until_idle(store, deadline).await.allows_replacement() {
+        tracing::warn!(
+            "takd auto-update: drain deadline exceeded; leaving update pending because active legacy attempts must finish"
+        );
+        return Ok(());
     }
     let applied = run_self_update(&auto, false).await?;
     if let UpdateAction::Installed(report) = applied.action {

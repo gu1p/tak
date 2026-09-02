@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Barrier};
 
+use tak_core::v2::JobContextManifest;
+
 use super::workspace::{Preparation, prepare};
 use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
 
@@ -27,6 +29,9 @@ fn simultaneous_shared_preparations_publish_one_complete_root() {
                     environment: BTreeMap::new(),
                     workspace: LocalWorkspace::Shared(shared.as_ref().clone()),
                     overlays: Vec::new(),
+                    context_manifest: JobContextManifest {
+                        paths: vec!["base".into()],
+                    },
                 };
                 let Preparation::Execute { workspace_root, .. } = prepare(snapshot).unwrap() else {
                     panic!("shared attempt should execute")

@@ -1,29 +1,31 @@
 use crate::support;
 
-use std::net::TcpListener;
-
-use support::remote_add::{run_add_script, spawn_node_info_probe};
-use support::remote_cli::{remote_inventory_path, remote_token};
+use support::remote_add::run_add_script;
+use support::remote_daemon_v2::{FakeRemoteDaemon, remote};
 
 #[test]
 fn remote_add_token_or_location_invalid_input_stays_open_and_can_be_corrected() {
     let temp = tempfile::tempdir().expect("tempdir");
     let config_root = temp.path().join("config");
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind node info server");
-    let addr = listener.local_addr().expect("listener addr");
-    let base_url = format!("http://{addr}");
-    let token = remote_token("builder-location-retry-tui", &base_url, "direct");
-    let server = spawn_node_info_probe(
-        listener,
-        "builder-location-retry-tui",
-        base_url.clone(),
-        "direct",
+    let invite = "takd:tor:secret-invite";
+    let daemon = FakeRemoteDaemon::spawn(
+        temp.path(),
+        vec![
+            serde_json::json!({
+                "type": "RemotePreview",
+                "remote": remote("builder-location-retry-tui")
+            }),
+            serde_json::json!({
+                "type": "RemoteAdded",
+                "remote": remote("builder-location-retry-tui")
+            }),
+        ],
     );
 
     let output = run_add_script(
         &config_root,
-        &format!("down,enter,paste:http://127.0.0.1:3000,enter,ctrl_u,paste:{token},enter,enter"),
-        &[],
+        &format!("down,enter,paste:http://127.0.0.1:3000,enter,ctrl_u,paste:{invite},enter,enter"),
+        &[("TAKD_SOCKET", daemon.socket().display().to_string())],
     )
     .expect("run scripted add");
 
@@ -42,8 +44,10 @@ fn remote_add_token_or_location_invalid_input_stays_open_and_can_be_corrected() 
         stdout.contains("added remote builder-location-retry-tui"),
         "missing success after correction:\n{stdout}"
     );
-    let inventory =
-        std::fs::read_to_string(remote_inventory_path(&config_root)).expect("inventory");
-    assert!(inventory.contains("builder-location-retry-tui"));
-    server.join().expect("probe server should exit");
+    let requests = daemon.finish();
+    assert_eq!(requests.len(), 2, "invalid input must not reach takd");
+    assert_eq!(requests[0]["operation"]["type"], "PreviewRemote");
+    assert_eq!(requests[0]["operation"]["invite"], invite);
+    assert_eq!(requests[1]["operation"]["type"], "AddRemote");
+    assert_eq!(requests[1]["operation"]["invite"], invite);
 }

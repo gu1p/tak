@@ -4,14 +4,16 @@ use std::path::Path;
 
 use anyhow::Result;
 use tak_core::label::parse_label;
-use tak_core::model::{ResolvedTask, StepDef, TaskLabel, WorkspaceSpec};
-use tak_loader::{LoadOptions, load_workspace};
+use tak_core::model::TaskLabel;
+use tak_core::v2::{AuthoredModule, AuthoredTask, Step};
+use tak_loader::{LoadOptions, inspect_authored_root_module};
 
-const CARGO_SHARED_ENV_SCRIPT: &str = "TAK_TEST_TMPDIR=\"${TAK_TEST_TMPDIR:-/var/tmp/tak-tests}\" \
+const CARGO_SHARED_ENV_SCRIPT: &str = "TAK_TEST_TMPDIR=\"/tmp/tak-tests-$TAK_RUN_ID-$TAK_JOB_ID\" \
 && mkdir -p \"$TAK_TEST_TMPDIR\" .tmp/cargo-home .tmp/cargo-target-local \
 && TMPDIR=\"$TAK_TEST_TMPDIR\" CARGO_HOME=\"$PWD/.tmp/cargo-home\" \
 CARGO_TARGET_DIR=\"$PWD/.tmp/cargo-target-local\" \
-CARGO_BUILD_JOBS=\"${CARGO_BUILD_JOBS:-2}\" exec \"$@\"";
+CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 \
+CARGO_BUILD_JOBS=2 exec \"$@\"";
 
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -20,20 +22,28 @@ fn repo_root() -> &'static Path {
         .expect("workspace root")
 }
 
-pub fn load_root_spec() -> Result<WorkspaceSpec> {
-    load_workspace(repo_root(), &LoadOptions::default())
+pub fn load_root_module() -> Result<AuthoredModule> {
+    Ok(inspect_authored_root_module(repo_root(), &LoadOptions::default())?.module)
 }
 
 pub fn parse(label: &str) -> TaskLabel {
     parse_label(label, "//").expect("task label")
 }
 
-pub fn cmd_steps(task: &ResolvedTask, task_name: &str) -> Vec<Vec<String>> {
+pub fn task<'a>(module: &'a AuthoredModule, label: &str) -> &'a AuthoredTask {
+    module
+        .tasks
+        .iter()
+        .find(|task| task.name == label)
+        .unwrap_or_else(|| panic!("missing {label}"))
+}
+
+pub fn cmd_steps(task: &AuthoredTask, task_name: &str) -> Vec<Vec<String>> {
     task.steps
         .iter()
         .map(|step| match step {
-            StepDef::Cmd { argv, cwd, env } => {
-                assert!(cwd.is_none(), "{task_name} should not override cwd");
+            Step::Cmd { argv, cwd, env } => {
+                assert_eq!(cwd.as_deref(), Some("."), "{task_name} workspace cwd");
                 assert!(env.is_empty(), "{task_name} should not override env");
                 argv.clone()
             }

@@ -3,10 +3,12 @@
 # Scenario: cmd with env and cwd
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_small_04",
   tasks=[
     task(
       "env_cmd",
+      outputs=[path("out/marker.txt")],
       steps=[
         cmd("mkdir", "-p", "out"),
         cmd(

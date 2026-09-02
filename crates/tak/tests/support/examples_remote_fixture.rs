@@ -8,11 +8,13 @@ use anyhow::{Result, bail};
 use super::examples_catalog::ExampleEntry;
 use super::examples_direct_fixture::direct_fixture;
 use super::examples_tor_fixture::tor_fixture;
+use super::local_daemon::LocalDaemonGuard;
 use super::tor_smoke::ChildGuard;
 
 pub type RemoteFixtureSetup = (
     Option<ChildGuard>,
     Option<ChildGuard>,
+    Option<LocalDaemonGuard>,
     Option<PathBuf>,
     BTreeMap<String, String>,
 );
@@ -21,11 +23,12 @@ pub fn remote_fixture(
     entry: &ExampleEntry,
     temp_root: &Path,
     workspace_root: &Path,
+    spec: &tak_core::model::WorkspaceSpec,
 ) -> Result<RemoteFixtureSetup> {
     match entry.remote_fixture.as_deref() {
-        None => Ok((None, None, None, BTreeMap::new())),
-        Some("direct_http") => direct_fixture(entry, temp_root, workspace_root),
-        Some("tor_onion_http") => tor_fixture(entry, temp_root, workspace_root),
+        None => Ok((None, None, None, None, BTreeMap::new())),
+        Some("direct_http") => direct_fixture(entry, temp_root, workspace_root, spec),
+        Some("tor_onion_http") => tor_fixture(entry, temp_root, workspace_root, spec),
         Some(other) => bail!("unsupported remote fixture {other} for {}", entry.name),
     }
 }

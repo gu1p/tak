@@ -1,33 +1,37 @@
 use anyhow::Result;
-use tak_core::model::{Hold, LimiterDef, Scope};
+use tak_core::v2::{AuthoredLimiterDefinition, DefinitionScope, HoldMode};
 
-use crate::support::root_task_contracts::{load_root_spec, parse};
+use crate::support::root_task_contracts::{load_root_module, task};
 
 const CARGO_CHECK_LOCK: &str = "cargo-check-workspace";
 
 #[test]
-fn repo_root_cargo_checks_share_one_worktree_lock() -> Result<()> {
-    let spec = load_root_spec()?;
+fn repo_root_cargo_checks_allow_one_per_worker() -> Result<()> {
+    let module = load_root_module()?;
 
     assert!(
-        spec.limiters.values().any(|limiter| matches!(
+        module.limiter_definitions.iter().any(|limiter| matches!(
             limiter,
-            LimiterDef::Lock { name, scope }
-                if name == CARGO_CHECK_LOCK && *scope == Scope::Worktree
+            AuthoredLimiterDefinition::Lock { name, scope }
+                if name == CARGO_CHECK_LOCK && *scope == DefinitionScope::Node
         )),
-        "missing shared Cargo worktree lock"
+        "missing per-worker Cargo lock"
     );
 
     for label in ["//:fmt-check", "//:lint", "//:test", "//:docs-check"] {
-        let task = spec.tasks.get(&parse(label)).expect("cargo task");
-        assert_eq!(task.needs.len(), 1, "{label} should use one lock need");
+        let task = task(&module, label);
+        assert_eq!(
+            task.limiter_claims.len(),
+            1,
+            "{label} should use one lock need"
+        );
 
-        let need = &task.needs[0];
-        assert_eq!(need.limiter.name, CARGO_CHECK_LOCK, "{label} lock name");
-        assert_eq!(need.limiter.scope, Scope::Worktree, "{label} lock scope");
-        assert_eq!(need.slots, 1.0, "{label} lock slots");
+        let need = &task.limiter_claims[0];
+        assert_eq!(need.name, CARGO_CHECK_LOCK, "{label} lock name");
+        assert_eq!(need.scope, DefinitionScope::Node, "{label} lock scope");
+        assert_eq!(need.amount_millis.get(), 1_000, "{label} lock slots");
         assert!(
-            matches!(need.hold, Hold::During),
+            matches!(need.hold, HoldMode::During),
             "{label} should hold the lock for the full Cargo task"
         );
     }

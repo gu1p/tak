@@ -13,11 +13,16 @@ pub(crate) enum DrainOutcome {
     DeadlineExceeded,
 }
 
+impl DrainOutcome {
+    pub(crate) fn allows_replacement(&self) -> bool {
+        matches!(self, Self::Idle)
+    }
+}
+
 /// Poll the submit store until no active attempts remain, or `deadline` elapses.
 ///
-/// A stuck task must not pin an old (possibly vulnerable) binary forever, so the
-/// caller proceeds anyway after the deadline; the restarted daemon re-adopts
-/// orphaned attempts from the same sqlite store.
+/// The deadline bounds each drain attempt. Its caller leaves the update pending
+/// when work remains and retries during a later update tick.
 ///
 /// ```no_run
 /// # // Reason: needs a tokio runtime and a constructed SubmitAttemptStore backed by sqlite.

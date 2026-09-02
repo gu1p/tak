@@ -1,6 +1,6 @@
 use std::io;
 
-use super::handle_remote_v1_http_stream;
+use super::handle_worker_http_stream;
 use super::http_server_test_support::{ScriptedHttpStream, node_context, request_bytes, store};
 
 #[tokio::test]
@@ -9,7 +9,7 @@ async fn stream_handler_tolerates_disconnect_during_flush_after_full_response_wr
     stream.flush_error = Some(io::ErrorKind::BrokenPipe);
     let (_temp, store) = store();
 
-    let result = handle_remote_v1_http_stream(&mut stream, &store, &node_context()).await;
+    let result = handle_worker_http_stream(&mut stream, &store, &node_context()).await;
 
     assert!(
         result.is_ok(),
@@ -28,7 +28,7 @@ async fn stream_handler_tolerates_disconnect_during_shutdown_after_full_response
     stream.shutdown_error = Some(io::ErrorKind::ConnectionReset);
     let (_temp, store) = store();
 
-    let result = handle_remote_v1_http_stream(&mut stream, &store, &node_context()).await;
+    let result = handle_worker_http_stream(&mut stream, &store, &node_context()).await;
 
     assert!(
         result.is_ok(),
@@ -47,7 +47,7 @@ async fn stream_handler_keeps_non_disconnect_flush_failures_fatal() {
     stream.flush_error = Some(io::ErrorKind::PermissionDenied);
     let (_temp, store) = store();
 
-    let result = handle_remote_v1_http_stream(&mut stream, &store, &node_context()).await;
+    let result = handle_worker_http_stream(&mut stream, &store, &node_context()).await;
 
     let err = result.expect_err("permission denied should remain fatal");
     assert!(

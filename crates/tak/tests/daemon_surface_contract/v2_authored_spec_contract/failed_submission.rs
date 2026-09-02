@@ -19,7 +19,7 @@ fn foreground_v2_run_preserves_failure_across_attachment_pages() {
         &environment(&socket),
     )
     .unwrap();
-    daemon.finish_expecting(5);
+    daemon.finish_expecting(6);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 

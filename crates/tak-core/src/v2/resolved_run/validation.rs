@@ -76,6 +76,15 @@ fn validate_tasks(
         }
         require_references("task dependency", task.dependencies.iter(), tasks)?;
         step_paths::validate(task)?;
+        if task.timeout_s == Some(0) {
+            return Err(ResolvedRunError::new(format!(
+                "task `{}` timeout must be positive",
+                task.task_id
+            )));
+        }
+        if let Some(runtime) = &task.runtime {
+            runtime.validate().map_err(ResolvedRunError::new)?;
+        }
         names::validate(&task.pass_env_names)?;
         if let Some(affinity) = &task.affinity {
             affinity

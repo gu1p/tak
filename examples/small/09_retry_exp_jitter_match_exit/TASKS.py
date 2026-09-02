@@ -2,18 +2,28 @@
 # File: TASKS.py
 # Scenario: retry exp jitter match exit
 
+RETRY_SESSION = session(
+  "retry-jitter",
+  execution=Execution.Local(),
+  reuse=SessionReuse.SharedWorkspace(max_parallel_tasks=1),
+  affinity=Affinity.RequireSameNode("retry-jitter"),
+)
+
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_small_09",
   tasks=[
     task(
       "flaky_jitter",
       retry=retry(attempts=2, on_exit=[17], backoff=exp_jitter(min_s=0, max_s=0.01)),
+      outputs=[path("out/retry_jitter.txt")],
       steps=[
         cmd(
           "sh", "-c",
           "mkdir -p out && if [ -f out/seen_jitter ]; then echo recovered > out/retry_jitter.txt; exit 0; else touch out/seen_jitter; exit 17; fi"
         )
-      ]
+      ],
+      use_session=RETRY_SESSION,
     )
   ]
 )

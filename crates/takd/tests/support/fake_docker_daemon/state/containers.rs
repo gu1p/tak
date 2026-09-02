@@ -35,6 +35,7 @@ impl FakeDockerDaemonState {
                 user: None,
                 working_dir: None,
                 binds: Vec::new(),
+                bind_modes: BTreeMap::new(),
                 labels,
                 env: Vec::new(),
                 nano_cpus: None,

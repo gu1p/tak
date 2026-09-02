@@ -1,46 +1,30 @@
 use anyhow::Result;
 
-use super::ps_process::{ChildCleanup, spawn_tak_child, wait_for_docker_ps};
-use crate::support;
+use crate::support::{run_tak_output, task_history};
 
 #[test]
-fn docker_ps_lists_active_local_docker_run_from_task_history() -> Result<()> {
+fn docker_ps_lists_read_only_legacy_local_container_history() -> Result<()> {
     let temp = tempfile::tempdir()?;
-    let mut env = support::container_runtime::simulated_container_runtime_env(temp.path());
+    let state_root = temp.path().join("state");
+    task_history::write_active_container_run(&state_root);
+    let mut env = std::collections::BTreeMap::new();
     env.insert(
         "XDG_STATE_HOME".to_string(),
-        temp.path().join("state").display().to_string(),
+        state_root.display().to_string(),
     );
     env.insert(
         "XDG_CONFIG_HOME".to_string(),
         temp.path().join("config").display().to_string(),
     );
-    let mut child = spawn_tak_child(
-        temp.path(),
-        &[
-            "--local",
-            "docker",
-            "run",
-            "alpine:3.20",
-            "sh",
-            "-c",
-            "sleep 10",
-        ],
-        &env,
-    )?;
-    let _guard = ChildCleanup(&mut child);
-
-    let stdout = wait_for_docker_ps(
-        temp.path(),
-        &["--local", "docker", "ps"],
-        &env,
-        "kind=docker-run",
-    )?;
+    let output = run_tak_output(temp.path(), &["--local", "docker", "ps"], &env)?;
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("node=local"), "stdout:\n{stdout}");
+    assert!(stdout.contains("kind=task"), "stdout:\n{stdout}");
     assert!(
         stdout.contains("source=image:alpine:3.20"),
         "stdout:\n{stdout}"
     );
-    assert!(stdout.contains("command=sh -c"), "stdout:\n{stdout}");
+    assert!(stdout.contains("command=make build"), "stdout:\n{stdout}");
     Ok(())
 }

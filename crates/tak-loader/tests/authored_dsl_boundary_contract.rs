@@ -1,6 +1,6 @@
 use std::fs;
 
-use tak_loader::{LoadOptions, evaluate_named_policy_decision, load_workspace};
+use tak_loader::{LoadOptions, load_workspace};
 
 #[test]
 fn rejects_tak_imports_with_direct_dsl_guidance() {
@@ -9,7 +9,7 @@ fn rejects_tak_imports_with_direct_dsl_guidance() {
         temp.path().join("TASKS.py"),
         r#"from tak import module_spec, task, cmd
 
-SPEC = module_spec(tasks=[task("check", steps=[cmd("echo", "ok")])])
+SPEC = module_spec(spec_version=2, tasks=[task("check", steps=[cmd("echo", "ok")])])
 SPEC
 "#,
     )
@@ -28,26 +28,26 @@ SPEC
 }
 
 #[test]
-fn rejects_unsupported_decision_remote_any() {
+fn removed_container_command_has_actionable_authored_diagnostic() {
     let temp = tempfile::tempdir().expect("tempdir");
-    let tasks_file = temp.path().join("TASKS.py");
     fs::write(
-        &tasks_file,
-        r#"def choose_remote(ctx):
-  return Decision.remote_any(["build"], reason=Reason.LOCAL_CPU_HIGH)
+        temp.path().join("TASKS.py"),
+        r#"SPEC = module_spec(spec_version=2, tasks=[task("check",
+  execution=Execution.Local(container=Container.Image(
+    "alpine:3.20", command=["sh", "-c", "true"])))])
+SPEC
 "#,
     )
     .expect("write tasks");
 
-    let err = evaluate_named_policy_decision(&tasks_file, "//", "choose_remote")
-        .expect_err("eval should fail");
-    let message = err.to_string();
-    assert!(
-        message.contains("`Decision.remote_any(...)` is unsupported"),
-        "missing remote_any rejection: {message:#}"
-    );
-    assert!(
-        message.contains("use `Decision.local(...)` or `Decision.remote(...)`"),
-        "missing supported decision call guidance: {message:#}"
-    );
+    let options = LoadOptions {
+        enable_type_check: false,
+        ..LoadOptions::default()
+    };
+    let error = load_workspace(temp.path(), &options)
+        .expect_err("removed command must fail")
+        .to_string();
+    assert!(error.contains("Container `command` was removed"), "{error}");
+    assert!(error.contains("spec_version=2"), "{error}");
+    assert!(error.contains("use task steps"), "{error}");
 }

@@ -25,7 +25,7 @@ fn container_session_cascade_submits_dependency_closure_as_one_job() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = daemon.finish_expecting(4);
+    let requests = daemon.finish_expecting(5);
     let run = &requests[0]["operation"]["run"];
     assert_eq!(run["tasks"].as_array().unwrap().len(), 2);
     assert_eq!(run["jobs"].as_array().unwrap().len(), 1);

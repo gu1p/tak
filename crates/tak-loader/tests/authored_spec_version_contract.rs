@@ -11,7 +11,7 @@ fn load_error(source: &str) -> String {
 }
 
 #[test]
-fn omitted_version_remains_a_temporary_legacy_bootstrap() {
+fn omitted_version_is_rejected_with_the_v2_migration_summary() {
     let temp = tempfile::tempdir().expect("tempdir");
     fs::write(
         temp.path().join("TASKS.py"),
@@ -19,8 +19,18 @@ fn omitted_version_remains_a_temporary_legacy_bootstrap() {
     )
     .expect("write tasks");
 
-    let workspace = load_workspace(temp.path(), &LoadOptions::default()).expect("legacy load");
-    assert_eq!(workspace.tasks.len(), 1);
+    let message = load_workspace(temp.path(), &LoadOptions::default())
+        .expect_err("omitted version must fail")
+        .to_string();
+    assert!(
+        message.contains("explicit spec_version=2 is required"),
+        "{message}"
+    );
+    assert!(message.contains("Migration summary"), "{message}");
+    assert!(message.contains("`max_pending`"), "{message}");
+    assert!(message.contains("use queue `slots`"), "{message}");
+    assert!(message.contains("Container `command`"), "{message}");
+    assert!(message.contains("use task steps"), "{message}");
 }
 
 #[test]
@@ -46,12 +56,16 @@ fn explicit_v1_migration_precedes_legacy_boundary_validation() {
 }
 
 #[test]
-fn explicit_v2_is_recognized_before_the_legacy_type_stub() {
-    let message = load_error("SPEC = module_spec(tasks=[], spec_version=2)\nSPEC\n");
+fn explicit_v2_produces_the_read_only_workspace_view() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("TASKS.py"),
+        "SPEC = module_spec(tasks=[], spec_version=2)\nSPEC\n",
+    )
+    .expect("write tasks");
 
-    assert!(message.contains("loaded and validated"), "{message}");
-    assert!(message.contains("no legacy WorkspaceSpec"), "{message}");
-    assert!(!message.contains("type errors"), "{message}");
+    let workspace = load_workspace(temp.path(), &LoadOptions::default()).expect("v2 view");
+    assert!(workspace.tasks.is_empty());
 }
 
 #[test]

@@ -102,10 +102,10 @@ fn active_commands(
 ) -> Result<Vec<DispatchCommand>> {
     let state_filter = match states {
         ActiveStates::Cancelling => "state = 'cancelling'",
-        ActiveStates::Ambiguous => "state IN ('transferring', 'running')",
+        ActiveStates::Ambiguous => "state IN ('transferring', 'running', 'output_committing')",
     };
     let mut statement = transaction.prepare(&format!(
-        "SELECT run_id, job_id, node_id, authored_attempt, dispatch_generation, fencing_token \
+        "SELECT run_id, job_id, node_id, transport, authored_attempt, dispatch_generation, fencing_token \
          FROM run_attempts WHERE node_id = ?1 AND released_at_ms IS NULL AND {state_filter} \
          ORDER BY run_id, job_id, authored_attempt, dispatch_generation"
     ))?;
@@ -121,16 +121,17 @@ enum ActiveStates {
 }
 
 fn command_from_row(row: &Row<'_>) -> rusqlite::Result<DispatchCommand> {
-    let attempt = row.get::<_, i64>(3)?;
-    let generation = row.get::<_, i64>(4)?;
+    let attempt = row.get::<_, i64>(4)?;
+    let generation = row.get::<_, i64>(5)?;
     Ok(DispatchCommand {
         run_id: row.get(0)?,
         job_id: row.get(1)?,
         node_id: row.get(2)?,
+        transport: row.get(3)?,
         authored_attempt: u32::try_from(attempt)
-            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(3, attempt))?,
+            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, attempt))?,
         dispatch_generation: u32::try_from(generation)
-            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(4, generation))?,
-        fencing_token: row.get(5)?,
+            .map_err(|_| rusqlite::Error::IntegralValueOutOfRange(5, generation))?,
+        fencing_token: row.get(6)?,
     })
 }

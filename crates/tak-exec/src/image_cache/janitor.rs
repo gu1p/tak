@@ -19,8 +19,10 @@ async fn prune_image_cache_for_engine(
     engine: &str,
     protected_image_ids: &[String],
 ) -> Result<()> {
-    let conn = open_cache_connection(&options.db_path)?;
-    let mut entries = load_entries(&conn)?;
+    let mut entries = {
+        let conn = open_cache_connection(&options.db_path)?;
+        load_entries(&conn)?
+    };
     let filesystem = filesystem_status(
         &options.db_path,
         options.low_disk_min_free_percent,
@@ -54,10 +56,13 @@ async fn prune_image_cache_for_engine(
         if !remove_cached_image(docker, &entry.image_id).await {
             continue;
         }
-        conn.execute(
-            "DELETE FROM image_cache_entries WHERE engine = ?1 AND image_id = ?2",
-            params![entry.engine, entry.image_id],
-        )?;
+        {
+            let conn = open_cache_connection(&options.db_path)?;
+            conn.execute(
+                "DELETE FROM image_cache_entries WHERE engine = ?1 AND image_id = ?2",
+                params![entry.engine, entry.image_id],
+            )?;
+        }
 
         let current = image_cache_status(
             &options.db_path,
@@ -75,11 +80,13 @@ async fn prune_image_cache_for_engine(
 }
 
 pub async fn run_image_cache_janitor_once(options: &ImageCacheOptions) -> Result<()> {
-    let conn = open_cache_connection(&options.db_path)?;
-    let engines = load_entries(&conn)?
-        .into_iter()
-        .map(|entry| entry.engine)
-        .collect::<std::collections::BTreeSet<_>>();
+    let engines = {
+        let conn = open_cache_connection(&options.db_path)?;
+        load_entries(&conn)?
+            .into_iter()
+            .map(|entry| entry.engine)
+            .collect::<std::collections::BTreeSet<_>>()
+    };
     for engine in engines {
         let Some(container_engine) = parse_recorded_engine(&engine) else {
             tracing::warn!("image cache janitor skipped unknown container engine {engine}");

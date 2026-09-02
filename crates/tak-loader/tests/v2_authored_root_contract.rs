@@ -1,7 +1,7 @@
 use std::fs;
 
 use tak_core::v2::{Affinity, RemoteSelection, SessionReuse};
-use tak_loader::{AuthoredRootModule, LoadOptions, inspect_authored_root_module};
+use tak_loader::{LoadOptions, inspect_authored_root_module};
 
 #[test]
 fn explicit_v2_root_is_inspected_as_v2_domain_data() {
@@ -34,11 +34,8 @@ SPEC
     )
     .expect("write tasks");
 
-    let inspected = inspect_authored_root_module(temp.path(), &LoadOptions::default())
+    let root = inspect_authored_root_module(temp.path(), &LoadOptions::default())
         .expect("inspect v2 root");
-    let AuthoredRootModule::V2(root) = inspected else {
-        panic!("expected v2 root")
-    };
     assert_eq!(root.module.project_id.as_deref(), Some("sample"));
     assert_eq!(root.module.defaults.pass_env.as_strs(), ["ROOT_TOKEN"]);
     let task = &root.module.tasks[0];
@@ -87,31 +84,4 @@ SPEC
         .expect_err("soft task affinity must not weaken a shared workspace")
         .to_string();
     assert!(error.contains("cannot weaken or change"), "{error}");
-}
-
-#[test]
-fn v2_transports_map_to_daemon_candidate_requirements() {
-    for (constructor, expected) in [
-        ("DirectHttps", "direct"),
-        ("Any", "any"),
-        ("TorOnionService", "tor"),
-    ] {
-        let temp = tempfile::tempdir().expect("tempdir");
-        let source = format!(
-            "SPEC = module_spec(spec_version=2, tasks=[task('check', execution=Execution.Remote(transport=Transport.{constructor}()))])\nSPEC\n"
-        );
-        fs::write(temp.path().join("TASKS.py"), source).expect("write tasks");
-
-        let AuthoredRootModule::V2(root) =
-            inspect_authored_root_module(temp.path(), &LoadOptions::default()).expect("inspect v2")
-        else {
-            panic!("expected v2 root")
-        };
-        let remote = root.module.tasks[0]
-            .execution
-            .as_ref()
-            .and_then(|execution| execution.remote())
-            .expect("remote execution");
-        assert_eq!(remote.transport.as_deref(), Some(expected));
-    }
 }

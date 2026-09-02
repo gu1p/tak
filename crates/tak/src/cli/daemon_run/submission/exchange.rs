@@ -37,6 +37,9 @@ fn daemon_error(code: DaemonErrorCode) -> &'static str {
         DaemonErrorCode::RunNotFound => "The daemon-owned run was not found",
         DaemonErrorCode::WorkspaceInvalid => "Local takd rejected the workspace upload",
         DaemonErrorCode::RunStateInvalid => "The daemon-owned run is in an invalid state",
+        DaemonErrorCode::RemoteInviteUnsupported => {
+            "Remote invite is unsupported; upgrade tak, takd, and workers together"
+        }
         DaemonErrorCode::Internal => "Local takd could not complete the run request",
     }
 }

@@ -8,8 +8,9 @@ mod preflight;
 mod snapshot;
 
 #[cfg(test)]
-#[path = "output_materialization/preflight_tests.rs"]
 mod preflight_tests;
+#[cfg(test)]
+mod replacement_preflight_tests;
 
 fn preflight(
     workspace_root: &Path,
@@ -24,7 +25,7 @@ pub(super) async fn materialize(
     run_id: &str,
     context: &super::run_checkout_store::CheckoutContext,
 ) -> Result<()> {
-    let bundle = super::runs_cli::outputs::fetch(socket, run_id).await?;
+    let bundle = super::runs_cli::outputs::fetch_foreground(socket, run_id).await?;
     if bundle.manifest.entries.is_empty() {
         return Ok(());
     }
@@ -32,8 +33,6 @@ pub(super) async fn materialize(
         std::fs::symlink_metadata(&context.root)?.is_dir(),
         "original checkout is no longer a directory"
     );
-    let staging = Staging::new(&context.root);
-    super::runs_cli::outputs::write_fresh(socket, staging.path(), &bundle).await?;
     preflight(
         &context.root,
         &context.submitted_manifest,
@@ -44,6 +43,8 @@ pub(super) async fn materialize(
             "run {run_id} outputs remain in takd; retrieve them with `tak runs outputs {run_id} --to DIR`"
         )
     })?;
+    let staging = Staging::new(&context.root);
+    super::runs_cli::outputs::write_fresh_foreground(socket, staging.path(), &bundle).await?;
     apply::all(&context.root, staging.path(), &bundle.manifest)
 }
 

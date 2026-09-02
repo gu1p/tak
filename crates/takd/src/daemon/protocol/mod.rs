@@ -1,43 +1,35 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tak_core::model::Scope;
-use tokio::io::{
-    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader,
-};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::daemon::lease::{AcquireLeaseResponse, SharedLeaseManager};
+use crate::daemon::lease::SharedLeaseManager;
 use crate::daemon::run_store::RunStore;
 
 mod broker;
-mod daemon_tasks;
-mod dispatch;
 mod local_protocol_io;
-mod request_wire;
+mod server_background_task;
 mod types;
 mod unix_server;
 mod v2_dispatch;
-mod validation;
 
-use broker::handle_broker_http_request;
-use broker::{BrokerForwardResponse, BrokerRemoteHttpRequest};
-use daemon_tasks::DaemonTaskHandles;
-use dispatch::dispatch_request;
+#[cfg(test)]
+mod server_background_task_tests;
+
 use local_protocol_io::handle_client;
 
 pub use broker::TorBroker;
 pub use types::{
-    AcquireLeaseRequest, CancelTaskRequest, ClientInfo, ForwardRemoteHttpRequest,
-    GetOutputRangeRequest, GetTaskResultRequest, LeaseInfo, LimiterUsage, NeedRequest,
-    PeersEligibleRequest, PeersListRequest, PendingInfo, PlaceRemoteRequest, ReleaseLeaseRequest,
-    RemoteResponseHeader, RenewLeaseRequest, Request, Response, StatusRequest, StatusSnapshot,
-    StreamTaskEventsRequest, TaskInfo,
+    AcquireLeaseRequest, ClientInfo, LeaseInfo, LimiterUsage, NeedRequest, PendingInfo,
+    StatusSnapshot, TaskInfo,
 };
 pub use unix_server::{
-    run_server_with_broker_and_peers, run_server_with_broker_peers_and_run_store,
-    run_server_with_local_attempt_executable,
+    run_server_with_broker_and_peers, run_server_with_broker_peers_and_remote_inventory,
+    run_server_with_broker_peers_and_run_store, run_server_with_local_attempt_executable,
+    run_server_with_local_attempt_executable_and_remote_inventory_until_shutdown,
+    run_server_with_local_attempt_executable_until_shutdown,
 };
-pub use validation::ensure_valid_request;

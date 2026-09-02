@@ -17,6 +17,13 @@ pub(super) fn reserve(
     let authored_attempt = next_authored_attempt(transaction, run_id, job_id)?;
     let dispatch_generation = 1_u32;
     let fencing_token = uuid::Uuid::new_v4().to_string();
+    let transport = job
+        .placement_candidates
+        .iter()
+        .find(|candidate| candidate.node_id == node.node_id)
+        .ok_or_else(|| anyhow::anyhow!("selected node is not a placement candidate"))?
+        .transport
+        .clone();
     let command = DispatchCommand {
         run_id: run_id.to_owned(),
         job_id: job_id.to_owned(),
@@ -24,12 +31,13 @@ pub(super) fn reserve(
         authored_attempt,
         dispatch_generation,
         fencing_token,
+        transport,
     };
     let now = sqlite_i64(now_ms()?, "timestamp")?;
     transaction.execute(
-        "INSERT INTO run_attempts (run_id, job_id, authored_attempt, dispatch_generation, fencing_token, node_id, state, cpu_millis, memory_bytes, execution_slots, reserved_at_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'transferring', ?7, ?8, ?9, ?10)",
+        "INSERT INTO run_attempts (run_id, job_id, authored_attempt, dispatch_generation, fencing_token, node_id, transport, state, cpu_millis, memory_bytes, execution_slots, reserved_at_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'transferring', ?8, ?9, ?10, ?11)",
         params![run_id, job_id, authored_attempt, dispatch_generation, command.fencing_token,
-            node.node_id, sqlite_i64(job.resources.cpu_millis, "CPU reservation")?,
+            node.node_id, command.transport, sqlite_i64(job.resources.cpu_millis, "CPU reservation")?,
             sqlite_i64(job.resources.memory_bytes, "memory reservation")?,
             i64::from(job.resources.execution_slots.get()), now],
     )?;

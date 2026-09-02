@@ -40,6 +40,44 @@ pub fn dependent_run(key: &str) -> RunSubmission {
     .unwrap()
 }
 
+pub fn failed_keep_going_run(key: &str, producer_first: bool) -> RunSubmission {
+    failed_run(key, producer_first, true)
+}
+
+pub fn failed_run(key: &str, producer_first: bool, keep_going: bool) -> RunSubmission {
+    let mut request = submission(key, "secret");
+    request.run.options.keep_going = keep_going;
+    request.run.options.max_parallel_jobs = std::num::NonZeroU32::new(2).unwrap();
+    let mut producer = request.run.tasks[0].clone();
+    producer.task_id = "//:produce".into();
+    producer.steps = vec![shell("mkdir -p dist && printf kept > dist/survivor.txt")];
+    producer.outputs = vec![path("dist/survivor.txt")];
+    let mut failure = producer.clone();
+    failure.task_id = "//:fail".into();
+    failure.job_id = "job-1".into();
+    failure.steps = vec![shell("exit 7")];
+    failure.outputs.clear();
+    let mut producer_job = request.run.jobs[0].clone();
+    producer_job.task_ids = vec![producer.task_id.clone()];
+    let mut failure_job = producer_job.clone();
+    failure_job.job_id = failure.job_id.clone();
+    failure_job.task_ids = vec![failure.task_id.clone()];
+    if producer_first {
+        request.run.tasks = vec![producer, failure];
+        request.run.jobs = vec![producer_job, failure_job];
+    } else {
+        request.run.tasks = vec![failure, producer];
+        request.run.jobs = vec![failure_job, producer_job];
+    }
+    request.run.targets = vec!["//:produce".into(), "//:fail".into()];
+    RunSubmission::new(
+        request.idempotency_key,
+        request.run,
+        request.environment_values,
+    )
+    .unwrap()
+}
+
 fn shell(script: &str) -> Step {
     Step::Cmd {
         argv: vec!["/bin/sh".into(), "-c".into(), script.into()],

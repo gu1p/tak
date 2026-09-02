@@ -23,8 +23,9 @@ Large tier: explicit include topology and realistic multi-package flow.
 - `run`: expected success is `true`.
 
 ## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
-- Required output files on successful run: `out/enterprise.log`
+- Required daemon: `true` (Required. Start `takd serve` before running this example.)
+- Required output files on successful run: per-package files in `out/` plus `out/enterprise.log`.
+- Independent platform branches publish unique files; `//apps/portal:release` owns the final aggregation.
 
 ## File Layout
 - `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).

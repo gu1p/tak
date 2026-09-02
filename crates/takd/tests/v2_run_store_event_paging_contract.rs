@@ -28,6 +28,7 @@ fn attachment_pages_are_bounded_and_terminal_only_after_the_last_event() {
             node_id: None,
             message: "event".into(),
             chunk_base64: None,
+            exit_code: None,
         };
         connection
             .execute(
@@ -41,17 +42,17 @@ fn attachment_pages_are_bounded_and_terminal_only_after_the_last_event() {
             .unwrap();
     }
 
-    let (summary, first, has_more) = store
+    let first = store
         .attachment_snapshot(&accepted.run_id, 0)
         .unwrap()
         .unwrap();
-    assert_eq!(summary.state, RunLifecycleState::Succeeded);
-    assert_eq!(first.len(), 256);
-    assert!(has_more);
-    let (_, second, has_more) = store
-        .attachment_snapshot(&accepted.run_id, first.last().unwrap().seq)
+    assert_eq!(first.summary.state, RunLifecycleState::Succeeded);
+    assert_eq!(first.events.len(), 256);
+    assert!(first.has_more);
+    let second = store
+        .attachment_snapshot(&accepted.run_id, first.events.last().unwrap().seq)
         .unwrap()
         .unwrap();
-    assert_eq!(second.len(), 46);
-    assert!(!has_more);
+    assert_eq!(second.events.len(), 46);
+    assert!(!second.has_more);
 }

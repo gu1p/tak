@@ -3,11 +3,20 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
+use tak_core::v2::JobContextManifest;
 
-use super::{create_private, private_dir, remove_existing, unpack};
+use super::{create_private, local_base_root, private_dir, remove_existing, unpack};
+use crate::daemon::{shared_workspace_context, workspace_layer};
 
-pub(super) fn prepare(archive_path: &Path, root: &Path) -> Result<PathBuf> {
+pub(super) fn prepare(
+    archive: &Path,
+    root: &Path,
+    context: &JobContextManifest,
+) -> Result<PathBuf> {
+    let base_root = local_base_root(archive)?;
+    let base = workspace_layer::immutable_base(&base_root, |data| unpack(archive, data))?;
     if let Some(data) = existing_data(root)? {
+        shared_workspace_context::ensure(&base, &data, &root.join("context.json"), context)?;
         return Ok(data);
     }
     let parent = root
@@ -18,7 +27,8 @@ pub(super) fn prepare(archive_path: &Path, root: &Path) -> Result<PathBuf> {
     private_dir(&temporary)?;
     let data = temporary.join("data");
     private_dir(&data)?;
-    unpack(archive_path, &data)?;
+    workspace_layer::private_copy(&base, &data)?;
+    shared_workspace_context::ensure(&base, &data, &temporary.join("context.json"), context)?;
     let mut marker = create_private(&temporary.join("ready"))?;
     marker.write_all(b"v2\n")?;
     marker.sync_all()?;

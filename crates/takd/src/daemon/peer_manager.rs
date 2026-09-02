@@ -13,9 +13,9 @@ mod heartbeat;
 mod inventory;
 mod local_identity;
 mod marks;
-mod placement;
 mod reconcile;
 mod state;
+mod v2_candidates;
 
 use backoff::next_retry_due_ms;
 pub use eligibility::{
@@ -24,7 +24,6 @@ pub use eligibility::{
 use eligibility::{peer_is_eligible, peer_is_placeable};
 use heartbeat::{HeartbeatTarget, duration_ms, ping_peer, should_ping, unix_epoch_ms};
 pub use local_identity::LocalNodeIdentity;
-pub use placement::{PeerPlacementRequest, PeerPlacementSelection};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(15);
 const HEARTBEAT_POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -72,13 +71,13 @@ pub struct PeerConnectionTarget {
 #[derive(Clone, Default)]
 pub struct PeerManager {
     inner: Arc<Mutex<PeerManagerState>>,
+    inventory_generation: Arc<Mutex<u64>>,
+    pub(crate) workers: crate::daemon::worker_registry::WorkerRegistry,
 }
 
 #[derive(Default)]
 struct PeerManagerState {
     peers: BTreeMap<String, PeerEntry>,
-    placement_assignments: BTreeMap<String, usize>,
-    round_robin_cursors: BTreeMap<Vec<String>, usize>,
     // Identity of the node hosting this broker, if it is also an agent. Kept so
     // the local node is never inserted into its own peer set nor selected as a
     // placement target — the local takd is a bridge, never its own executor.
@@ -149,6 +148,7 @@ impl PeerManager {
                     node_id: entry.snapshot.node_id.clone(),
                     endpoint: entry.snapshot.endpoint.clone(),
                     bearer_token: entry.bearer_token.clone(),
+                    transport: entry.snapshot.transport.clone(),
                 });
             }
         }

@@ -11,12 +11,20 @@ use crate::daemon::protocol::TorBroker;
 const INVENTORY_RELOAD_INTERVAL: Duration = Duration::from_secs(1);
 
 impl PeerManager {
-    pub fn apply_inventory_result(
+    pub(crate) fn begin_inventory_reload(&self) -> u64 {
+        *self
+            .inventory_generation
+            .lock()
+            .expect("inventory generation lock poisoned")
+    }
+
+    pub(crate) fn apply_inventory_reload(
         &self,
+        generation: u64,
         inventory: Result<RemoteInventory>,
     ) -> Vec<PeerConnectionTarget> {
         match inventory {
-            Ok(inventory) => self.apply_inventory(inventory),
+            Ok(inventory) => self.apply_inventory_if_current(generation, inventory),
             Err(err) => {
                 tracing::warn!("preserving last-good remote inventory: {err:#}");
                 Vec::new()
@@ -25,6 +33,34 @@ impl PeerManager {
     }
 
     pub fn apply_inventory(&self, inventory: RemoteInventory) -> Vec<PeerConnectionTarget> {
+        let mut generation = self
+            .inventory_generation
+            .lock()
+            .expect("inventory generation lock poisoned");
+        *generation = generation.wrapping_add(1);
+        self.apply_inventory_unfenced(inventory)
+    }
+
+    fn apply_inventory_if_current(
+        &self,
+        expected_generation: u64,
+        inventory: RemoteInventory,
+    ) -> Vec<PeerConnectionTarget> {
+        let mut generation = self
+            .inventory_generation
+            .lock()
+            .expect("inventory generation lock poisoned");
+        if *generation != expected_generation {
+            return Vec::new();
+        }
+        *generation = generation.wrapping_add(1);
+        self.apply_inventory_unfenced(inventory)
+    }
+
+    fn apply_inventory_unfenced(&self, inventory: RemoteInventory) -> Vec<PeerConnectionTarget> {
+        let local_identity = self.lock_state().local_identity.clone();
+        self.workers
+            .apply_inventory(&inventory, local_identity.as_ref());
         let mut state = self.lock_state();
         let local_identity = state.local_identity.clone();
         let next = inventory
@@ -39,12 +75,6 @@ impl PeerManager {
             .map(|remote| (remote.node_id.clone(), remote))
             .collect::<BTreeMap<_, _>>();
         let mut evicted = evicted_peers(&mut state.peers, &next);
-        state
-            .placement_assignments
-            .retain(|node_id, _| next.contains_key(node_id));
-        state
-            .round_robin_cursors
-            .retain(|node_ids, _| node_ids.iter().all(|node_id| next.contains_key(node_id)));
         for remote in next.values() {
             if let Some(entry) = state.peers.get(&remote.node_id)
                 && super::reconcile::peer_identity_changed(entry, remote)
@@ -69,7 +99,9 @@ impl PeerManager {
         let manager = self.clone();
         tokio::spawn(async move {
             loop {
-                let evicted = manager.apply_inventory_result(load_remote_inventory_at(&path));
+                let generation = manager.begin_inventory_reload();
+                let inventory = load_remote_inventory_at(&path);
+                let evicted = manager.apply_inventory_reload(generation, inventory);
                 evict_broker_sessions(broker.as_ref(), evicted).await;
                 tokio::time::sleep(INVENTORY_RELOAD_INTERVAL).await;
             }

@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 use sysinfo::{DiskRefreshKind, Disks};
 
+use crate::ProcessSqliteConnection;
 use migration::ensure_schema;
 
 #[derive(Debug, Clone)]
@@ -29,14 +30,14 @@ pub(super) struct FilesystemStatus {
     pub(super) free_floor_bytes: u64,
 }
 
-pub(super) fn open_cache_connection(db_path: &Path) -> Result<Connection> {
+pub(super) fn open_cache_connection(db_path: &Path) -> Result<ProcessSqliteConnection> {
     if let Some(parent) = db_path.parent()
         && !parent.as_os_str().is_empty()
     {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("create image cache db parent {}", parent.display()))?;
     }
-    let conn = Connection::open(db_path)
+    let conn = ProcessSqliteConnection::open(db_path)
         .with_context(|| format!("open image cache db {}", db_path.display()))?;
     ensure_schema(&conn)?;
     Ok(conn)

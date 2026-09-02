@@ -19,7 +19,7 @@ pub(super) fn fetch_live_status(
     })?;
     write!(
         stream,
-        "GET /v1/node/status HTTP/1.1\r\nHost: takd-control\r\nAuthorization: Bearer {}\r\nConnection: close\r\n\r\n",
+        "GET /v2/worker/status HTTP/1.1\r\nHost: takd-control\r\nX-Tak-Protocol-Version: v2\r\nAuthorization: Bearer {}\r\nConnection: close\r\n\r\n",
         bearer_token.trim()
     )?;
     stream.shutdown(std::net::Shutdown::Write)?;
@@ -32,7 +32,9 @@ pub(super) fn fetch_live_status(
             error_message(body)
         );
     }
-    NodeStatusResponse::decode(body).context("decode live takd task status")
+    let payload = tak_proto::worker_v2::decode_display_payload(body)
+        .context("decode live takd worker-v2 status envelope")?;
+    NodeStatusResponse::decode(payload.as_slice()).context("decode live takd task status")
 }
 
 fn split_http_response(response: &[u8]) -> Result<(u16, &[u8])> {
@@ -53,7 +55,9 @@ fn split_http_response(response: &[u8]) -> Result<(u16, &[u8])> {
 }
 
 fn error_message(body: &[u8]) -> String {
-    ErrorResponse::decode(body)
+    let payload =
+        tak_proto::worker_v2::decode_display_payload(body).unwrap_or_else(|_| body.to_vec());
+    ErrorResponse::decode(payload.as_slice())
         .map(|value| value.message)
         .unwrap_or_else(|_| "unknown_error".to_string())
 }

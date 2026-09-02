@@ -18,6 +18,7 @@ pub struct CreateRecord {
     pub user: Option<String>,
     pub working_dir: Option<String>,
     pub binds: Vec<String>,
+    pub bind_modes: BTreeMap<String, u32>,
     pub labels: BTreeMap<String, String>,
     pub env: Vec<String>,
     pub nano_cpus: Option<i64>,

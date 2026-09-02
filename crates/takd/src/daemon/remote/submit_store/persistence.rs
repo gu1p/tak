@@ -1,6 +1,8 @@
 use super::*;
 use std::time::Duration;
 
+use tak_runner::ProcessSqliteConnection;
+
 impl SubmitAttemptStore {
     /// Creates a SQLite-backed submit idempotency store and ensures schema is present.
     ///
@@ -16,18 +18,24 @@ impl SubmitAttemptStore {
         Ok(store)
     }
 
-    pub(super) fn open_connection(&self) -> Result<Connection> {
+    pub(super) fn open_connection(&self) -> Result<ProcessSqliteConnection> {
         if let Some(parent) = self.db_path.parent()
             && !parent.as_os_str().is_empty()
         {
             fs::create_dir_all(parent).with_context(|| {
                 format!("failed to create sqlite parent directory {:?}", parent)
             })?;
+            secure_path(parent, 0o700)?;
         }
-        let conn = Connection::open(&self.db_path)
+        let conn = ProcessSqliteConnection::open(&self.db_path)
             .with_context(|| format!("failed to open sqlite db at {:?}", self.db_path))?;
+        secure_path(&self.db_path, 0o600)?;
         conn.busy_timeout(Duration::from_secs(5))
             .context("configure sqlite busy timeout")?;
+        conn.execute_batch(
+            "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;",
+        )?;
+        secure_sqlite_sidecars(&self.db_path)?;
         Ok(conn)
     }
 
@@ -88,6 +96,7 @@ impl SubmitAttemptStore {
                 ",
             )?;
         }
+        super::worker_v2::ensure_schema(&conn)?;
         Ok(())
     }
 
@@ -129,4 +138,27 @@ impl SubmitAttemptStore {
         }
         Ok(false)
     }
+}
+
+#[cfg(unix)]
+fn secure_path(path: &std::path::Path, mode: u32) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(mode))
+        .with_context(|| format!("secure sqlite path {}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn secure_path(_path: &std::path::Path, _mode: u32) -> Result<()> {
+    Ok(())
+}
+
+fn secure_sqlite_sidecars(db_path: &std::path::Path) -> Result<()> {
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = std::path::PathBuf::from(format!("{}{suffix}", db_path.display()));
+        if sidecar.exists() {
+            secure_path(&sidecar, 0o600)?;
+        }
+    }
+    Ok(())
 }

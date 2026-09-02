@@ -7,12 +7,9 @@ use crate::support::{protocol_server::spawn_protocol_server, v2_run};
 
 #[tokio::test]
 async fn local_declared_outputs_overlay_dependencies_and_are_downloadable() {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let db = temp.path().join("takd.sqlite");
-    let socket = std::path::PathBuf::from(".tmp")
-        .join(temp.path().file_name().unwrap())
-        .join("d.sock");
+    let socket = temp.path().join("d.sock");
     let server = spawn_protocol_server(db.clone(), socket.clone());
     wait_for(|| socket.exists()).await;
     let store = RunStore::with_db_path(db).unwrap();

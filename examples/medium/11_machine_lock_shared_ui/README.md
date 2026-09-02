@@ -8,6 +8,7 @@ UI and device-bound tests often cannot run in parallel safely. This example show
 
 ```python
 SPEC = module_spec(
+    spec_version=2,
     limiters=[lock("ui_lock", scope=Scope.Machine)],
     tasks=[
         task(
@@ -38,7 +39,7 @@ SPEC
 ## Expected Signals
 
 - `tak run` succeeds with local coordination available.
-- `tak status` is currently unsupported in the client-only CLI build.
+- `tak status` shows daemon-owned local activity and configured remote-node health.
 
 ## Artifacts
 

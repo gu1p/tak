@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::task::JoinHandle;
 
+use super::unix_socket_path::short_socket_bind_path;
 #[path = "nonzero_wait_docker_daemon/wire.rs"]
 mod wire;
 
@@ -50,7 +51,7 @@ impl NonzeroWaitDockerDaemon {
         inspect_oom_killed: Option<bool>,
         stderr_line: &str,
     ) -> Self {
-        let socket_path = root.join("docker.sock");
+        let socket_path = short_socket_bind_path(&root.join("docker.sock"));
         if socket_path.exists() { std::fs::remove_file(&socket_path).expect("remove stale fake docker socket"); }
         let listener = UnixListener::bind(&socket_path).expect("bind fake docker socket");
         let wait_error = wait_error.map(ToOwned::to_owned);

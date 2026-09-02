@@ -1,7 +1,7 @@
-use base64::Engine as _;
 use serde::Deserialize;
 
 use super::identifier::is_valid_identifier;
+use super::response_validation::valid_success;
 use super::{DaemonErrorCode, PROTOCOL_VERSION, ResponseDecodeError};
 
 /// Maximum JSON payload size accepted from the local daemon, excluding NDJSON framing.
@@ -43,6 +43,8 @@ enum WireDaemonErrorCode {
     WorkspaceInvalid,
     #[serde(rename = "run_state_invalid")]
     RunStateInvalid,
+    #[serde(rename = "remote_invite_unsupported")]
+    RemoteInviteUnsupported,
     #[serde(rename = "internal")]
     Internal,
 }
@@ -124,48 +126,9 @@ pub fn decode_error_response(
         WireDaemonErrorCode::RunNotFound => Ok(DaemonErrorCode::RunNotFound),
         WireDaemonErrorCode::WorkspaceInvalid => Ok(DaemonErrorCode::WorkspaceInvalid),
         WireDaemonErrorCode::RunStateInvalid => Ok(DaemonErrorCode::RunStateInvalid),
-        WireDaemonErrorCode::Internal => Ok(DaemonErrorCode::Internal),
-    }
-}
-
-fn valid_success(response: &super::Response) -> bool {
-    use super::Response;
-    match response {
-        Response::Error { .. } => false,
-        Response::RunSubmitted { run_id, .. }
-        | Response::WorkspaceUploadProgress { run_id, .. }
-        | Response::RunCommitted { run_id, .. }
-        | Response::CancellationAccepted { run_id, .. }
-        | Response::OutputManifest { run_id, .. } => is_valid_identifier(run_id),
-        Response::RunEvents {
-            run_id,
-            events,
-            next_event,
-            state,
-            terminal,
-            ..
-        } => {
-            let sequences_are_valid = events.windows(2).all(|pair| pair[0].seq < pair[1].seq)
-                && events.last().is_none_or(|event| event.seq == *next_event);
-            let event_shapes_are_valid = events.iter().all(|event| {
-                let is_output = matches!(
-                    event.kind,
-                    super::RunEventKind::Stdout | super::RunEventKind::Stderr
-                );
-                is_output == event.chunk_base64.is_some()
-                    && event.chunk_base64.as_ref().is_none_or(|chunk| {
-                        base64::engine::general_purpose::STANDARD
-                            .decode(chunk)
-                            .is_ok()
-                    })
-            });
-            is_valid_identifier(run_id)
-                && sequences_are_valid
-                && event_shapes_are_valid
-                && (!terminal || state.is_terminal())
+        WireDaemonErrorCode::RemoteInviteUnsupported => {
+            Ok(DaemonErrorCode::RemoteInviteUnsupported)
         }
-        Response::RunList { runs, .. } => runs.iter().all(|run| is_valid_identifier(&run.run_id)),
-        Response::RunDetails { run, .. } => is_valid_identifier(&run.summary.run_id),
-        Response::OutputChunk { artifact_id, .. } => is_valid_identifier(artifact_id),
+        WireDaemonErrorCode::Internal => Ok(DaemonErrorCode::Internal),
     }
 }

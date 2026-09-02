@@ -3,10 +3,11 @@
 # Scenario: polyglot pipeline build test release
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
-    task("build", deps=["//:prepare"], steps=[cmd("sh", "-c", "mkdir -p out && echo py-build >> out/polyglot.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo py-test >> out/polyglot.log")]),
-    task("release", deps=[":test", "//services/rust:test", "//services/js:test"], steps=[script("scripts/release.sh", interpreter="sh")]),
+    task("build", deps=["//:prepare"], outputs=[path("//out/python-build.txt")], steps=[cmd("sh", "-c", "mkdir -p out && echo py-build > out/python-build.txt", cwd="//")]),
+    task("test", deps=[":build"], outputs=[path("//out/python-test.txt")], steps=[cmd("sh", "-c", "mkdir -p out && echo py-test > out/python-test.txt", cwd="//")]),
+    task("release", deps=[":test", "//services/rust:test", "//services/js:test"], outputs=[path("//out/polyglot_release.txt")], steps=[script("//scripts/release.sh", interpreter="sh", cwd="//")]),
   ]
 )
 SPEC

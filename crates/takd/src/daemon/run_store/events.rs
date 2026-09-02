@@ -11,7 +11,37 @@ pub(super) fn append_event(
     kind: RunEventKind,
     message: &str,
 ) -> Result<u64> {
-    append_context_event(transaction, run_id, kind, None, &[], None, message, None)
+    append_context_event(
+        transaction,
+        run_id,
+        kind,
+        None,
+        &[],
+        None,
+        message,
+        None,
+        None,
+    )
+}
+
+pub(super) fn append_terminal_event(
+    transaction: &Transaction<'_>,
+    run_id: &str,
+    kind: RunEventKind,
+    message: &str,
+    exit_code: Option<i32>,
+) -> Result<u64> {
+    append_context_event(
+        transaction,
+        run_id,
+        kind,
+        None,
+        &[],
+        None,
+        message,
+        None,
+        exit_code,
+    )
 }
 
 pub(super) fn append_job_event(
@@ -32,6 +62,34 @@ pub(super) fn append_job_event(
         Some(node_id),
         message,
         None,
+        None,
+    )
+}
+
+pub(super) struct TerminalDetails<'a> {
+    pub message: &'a str,
+    pub exit_code: Option<i32>,
+}
+
+pub(super) fn append_job_terminal_event(
+    transaction: &Transaction<'_>,
+    run_id: &str,
+    kind: RunEventKind,
+    job_id: &str,
+    task_ids: &[String],
+    node_id: &str,
+    terminal: TerminalDetails<'_>,
+) -> Result<u64> {
+    append_context_event(
+        transaction,
+        run_id,
+        kind,
+        Some(job_id),
+        task_ids,
+        Some(node_id),
+        terminal.message,
+        None,
+        terminal.exit_code,
     )
 }
 
@@ -53,6 +111,7 @@ pub(super) fn append_output_event(
         Some(node_id),
         "",
         Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
+        None,
     )
 }
 
@@ -71,6 +130,7 @@ pub(super) fn append_skipped_event(
         None,
         "job skipped after dependency failure",
         None,
+        None,
     )
 }
 
@@ -84,6 +144,7 @@ fn append_context_event(
     node_id: Option<&str>,
     message: &str,
     chunk_base64: Option<String>,
+    exit_code: Option<i32>,
 ) -> Result<u64> {
     let next: i64 = transaction.query_row(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM run_events WHERE run_id = ?1",
@@ -98,6 +159,7 @@ fn append_context_event(
         node_id: node_id.map(str::to_owned),
         message: message.to_owned(),
         chunk_base64,
+        exit_code,
     };
     transaction.execute(
         "INSERT INTO run_events (run_id, seq, payload_json, created_at_ms) VALUES (?1, ?2, ?3, ?4)",

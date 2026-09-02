@@ -10,7 +10,12 @@ use super::live_direct_remote::add_remote;
 use super::live_direct_token::wait_for_token;
 use super::tor_smoke::{ChildGuard, takd_bin};
 
-pub fn start_direct_agent(temp_root: &Path, workspace_root: &Path, node_id: &str) -> ChildGuard {
+pub fn start_direct_agent(
+    temp_root: &Path,
+    workspace_root: &Path,
+    node_id: &str,
+    daemon_socket: &Path,
+) -> ChildGuard {
     let roots = LiveDirectRoots::new(temp_root);
     let takd = takd_bin();
     fs::create_dir_all(workspace_root).expect("create workspace root for direct remote helper");
@@ -20,7 +25,7 @@ pub fn start_direct_agent(temp_root: &Path, workspace_root: &Path, node_id: &str
         .collect::<Vec<_>>();
     let agent = spawn_direct_agent_with_env(&takd, &roots, &serve_env);
     let token = wait_for_token(&takd, &roots);
-    add_remote(workspace_root, &roots, &token);
+    add_remote(workspace_root, &roots, &token, daemon_socket);
     agent
 }
 

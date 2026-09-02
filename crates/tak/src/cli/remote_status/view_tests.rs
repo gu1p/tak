@@ -5,7 +5,13 @@ use super::{RemoteRecord, RemoteStatusResult};
 fn checking_view_starts_every_node_in_sorted_order() {
     let view = RemoteStatusView::checking(&[remote("builder-z"), remote("builder-a")], 1, true);
 
-    assert_eq!(view.node_ids(), vec!["builder-a", "builder-z"]);
+    assert_eq!(
+        view.rows()
+            .iter()
+            .map(|row| row.node_id())
+            .collect::<Vec<_>>(),
+        vec!["builder-a", "builder-z"]
+    );
     assert_eq!(view.checking_count(), 2);
     assert!(view.completed_results().is_empty());
 }
@@ -25,7 +31,11 @@ fn completed_results_remain_sorted_after_out_of_order_finishes() {
         .collect::<Vec<_>>();
     assert_eq!(node_ids, vec!["builder-a", "builder-z"]);
     assert_eq!(view.checking_count(), 0);
-    assert!(view.has_errors());
+    assert!(
+        view.completed_results()
+            .iter()
+            .any(|result| result.error.is_some())
+    );
 }
 
 fn remote(node_id: &str) -> RemoteRecord {
@@ -33,7 +43,6 @@ fn remote(node_id: &str) -> RemoteRecord {
         node_id: node_id.to_string(),
         display_name: node_id.to_string(),
         base_url: format!("http://{node_id}.example"),
-        bearer_token: "secret".to_string(),
         pools: vec!["default".to_string()],
         tags: vec!["builder".to_string()],
         capabilities: vec!["linux".to_string()],

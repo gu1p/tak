@@ -27,7 +27,13 @@ pub(super) fn environment(socket: &Path) -> BTreeMap<String, String> {
 pub(super) fn assert_requests(requests: &[Value]) {
     assert_eq!(
         operation_types(requests),
-        ["SubmitRun", "UploadWorkspace", "CommitRun", "AttachRun"]
+        [
+            "SubmitRun",
+            "UploadWorkspace",
+            "CommitRun",
+            "AttachRun",
+            "GetOutputManifest",
+        ]
     );
     let submit = &requests[0]["operation"];
     assert_eq!(submit["run"]["targets"], json!(["//:target"]));

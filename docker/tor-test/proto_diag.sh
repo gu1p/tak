@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Diagnostic variant of proto_check.sh: captures BOTH node A's server-side
-# per-stream h2/h1 split AND node B's broker-side cause markers (h2 handshake
+# Diagnostic variant of proto_check.sh for /v2/worker: captures BOTH node A's
+# server-side per-stream h2/h1 split AND node B's broker-side cause markers (h2 handshake
 # timeout vs error vs ok, send_request failures, fallback+pin decisions).
 # Leaves containers running (KEEP) for further inspection.
 set -uo pipefail
@@ -50,8 +50,8 @@ docker cp takd-a:/root/.local/state/takd/service.log /tmp/proto_a.log 2>/dev/nul
 docker cp takd-b:/root/.local/state/takd/service.log /tmp/proto_b.log 2>/dev/null
 say ""
 say "=== node A per-stream protocol (server side) ==="
-say "HTTP/2 streams served : $(grep -c 'serving remote v1 stream over HTTP/2' /tmp/proto_a.log)"
-say "HTTP/1.1 streams served: $(grep -c 'serving remote v1 stream over HTTP/1.1' /tmp/proto_a.log)"
+say "HTTP/2 streams served : $(grep -c 'serving worker stream over HTTP/2' /tmp/proto_a.log)"
+say "HTTP/1.1 streams served: $(grep -c 'serving worker stream over HTTP/1.1' /tmp/proto_a.log)"
 say "read-request-bytes errors: $(grep -c 'read request bytes' /tmp/proto_a.log)"
 say ""
 say "=== node B broker-side cause markers (case-insensitive) ==="

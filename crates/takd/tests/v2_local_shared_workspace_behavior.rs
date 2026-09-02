@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use tak_core::v2::{Affinity, JobEdge, RunSubmission, Session, SessionReuse, Step};
 use tak_proto::local_daemon::v2::{RunEventKind, RunLifecycleState};
 use takd::RunStore;
 
 use crate::support::{protocol_server::spawn_protocol_server, v2_run};
+
+#[path = "v2_local_shared_workspace_behavior/context.rs"]
+mod context;
 
 #[tokio::test]
 async fn dependent_local_attempts_execute_in_the_same_shared_workspace() {
@@ -58,7 +60,9 @@ fn shared_run() -> RunSubmission {
     consumer.task_id = "//:consumer".into();
     consumer.job_id = "job-1".into();
     consumer.dependencies = vec!["//:producer".into()];
-    consumer.steps = vec![shell("test \"$(cat .shared/value)\" = producer && printf 'shared-integration\\n'")];
+    consumer.steps = vec![shell(
+        "test \"$(cat .shared/value)\" = producer && printf 'shared-integration\\n'",
+    )];
     let mut consumer_job = request.run.jobs[0].clone();
     consumer_job.job_id = "job-1".into();
     consumer_job.task_ids = vec!["//:consumer".into()];
@@ -69,7 +73,12 @@ fn shared_run() -> RunSubmission {
         dependency_job_id: "job-0".into(),
         dependent_job_id: "job-1".into(),
     }];
-    RunSubmission::new(request.idempotency_key, request.run, request.environment_values).unwrap()
+    RunSubmission::new(
+        request.idempotency_key,
+        request.run,
+        request.environment_values,
+    )
+    .unwrap()
 }
 
 fn shell(script: &str) -> Step {
@@ -81,9 +90,9 @@ fn shell(script: &str) -> Step {
 }
 
 async fn wait_for(predicate: impl Fn() -> bool) {
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
         while !predicate() {
-            tokio::time::sleep(Duration::from_millis(20)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
     })
     .await

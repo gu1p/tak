@@ -1,9 +1,12 @@
 use anyhow::Result;
 use rusqlite::Transaction;
-use tak_core::v2::{ResolvedJob, ResolvedRun};
+use tak_core::v2::{QueueDiscipline, ResolvedJob, ResolvedRun};
+
+use crate::daemon::scheduler::SchedulerNode;
 
 mod limiter;
 mod model;
+mod process_cap;
 mod rate_limit;
 #[cfg(test)]
 mod rate_limit_tests;
@@ -22,8 +25,9 @@ pub(in crate::daemon::run_store::scheduling) fn can_acquire(
     transaction: &Transaction<'_>,
     context: &Context<'_>,
     job: &ResolvedJob,
-    node_id: &str,
+    node: &SchedulerNode,
 ) -> Result<bool> {
+    let node_id = node.node_id.as_str();
     if !is_queue_head(transaction, context, job, node_id)? {
         return Ok(false);
     }
@@ -45,7 +49,11 @@ pub(in crate::daemon::run_store::scheduling) fn can_acquire(
                     .ok_or_else(|| anyhow::anyhow!("constraint usage overflow"))
             })?;
         if used
-            .checked_add(request.amount)
+            .checked_add(process_cap::matching_usage_millis(
+                node,
+                request.process_match_pattern.as_deref(),
+            ))
+            .and_then(|used| used.checked_add(request.amount))
             .is_none_or(|projected| projected > request.capacity)
         {
             return Ok(false);
@@ -93,6 +101,7 @@ fn is_queue_head(
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?
     };
+    let mut winner = None::<(String, String, i32)>;
     for (run_id, job_id, submitter, run, definition) in rows {
         let run: ResolvedRun = serde_json::from_str(&run)?;
         let job: ResolvedJob = serde_json::from_str(&definition)?;
@@ -112,10 +121,26 @@ fn is_queue_head(
             now_ms: context.now_ms,
         };
         if queue_key(&other, &job, node_id)?.as_ref() == Some(&requested_key) {
-            return Ok(run_id == context.run_id && job_id == context.job_id);
+            let priority = queue_priority(&run, &job);
+            if winner.as_ref().is_none_or(|(_, _, best)| priority > *best) {
+                winner = Some((run_id, job_id, priority));
+            }
         }
     }
-    Ok(true)
+    Ok(winner
+        .is_none_or(|(run_id, job_id, _)| run_id == context.run_id && job_id == context.job_id))
+}
+
+fn queue_priority(run: &ResolvedRun, job: &ResolvedJob) -> i32 {
+    job.queue
+        .as_ref()
+        .and_then(|name| {
+            run.queue_definitions
+                .iter()
+                .find(|definition| definition.name == *name)
+        })
+        .filter(|definition| definition.discipline == QueueDiscipline::Priority)
+        .map_or(0, |_| job.queue_priority)
 }
 
 fn active_constraints(transaction: &Transaction<'_>, now_ms: u64) -> Result<Vec<Constraint>> {

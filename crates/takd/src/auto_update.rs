@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod drain;
+#[cfg(test)]
+mod drain_tests;
 mod loop_task;
 mod state;
 

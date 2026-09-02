@@ -47,7 +47,7 @@ say "=== tak run hello --remote output ==="
 cat /tmp/comm_run.txt >>"$REP"
 
 say "=== node A: did it accept/execute the submit? (marker/submit/worker lines) ==="
-docker exec takd-a sh -c 'grep -iE "TAK_REMOTE_OK_MARKER|mock-container|simulating|submit|worker|/v1/node/(submit|info|ping)" /root/.local/state/takd/service.log 2>/dev/null | tail -25' >>"$REP" 2>&1
+docker exec takd-a sh -c 'grep -iE "TAK_REMOTE_OK_MARKER|mock-container|simulating|submit|worker|/v2/worker" /root/.local/state/takd/service.log 2>/dev/null | tail -25' >>"$REP" 2>&1
 say "=== node B: broker/place/peer/http2 lines ==="
 docker exec takd-b sh -c 'grep -iE "place|broker|http2|connect_failed|handshake|peer|node-a|unreachable|select" /root/.local/state/takd/service.log 2>/dev/null | tail -30' >>"$REP" 2>&1
 say DONE

@@ -5,15 +5,24 @@ use tak_core::v2::{
 
 use super::super::v2_wire as wire;
 use super::super::v2_wire_primitives::convert_output;
+use super::context::convert_context;
+use super::runtime::convert_container;
 
 pub(super) fn validate_task_affinity(
     execution: Option<&Execution>,
     direct_session: Option<&Session>,
     task_affinity: Option<&Affinity>,
 ) -> Result<()> {
+    if let Some(Execution::FirstAvailable { placements, .. }) = execution {
+        for placement in placements {
+            validate_task_affinity(Some(placement), direct_session, task_affinity)?;
+        }
+        return Ok(());
+    }
     let attached = match execution {
         Some(Execution::LocalOnly { local }) => local.session.as_deref(),
         Some(Execution::RemoteOnly { remote }) => remote.session.as_deref(),
+        Some(Execution::FirstAvailable { .. }) => unreachable!(),
         None => None,
     };
     if let Some(session) = direct_session.or(attached) {
@@ -22,46 +31,93 @@ pub(super) fn validate_task_affinity(
     Ok(())
 }
 
+pub(super) fn validate_first_available(execution: Option<&Execution>) -> Result<()> {
+    let Some(Execution::FirstAvailable { placements, .. }) = execution else {
+        return Ok(());
+    };
+    let selections = placements
+        .iter()
+        .filter_map(Execution::remote)
+        .map(|remote| remote.selection);
+    if !all_equal(selections) {
+        bail!("Execution.FirstAvailable requires every remote tier to use the same RemoteSelection")
+    }
+    let expected_runtime = placements.first().and_then(Execution::runtime);
+    if placements
+        .iter()
+        .skip(1)
+        .any(|placement| placement.runtime() != expected_runtime)
+    {
+        bail!(
+            "Execution.FirstAvailable requires every tier to use the same container runtime; add the same container=... to every tier or remove it from all tiers"
+        )
+    }
+    Ok(())
+}
+
+fn all_equal<T: PartialEq>(mut values: impl Iterator<Item = T>) -> bool {
+    let Some(first) = values.next() else {
+        return true;
+    };
+    values.all(|value| value == first)
+}
+
 pub(super) fn convert_execution(execution: wire::Execution) -> Result<Execution> {
     match execution {
-        wire::Execution::LocalOnly { local } => {
-            if local.container.is_some() {
-                bail!("v2 local containers are not active in this build");
+        wire::Execution::LocalOnly { local } => Ok(Execution::LocalOnly {
+            local: LocalExecution {
+                reason: local.reason,
+                session: local
+                    .session
+                    .map(|session| convert_session(*session))
+                    .transpose()?
+                    .map(Box::new),
+                runtime: local.container.map(convert_container).transpose()?,
+            },
+        }),
+        wire::Execution::RemoteOnly { remote } => Ok(Execution::RemoteOnly {
+            remote: RemoteExecution {
+                reason: remote.reason,
+                pool: remote.pool,
+                required_tags: remote.required_tags,
+                required_capabilities: remote.required_capabilities,
+                transport: remote.transport.map(convert_transport),
+                selection: convert_selection(remote.selection),
+                session: remote
+                    .session
+                    .map(|session| convert_session(*session))
+                    .transpose()?
+                    .map(Box::new),
+                runtime: remote.container.map(convert_container).transpose()?,
+            },
+        }),
+        wire::Execution::FirstAvailable {
+            policy_id,
+            placements,
+        } => {
+            if policy_id.trim().is_empty() || placements.is_empty() {
+                bail!("Execution.FirstAvailable requires a policy id and placements")
             }
-            Ok(Execution::LocalOnly {
-                local: LocalExecution {
-                    session: local
-                        .session
-                        .map(|session| convert_session(*session))
-                        .transpose()?
-                        .map(Box::new),
-                },
-            })
-        }
-        wire::Execution::RemoteOnly { remote } => {
-            if remote.container.is_some() {
-                bail!("v2 remote containers are not active in this build");
+            let placements = placements
+                .into_iter()
+                .map(convert_execution)
+                .collect::<Result<Vec<_>>>()?;
+            if placements
+                .iter()
+                .any(|placement| matches!(placement, Execution::FirstAvailable { .. }))
+            {
+                bail!("nested Execution.FirstAvailable is not supported")
             }
-            Ok(Execution::RemoteOnly {
-                remote: RemoteExecution {
-                    pool: remote.pool,
-                    required_tags: remote.required_tags,
-                    required_capabilities: remote.required_capabilities,
-                    transport: remote.transport.map(convert_transport),
-                    selection: convert_selection(remote.selection),
-                    session: remote
-                        .session
-                        .map(|session| convert_session(*session))
-                        .transpose()?
-                        .map(Box::new),
-                },
+            Ok(Execution::FirstAvailable {
+                policy_id,
+                placements,
             })
         }
     }
 }
 
 pub(super) fn convert_session(session: wire::Session) -> Result<Session> {
-    if session.kind != "session_v2" || session.context.is_some() {
+    if session.kind != "session_v2" {
         bail!("invalid v2 session payload");
     }
     let reuse = convert_reuse(session.reuse)?;
@@ -75,6 +131,8 @@ pub(super) fn convert_session(session: wire::Session) -> Result<Session> {
         .map(|execution| convert_execution(*execution))
         .transpose()?
         .map(Box::new);
+    validate_first_available(result.execution.as_deref())?;
+    result.context = session.context.map(convert_context).transpose()?;
     result.validate()?;
     Ok(result)
 }

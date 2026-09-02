@@ -24,7 +24,7 @@ REMOTE = Execution.Remote(
     ),
 )
 
-SPEC = module_spec(tasks=[
+SPEC = module_spec(spec_version=2, tasks=[
     task(
         "container_log_storm",
         steps=[cmd("sh", "-c", "printf 'log-storm-stdout-001\n'")],
@@ -61,7 +61,8 @@ takd serve
 tak remote add "$(takd token show --wait)"
 ```
 
-If both a direct and a Tor node match, Tak uses the first reachable enabled remote in inventory order.
+If both a direct and a Tor node match, `tak` submits both concrete candidates and daemon-owned
+Balanced placement chooses among eligible nodes using current projected pressure.
 
 ## Expected Artifacts
 - `out/local-input.txt`

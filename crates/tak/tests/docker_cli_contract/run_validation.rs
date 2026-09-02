@@ -45,7 +45,7 @@ fn docker_run_rejects_publish_until_forwarding_exists() -> Result<()> {
 }
 
 #[test]
-fn docker_run_defaults_to_remote_and_reports_missing_inventory() -> Result<()> {
+fn docker_run_defaults_to_remote_and_requires_the_local_daemon() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let mut env = BTreeMap::new();
     env.insert(
@@ -56,7 +56,8 @@ fn docker_run_defaults_to_remote_and_reports_missing_inventory() -> Result<()> {
     let (_stdout, stderr) =
         run_tak_expect_failure(temp.path(), &["docker", "run", "alpine:3.20", "true"], &env)?;
 
-    assert!(stderr.contains("no configured remote agents match tak docker run"));
+    assert!(stderr.contains("Local takd is unavailable"), "{stderr}");
+    assert!(stderr.contains("no client execution fallback"), "{stderr}");
     Ok(())
 }
 

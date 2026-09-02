@@ -53,9 +53,12 @@ tak run <target>
 
 All commands are meant to run from the example directory itself. Tak loads only that directory's `TASKS.py`; multi-package examples bring in other modules through explicit `includes=[...]`.
 
+Start local `takd serve` before `tak run`. Graph inspection commands are client-side, but every v2
+execution is submitted to the daemon and there is no local executor fallback.
+
 If the example target lives at the root package, a bare task name also works. Example: `tak run hello` is shorthand for `tak run //:hello`.
 
-If the example uses remote execution, import and run a `takd` agent first:
+If the example uses remote execution, initialize and import a matching agent too:
 
 ```bash
 takd init
@@ -88,7 +91,7 @@ Each `[[example]]` entry defines:
 - `run_target`: target used for `tak run`
 - `explain_target`: target used for explain/graph checks
 - `expect_success`: expected run exit outcome
-- `requires_daemon`: whether daemon is required
+- `requires_daemon`: always true for executable v2 examples
 - `remote_fixture` (optional): deterministic remote fixture (`direct_http` or `tor_onion_http`)
 - `simulate_container_runtime` (optional): enable test-only container probe simulation for remote fixtures
 - `expect_stdout_contains` (optional): required substrings in run stdout

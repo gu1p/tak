@@ -102,17 +102,4 @@ impl Http2Session {
         })?;
         BrokerHttp2Response::from_hyper(response).await
     }
-
-    pub(super) async fn send_stream(
-        &self,
-        request: BrokerHttp2StreamRequest,
-    ) -> std::result::Result<BrokerHttp2Response, BrokerHttpError> {
-        let request = request.into_hyper_request()?;
-        let mut sender = self.sender.clone();
-        let response = sender.send_request(request).await.map_err(|err| {
-            tracing::debug!(error = %err, is_closed = sender.is_closed(), "h2 stream send_request failed");
-            BrokerHttpError::bad_gateway("http2_request_failed", err)
-        })?;
-        BrokerHttp2Response::from_hyper(response).await
-    }
 }

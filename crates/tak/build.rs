@@ -29,7 +29,7 @@ fn main() {
 
 fn print_build_triggers(repo_root: &Path) {
     println!("cargo:rerun-if-changed=../../examples/catalog.toml");
-    println!("cargo:rerun-if-changed=../tak-loader/src/loader/dsl_stubs.pyi");
+    println!("cargo:rerun-if-changed=../tak-loader/src/loader/dsl_stubs_v2.pyi");
     println!(
         "cargo:rerun-if-changed={}",
         repo_root.join("crates").display()

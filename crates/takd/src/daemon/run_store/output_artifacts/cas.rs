@@ -67,6 +67,39 @@ pub(super) fn require_blob(store: &RunStore, entry: &WorkspaceEntry) -> Result<(
     Ok(())
 }
 
+pub(super) fn publish_bytes(store: &RunStore, entry: &WorkspaceEntry, bytes: &[u8]) -> Result<()> {
+    ensure!(
+        entry.entry_type == WorkspaceEntryType::File,
+        "only file outputs have blob content"
+    );
+    ensure!(
+        bytes.len() as u64 == entry.size,
+        "remote output size mismatch"
+    );
+    ensure!(
+        format!("{:x}", Sha256::digest(bytes)) == entry.content_sha256,
+        "remote output digest mismatch"
+    );
+    let root = output_root(store)?;
+    let destination = root.join(&entry.content_sha256);
+    if destination.exists() {
+        return require_blob(store, entry);
+    }
+    let temporary = root.join(format!("import-{}.tmp", uuid::Uuid::new_v4()));
+    let mut output = create_private(&temporary)?;
+    output.write_all(bytes)?;
+    output.sync_all()?;
+    match fs::rename(&temporary, &destination) {
+        Ok(()) => File::open(&root)?.sync_all()?,
+        Err(error) if destination.exists() => {
+            fs::remove_file(&temporary)?;
+            tracing::debug!(%error, "remote output blob was published concurrently");
+        }
+        Err(error) => return Err(error.into()),
+    }
+    require_blob(store, entry)
+}
+
 pub(super) fn blob_path(store: &RunStore, digest: &str) -> PathBuf {
     store.blob_root.join("outputs").join(digest)
 }

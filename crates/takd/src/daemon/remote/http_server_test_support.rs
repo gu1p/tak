@@ -1,5 +1,4 @@
 use std::io;
-use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll};
 
@@ -73,11 +72,6 @@ pub(super) fn node_context() -> RemoteNodeContext {
     node_context_with_runtime(RemoteRuntimeConfig::isolated_for_test())
 }
 
-pub(super) fn node_context_with_temp(path: &Path) -> RemoteNodeContext {
-    node_context_with_runtime(RemoteRuntimeConfig::isolated_with_temp_dir_for_test(path))
-        .with_state_root(path)
-}
-
 fn node_context_with_runtime(runtime: RemoteRuntimeConfig) -> RemoteNodeContext {
     RemoteNodeContext::new(
         tak_proto::NodeInfo {
@@ -98,7 +92,7 @@ fn node_context_with_runtime(runtime: RemoteRuntimeConfig) -> RemoteNodeContext 
 }
 
 pub(super) fn request_bytes() -> &'static str {
-    "GET /v1/node/info HTTP/1.1\r\nHost: builder-a.onion\r\nAuthorization: Bearer secret\r\nConnection: close\r\n\r\n"
+    "GET /v2/worker/identity HTTP/1.1\r\nHost: builder-a.onion\r\nAuthorization: Bearer secret\r\nX-Tak-Protocol-Version: v2\r\nConnection: close\r\n\r\n"
 }
 
 pub(super) fn store() -> (tempfile::TempDir, SubmitAttemptStore) {

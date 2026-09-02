@@ -26,7 +26,7 @@ pub(super) async fn run_remote_command(command: RemoteCommands) -> Result<()> {
         }
         RemoteCommands::List => {
             println!("Configured remote inventory (reachability not checked)");
-            for remote in list_remotes()? {
+            for remote in list_remotes().await? {
                 println!(
                     "{} alias={} {} pools={} tags={} capabilities={} enabled={}",
                     remote.node_id,
@@ -40,7 +40,7 @@ pub(super) async fn run_remote_command(command: RemoteCommands) -> Result<()> {
             }
         }
         RemoteCommands::Remove { node_id } => {
-            if remove_remote(&node_id)? {
+            if remove_remote(&node_id).await? {
                 println!("removed remote {node_id}");
             } else {
                 println!("remote not found: {node_id}");

@@ -7,11 +7,20 @@ Flaky external steps are common. This example shows deterministic recovery by re
 ## Copy-Paste Starter
 
 ```python
+RETRY_SESSION = session(
+    "retry-fixed",
+    execution=Execution.Local(),
+    reuse=SessionReuse.SharedWorkspace(max_parallel_tasks=1),
+    affinity=Affinity.RequireSameNode("retry-fixed"),
+)
+
 SPEC = module_spec(
+    spec_version=2,
     tasks=[
         task(
             "flaky_fixed",
             retry=retry(attempts=2, on_exit=[42], backoff=fixed(0)),
+            outputs=[path("out/retry_fixed.txt")],
             steps=[
                 cmd(
                     "sh",
@@ -22,6 +31,7 @@ SPEC = module_spec(
                     "else touch out/seen_fixed; exit 42; fi",
                 )
             ],
+            use_session=RETRY_SESSION,
         )
     ]
 )
@@ -47,6 +57,7 @@ SPEC
 
 - Run succeeds even though the first attempt exits `42`.
 - `tak run` summary shows `attempts=2` for `flaky_fixed`.
+- The hard-affined shared workspace carries only the private fail-once marker between authored attempts; the successful attempt publishes the declared output.
 
 ## Artifacts
 

@@ -31,8 +31,6 @@ fn repo_root_tasks_surface_lists_tak_owned_workflow_targets() -> Result<()> {
         "//:workflow-contract-check",
         "//:generated-artifact-ignore-check",
         "//:lint",
-        "//:native-dead-code",
-        "//:native-dead-code-install",
         "//:test",
         "//:docs-check",
         "//:docs-wiki",
@@ -49,6 +47,13 @@ fn repo_root_tasks_surface_lists_tak_owned_workflow_targets() -> Result<()> {
         assert!(
             list.contains(label),
             "missing {label} in list output:\n{list}"
+        );
+    }
+
+    for removed in ["//:check-parallel", "//:native-dead-code"] {
+        assert!(
+            !list.contains(removed),
+            "removed root target {removed} remains in list output:\n{list}"
         );
     }
 

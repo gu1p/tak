@@ -13,7 +13,12 @@ pub(super) fn resolve_unknown_in_transaction(
     let Some(attempt) = load_attempt(transaction, command)? else {
         return Ok(UnknownOutcomeResolution::Stale);
     };
-    if !attempt.matches(command) || !matches!(attempt.state.as_str(), "transferring" | "running") {
+    if !attempt.matches(command)
+        || !matches!(
+            attempt.state.as_str(),
+            "transferring" | "running" | "output_committing"
+        )
+    {
         return Ok(UnknownOutcomeResolution::Stale);
     }
     let job = load_job(transaction, command)?;
@@ -23,14 +28,14 @@ pub(super) fn resolve_unknown_in_transaction(
         |row| row.get::<_, bool>(0),
     )?;
     let retry = !dispatch_stopped
-        && job.idempotent
+        && (attempt.dispatch_started_at_ms.is_none() || job.idempotent)
         && command.authored_attempt < job.retry.max_attempts.get();
     release_unknown(transaction, command)?;
     if retry {
         transitions::schedule_retry(transaction, command, &job, retry_message)?;
         Ok(UnknownOutcomeResolution::Retrying)
     } else {
-        transitions::finish_job(transaction, command, &job, false)?;
+        transitions::finish_job(transaction, command, &job, false, None, None)?;
         Ok(UnknownOutcomeResolution::Failed)
     }
 }

@@ -33,7 +33,7 @@ fn list_renders_task_docs_and_explain_reports_them() -> Result<()> {
         r#"
 build = task("build", doc="Compile the local workspace artifacts.", steps=[cmd("sh", "-c", "mkdir -p out && echo build > out/build.txt")])
 lint = task("lint", deps=[":build"], steps=[cmd("sh", "-c", "echo lint > out/lint.txt")])
-SPEC = module_spec(tasks=[build, lint])
+SPEC = module_spec(spec_version=2, tasks=[build, lint])
 SPEC
 "#,
     )?;
@@ -67,7 +67,7 @@ fn list_and_explain_preserve_multiline_task_docs() -> Result<()> {
         r#"
 release = task("release", doc="""Prepare the release bundle.
 Publish the signed archives.""", steps=[cmd("sh", "-c", "mkdir -p out && echo release > out/release.txt")])
-SPEC = module_spec(tasks=[release])
+SPEC = module_spec(spec_version=2, tasks=[release])
 SPEC
 "#,
     )?;

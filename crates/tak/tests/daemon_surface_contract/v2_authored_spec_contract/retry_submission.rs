@@ -19,7 +19,7 @@ fn ambiguous_submit_retries_with_the_same_idempotency_key() {
         &environment(&socket),
     )
     .unwrap();
-    let requests = daemon.finish_expecting(5);
+    let requests = daemon.finish_expecting(6);
 
     assert!(
         output.status.success(),

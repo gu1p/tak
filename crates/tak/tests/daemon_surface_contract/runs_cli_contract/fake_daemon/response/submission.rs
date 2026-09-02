@@ -21,6 +21,10 @@ pub(super) fn submission_response(
             "protocol_version": 2, "type": "RunCommitted", "request_id": request_id,
             "run_id": "run-123", "state": "queued",
         }),
+        "GetOutputManifest" => json!({
+            "protocol_version": 2, "type": "OutputManifest", "request_id": request_id,
+            "run_id": "run-123", "expired": false, "artifacts": [],
+        }),
         "CancelRun" if cancellation_state.is_some() => json!({
             "protocol_version": 2, "type": "CancellationAccepted", "request_id": request_id,
             "run_id": "run-123", "state": cancellation_state.unwrap(),
@@ -62,4 +66,34 @@ fn failed_attachment(request_id: &str, operation: &Value) -> Value {
 fn event(seq: u64, kind: &str, task: &str) -> Value {
     json!({"seq": seq, "kind": kind, "job_id": "job-0", "task_ids": [task],
         "node_id": "local", "message": kind})
+}
+
+pub(super) fn remote_submission_response(request_id: &str, request: &Value) -> Value {
+    let operation = &request["operation"];
+    match operation["type"].as_str().unwrap() {
+        "ResolveRemoteCandidates" => json!({
+            "protocol_version": 2, "type": "RemoteCandidates", "request_id": request_id,
+            "candidates": [
+                {"node_id": "worker-a", "kind": "remote", "transport": "direct",
+                    "reason": "healthy protocol-v2 worker"},
+                {"node_id": "worker-b", "kind": "remote", "transport": "direct",
+                    "reason": "healthy protocol-v2 worker"},
+            ],
+        }),
+        "GetOutputManifest" => json!({
+            "protocol_version": 2, "type": "OutputManifest", "request_id": request_id,
+            "run_id": "run-123", "expired": false, "artifacts": [],
+        }),
+        "AttachRun" => json!({
+            "protocol_version": 2, "type": "RunEvents", "request_id": request_id,
+            "run_id": "run-123", "next_event": 1, "state": "succeeded", "terminal": true,
+            "events": [event_on(1, "succeeded", "//:check", "worker-a")],
+        }),
+        _ => submission_response(request_id, request, false, None),
+    }
+}
+
+fn event_on(seq: u64, kind: &str, task: &str, node: &str) -> Value {
+    json!({"seq": seq, "kind": kind, "job_id": "job-0", "task_ids": [task],
+        "node_id": node, "message": kind})
 }

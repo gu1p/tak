@@ -1,6 +1,6 @@
 use http_body_util::BodyExt;
 
-use super::{RemoteV1Response, error_response};
+use super::{WorkerHttpResponse, error_response};
 
 // Hard ceiling on a buffered request body, matching the broker's response cap.
 // With the larger receive windows, this bounds how much an authenticated peer
@@ -19,7 +19,7 @@ pub(super) fn declared_length_exceeds_cap(headers: &hyper::HeaderMap) -> bool {
 // oversized upload is rejected without first buffering all of it.
 pub(super) async fn collect_body_capped(
     body: hyper::body::Incoming,
-) -> std::result::Result<Vec<u8>, RemoteV1Response> {
+) -> std::result::Result<Vec<u8>, WorkerHttpResponse> {
     let mut body = body;
     let mut bytes = Vec::new();
     while let Some(frame) = body.frame().await {

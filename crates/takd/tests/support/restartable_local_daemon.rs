@@ -17,12 +17,10 @@ pub struct RestartableLocalDaemon {
 
 impl RestartableLocalDaemon {
     pub fn start() -> Self {
-        std::fs::create_dir_all(".tmp").unwrap();
-        let temp = tempfile::tempdir_in(".tmp").unwrap();
-        let relative_temp = PathBuf::from(".tmp").join(temp.path().file_name().unwrap());
+        let temp = tempfile::tempdir().unwrap();
         let config_root = temp.path().join("missing-agent-config");
         let state_root = temp.path().join("state");
-        let runtime_root = relative_temp.join("runtime");
+        let runtime_root = temp.path().join("runtime");
         let config_home = temp.path().join("config-home");
         let socket = runtime_root.join("tak/takd.sock");
         let child = spawn(&config_root, &state_root, &runtime_root, &config_home);
@@ -67,11 +65,16 @@ impl Drop for RestartableLocalDaemon {
 }
 
 fn spawn(config: &Path, state: &Path, runtime: &Path, config_home: &Path) -> Child {
+    let command_root = state.parent().expect("daemon root parent");
+    let runtime = runtime
+        .strip_prefix(command_root)
+        .expect("relative runtime");
     Command::new(super::takd_bin())
         .args(["serve", "--config-root"])
         .arg(config)
         .arg("--state-root")
         .arg(state)
+        .current_dir(command_root)
         .env("XDG_RUNTIME_DIR", runtime)
         .env("XDG_CONFIG_HOME", config_home)
         .stdout(Stdio::null())
@@ -82,7 +85,8 @@ fn spawn(config: &Path, state: &Path, runtime: &Path, config_home: &Path) -> Chi
 
 fn wait_ready(socket: &Path) {
     let deadline = Instant::now() + Duration::from_secs(10);
-    while UnixStream::connect(socket).is_err() {
+    let connection_path = super::socket_path::bind_path(socket);
+    while UnixStream::connect(&connection_path).is_err() {
         assert!(Instant::now() < deadline, "takd socket was not ready");
         std::thread::sleep(Duration::from_millis(20));
     }

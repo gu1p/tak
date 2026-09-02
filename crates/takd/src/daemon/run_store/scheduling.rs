@@ -34,6 +34,7 @@ impl RunStore {
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = now_ms()?;
+        constraints::restore_healthy_nodes(&transaction, nodes)?;
         let lost_nodes = constraints::lost_nodes(&transaction)?;
         let ready = ready_jobs(&transaction, now)?;
         for ready_job in ready {

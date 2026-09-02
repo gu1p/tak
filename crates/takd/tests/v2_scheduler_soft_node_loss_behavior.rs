@@ -34,7 +34,8 @@ fn a_soft_home_moves_only_after_declared_loss_and_the_new_home_survives_restart(
     drop(store);
 
     let restored = RunStore::with_db_path(db.clone()).unwrap();
-    let second = restored.reserve_next(&nodes).unwrap().unwrap();
+    let survivors = [SchedulerNode::with_execution_slots("worker-b", 3)];
+    let second = restored.reserve_next(&survivors).unwrap().unwrap();
     assert_eq!(second.node_id, "worker-b");
     let stored_home: String = Connection::open(&db)
         .unwrap()

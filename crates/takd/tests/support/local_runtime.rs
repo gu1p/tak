@@ -25,7 +25,8 @@ pub async fn run_local_server(
     manager: SharedLeaseManager,
     broker: TorBroker,
 ) -> anyhow::Result<()> {
-    takd::run_server_with_broker_and_peers(socket_path, manager, broker, PeerManager::default())
+    let bind_path = super::socket_path::bind_path(socket_path);
+    takd::run_server_with_broker_and_peers(&bind_path, manager, broker, PeerManager::default())
         .await
 }
 

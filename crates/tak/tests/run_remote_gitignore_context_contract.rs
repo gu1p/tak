@@ -2,8 +2,8 @@
 
 use crate::support;
 
-use std::collections::BTreeMap;
 use std::fs;
+use std::path::Path;
 
 use anyhow::Result;
 
@@ -15,7 +15,8 @@ use support::{run_tak_expect_success, write_tasks};
 
 #[test]
 fn run_remote_context_uses_gitignore_and_readds_included_subtree() -> Result<()> {
-    let temp = tempfile::tempdir()?;
+    fs::create_dir_all(".tmp")?;
+    let temp = tempfile::tempdir_in(".tmp")?;
     let workspace_root = temp.path().join("workspace");
     let roots = LiveDirectRoots::new(temp.path());
 
@@ -32,7 +33,7 @@ fn run_remote_context_uses_gitignore_and_readds_included_subtree() -> Result<()>
     fs::write(workspace_root.join("target/reinclude/two.txt"), "two\n")?;
     write_tasks(
         &workspace_root,
-        r#"SPEC = module_spec(defaults=Defaults(container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))), tasks=[task(
+        r#"SPEC = module_spec(spec_version=2, defaults=Defaults(container=Container.Image("alpine:3.20", resources=Container.Resources(cpu_cores=1.0, memory_mb=512))), tasks=[task(
   "check",
   context=CurrentState(
     ignored=[gitignore()],
@@ -56,18 +57,18 @@ SPEC
     init_direct_agent(&takd, &roots, "gitignore-builder");
     let _agent = spawn_direct_agent(&takd, &roots);
     let token = wait_for_token(&takd, &roots);
-    add_remote(&workspace_root, &roots, &token);
+    let (_daemon, mut env) = support::v2_remote_daemon::spawn(temp.path(), &workspace_root);
+    let daemon_socket = env.get("TAKD_SOCKET").expect("local daemon socket").clone();
+    add_remote(&workspace_root, &roots, &token, Path::new(&daemon_socket));
 
-    let mut env = BTreeMap::new();
     env.insert(
         "XDG_CONFIG_HOME".to_string(),
         roots.client_config_root.display().to_string(),
     );
     let stdout = run_tak_expect_success(&workspace_root, &["run", "--remote", "check"], &env)?;
 
-    assert!(stdout.contains("placement=remote"), "stdout:\n{stdout}");
     assert!(
-        stdout.contains("remote_node=gitignore-builder"),
+        stdout.contains("transferring tasks=//:check node=gitignore-builder"),
         "stdout:\n{stdout}"
     );
     assert_eq!(

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 use futures::future::BoxFuture;
 
-use super::attempt_coordinator::{AttemptObservation, AttemptTransport};
+use super::attempt_coordinator::{AttemptDispatch, AttemptObservation, AttemptTransport};
 use super::run_store::RunStore;
 use super::scheduler::DispatchCommand;
 
@@ -21,7 +21,11 @@ mod launcher_tests;
 #[cfg(test)]
 mod workspace_concurrency_tests;
 #[cfg(test)]
+mod workspace_context_tests;
+#[cfg(test)]
 mod workspace_parent_security_tests;
+#[cfg(test)]
+mod workspace_private_base_tests;
 #[cfg(test)]
 mod workspace_security_tests;
 #[cfg(test)]
@@ -41,7 +45,10 @@ impl LocalAttemptTransport {
 }
 
 impl AttemptTransport for LocalAttemptTransport {
-    fn dispatch<'a>(&'a self, command: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {
+    fn dispatch<'a>(
+        &'a self,
+        command: &'a DispatchCommand,
+    ) -> BoxFuture<'a, Result<AttemptDispatch>> {
         Box::pin(async move {
             if command.node_id != "local" {
                 bail!(
@@ -49,7 +56,9 @@ impl AttemptTransport for LocalAttemptTransport {
                     command.node_id
                 );
             }
-            launcher::dispatch(&self.store, &self.executable, command).await
+            launcher::dispatch(&self.store, &self.executable, command)
+                .await
+                .map(|()| AttemptDispatch::Accepted)
         })
     }
 

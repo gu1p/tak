@@ -81,6 +81,9 @@ pub(super) enum Commands {
     Update {
         #[arg(long)]
         config_root: Option<PathBuf>,
+        /// State root inspected before replacement; active legacy attempts must finish.
+        #[arg(long)]
+        state_root: Option<PathBuf>,
         /// Only report whether a newer version exists; do not install.
         #[arg(long, default_value_t = false)]
         check: bool,
@@ -90,6 +93,9 @@ pub(super) enum Commands {
         /// Install this exact version instead of the latest (e.g. 0.1.40 or v0.1.40).
         #[arg(long)]
         version: Option<String>,
+        /// Only verify that legacy attempts are drained; used by replacement installers.
+        #[arg(long, default_value_t = false, hide = true)]
+        legacy_drain_check: bool,
     },
 }
 

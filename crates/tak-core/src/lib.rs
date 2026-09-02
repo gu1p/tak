@@ -9,8 +9,11 @@ pub mod label;
 pub mod mock;
 pub mod model;
 pub mod planner;
+mod remote_alias;
 pub mod remote_inventory;
 pub mod runtime_paths;
 pub mod v2;
+
+pub use remote_alias::remote_alias_for_node_id;
 
 extern crate self as tak_core;

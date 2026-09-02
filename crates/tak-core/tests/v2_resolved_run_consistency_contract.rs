@@ -50,6 +50,7 @@ fn deserialized_shared_sessions_revalidate_their_hard_affinity() {
         },
         affinity: None,
         execution: None,
+        context: None,
     });
     assert!(run.validate().is_err());
 }

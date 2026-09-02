@@ -24,7 +24,7 @@ use request_body::{collect_body_capped, declared_length_exceeds_cap};
 const HTTP2_STREAM_WINDOW: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW: u32 = 8 * 1024 * 1024;
 
-pub(super) async fn handle_remote_v1_http2_stream<S>(
+pub(super) async fn handle_worker_http2_stream<S>(
     stream: PrefixedIo<S>,
     store: SubmitAttemptStore,
     context: RemoteNodeContext,
@@ -35,7 +35,7 @@ where
     let service = service_fn(move |request| {
         let store = store.clone();
         let context = context.clone();
-        async move { handle_remote_v1_http2_request(request, store, context).await }
+        async move { handle_worker_http2_request(request, store, context).await }
     });
     hyper::server::conn::http2::Builder::new(TokioExecutor::new())
         .initial_stream_window_size(HTTP2_STREAM_WINDOW)
@@ -45,7 +45,7 @@ where
         .context("serve http2 connection")
 }
 
-async fn handle_remote_v1_http2_request(
+async fn handle_worker_http2_request(
     request: HyperRequest<hyper::body::Incoming>,
     store: SubmitAttemptStore,
     context: RemoteNodeContext,
@@ -72,40 +72,12 @@ async fn handle_remote_v1_http2_request(
         .path_and_query()
         .map(|value| value.as_str().to_string())
         .unwrap_or_else(|| "/".to_string());
-    let (path_only, query) = split_path_and_query(&path);
-    if parts.method.as_str() == "POST"
-        && path_only.starts_with("/v2/workspaces/uploads/")
-        && path_only.ends_with("/stream")
-    {
-        let response =
-            match stream_workspace_upload(&context, path_only, query, &parts.headers, body).await {
-                Ok(response) => response,
-                Err(err) => {
-                    tracing::error!(error = %err, "workspace upload stream failed");
-                    error_response(500, "workspace_upload_stream_failed")
-                }
-            };
-        return Ok(hyper_response(response));
-    }
+    let (path_only, _) = split_path_and_query(&path);
     let body = match collect_body_capped(body).await {
         Ok(body) => body,
         Err(response) => return Ok(hyper_response(response)),
     };
-    if parts.method.as_str() == "POST"
-        && path_only.starts_with("/v2/workspaces/uploads/")
-        && path_only.ends_with("/wormhole")
-    {
-        let response =
-            match receive_workspace_wormhole_upload(&context, path_only, body.as_slice()).await {
-                Ok(response) => response,
-                Err(err) => {
-                    tracing::error!(error = %err, "workspace wormhole upload failed");
-                    error_response(500, "workspace_wormhole_upload_failed")
-                }
-            };
-        return Ok(hyper_response(response));
-    }
-    let response = match handle_remote_v1_request(
+    let response = match handle_worker_http_request(
         &context,
         &store,
         parts.method.as_str(),
@@ -125,7 +97,7 @@ async fn handle_remote_v1_http2_request(
                 error = %format!("{err:#}"),
                 method = parts.method.as_str(),
                 path = %path_only,
-                "remote v1 request handler failed"
+                "worker request handler failed"
             );
             error_response(
                 500,
@@ -148,7 +120,7 @@ fn http2_headers(headers: &hyper::HeaderMap) -> Vec<(String, String)> {
 #[cfg(test)]
 mod http2_tests;
 
-fn hyper_response(response: RemoteV1Response) -> HyperResponse<Full<Bytes>> {
+fn hyper_response(response: WorkerHttpResponse) -> HyperResponse<Full<Bytes>> {
     let mut builder = HyperResponse::builder()
         .status(response.status_code)
         .header(hyper::header::CONTENT_TYPE, response.content_type);

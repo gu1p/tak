@@ -5,11 +5,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use tak_proto::NodeInfo;
 
-use super::active_executions::SharedActiveExecutions;
-use super::resource_admission::{
-    HostUsageSample, ResourceAdmissionDecision, ResourceCapacity, ResourceRequest,
-    SharedResourceAdmission,
-};
+use super::resource_admission::{HostUsageSample, ResourceCapacity, SharedResourceAdmission};
 use super::resource_policy::RemoteResourcePolicy;
 use super::resource_pressure_controller::ResourcePressureSnapshot;
 use super::tak_container_usage::SharedTakContainerUsage;
@@ -20,25 +16,19 @@ use super::runtime::RemoteRuntimeConfig;
 use super::runtime_state::RemoteRuntimeState;
 use super::status_state::{SharedNodeStatusState, new_shared_node_status_state};
 
-mod context_active_executions;
 mod context_new;
 mod context_status;
 mod records;
 mod worker_payload;
 
-pub use records::{RemoteV1Response, SubmitAttemptSummaryRecord, SubmitEventRecord};
+pub use records::{SubmitAttemptSummaryRecord, SubmitEventRecord, WorkerHttpResponse};
 pub use worker_payload::RemoteImageCacheRuntimeConfig;
-pub(super) use worker_payload::{
-    RemoteWorkerFusedMember, RemoteWorkerOutputRecord, RemoteWorkerSession,
-    RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
-};
 
 #[derive(Clone)]
 pub struct RemoteNodeContext {
     node: Arc<Mutex<NodeInfo>>,
     pub bearer_token: String,
     status_state: SharedNodeStatusState,
-    active_executions: SharedActiveExecutions,
     resource_admission: SharedResourceAdmission,
     resource_policy: RemoteResourcePolicy,
     tak_container_usage: SharedTakContainerUsage,
@@ -113,33 +103,6 @@ impl RemoteNodeContext {
 
     pub(crate) fn runtime_state(&self) -> &Arc<RemoteRuntimeState> {
         &self.runtime_state
-    }
-
-    pub(crate) fn admit_or_queue_resources(
-        &self,
-        request: ResourceRequest,
-    ) -> Result<ResourceAdmissionDecision> {
-        self.resource_admission.admit_or_queue(request)
-    }
-
-    pub(crate) fn resolve_remote_resource_limits(
-        &self,
-        authored: Option<tak_core::model::ContainerResourceLimitsSpec>,
-    ) -> tak_core::model::ContainerResourceLimitsSpec {
-        self.resource_policy.resolve(authored)
-    }
-
-    pub(crate) fn wait_until_resources_admitted_with_positions(
-        &self,
-        idempotency_key: &str,
-        cancellation: &tak_runner::RunCancellation,
-        on_position: impl FnMut(usize),
-    ) -> Result<()> {
-        self.resource_admission.wait_until_admitted_with_positions(
-            idempotency_key,
-            cancellation,
-            on_position,
-        )
     }
 
     pub(crate) fn release_resources(&self, idempotency_key: &str) -> Result<()> {

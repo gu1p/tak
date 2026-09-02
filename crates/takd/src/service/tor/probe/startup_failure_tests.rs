@@ -4,6 +4,9 @@ use std::time::Duration;
 
 use super::{StartupTorFailureDecision, StartupTorFailureTracker, startup_probe_error};
 
+#[path = "startup_failure_reset_tests.rs"]
+mod reset_tests;
+
 #[test]
 fn final_probe_timeout_preserves_earlier_tor_failure_signal() {
     let err = startup_probe_error(
@@ -78,30 +81,4 @@ fn guard_exhaustion_restarts_tor_client_without_waiting_for_threshold() {
     };
     assert!(reason.contains("Unable to select a guard relay"));
     assert!(reason.contains("No usable guards"));
-}
-
-#[test]
-fn non_tor_probe_failures_reset_consecutive_startup_failure_count() {
-    let mut tracker = StartupTorFailureTracker::new(2);
-    let tor_detail = "connect takd hidden-service startup probe: \
-                      Unable to download hidden service descriptor";
-
-    assert_eq!(
-        tracker.record_failure(tor_detail),
-        StartupTorFailureDecision::KeepWaiting
-    );
-    assert_eq!(
-        tracker.record_failure("node probe failed with HTTP 500"),
-        StartupTorFailureDecision::KeepWaiting
-    );
-    assert_eq!(
-        tracker.record_failure(tor_detail),
-        StartupTorFailureDecision::KeepWaiting
-    );
-
-    let StartupTorFailureDecision::RestartTorClient { reason } = tracker.record_failure(tor_detail)
-    else {
-        panic!("second consecutive Tor failure after reset should restart the Tor client");
-    };
-    assert!(reason.contains("2 consecutive Tor startup probe failures"));
 }

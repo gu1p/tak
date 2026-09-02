@@ -5,7 +5,9 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use tokio::process::Command;
 
-use crate::engine::{RunCancellation, cancelled_error};
+use crate::RunCancellation;
+use crate::cancellation::cancelled_error;
+use crate::deadline::{DeadlineOutcome, select_deadline_outcome};
 
 pub(super) async fn wait_for_child(
     child: &mut tokio::process::Child,
@@ -13,26 +15,37 @@ pub(super) async fn wait_for_child(
     cancellation: &RunCancellation,
 ) -> Result<Option<std::process::ExitStatus>> {
     if let Some(seconds) = timeout_s {
-        let timeout = tokio::time::sleep(Duration::from_secs(seconds));
-        tokio::pin!(timeout);
-        return tokio::select! {
-            wait = child.wait() => Ok(Some(wait.context("failed while waiting for process")?)),
-            _ = &mut timeout => {
+        let outcome = if seconds == 0 {
+            select_deadline_outcome(child.wait(), std::future::ready(()), cancellation).await
+        } else {
+            select_deadline_outcome(
+                child.wait(),
+                tokio::time::sleep(Duration::from_secs(seconds)),
+                cancellation,
+            )
+            .await
+        };
+        return match outcome {
+            DeadlineOutcome::Cancelled => {
+                kill_child(child).await;
+                Err(cancelled_error())
+            }
+            DeadlineOutcome::TimedOut => {
                 kill_child(child).await;
                 Ok(None)
             }
-            _ = cancellation.cancelled() => {
-                kill_child(child).await;
-                Err(cancelled_error())
+            DeadlineOutcome::Completed(wait) => {
+                Ok(Some(wait.context("failed while waiting for process")?))
             }
         };
     }
     tokio::select! {
-        wait = child.wait() => Ok(Some(wait.context("failed while waiting for process")?)),
+        biased;
         _ = cancellation.cancelled() => {
             kill_child(child).await;
             Err(cancelled_error())
         }
+        wait = child.wait() => Ok(Some(wait.context("failed while waiting for process")?)),
     }
 }
 

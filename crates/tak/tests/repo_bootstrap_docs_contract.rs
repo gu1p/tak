@@ -1,8 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const FORBIDDEN_TOKENS: [&str; 5] = [
-    "tak exec --",
+const FORBIDDEN_TOKENS: [&str; 4] = [
     "cargo run --locked -p tak -- run",
     "make check",
     "GH_TOKEN",

@@ -8,6 +8,7 @@ Most build and test instability comes from implicit shell context. This example 
 
 ```python
 SPEC = module_spec(
+    spec_version=2,
     tasks=[
         task(
             "env_cmd",

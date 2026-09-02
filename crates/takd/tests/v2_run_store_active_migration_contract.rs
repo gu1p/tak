@@ -31,12 +31,13 @@ fn migration_restores_options_and_the_active_attempt_fence() {
     let store = RunStore::with_db_path(db.clone()).unwrap();
     let connection = Connection::open(db).unwrap();
     let options = connection.query_row(
-        "SELECT max_parallel_jobs, keep_going, dispatch_generation, current_fencing_token FROM runs JOIN run_jobs USING (run_id) WHERE run_id = 'run-old'",
+        "SELECT max_parallel_jobs, keep_going, job.dispatch_generation, current_fencing_token, dispatch_started_at_ms FROM runs JOIN run_jobs job USING (run_id) JOIN run_attempts attempt USING (run_id,job_id) WHERE run_id = 'run-old'",
         [],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, i64>(2)?, row.get::<_, String>(3)?)),
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, i64>(2)?, row.get::<_, String>(3)?, row.get::<_, i64>(4)?)),
     ).unwrap();
-    assert_eq!(options, (3, true, 7, "fence".into()));
+    assert_eq!(options, (3, true, 7, "fence".into(), 20));
     drop(connection);
+    assert_eq!(store.pending_dispatches().unwrap(), [command()]);
     assert_eq!(
         store.ack_dispatch(&command()).unwrap(),
         ResultAcceptance::Applied
@@ -74,5 +75,6 @@ fn command() -> DispatchCommand {
         authored_attempt: 1,
         dispatch_generation: 7,
         fencing_token: "fence".into(),
+        transport: Some("direct".into()),
     }
 }

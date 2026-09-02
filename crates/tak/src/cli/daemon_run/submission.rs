@@ -1,7 +1,8 @@
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 use anyhow::{Result, bail};
-use tak_core::v2::RunSubmission;
+use tak_core::v2::{PlacementCandidate, RemoteRequirements, RunSubmission};
 use tak_proto::local_daemon::v2::{Operation, Request, Response, WorkspaceDisposition};
 
 mod attach;
@@ -9,12 +10,38 @@ mod exchange;
 mod render;
 mod upload;
 
+pub(super) async fn foreground_response(
+    socket_path: &std::path::Path,
+    request: &Request,
+) -> Result<Response> {
+    exchange::response(socket_path, request).await
+}
+
+pub(super) async fn remote_candidates(
+    socket_path: &std::path::Path,
+    requirements: RemoteRequirements,
+) -> Result<Vec<PlacementCandidate>> {
+    let response = exchange::response(
+        socket_path,
+        &Request {
+            request_id: exchange::request_id("candidates"),
+            operation: Operation::ResolveRemoteCandidates { requirements },
+        },
+    )
+    .await?;
+    let Response::RemoteCandidates { candidates, .. } = response else {
+        bail!("local takd returned an unexpected RemoteCandidates response")
+    };
+    Ok(candidates)
+}
+
 pub(super) async fn submit_and_attach(
     socket_path: PathBuf,
     submission: RunSubmission,
     archive: Vec<u8>,
     checkout: crate::cli::run_checkout_store::CheckoutContext,
-) -> Result<()> {
+    renderer: Option<&dyn super::PersistedEventRenderer>,
+) -> Result<ExitCode> {
     let mut interrupts = crate::cli::attachment_interrupt::State::new()?;
     let response = exchange::response(
         &socket_path,
@@ -55,7 +82,7 @@ pub(super) async fn submit_and_attach(
                     &socket_path, &run_id, action?, &mut interrupts,
                 ).await?;
                 return attach::run_with_interrupts(
-                    &socket_path, &run_id, interrupts, &checkout,
+                    &socket_path, &run_id, interrupts, &checkout, renderer,
                 ).await;
             }
         }
@@ -74,14 +101,14 @@ pub(super) async fn submit_and_attach(
                 &socket_path, &run_id, action?, &mut interrupts,
             ).await?;
             return attach::run_with_interrupts(
-                &socket_path, &run_id, interrupts, &checkout,
+                &socket_path, &run_id, interrupts, &checkout, renderer,
             ).await;
         }
     };
     if !matches!(response, Response::RunCommitted { run_id: ref id, .. } if id == &run_id) {
         bail!("local takd returned an unexpected CommitRun response");
     }
-    attach::run_with_interrupts(&socket_path, &run_id, interrupts, &checkout).await
+    attach::run_with_interrupts(&socket_path, &run_id, interrupts, &checkout, renderer).await
 }
 
 async fn handle_pre_attach_interrupt(

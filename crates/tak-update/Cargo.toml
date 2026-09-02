@@ -23,6 +23,7 @@ tar.workspace = true
 flate2.workspace = true
 tempfile.workspace = true
 minisign-verify.workspace = true
+rusqlite.workspace = true
 ureq.workspace = true
 
 [dev-dependencies]

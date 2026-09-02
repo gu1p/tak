@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use std::num::NonZeroU32;
+
 use tak_core::model::ContainerResourceLimitsSpec;
 
 use super::super::tak_container_usage::SharedTakContainerUsage;
@@ -27,22 +29,6 @@ impl SharedResourceAdmission {
             },
         )
     }
-
-    pub(crate) fn poison_for_tests(&self) {
-        let inner = self.inner.clone();
-        let _ = std::thread::spawn(move || {
-            let _guard = inner.state.lock().expect("resource admission lock");
-            panic!("poison resource admission");
-        })
-        .join();
-    }
-
-    pub(super) fn age_admission_for_tests(&self, idempotency_key: &str, age: std::time::Duration) {
-        let mut state = self.inner.state.lock().expect("resource admission lock");
-        state
-            .admitted_at
-            .insert(idempotency_key.to_string(), std::time::Instant::now() - age);
-    }
 }
 
 pub(super) fn request(id: &str, cpu_cores: f64, memory_mb: u64) -> ResourceRequest {
@@ -61,14 +47,6 @@ pub(super) fn request(id: &str, cpu_cores: f64, memory_mb: u64) -> ResourceReque
         runtime_source: Some("image:alpine:3.20".to_string()),
         command: Some("true".to_string()),
         execution_label: None,
+        execution_slots: NonZeroU32::MIN,
     }
-}
-
-pub(super) fn elastic_request(id: &str) -> ResourceRequest {
-    let mut request = request(id, 1.0, 1);
-    request.resource_limits = ContainerResourceLimitsSpec {
-        cpu_cores: None,
-        memory_mb: None,
-    };
-    request
 }

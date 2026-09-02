@@ -29,23 +29,24 @@ fn tor_smoke_runs_example_26_through_local_broker_and_roundtrips_artifacts() {
         .into_iter()
         .collect::<Vec<_>>();
     serve_env.push(("TAKD_TEST_TOR_HS_BIND_ADDR".into(), bind_addr.clone()));
-    let mut client_env =
-        BTreeMap::from([("TAK_TEST_TOR_ONION_DIAL_ADDR".into(), bind_addr.clone())]);
+    let client_env = BTreeMap::from([("TAK_TEST_TOR_ONION_DIAL_ADDR".into(), bind_addr.clone())]);
     let _child = spawn_tor_agent_with_env(&takd, &roots, &serve_env);
     let token = wait_for_token(&takd, &roots);
-    add_remote_with_env(&workspace_root, &roots, &token, &client_env);
-    let _broker = LocalDaemonGuard::spawn_with_tor_inventory(
+    let _broker = LocalDaemonGuard::spawn_with_tor_dial_addr(&broker_socket, &spec, bind_addr);
+    add_remote_with_env(&workspace_root, &roots, &token, &broker_socket, &client_env);
+    assert_remote_list(
+        &workspace_root,
+        &roots,
+        "remote-tor-artifacts",
         &broker_socket,
-        &spec,
-        bind_addr,
-        roots.client_config_root.join("tak/remotes.toml"),
     );
-    client_env.insert(
-        "TAKD_SOCKET".into(),
-        broker_socket.to_string_lossy().into_owned(),
+    assert_remote_status_ok_with_env(
+        &workspace_root,
+        &roots,
+        "remote-tor-artifacts",
+        &broker_socket,
+        &client_env,
     );
-    assert_remote_list(&workspace_root, &roots, "remote-tor-artifacts");
-    assert_remote_status_ok_with_env(&workspace_root, &roots, "remote-tor-artifacts", &client_env);
     roots.prepare_poisoned_client_ambient_dirs();
 
     let run = tak_command(&workspace_root, &roots.client_config_root)

@@ -55,7 +55,7 @@ pub(super) async fn run_runs_command(command: RunsCommands) -> Result<ExitCode> 
             }
             render::details(&run);
         }
-        RunsCommands::Attach { run_id } => attach::run(&socket, &run_id).await?,
+        RunsCommands::Attach { run_id } => return attach::run(&socket, &run_id).await,
         RunsCommands::Cancel { run_id } => {
             let response = request(
                 &socket,
@@ -132,6 +132,9 @@ fn daemon_error(code: DaemonErrorCode) -> Result<Response> {
         DaemonErrorCode::RunNotFound => bail!("Daemon-owned run not found."),
         DaemonErrorCode::WorkspaceInvalid => bail!("Daemon rejected the workspace payload."),
         DaemonErrorCode::RunStateInvalid => bail!("Run operation is invalid in its current state."),
+        DaemonErrorCode::RemoteInviteUnsupported => {
+            bail!("Remote invite is unsupported; upgrade tak, takd, and workers together.")
+        }
         DaemonErrorCode::Internal => bail!("Local takd could not complete the run operation."),
     }
 }

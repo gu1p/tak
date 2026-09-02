@@ -1,66 +1,117 @@
-use anyhow::{Result, bail};
-use futures::future::join_all;
-use tak_core::model::RemoteTransportKind;
-use tak_exec::{endpoint_host_port, endpoint_socket_addr, write_remote_observation};
-use tak_proto::NodeStatusResponse;
+use std::collections::BTreeSet;
 
-use crate::cli::remote_probe_support::ProbeAttemptError;
-use crate::cli::remote_probe_support::transport::connect_remote;
+use anyhow::{Context, Result, bail};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use prost::Message;
+use tak_proto::local_daemon::v2::{Operation, RemoteStatusEntry, Response};
+use tak_proto::worker_v2::WorkerSnapshot;
+use tak_proto::{CpuUsage, MemoryUsage, NodeInfo, NodeStatusResponse};
 
-use super::http::fetch_status_once;
-use super::{RemoteRecord, RemoteStatusResult};
+use crate::cli::remote_daemon;
 
-pub(in crate::cli) async fn fetch_snapshot(remotes: &[RemoteRecord]) -> Vec<RemoteStatusResult> {
-    let mut results = join_all(remotes.iter().cloned().map(fetch_remote_status_result)).await;
-    results.sort_unstable_by(|left, right| left.remote.node_id.cmp(&right.remote.node_id));
-    results
-}
+use super::RemoteStatusResult;
 
-pub(super) async fn fetch_remote_status_result(remote: RemoteRecord) -> RemoteStatusResult {
-    match fetch_node_status(&remote.base_url, &remote.transport, &remote.bearer_token).await {
-        Ok(status) => {
-            if let Some(node) = status.node.as_ref() {
-                let _ = write_remote_observation(node, status.sampled_at_ms);
-            }
-            RemoteStatusResult {
-                remote,
-                status: Some(status),
-                error: None,
-                peer: None,
-            }
-        }
-        Err(err) => RemoteStatusResult {
-            remote,
-            status: None,
-            error: Some(err.to_string()),
-            peer: None,
-        },
-    }
-}
-
-async fn fetch_node_status(
-    base_url: &str,
-    transport: &str,
-    bearer_token: &str,
-) -> Result<NodeStatusResponse> {
-    let kind = match transport {
-        "direct" => RemoteTransportKind::Direct,
-        "tor" => RemoteTransportKind::Tor,
-        _ => bail!("unsupported remote transport `{transport}`"),
+pub(in crate::cli) async fn fetch_snapshot(
+    node_filters: &[String],
+) -> Result<Vec<RemoteStatusResult>> {
+    let node_ids = normalized_node_ids(node_filters);
+    let response =
+        remote_daemon::request(Operation::GetRemoteStatus { node_ids }, "remote-status").await?;
+    let Response::RemoteStatus { remotes, .. } = response else {
+        bail!(
+            "Local takd returned an unexpected remote status response; upgrade tak, takd, and workers together"
+        )
     };
-    let (host, port) = endpoint_host_port(base_url)?;
-    let authority = endpoint_socket_addr(base_url)?;
-    if kind != RemoteTransportKind::Tor || !host.ends_with(".onion") {
-        let stream = connect_remote(&host, port, kind).await?;
-        return fetch_status_once(stream, &authority, bearer_token, base_url)
-            .await
-            .map_err(ProbeAttemptError::into_anyhow);
-    }
+    let mut results = remotes
+        .into_iter()
+        .map(status_result)
+        .collect::<Result<Vec<_>>>()?;
+    results.sort_unstable_by(|left, right| left.remote.node_id.cmp(&right.remote.node_id));
+    Ok(results)
+}
 
-    // Reaching here means a Tor `.onion` node was probed directly, which only
-    // happens once the local takd peer query has already come back unavailable
-    // (the daemon path owns Tor status and filters these out otherwise). Report
-    // the real reason instead of the old message that wrongly implied takd was
-    // not serving even when it was.
-    bail!("{}", super::daemon::tor_status_daemon_unreachable_message())
+fn normalized_node_ids(node_filters: &[String]) -> Vec<String> {
+    node_filters
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(str::to_string)
+        .collect()
+}
+
+fn status_result(entry: RemoteStatusEntry) -> Result<RemoteStatusResult> {
+    let RemoteStatusEntry {
+        remote,
+        snapshot,
+        detail_base64,
+        error,
+        peer,
+    } = entry;
+    let status = match detail_base64 {
+        Some(detail) => Some(decode_status_detail(&detail)?),
+        None => snapshot
+            .as_ref()
+            .map(|snapshot| status_from_snapshot(&remote, snapshot)),
+    };
+    Ok(RemoteStatusResult {
+        remote,
+        status,
+        error,
+        peer,
+    })
+}
+
+fn decode_status_detail(encoded: &str) -> Result<NodeStatusResponse> {
+    let bytes = STANDARD
+        .decode(encoded)
+        .context("decode local takd remote status payload")?;
+    NodeStatusResponse::decode(bytes.as_slice()).context("decode local takd remote status protobuf")
+}
+
+fn status_from_snapshot(
+    remote: &super::RemoteRecord,
+    snapshot: &WorkerSnapshot,
+) -> NodeStatusResponse {
+    let cpu_total = snapshot.capacity.cpu_millis;
+    let cpu_percent =
+        (cpu_total > 0).then(|| snapshot.usage.cpu_millis as f64 * 100.0 / cpu_total as f64);
+    NodeStatusResponse {
+        node: Some(NodeInfo {
+            node_id: remote.node_id.clone(),
+            display_name: remote.display_name.clone(),
+            base_url: remote.base_url.clone(),
+            healthy: snapshot.healthy,
+            pools: remote.pools.clone(),
+            tags: remote.tags.clone(),
+            capabilities: remote.capabilities.clone(),
+            transport: remote.transport.clone(),
+            transport_state: if snapshot.healthy {
+                "ready"
+            } else {
+                "unhealthy"
+            }
+            .into(),
+            transport_detail: String::new(),
+        }),
+        sampled_at_ms: i64::try_from(snapshot.sampled_at_ms).unwrap_or(i64::MAX),
+        cpu: Some(CpuUsage {
+            utilization_percent: cpu_percent,
+            logical_cores: u32::try_from(cpu_total.div_ceil(1000)).unwrap_or(u32::MAX),
+            ..Default::default()
+        }),
+        memory: Some(MemoryUsage {
+            used_bytes: snapshot.usage.memory_bytes,
+            total_bytes: snapshot.capacity.memory_bytes,
+            available_bytes: Some(
+                snapshot
+                    .capacity
+                    .memory_bytes
+                    .saturating_sub(snapshot.usage.memory_bytes),
+            ),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
 }

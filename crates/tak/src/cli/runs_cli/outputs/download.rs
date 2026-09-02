@@ -7,22 +7,29 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use sha2::{Digest, Sha256};
 use tak_proto::local_daemon::v2::{MAX_WORKSPACE_CHUNK_BYTES, Operation, OutputArtifact, Response};
 
-pub(super) async fn file(socket: &Path, artifact: &OutputArtifact, path: &Path) -> Result<()> {
+use super::exchange::Policy;
+
+pub(super) async fn file(
+    socket: &Path,
+    artifact: &OutputArtifact,
+    path: &Path,
+    policy: Policy,
+) -> Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     let mut digest = Sha256::new();
     let mut offset = 0_u64;
     while offset < artifact.size {
-        let response = super::super::request(
-            socket,
-            "tak-runs-output-chunk",
-            Operation::GetOutputChunk {
-                artifact_id: artifact.artifact_id.clone(),
-                offset,
-                max_bytes: MAX_WORKSPACE_CHUNK_BYTES as u32,
-            },
-            false,
-        )
-        .await?;
+        let response = policy
+            .response(
+                socket,
+                "tak-runs-output-chunk",
+                Operation::GetOutputChunk {
+                    artifact_id: artifact.artifact_id.clone(),
+                    offset,
+                    max_bytes: MAX_WORKSPACE_CHUNK_BYTES as u32,
+                },
+            )
+            .await?;
         let Response::OutputChunk {
             artifact_id,
             offset: response_offset,

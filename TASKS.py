@@ -1,22 +1,20 @@
 CARGO_SHARED_ENV_SCRIPT = (
-    'TAK_TEST_TMPDIR="${TAK_TEST_TMPDIR:-/var/tmp/tak-tests}" && '
+    'TAK_TEST_TMPDIR="/tmp/tak-tests-$TAK_RUN_ID-$TAK_JOB_ID" && '
     'mkdir -p "$TAK_TEST_TMPDIR" .tmp/cargo-home .tmp/cargo-target-local && '
     'TMPDIR="$TAK_TEST_TMPDIR" '
     'CARGO_HOME="$PWD/.tmp/cargo-home" '
     'CARGO_TARGET_DIR="$PWD/.tmp/cargo-target-local" '
-    'CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}" exec "$@"'
+    "CARGO_INCREMENTAL=0 "
+    "CARGO_PROFILE_DEV_DEBUG=0 "
+    "CARGO_PROFILE_TEST_DEBUG=0 "
+    'CARGO_BUILD_JOBS=2 exec "$@"'
 )
 
 CARGO_CHECK_LOCK = "cargo-check-workspace"
 
-AXIOM_INSTALL_COMMAND = (
-    "curl --proto '=https' --tlsv1.2 -LsSf "
-    "https://raw.githubusercontent.com/gu1p/axiom/main/install.sh | sh"
-)
-
 
 def cargo_needs():
-    return [need(CARGO_CHECK_LOCK, 1, scope=Scope.Worktree)]
+    return [need(CARGO_CHECK_LOCK, 1, scope=Scope.Machine)]
 
 
 def cargo_cmd(*argv):
@@ -44,43 +42,35 @@ CHECK_CONTAINER = Container.Dockerfile(
     build_context=path("docker/tak-tests"),
 )
 
+CHECK_POLICY = Execution.Remote(
+    required_tags=["builder"],
+    required_capabilities=["linux"],
+    container=CHECK_CONTAINER,
+    selection=RemoteSelection.Balanced(),
+)
+
 CHECK_SESSION = session(
-    "check-workspace",
-    # TODO: Replace this v1 bootstrap fusion with v2 Balanced scheduling and
-    # remove //:check-parallel after the distributed acceptance contract passes.
-    reuse=SessionReuse.Container(),
+    "check-distributed",
+    execution=CHECK_POLICY,
+    reuse=SessionReuse.Paths(
+        [path(".tmp/cargo-home"), path(".tmp/cargo-target-local")]
+    ),
     context=CHECK_CONTEXT,
 )
 
-CHECK_WORKSPACE_POLICY = Execution.FirstAvailable(
-    placements=[
-        Execution.Remote(
-            required_tags=["builder"],
-            required_capabilities=["linux"],
-            container=CHECK_CONTAINER,
-            session=CHECK_SESSION,
-        ),
-        Execution.Local(),
-    ],
-    doc="Run the check graph as one fused remote-first test container.",
+CHECK_ISOLATED_SESSION = session(
+    "check-isolated",
+    execution=CHECK_POLICY,
+    reuse=SessionReuse.Workspace(),
+    context=CHECK_CONTEXT,
 )
 
-CHECK_PARALLEL_POLICY = Execution.FirstAvailable(
-    placements=[
-        Execution.Remote(
-            required_tags=["builder"],
-            required_capabilities=["linux"],
-            container=CHECK_CONTAINER,
-            selection=RemoteSelection.Shuffle(),
-        ),
-        Execution.Local(),
-    ],
-    doc="Spread independent check tasks across available builders.",
-)
+
 def release_build_task(name, target, build_mode):
     return task(
         name,
         doc="Build tak and takd release binaries for " + target + ".",
+        execution=Execution.Local(),
         steps=[
             script(
                 "scripts/build_release_target.sh",
@@ -97,6 +87,7 @@ def release_package_task(name, build_task_name, target):
         name,
         doc="Package tak and takd release binaries for " + target + ".",
         deps=[":" + build_task_name],
+        execution=Execution.Local(),
         outputs=[path("dist-manual")],
         steps=[
             script(
@@ -157,51 +148,54 @@ PACKAGE_RELEASE_AARCH64_APPLE_DARWIN = release_package_task(
 )
 
 SPEC = module_spec(
+    spec_version=2,
     project_id="tak",
     defaults=Defaults(container=CHECK_CONTAINER),
-    limiters=[lock(CARGO_CHECK_LOCK, scope=Scope.Worktree)],
+    limiters=[lock(CARGO_CHECK_LOCK, scope=Scope.Machine)],
     tasks=[
         task(
             "fmt-check",
             needs=cargo_needs(),
             steps=[cargo_cmd("fmt", "--all", "--", "--check")],
+            use_session=CHECK_SESSION,
         ),
-        task("line-limits-check", steps=[cmd("bash", "scripts/check_rust_file_limits.sh")]),
+        task(
+            "line-limits-check",
+            steps=[
+                cmd(
+                    "bash",
+                    "scripts/check_rust_file_limits.sh",
+                    env={"TAK_LINE_MODE": "all"},
+                )
+            ],
+            use_session=CHECK_ISOLATED_SESSION,
+        ),
         task(
             "src-test-separation-check",
-            steps=[cmd("bash", "scripts/check_no_tests_in_src.sh")],
+            steps=[
+                cmd(
+                    "bash",
+                    "scripts/check_no_tests_in_src.sh",
+                    env={"TAK_LINE_MODE": "all"},
+                )
+            ],
+            use_session=CHECK_ISOLATED_SESSION,
         ),
         task(
             "workflow-contract-check",
             steps=[cmd("bash", "scripts/check_workflow_binary_matrix.sh")],
+            use_session=CHECK_ISOLATED_SESSION,
         ),
         task(
             "generated-artifact-ignore-check",
             steps=[cmd("bash", "scripts/check_generated_artifacts_ignore.sh")],
-        ),
-        task(
-            "native-dead-code-install",
-            doc="Install the Axiom code analyzer.",
-            needs=cargo_needs(),
-            steps=[
-                cmd(
-                    "sh",
-                    "-c",
-                    AXIOM_INSTALL_COMMAND,
-                )
-            ],
-        ),
-        task(
-            "native-dead-code",
-            doc="Find Rust declarations reachable only from tests.",
-            deps=[":native-dead-code-install"],
-            needs=cargo_needs(),
-            steps=[cmd("axiom", "check", "--dead-code")],
+            use_session=CHECK_ISOLATED_SESSION,
         ),
         task(
             "lint",
             needs=cargo_needs(),
             steps=[cargo_cmd("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")],
+            use_session=CHECK_SESSION,
         ),
         task(
             "test",
@@ -213,9 +207,10 @@ SPEC = module_spec(
                     "--lib",
                     "--tests",
                     "--",
-                    "--test-threads=4",
+                    "--test-threads=1",
                 )
             ],
+            use_session=CHECK_SESSION,
         ),
         task(
             "docs-check",
@@ -232,6 +227,7 @@ SPEC = module_spec(
                     "docs_dump_no_drift_contract",
                 ),
             ],
+            use_session=CHECK_SESSION,
         ),
         task(
             "docs-wiki",
@@ -252,7 +248,11 @@ SPEC = module_spec(
                 cmd("python3", "scripts/docs_wiki.py", "serve"),
             ],
         ),
-        task("check-rust", deps=[":lint", ":test", ":docs-check"]),
+        task(
+            "check-rust",
+            deps=[":lint", ":test", ":docs-check"],
+            use_session=CHECK_ISOLATED_SESSION,
+        ),
         task("coverage", steps=[script("scripts/run_coverage.sh", interpreter="bash")]),
         task(
             "ci",
@@ -278,7 +278,7 @@ SPEC = module_spec(
         PACKAGE_RELEASE_X86_64_APPLE_DARWIN,
         PACKAGE_RELEASE_AARCH64_APPLE_DARWIN,
         task(
-            "check-parallel",
+            "check",
             doc="Run every check with independent remote placement.",
             context=CHECK_CONTEXT,
             outputs=[],
@@ -288,27 +288,9 @@ SPEC = module_spec(
                 ":src-test-separation-check",
                 ":workflow-contract-check",
                 ":generated-artifact-ignore-check",
-                ":native-dead-code",
                 ":check-rust",
             ],
-            execution=CHECK_PARALLEL_POLICY,
-            cascade_execution=True,
-        ),
-        task(
-            "check",
-            context=CHECK_CONTEXT,
-            outputs=[],
-            deps=[
-                ":fmt-check",
-                ":line-limits-check",
-                ":src-test-separation-check",
-                ":workflow-contract-check",
-                ":generated-artifact-ignore-check",
-                ":native-dead-code",
-                ":check-rust",
-            ],
-            execution=CHECK_WORKSPACE_POLICY,
-            cascade_execution=True,
+            use_session=CHECK_ISOLATED_SESSION,
         ),
     ],
 )

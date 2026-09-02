@@ -58,5 +58,6 @@ fn command() -> DispatchCommand {
         authored_attempt: 1,
         dispatch_generation: 2,
         fencing_token: "fence".into(),
+        transport: None,
     }
 }

@@ -10,7 +10,7 @@ fn use_session_rejects_removed_string_session_name() -> Result<()> {
     let workspace = temp.path().join("workspace");
     write_tasks(
         &workspace,
-        r#"SPEC = module_spec(tasks=[task("check", steps=[cmd("true")], use_session="missing")])
+        r#"SPEC = module_spec(spec_version=2, tasks=[task("check", steps=[cmd("true")], use_session="missing")])
 SPEC
 "#,
     )?;
@@ -35,9 +35,12 @@ fn docs_dump_includes_session_dsl_surface() -> Result<()> {
     for token in [
         "SessionReuse.Workspace",
         "SessionReuse.Paths",
+        "SessionReuse.SharedWorkspace",
+        "SessionReuse.Container",
+        "Affinity.RequireSameNode",
+        "max_parallel_tasks",
         "use_session",
         "cascade_session",
-        "SessionLifetime.PerRun",
     ] {
         assert!(output.contains(token), "missing {token} in docs:\n{output}");
     }

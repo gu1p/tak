@@ -54,9 +54,7 @@ fn identifiers_are_opaque_control_free_values_bounded_by_decoded_utf8_bytes() {
             r#"{{"protocol_version":2,"request_id":{},"operation":{{"type":"ListRuns"}}}}"#,
             serde_json::to_string(&request_id).expect("encode id")
         );
-        let DecodeOutcome::V2(request) = decode_request(&raw).expect("bounded id") else {
-            panic!("expected v2 request");
-        };
+        let DecodeOutcome::V2(request) = decode_request(&raw).expect("bounded id");
         assert_eq!(request.request_id, request_id);
     }
 
@@ -72,9 +70,7 @@ fn identifiers_are_opaque_control_free_values_bounded_by_decoded_utf8_bytes() {
         r#"{{"protocol_version":2,"request_id":"safe","operation":{{"type":"GetRun","run_id":{}}}}}"#,
         serde_json::to_string(&valid_run_id).expect("encode run id")
     );
-    let DecodeOutcome::V2(request) = decode_request(&raw).expect("bounded run id") else {
-        panic!("expected v2 request");
-    };
+    let DecodeOutcome::V2(request) = decode_request(&raw).expect("bounded run id");
     assert!(matches!(request.operation, Operation::GetRun { run_id } if run_id == valid_run_id));
 }
 

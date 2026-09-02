@@ -1,8 +1,12 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Serialize;
-use tak_core::v2::{EnvironmentValue, ResolvedRun, RunSubmission};
+use tak_core::v2::RunSubmission;
 
 use super::identifier::is_valid_identifier;
+use super::request_encoder_wire::WireOperation;
+use super::request_validation::{
+    valid_digest, valid_invite, valid_node_ids, valid_remote_path, valid_requirements,
+};
 use super::{
     MAX_REQUEST_FRAME_BYTES, MAX_WORKSPACE_CHUNK_BYTES, Operation, PROTOCOL_VERSION, Request,
     RequestEncodeError,
@@ -13,45 +17,6 @@ struct WireRequest<'a> {
     protocol_version: u64,
     request_id: &'a str,
     operation: WireOperation<'a>,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "type")]
-enum WireOperation<'a> {
-    SubmitRun {
-        idempotency_key: &'a str,
-        run: &'a ResolvedRun,
-        environment_values: &'a [EnvironmentValue],
-    },
-    UploadWorkspace {
-        run_id: &'a str,
-        workspace_fingerprint: &'a str,
-        archive_size: u64,
-        offset: u64,
-        chunk_base64: String,
-    },
-    CommitRun {
-        run_id: &'a str,
-    },
-    ListRuns {},
-    GetRun {
-        run_id: &'a str,
-    },
-    AttachRun {
-        run_id: &'a str,
-        after_event: u64,
-    },
-    CancelRun {
-        run_id: &'a str,
-    },
-    GetOutputManifest {
-        run_id: &'a str,
-    },
-    GetOutputChunk {
-        artifact_id: &'a str,
-        offset: u64,
-        max_bytes: u32,
-    },
 }
 
 pub fn encode_request(request: &Request) -> Result<String, RequestEncodeError> {
@@ -73,6 +38,36 @@ pub fn encode_request(request: &Request) -> Result<String, RequestEncodeError> {
 
 fn encode_operation(operation: &Operation) -> Result<WireOperation<'_>, RequestEncodeError> {
     let encoded = match operation {
+        Operation::GetDaemonStatus {} => WireOperation::GetDaemonStatus {},
+        Operation::PreviewRemote { invite } => {
+            require_payload(valid_invite(invite))?;
+            WireOperation::PreviewRemote { invite }
+        }
+        Operation::AddRemote { invite } => {
+            require_payload(valid_invite(invite))?;
+            WireOperation::AddRemote { invite }
+        }
+        Operation::ListRemotes {} => WireOperation::ListRemotes {},
+        Operation::RemoveRemote { node_id } => WireOperation::RemoveRemote {
+            node_id: valid_run_id(node_id)?,
+        },
+        Operation::GetRemoteStatus { node_ids } => {
+            require_payload(valid_node_ids(node_ids))?;
+            WireOperation::GetRemoteStatus { node_ids }
+        }
+        Operation::ReadRemote { node_id, path } => {
+            if !valid_remote_path(path) {
+                return Err(RequestEncodeError::PayloadInvalid);
+            }
+            WireOperation::ReadRemote {
+                node_id: valid_run_id(node_id)?,
+                path,
+            }
+        }
+        Operation::ResolveRemoteCandidates { requirements } => {
+            require_payload(valid_requirements(requirements))?;
+            WireOperation::ResolveRemoteCandidates { requirements }
+        }
         Operation::SubmitRun {
             idempotency_key,
             run,
@@ -160,9 +155,8 @@ fn valid_run_id(run_id: &str) -> Result<&str, RequestEncodeError> {
         .ok_or(RequestEncodeError::RunIdInvalid)
 }
 
-fn valid_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+fn require_payload(valid: bool) -> Result<(), RequestEncodeError> {
+    valid
+        .then_some(())
+        .ok_or(RequestEncodeError::PayloadInvalid)
 }

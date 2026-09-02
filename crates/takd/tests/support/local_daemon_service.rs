@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::thread;
 use std::time::Duration;
 
@@ -21,13 +21,10 @@ impl LocalDaemonService {
         let config_root = temp.path().join("config");
         let state_root = temp.path().join("state");
         let runtime_root = temp.path().join("runtime");
-        let init = Command::new(super::takd_bin())
+        let paths = super::daemon_command_paths::DaemonCommandPaths::new(&config_root, &state_root);
+        let init = paths
+            .rooted_command(&super::takd_bin(), "init")
             .args([
-                "init",
-                "--config-root",
-                &config_root.display().to_string(),
-                "--state-root",
-                &state_root.display().to_string(),
                 "--node-id",
                 "v2-log-contract",
                 "--transport",
@@ -39,15 +36,10 @@ impl LocalDaemonService {
             .expect("run takd init");
         assert!(init.status.success(), "takd init should succeed");
 
-        let child = Command::new(super::takd_bin())
-            .args([
-                "serve",
-                "--config-root",
-                &config_root.display().to_string(),
-                "--state-root",
-                &state_root.display().to_string(),
-            ])
-            .env("XDG_RUNTIME_DIR", &runtime_root)
+        let child = paths
+            .rooted_command(&super::takd_bin(), "serve")
+            .env("XDG_RUNTIME_DIR", paths.runtime_root())
+            .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
             .env("RUST_LOG", "debug")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -85,8 +77,9 @@ impl Drop for LocalDaemonService {
 }
 
 fn connect(socket: &Path) -> UnixStream {
+    let connection_path = super::socket_path::bind_path(socket);
     for _ in 0..100 {
-        if let Ok(stream) = UnixStream::connect(socket) {
+        if let Ok(stream) = UnixStream::connect(&connection_path) {
             return stream;
         }
         thread::sleep(Duration::from_millis(20));

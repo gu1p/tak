@@ -7,9 +7,12 @@ use crate::daemon::scheduler::DispatchCommand;
 pub(in crate::daemon::run_store::attempts) struct StoredAttempt {
     pub(in crate::daemon::run_store::attempts) token: String,
     pub(in crate::daemon::run_store::attempts) node_id: String,
+    pub(in crate::daemon::run_store::attempts) transport: Option<String>,
     pub(in crate::daemon::run_store::attempts) state: String,
+    pub(in crate::daemon::run_store::attempts) dispatch_started_at_ms: Option<i64>,
     pub(in crate::daemon::run_store::attempts) outcome: Option<String>,
     pub(in crate::daemon::run_store::attempts) digest: Option<String>,
+    pub(in crate::daemon::run_store::attempts) exit_code: Option<i32>,
 }
 
 impl StoredAttempt {
@@ -17,7 +20,9 @@ impl StoredAttempt {
         &self,
         command: &DispatchCommand,
     ) -> bool {
-        self.token == command.fencing_token && self.node_id == command.node_id
+        self.token == command.fencing_token
+            && self.node_id == command.node_id
+            && self.transport == command.transport
     }
 }
 
@@ -26,9 +31,9 @@ pub(in crate::daemon::run_store::attempts) fn load_attempt(
     command: &DispatchCommand,
 ) -> Result<Option<StoredAttempt>> {
     transaction.query_row(
-        "SELECT fencing_token, node_id, state, outcome, terminal_digest FROM run_attempts WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4",
+        "SELECT fencing_token, node_id, transport, state, dispatch_started_at_ms, outcome, terminal_digest, exit_code FROM run_attempts WHERE run_id = ?1 AND job_id = ?2 AND authored_attempt = ?3 AND dispatch_generation = ?4",
         params![command.run_id, command.job_id, command.authored_attempt, command.dispatch_generation],
-        |row| Ok(StoredAttempt { token: row.get(0)?, node_id: row.get(1)?, state: row.get(2)?, outcome: row.get(3)?, digest: row.get(4)? }),
+        |row| Ok(StoredAttempt { token: row.get(0)?, node_id: row.get(1)?, transport: row.get(2)?, state: row.get(3)?, dispatch_started_at_ms: row.get(4)?, outcome: row.get(5)?, digest: row.get(6)?, exit_code: row.get(7)? }),
     ).optional().map_err(Into::into)
 }
 

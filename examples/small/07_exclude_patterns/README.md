@@ -23,7 +23,7 @@ Small tier: focused behavior with minimal topology.
 - `run`: expected success is `true`.
 
 ## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
+- Required daemon: `true` (Required. Start `takd serve` before running this example.)
 - Required output files on successful run: `out/exclude.txt`
 
 ## File Layout

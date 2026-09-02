@@ -40,6 +40,7 @@ pub async fn run_local_attempt_subprocess(request_path: &Path) -> Result<()> {
     let workspace::Preparation::Execute {
         snapshot,
         workspace_root,
+        path_cache,
     } = prepared
     else {
         return Ok(());
@@ -58,9 +59,18 @@ pub async fn run_local_attempt_subprocess(request_path: &Path) -> Result<()> {
         &workspace_root,
         &cancellation,
     )
-    .await
-    .unwrap_or_else(execute::failed);
+    .await;
     watcher.abort();
+    let completion = match completion {
+        Ok(completion) if completion.succeeded() => {
+            if let Some((cache, generation)) = path_cache {
+                let _ = cache.publish_from(&workspace_root, generation)?;
+            }
+            completion
+        }
+        Ok(completion) => completion,
+        Err(error) => execute::failed(error),
+    };
     persist_completion(&root, &completion).await
 }
 

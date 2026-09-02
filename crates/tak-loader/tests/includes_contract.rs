@@ -4,12 +4,14 @@ use tak_loader::{LoadOptions, load_workspace};
 
 #[test]
 fn explicit_includes_load_child_modules() {
-    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(".tmp").expect("mkdir temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
     let app_dir = temp.path().join("apps/web");
     fs::create_dir_all(&app_dir).expect("mkdir child");
     fs::write(
         temp.path().join("TASKS.py"),
         r#"SPEC = module_spec(
+  spec_version=2,
   includes=[path("apps/web")],
   tasks=[task("all", deps=["//apps/web:test"], steps=[cmd("echo", "root")])],
 )
@@ -19,7 +21,7 @@ SPEC
     .expect("write root tasks");
     fs::write(
         app_dir.join("TASKS.py"),
-        r#"SPEC = module_spec(tasks=[task("test", steps=[cmd("echo", "child")])])
+        r#"SPEC = module_spec(spec_version=2, tasks=[task("test", steps=[cmd("echo", "child")])])
 SPEC
 "#,
     )
@@ -43,12 +45,14 @@ SPEC
 
 #[test]
 fn include_cycles_fail_with_path_diagnostics() {
-    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(".tmp").expect("mkdir temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
     let app_dir = temp.path().join("apps/web");
     fs::create_dir_all(&app_dir).expect("mkdir child");
     fs::write(
         temp.path().join("TASKS.py"),
         r#"SPEC = module_spec(
+  spec_version=2,
   includes=[path("apps/web")],
   tasks=[],
 )
@@ -59,6 +63,7 @@ SPEC
     fs::write(
         app_dir.join("TASKS.py"),
         r#"SPEC = module_spec(
+  spec_version=2,
   includes=[path("../../")],
   tasks=[task("test", steps=[cmd("echo", "child")])],
 )

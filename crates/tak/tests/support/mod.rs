@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 
-pub mod auth_fallback_servers;
 pub mod binary;
 pub mod container_runtime;
 pub mod coverage_script;
@@ -14,6 +13,7 @@ pub mod examples_run_assert;
 pub mod examples_run_env;
 pub mod examples_surface;
 pub mod examples_tor_fixture;
+pub mod exec_daemon;
 pub mod installer;
 pub mod live_direct;
 pub mod live_direct_remote;
@@ -27,22 +27,23 @@ pub mod local_daemon_manager;
 pub mod make_runtime;
 pub mod remote_add;
 pub mod remote_cli;
+#[cfg(unix)]
+pub mod remote_daemon_v2;
 pub mod remote_declared_outputs;
 pub mod remote_inventory;
 pub mod remote_scan;
-pub mod remote_status;
 pub mod root_task_contracts;
 pub mod run;
-pub mod streaming;
+pub mod short_daemon_paths;
 pub mod takd_binary;
 pub mod task_history;
 pub mod tasks;
 pub mod tor_probe_env;
 pub mod tor_smoke;
+#[cfg(unix)]
+pub mod unix_socket_bind_path;
+pub mod v2_remote_daemon;
 
-pub use auth_fallback_servers::{
-    spawn_auth_rejecting_submit_server, spawn_timeout_node_info_server,
-};
 pub use binary::tak_bin;
 pub use remote_inventory::{RemoteRecord, write_remote_inventory};
 pub use run::{run_tak_expect_failure, run_tak_expect_success, run_tak_output};

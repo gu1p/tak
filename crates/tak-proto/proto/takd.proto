@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package tak.proto.v1;
+package tak.proto.v2;
 
 message NodeInfo {
   string node_id = 1;
@@ -21,43 +21,9 @@ message RemoteTokenPayload {
   string bearer_token = 3;
 }
 
-message CmdStep {
-  repeated string argv = 1;
-  optional string cwd = 2;
-  map<string, string> env = 3;
-}
-
-message ScriptStep {
-  string path = 1;
-  repeated string argv = 2;
-  optional string interpreter = 3;
-  optional string cwd = 4;
-  map<string, string> env = 5;
-}
-
-message Step {
-  oneof kind {
-    CmdStep cmd = 1;
-    ScriptStep script = 2;
-  }
-}
-
-message ContainerRuntime {
-  optional string image = 1;
-  optional string dockerfile = 2;
-  optional string build_context = 3;
-  optional ContainerResourceLimits resource_limits = 4;
-}
-
 message ContainerResourceLimits {
   double cpu_cores = 1;
   uint64 memory_mb = 2;
-}
-
-message RuntimeSpec {
-  oneof kind {
-    ContainerRuntime container = 1;
-  }
 }
 
 message SubmittedNeed {
@@ -65,120 +31,6 @@ message SubmittedNeed {
   string scope = 2;
   optional string scope_key = 3;
   double slots = 4;
-}
-
-message FixedRetryBackoff {
-  double seconds = 1;
-}
-
-message ExpJitterRetryBackoff {
-  double min_s = 1;
-  double max_s = 2;
-  string jitter = 3;
-}
-
-message RetryBackoff {
-  oneof kind {
-    FixedRetryBackoff fixed = 1;
-    ExpJitterRetryBackoff exp_jitter = 2;
-  }
-}
-
-message RetryPolicy {
-  uint32 attempts = 1;
-  repeated int32 on_exit = 2;
-  optional RetryBackoff backoff = 3;
-}
-
-message FusedTaskMember {
-  string task_label = 1;
-  repeated Step steps = 2;
-  optional uint64 timeout_s = 3;
-  optional RetryPolicy retry = 4;
-  optional string execution_label = 5;
-}
-
-message OutputSelector {
-  oneof kind {
-    string path = 1;
-    string glob = 2;
-  }
-}
-
-message SubmitTaskRequest {
-  string task_run_id = 1;
-  uint32 attempt = 2;
-  bytes workspace_zip = 3;
-  repeated Step steps = 4;
-  optional uint64 timeout_s = 5;
-  optional RuntimeSpec runtime = 6;
-  string task_label = 7;
-  repeated SubmittedNeed needs = 8;
-  repeated OutputSelector outputs = 9;
-  optional ExecutionSession session = 10;
-  optional string origin = 11;
-  optional string runtime_source = 12;
-  optional string command = 13;
-  repeated FusedTaskMember fused_members = 14;
-  optional string execution_label = 15;
-  optional WorkspaceUploadRef workspace_upload = 16;
-}
-
-message WorkspaceUploadRef {
-  string upload_id = 1;
-  string sha256 = 2;
-  uint64 size_bytes = 3;
-}
-
-message BeginWorkspaceUploadRequest {
-  string task_run_id = 1;
-  uint32 attempt = 2;
-  string sha256 = 3;
-  uint64 size_bytes = 4;
-}
-
-message BeginWorkspaceUploadResponse {
-  string upload_id = 1;
-  uint64 offset = 2;
-  bool complete = 3;
-}
-
-message AppendWorkspaceUploadResponse {
-  uint64 offset = 1;
-  bool complete = 2;
-}
-
-message FinishWorkspaceUploadResponse {
-  string upload_id = 1;
-  uint64 size_bytes = 2;
-  bool complete = 3;
-}
-
-message StartWorkspaceWormholeUploadRequest {
-  string upload_id = 1;
-  string code = 2;
-  string sha256 = 3;
-  uint64 size_bytes = 4;
-}
-
-message StartWorkspaceWormholeUploadResponse {
-  string upload_id = 1;
-  uint64 size_bytes = 2;
-  bool complete = 3;
-}
-
-message ExecutionSession {
-  string key = 1;
-  string name = 2;
-  string reuse = 3;
-  repeated OutputSelector share_paths = 4;
-}
-
-message SubmitTaskResponse {
-  bool accepted = 1;
-  bool attached = 2;
-  string idempotency_key = 3;
-  bool remote_worker = 4;
 }
 
 message RemoteEvent {
@@ -196,44 +48,6 @@ message RemoteEvent {
 message PollTaskEventsResponse {
   repeated RemoteEvent events = 1;
   bool done = 2;
-}
-
-message OutputFile {
-  string path = 1;
-  string digest = 2;
-  uint64 size_bytes = 3;
-}
-
-message GetTaskResultResponse {
-  bool success = 1;
-  optional int32 exit_code = 2;
-  string status = 3;
-  int64 started_at = 4;
-  int64 finished_at = 5;
-  int64 duration_ms = 6;
-  string node_id = 7;
-  string transport_kind = 8;
-  optional string runtime = 9;
-  optional string runtime_engine = 10;
-  repeated OutputFile outputs = 11;
-  optional string stdout_tail = 12;
-  optional string stderr_tail = 13;
-  optional RemoteFailureKind failure_kind = 14;
-}
-
-enum RemoteFailureKind {
-  REMOTE_FAILURE_KIND_UNSPECIFIED = 0;
-  TASK = 1;
-  INFRASTRUCTURE = 2;
-  CANCELLATION = 3;
-  RESOURCE_CAPACITY = 4;
-  UNKNOWN = 5;
-  CONTAINER_OOM = 6;
-}
-
-message CancelTaskResponse {
-  bool cancelled = 1;
-  string task_run_id = 2;
 }
 
 message CpuUsage {

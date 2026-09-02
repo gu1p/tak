@@ -27,6 +27,15 @@ fn container_jobs_reject_incompatible_scheduling_policy() {
     assert!(error.contains("incompatible scheduling"), "{error}");
 }
 
+#[test]
+fn container_jobs_reject_different_queue_reservations() {
+    let first = job("job-0", "//:dep", &[], true);
+    let mut second = job("job-1", "//:target", &[], true);
+    second.queue_priority = 10;
+    let error = fuse_jobs(vec![first, second]).unwrap_err().to_string();
+    assert!(error.contains("incompatible scheduling"), "{error}");
+}
+
 fn job(id: &str, task_id: &str, pass_env: &[&str], idempotent: bool) -> ResolvedJob {
     let mut session = Session::new("build", SessionReuse::Container, None).unwrap();
     session.id = "container-session".into();
@@ -42,11 +51,15 @@ fn job(id: &str, task_id: &str, pass_env: &[&str], idempotent: bool) -> Resolved
             kind: PlacementKind::Local,
             transport: None,
             reason: "local".into(),
+            tier: 0,
+            requirements: None,
         }],
         resources: ResourceRequest::default(),
         retry: RetryPolicy::default(),
         idempotent,
         queue: None,
+        queue_slots: std::num::NonZeroU32::MIN,
+        queue_priority: 0,
         limiter_claims: vec![],
         affinity: None,
         session: Some(session),

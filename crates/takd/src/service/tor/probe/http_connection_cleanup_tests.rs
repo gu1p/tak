@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
-use super::probe_node_info;
+use super::probe_worker_identity;
 
 #[tokio::test]
 async fn startup_probe_timeout_closes_the_connection() {
@@ -28,9 +28,14 @@ async fn startup_probe_timeout_closes_the_connection() {
         };
         assert!(
             String::from_utf8_lossy(&request[..header_end])
-                .starts_with("GET /v1/node/info HTTP/1.1\r\n"),
+                .starts_with("GET /v2/worker/identity HTTP/1.1\r\n"),
             "unexpected request:\n{}",
             String::from_utf8_lossy(&request[..header_end])
+        );
+        assert!(
+            String::from_utf8_lossy(&request[..header_end])
+                .to_ascii_lowercase()
+                .contains("x-tak-protocol-version: v2")
         );
         stream
             .write_all(
@@ -57,7 +62,7 @@ async fn startup_probe_timeout_closes_the_connection() {
 
     timeout(
         Duration::from_millis(50),
-        probe_node_info(
+        probe_worker_identity(
             Box::new(TcpStream::connect(addr).await.expect("connect client")),
             "builder-a.onion:80",
             "secret",

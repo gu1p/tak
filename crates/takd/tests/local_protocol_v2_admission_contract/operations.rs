@@ -15,6 +15,22 @@ async fn all_v2_run_operations_are_recognized_on_one_persistent_connection() {
             "runs": []
         }),
     );
+    let status = daemon
+        .exchange(r#"{"protocol_version":2,"request_id":"status","operation":{"type":"GetDaemonStatus"}}"#)
+        .await;
+    super::assert_json_response(
+        &status,
+        serde_json::json!({
+            "protocol_version": 2,
+            "type": "DaemonStatus",
+            "request_id": "status",
+            "status": {
+                "active_leases": 0,
+                "pending_requests": 0,
+                "limiter_count": 0
+            }
+        }),
+    );
     let requests = [
         ("show", r#"{"type":"GetRun","run_id":"run-123"}"#),
         (
@@ -46,13 +62,9 @@ async fn all_v2_run_operations_are_recognized_on_one_persistent_connection() {
         );
     }
 
-    assert_eq!(
-        daemon
-            .exchange(r#"{"type":"Status","request_id":"legacy-status"}"#)
-            .await,
-        concat!(
-            r#"{"type":"StatusSnapshot","request_id":"legacy-status","status":{"active_leases":0,"pending_requests":0,"usage":[]}}"#,
-            "\n"
-        )
-    );
+    let legacy = daemon
+        .exchange(r#"{"type":"Status","request_id":"legacy-status"}"#)
+        .await;
+    assert!(legacy.contains(r#""code":"protocol_version_unsupported""#));
+    assert!(legacy.contains("Upgrade tak, takd, and workers together"));
 }

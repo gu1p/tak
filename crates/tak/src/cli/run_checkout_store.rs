@@ -8,7 +8,6 @@ use sha2::{Digest, Sha256};
 use tak_core::v2::WorkspaceManifest;
 
 #[cfg(test)]
-#[path = "run_checkout_store_tests.rs"]
 mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

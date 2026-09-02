@@ -23,8 +23,9 @@ Large tier: explicit include topology and realistic multi-package flow.
 - `run`: expected success is `true`.
 
 ## Expected Artifacts
-- Required daemon: `false` (Not required for this scenario.)
-- Required output files on successful run: `out/polyglot_release.txt`
+- Required daemon: `true` (Required. Start `takd serve` before running this example.)
+- Required output files on successful run: unique language-stage files in `out/` plus `out/polyglot_release.txt`.
+- The release task fans in the three language branches without any branch co-producing a path.
 
 ## File Layout
 - `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).

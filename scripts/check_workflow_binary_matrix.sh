@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CI_WORKFLOW="${ROOT_DIR}/.github/workflows/ci.yml"
 RELEASE_WORKFLOW="${ROOT_DIR}/.github/workflows/release.yml"
+DAEMON_BOOTSTRAP="${ROOT_DIR}/scripts/start-local-takd.sh"
 
 if ! command -v rg >/dev/null 2>&1; then
   echo "check_workflow_binary_matrix: rg is required" >&2
@@ -30,6 +31,34 @@ require_no_match() {
   fi
 }
 
+require_daemon_before_tak() {
+  local file="$1"
+  local description="$2"
+  local violations
+  violations="$({
+    awk '
+      /^  [^[:space:]#][^:]*:[[:space:]]*$/ {
+        daemon_ready = 0
+        job = $0
+      }
+      /^[[:space:]]+run:[[:space:]]+bash scripts\/start-local-takd\.sh[[:space:]]*$/ {
+        daemon_ready = 1
+      }
+      /^[[:space:]]+- name:[[:space:]]+(Install|Setup)[[:space:]]/ && daemon_ready {
+        print NR ":" job ":daemon started before PATH/tool setup:" $0
+      }
+      /^[[:space:]]+run:[[:space:]]+tak([[:space:]]|$)/ && !daemon_ready {
+        print NR ":" job ":" $0
+      }
+    ' "$file"
+  } || true)"
+  if [ -n "$violations" ]; then
+    echo "check_workflow_binary_matrix: ${description} has invalid local takd bootstrap ordering:" >&2
+    printf '%s\n' "$violations" >&2
+    exit 1
+  fi
+}
+
 extract_targets() {
   local file="$1"
   rg -o 'target:\s*[A-Za-z0-9_.-]+' "$file" | sed -E 's/.*target:\s*//' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | sort -u
@@ -46,6 +75,7 @@ require_match "$CI_WORKFLOW" 'name:\s*Install Tak from checkout' "CI source Tak 
 require_match "$CI_WORKFLOW" 'cargo build --locked --bins -p tak -p takd' "CI source Tak build command"
 require_match "$CI_WORKFLOW" 'echo "\$PWD/target/debug" >> "\$GITHUB_PATH"' "CI source Tak path export"
 require_match "$CI_WORKFLOW" 'GITHUB_PATH' "CI Tak path export"
+require_daemon_before_tak "$CI_WORKFLOW" "CI workflow"
 require_match "$CI_WORKFLOW" 'tak --version' "CI Tak version smoke check"
 require_match "$CI_WORKFLOW" 'name:\s*Install ripgrep' "CI ripgrep install step"
 require_match "$CI_WORKFLOW" 'sudo apt-get update' "CI apt metadata refresh for ripgrep"
@@ -98,8 +128,11 @@ require_match "$RELEASE_WORKFLOW" 'name:\s*Install Tak from checkout' "Release s
 require_match "$RELEASE_WORKFLOW" 'cargo build --locked --bins -p tak -p takd' "Release source Tak build command"
 require_match "$RELEASE_WORKFLOW" 'echo "\$PWD/target/debug" >> "\$GITHUB_PATH"' "Release source Tak path export"
 require_match "$RELEASE_WORKFLOW" 'GITHUB_PATH' "Release Tak path export"
+require_daemon_before_tak "$RELEASE_WORKFLOW" "Release workflow"
 require_match "$RELEASE_WORKFLOW" 'tak --version' "Release Tak version smoke check"
 require_match "$RELEASE_WORKFLOW" 'tak run "\$\{\{ matrix\.tak_task \}\}"' "Release Tak package command"
+require_match "$RELEASE_WORKFLOW" 'tak run "\$\{\{ matrix\.tak_task \}\}" --pass-env TAK_RELEASE_TAG --pass-env TAK_BUILD_VERSION' "Release Tak package environment allowlist"
+require_no_match "$CI_WORKFLOW" '--pass-env[[:space:]]+(TAK_RELEASE_TAG|TAK_BUILD_VERSION)' "CI dependency on release-only environment"
 require_match "$RELEASE_WORKFLOW" 'uses:\s*mlugg/setup-zig@v2' "Release maintained Zig setup action"
 require_no_match "$RELEASE_WORKFLOW" 'uses:\s*goto-bus-stop/setup-zig@v2' "Release legacy Zig setup action"
 require_match "$RELEASE_WORKFLOW" 'tak_task:\s*//:package-release-x86_64-unknown-linux-musl' "Release Tak task for linux x86_64 package"
@@ -117,6 +150,10 @@ require_no_match "$RELEASE_WORKFLOW" '--prerelease' "Release non-main prerelease
 require_match "$RELEASE_WORKFLOW" 'git tag -a "\$tag" "\$head_sha"' "Release tags only in publish job"
 require_match "$RELEASE_WORKFLOW" 'git push origin "refs/tags/\$\{tag\}"' "Release pushes tags only in publish job"
 require_no_match "$RELEASE_WORKFLOW" '\bmake\b' "Release make usage"
+
+require_match "$DAEMON_BOOTSTRAP" 'nohup[[:space:]]+takd[[:space:]]+serve' "local takd background launch"
+require_match "$DAEMON_BOOTSTRAP" 'tak[[:space:]]+runs[[:space:]]+list' "local takd readiness probe"
+require_match "$DAEMON_BOOTSTRAP" 'kill[[:space:]]+-0' "local takd early-exit detection"
 
 ci_targets="$(extract_targets "$CI_WORKFLOW")"
 release_targets="$(extract_targets "$RELEASE_WORKFLOW")"

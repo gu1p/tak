@@ -1,21 +1,19 @@
 use crate::support;
 
-use std::process::{Command as StdCommand, Stdio};
+use std::process::Stdio;
 
 use support::cli::{roots, takd_bin};
+use support::daemon_command_paths::DaemonCommandPaths;
 
 #[test]
 fn serve_rejects_second_process_for_the_same_state_root_before_transport_startup() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = roots(temp.path());
+    let paths = DaemonCommandPaths::new(&config_root, &state_root);
 
-    let init = StdCommand::new(takd_bin())
+    let init = paths
+        .rooted_command(&takd_bin(), "init")
         .args([
-            "init",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
             "--transport",
             "direct",
             "--base-url",
@@ -27,41 +25,26 @@ fn serve_rejects_second_process_for_the_same_state_root_before_transport_startup
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut first = StdCommand::new(takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let mut first = paths
+        .rooted_command(&takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn first takd serve");
 
-    let show = StdCommand::new(takd_bin())
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "5",
-        ])
+    let show = paths
+        .state_command(&takd_bin(), &["token", "show"])
+        .args(["--wait", "--timeout-secs", "5"])
         .output()
         .expect("run token show");
     assert!(show.status.success(), "first serve should become ready");
 
-    let second = StdCommand::new(takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let second = paths
+        .rooted_command(&takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .output()
         .expect("run second takd serve");
 

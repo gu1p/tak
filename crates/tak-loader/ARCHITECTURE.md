@@ -2,7 +2,8 @@
 
 ## Purpose
 
-`tak-loader` transforms the current directory `TASKS.py` plus its explicit include graph into one validated `WorkspaceSpec`.
+`tak-loader` transforms an explicit v2 `TASKS.py` include graph into one validated
+`V2AuthoredRoot` for client-side run resolution.
 
 It is responsible for discovery, evaluation, conversion, merge, and graph-level validation before execution begins.
 
@@ -12,10 +13,10 @@ It is responsible for discovery, evaluation, conversion, merge, and graph-level 
 flowchart LR
     Discover[Resolve local TASKS.py + includes] --> Eval[Monty evaluation]
     Eval --> Convert[Monty object -> strict JSON]
-    Convert --> Decode[JSON -> ModuleSpec]
-    Decode --> Merge[Resolve labels/defaults/scopes]
-    Merge --> Validate[Unknown deps + DAG validation]
-    Validate --> Workspace[WorkspaceSpec]
+    Convert --> Decode[JSON -> v2 AuthoredModule]
+    Decode --> Include[Evaluate explicit includes]
+    Include --> Validate[Labels + deps + DAG + sessions]
+    Validate --> Root[V2AuthoredRoot]
 ```
 
 ## Responsibilities
@@ -24,7 +25,9 @@ flowchart LR
 - Discover only explicitly included `TASKS.py` files.
 - Execute each file with DSL prelude under bounded Monty limits.
 - Convert Monty values into strict JSON-compatible structures.
-- Deserialize into `ModuleSpec` and merge into global registries.
+- Require literal `module_spec(spec_version=2, ...)` in every root and included module.
+- Deserialize into strict v2 authored domain values and merge explicit includes.
+- Evaluate Python placement policies in the client before daemon submission.
 - Resolve limiter scope keys and task labels.
 - Validate dependencies and acyclic graph property.
 
@@ -35,6 +38,7 @@ flowchart LR
 - Includes are resolved relative to the including module and must stay under the workspace root.
 - Dependencies must reference existing tasks.
 - Module defaults apply consistently when task-local values are absent.
+- Ambient environment names are explicit through `pass_env`.
 - Scope keys are derived from scope type (`machine/user/project/worktree`).
 - Container CPU and memory resources are optional. When present, both values must come from the
   typed `Container.Resources(...)` DSL value; omission means no implicit container limit or remote
@@ -55,9 +59,9 @@ flowchart LR
 - `detect_workspace_root`
 - `discover_tasks_files`
 - `load_workspace`
-- `eval_module_spec`
-- `merge_module`
+- `inspect_authored_root_module`
 
 ## Main Files
 
-- `src/lib.rs`: end-to-end loader pipeline and merge/validation logic.
+- `src/loader/v2_includes.rs`: explicit v2 include discovery and merge.
+- `src/loader/v2_wire_conversion.rs`: strict wire-to-domain conversion.

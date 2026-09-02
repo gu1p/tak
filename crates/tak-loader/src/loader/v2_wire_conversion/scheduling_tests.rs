@@ -1,6 +1,6 @@
 use tak_core::v2::DefinitionScope;
 
-use super::{duration_millis, scaled_positive_millis, scope};
+use super::scheduling::{duration_millis, scaled_positive_millis, scope};
 
 #[test]
 fn scheduling_numbers_convert_to_exact_durable_millis() {

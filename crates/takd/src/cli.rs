@@ -151,12 +151,22 @@ pub async fn run_cli() -> Result<()> {
         },
         Commands::Update {
             config_root,
+            state_root,
             check,
             force,
             version,
+            legacy_drain_check,
         } => {
             let config_root = config_root.unwrap_or(default_config_root()?);
-            update::run_update_command(&config_root, check, force, version)?;
+            let state_root = state_root.unwrap_or(default_state_root()?);
+            update::run_update_command(
+                &config_root,
+                &state_root,
+                check,
+                force,
+                version,
+                legacy_drain_check,
+            )?;
         }
     }
 

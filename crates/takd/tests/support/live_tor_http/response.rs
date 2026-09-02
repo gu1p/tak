@@ -20,7 +20,10 @@ where
     if status != 200 {
         bail!("node probe failed with HTTP {status}");
     }
-    let status = NodeStatusResponse::decode(body.as_slice()).context("decode onion node status")?;
+    let payload = tak_proto::worker_v2::decode_display_payload(&body)
+        .context("decode worker v2 status envelope")?;
+    let status =
+        NodeStatusResponse::decode(payload.as_slice()).context("decode onion node status")?;
     let has_cpu = status
         .cpu
         .as_ref()
@@ -56,8 +59,9 @@ where
     let result = async {
         let request = Request::builder()
             .method("GET")
-            .uri("/v1/node/status")
+            .uri("/v2/worker/status")
             .header(hyper::header::HOST, authority)
+            .header("X-Tak-Protocol-Version", "v2")
             .header(
                 hyper::header::AUTHORIZATION,
                 format!("Bearer {}", bearer_token.trim()),

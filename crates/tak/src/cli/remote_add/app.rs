@@ -1,7 +1,8 @@
-use anyhow::{Result, bail};
-use tak_proto::{TOR_INVITE_WORD_COUNT, decode_tor_invite_words, encode_tor_invite};
+use anyhow::Result;
+use tak_proto::{TOR_INVITE_WORD_COUNT, decode_tor_invite_words};
 
 use super::super::remote_inventory::RemoteRecord;
+use super::location_input::token_from_location_input;
 use super::types::{AddAction, AppCommand, Method, Screen, StartMode};
 
 pub(super) struct RemoteAddApp {
@@ -11,6 +12,7 @@ pub(super) struct RemoteAddApp {
     pub(super) word_input: String,
     pub(super) location_input: String,
     pub(super) remote: Option<RemoteRecord>,
+    invite: Option<String>,
     pub(super) message: Option<String>,
 }
 
@@ -27,6 +29,7 @@ impl RemoteAddApp {
             word_input: String::new(),
             location_input: String::new(),
             remote: None,
+            invite: None,
             message: None,
         }
     }
@@ -44,8 +47,9 @@ impl RemoteAddApp {
         }
     }
 
-    pub(super) fn show_remote(&mut self, remote: RemoteRecord) {
+    pub(super) fn show_remote(&mut self, remote: RemoteRecord, invite: String) {
         self.remote = Some(remote);
+        self.invite = Some(invite);
         self.screen = Screen::Confirm;
         self.message = Some("Remote reached. Review before saving.".to_string());
     }
@@ -113,11 +117,11 @@ impl RemoteAddApp {
     fn handle_confirm(&mut self, action: AddAction) -> Result<AppCommand> {
         match action {
             AddAction::Enter => {
-                let remote = self
-                    .remote
+                let invite = self
+                    .invite
                     .clone()
-                    .expect("confirmation screen requires a remote");
-                Ok(AppCommand::Save(remote))
+                    .expect("confirmation requires an invite");
+                Ok(AppCommand::Save(invite))
             }
             AddAction::Back => Ok(AppCommand::Cancel),
             _ => Ok(AppCommand::Continue),
@@ -165,8 +169,7 @@ impl RemoteAddApp {
         if self.words.len() != TOR_INVITE_WORD_COUNT {
             return Ok(AppCommand::Continue);
         }
-        let phrase = self.words.join(" ");
-        match decode_tor_invite_words(&phrase) {
+        match decode_tor_invite_words(&self.words.join(" ")) {
             Ok(token) => Ok(AppCommand::Probe(token)),
             Err(err) => {
                 self.message = Some(err.to_string());
@@ -184,15 +187,4 @@ impl RemoteAddApp {
             }
         }
     }
-}
-
-pub(super) fn token_from_location_input(value: &str) -> Result<String> {
-    let trimmed = value.trim();
-    if trimmed.starts_with("takd:v1:") || trimmed.starts_with("takd:tor:") {
-        return Ok(trimmed.to_string());
-    }
-    if trimmed.contains(".onion") {
-        return encode_tor_invite(trimmed);
-    }
-    bail!("paste a takd token or secret Tor invite/address");
 }

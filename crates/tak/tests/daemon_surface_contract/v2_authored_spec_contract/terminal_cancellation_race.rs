@@ -37,14 +37,20 @@ fn second_ctrl_c_does_not_claim_persisted_cancellation_when_run_is_terminal() {
         "terminal run did not finish attachment"
     );
     let output = child.wait_with_output().unwrap();
-    let requests = daemon.finish_expecting(4);
+    let requests = daemon.finish_expecting(5);
     let operations: Vec<_> = requests
         .iter()
         .map(|request| request["operation"]["type"].as_str().unwrap())
         .collect();
     assert_eq!(
         operations,
-        ["SubmitRun", "UploadWorkspace", "CancelRun", "AttachRun"]
+        [
+            "SubmitRun",
+            "UploadWorkspace",
+            "CancelRun",
+            "AttachRun",
+            "GetOutputManifest",
+        ]
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{stderr}");

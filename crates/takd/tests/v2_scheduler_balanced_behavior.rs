@@ -5,6 +5,8 @@ use takd::{RunStore, SchedulerNode};
 
 use crate::support::v2_run::{ARCHIVE, scheduler::independent_jobs};
 
+#[path = "v2_scheduler_balanced_behavior/locality.rs"]
+mod locality;
 #[test]
 fn balanced_equal_jobs_stay_within_one_assignment() {
     let (_temp, store, run_id) = committed_balanced_run("balanced", 10);

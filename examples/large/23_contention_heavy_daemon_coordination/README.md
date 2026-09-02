@@ -24,7 +24,8 @@ Large tier: explicit include topology and realistic multi-package flow.
 
 ## Expected Artifacts
 - Required daemon: `true` (Required. Start daemon before running this example.)
-- Required output files on successful run: `out/contention.log`
+- Required output files on successful run: one unique UI result per app plus `out/contention.log`.
+- The final orchestrator combines those results after daemon-managed lock serialization.
 
 ## File Layout
 - `TASKS.py`: project identity for this workspace (`module_spec(project_id=...)`).

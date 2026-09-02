@@ -11,6 +11,12 @@ use super::events::{now_ms, sqlite_i64};
 
 mod archive;
 
+pub(super) struct VerifiedWorkspaceBlob {
+    pub(super) path: PathBuf,
+    pub(super) archive_sha256: String,
+    pub(super) archive_size: u64,
+}
+
 pub(super) fn verify_archive_manifest(
     path: &Path,
     expected: &tak_core::v2::WorkspaceManifest,
@@ -53,6 +59,14 @@ pub(super) fn verified_blob(
     transaction: &Transaction<'_>,
     fingerprint: &str,
 ) -> Result<Option<PathBuf>> {
+    Ok(verified_workspace_blob(store, transaction, fingerprint)?.map(|blob| blob.path))
+}
+
+pub(super) fn verified_workspace_blob(
+    store: &RunStore,
+    transaction: &Transaction<'_>,
+    fingerprint: &str,
+) -> Result<Option<VerifiedWorkspaceBlob>> {
     let stored = transaction
         .query_row(
             "SELECT archive_sha256, archive_size, path FROM workspace_blobs WHERE fingerprint = ?1",
@@ -81,7 +95,11 @@ pub(super) fn verified_blob(
             sqlite_i64(now_ms()?, "workspace access timestamp")?
         ],
     )?;
-    Ok(Some(path))
+    Ok(Some(VerifiedWorkspaceBlob {
+        path,
+        archive_sha256: digest,
+        archive_size: size,
+    }))
 }
 
 pub(super) fn publish_blob(

@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
 use tak_core::model::Scope;
-use takd::{AcquireLeaseResponse, SharedLeaseManager, new_shared_manager_with_db};
-
-use crate::support::protocol::acquire_request;
+use takd::{SharedLeaseManager, new_shared_manager_with_db};
 
 pub fn spawn_protocol_server(
     db_path: PathBuf,
@@ -13,30 +11,6 @@ pub fn spawn_protocol_server(
     configure_manager(&manager);
     let run_store = takd::RunStore::with_db_path(db_path).expect("run store");
     spawn_protocol_server_with_manager(socket_path, manager, run_store)
-}
-
-pub fn seeded_protocol_server(
-    db_path: PathBuf,
-    socket_path: PathBuf,
-    request_id: &str,
-) -> (tokio::task::JoinHandle<anyhow::Result<()>>, String) {
-    let manager = new_shared_manager_with_db(db_path.clone()).expect("manager");
-    configure_manager(&manager);
-    let lease_id = {
-        let mut guard = manager.lock().expect("lease manager lock");
-        match guard.acquire(acquire_request(request_id)) {
-            AcquireLeaseResponse::LeaseGranted { lease } => lease.lease_id,
-            AcquireLeaseResponse::LeasePending { .. } => panic!("expected seeded lease"),
-        }
-    };
-    (
-        spawn_protocol_server_with_manager(
-            socket_path,
-            manager,
-            takd::RunStore::with_db_path(db_path).expect("run store"),
-        ),
-        lease_id,
-    )
 }
 
 fn configure_manager(manager: &SharedLeaseManager) {
@@ -50,14 +24,19 @@ fn spawn_protocol_server_with_manager(
     manager: SharedLeaseManager,
     run_store: takd::RunStore,
 ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
+    let bind_path = super::socket_path::bind_path(&socket_path);
     tokio::spawn(async move {
-        takd::run_server_with_local_attempt_executable(
-            &socket_path,
+        let (_shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let inventory = socket_path.with_extension("remotes.toml");
+        takd::run_server_with_local_attempt_executable_and_remote_inventory_until_shutdown(
+            &bind_path,
             manager,
             takd::TorBroker::new(),
             takd::PeerManager::default(),
             run_store,
             super::takd_bin(),
+            inventory,
+            shutdown_rx,
         )
         .await
     })

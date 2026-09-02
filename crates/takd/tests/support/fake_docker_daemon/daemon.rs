@@ -10,6 +10,7 @@ use super::state::FakeDockerDaemonState;
 use super::{CreateRecord, DockerOperation, FakeDockerConfig};
 
 pub struct FakeDockerDaemon {
+    requested_socket_path: PathBuf,
     socket_path: PathBuf,
     state: Arc<FakeDockerDaemonState>,
     accept_task: JoinHandle<()>,
@@ -17,11 +18,12 @@ pub struct FakeDockerDaemon {
 
 impl FakeDockerDaemon {
     pub fn spawn(root: &Path, config: FakeDockerConfig) -> Self {
-        let socket_path = root.join("docker.sock");
-        if socket_path.exists() {
-            std::fs::remove_file(&socket_path).expect("remove stale fake docker socket");
+        let requested_socket_path = root.join("docker.sock");
+        if requested_socket_path.exists() {
+            std::fs::remove_file(&requested_socket_path).expect("remove stale fake docker socket");
         }
 
+        let socket_path = super::super::socket_path::bind_path(&requested_socket_path);
         let listener = UnixListener::bind(&socket_path).expect("bind fake docker socket");
         let state = Arc::new(FakeDockerDaemonState::new(
             config.visible_roots,
@@ -37,6 +39,7 @@ impl FakeDockerDaemon {
         let accept_task = tokio::spawn(run_fake_docker_daemon(listener, Arc::clone(&state)));
 
         Self {
+            requested_socket_path,
             socket_path,
             state,
             accept_task,
@@ -80,6 +83,6 @@ impl FakeDockerDaemon {
 impl Drop for FakeDockerDaemon {
     fn drop(&mut self) {
         self.accept_task.abort();
-        let _ = std::fs::remove_file(&self.socket_path);
+        let _ = std::fs::remove_file(&self.requested_socket_path);
     }
 }

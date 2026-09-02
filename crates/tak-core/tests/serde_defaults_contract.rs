@@ -1,7 +1,7 @@
 use serde_json::json;
 use tak_core::model::{
     BackoffDef, Hold, LocalDef, ModuleSpec, NeedDef, QueueDef, QueueDiscipline, QueueUseDef,
-    RemoteDef, RemoteSelectionDef, RemoteSelectionSpec, RetryDef, StepDef, TaskLabel,
+    RetryDef, StepDef, TaskLabel,
 };
 
 #[test]
@@ -14,20 +14,6 @@ fn module_and_local_execution_defaults_follow_contract() {
         StepDef::default(),
         StepDef::Cmd { argv, cwd: None, env } if argv.is_empty() && env.is_empty()
     ));
-}
-
-#[test]
-fn remote_execution_defaults_to_round_robin_selection() {
-    let remote: RemoteDef = serde_json::from_value(json!({})).expect("remote spec");
-    assert!(matches!(remote.selection, RemoteSelectionDef::RoundRobin));
-}
-
-#[test]
-fn resolved_remote_selection_defaults_to_round_robin() {
-    assert_eq!(
-        RemoteSelectionSpec::default(),
-        RemoteSelectionSpec::RoundRobin
-    );
 }
 
 #[test]

@@ -25,7 +25,7 @@ fn authored_token_bucket_reaches_submit_run_with_exact_fixed_point_values() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = daemon.finish_expecting(4);
+    let requests = daemon.finish_expecting(5);
     let run = &requests[0]["operation"]["run"];
     assert_eq!(
         run["limiter_definitions"][0],

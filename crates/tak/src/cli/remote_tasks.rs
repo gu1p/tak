@@ -4,23 +4,20 @@ use std::io::{self, Write};
 use std::time::Duration;
 use tak_proto::{ListTaskAttemptsResponse, PollTaskEventsResponse, RemoteEvent};
 
-use super::remote_http::get_remote_bytes;
-use super::remote_logs::selected_remote;
+use super::remote_logs::required_node_id;
+use super::remote_read::read_remote;
 
 pub(super) async fn run_remote_tasks(node_id: &str, active: bool, limit: usize) -> Result<()> {
-    let remote = selected_remote(node_id)?;
+    let node_id = required_node_id(node_id)?;
     let state = if active { "active" } else { "all" };
-    let path = format!("/v1/tasks?state={state}&limit={limit}");
-    let (status, body) = get_remote_bytes(&remote, &path).await?;
+    let path = format!("/v2/worker/tasks?state={state}&limit={limit}");
+    let (status, body) = read_remote(node_id, &path).await?;
     if status != 200 {
-        bail!(
-            "remote node {} task list failed with HTTP {status}",
-            remote.node_id
-        );
+        bail!("remote node {node_id} task list failed with HTTP {status}");
     }
     let tasks = ListTaskAttemptsResponse::decode(body.as_slice())
         .context("decode remote task list protobuf")?;
-    print!("{}", render_remote_tasks(&remote.node_id, &tasks));
+    print!("{}", render_remote_tasks(node_id, &tasks));
     Ok(())
 }
 
@@ -31,17 +28,14 @@ pub(super) async fn run_remote_task_logs(
     follow: bool,
     interval_ms: u64,
 ) -> Result<()> {
-    let remote = selected_remote(node_id)?;
+    let node_id = required_node_id(node_id)?;
     let mut last_seen_seq = 0_u64;
     let mut polls = 0_usize;
     loop {
         let path = task_events_path(task_run_id, last_seen_seq, attempt);
-        let (status, body) = get_remote_bytes(&remote, &path).await?;
+        let (status, body) = read_remote(node_id, &path).await?;
         if status != 200 {
-            bail!(
-                "remote node {} task logs failed with HTTP {status}",
-                remote.node_id
-            );
+            bail!("remote node {node_id} task logs failed with HTTP {status}");
         }
         let events = PollTaskEventsResponse::decode(body.as_slice())
             .context("decode remote task events protobuf")?;
@@ -89,7 +83,7 @@ fn render_remote_tasks(node_id: &str, tasks: &ListTaskAttemptsResponse) -> Strin
 fn task_events_path(task_run_id: &str, after_seq: u64, attempt: Option<u32>) -> String {
     let encoded_task_run_id: String =
         url::form_urlencoded::byte_serialize(task_run_id.as_bytes()).collect();
-    let mut path = format!("/v1/tasks/{encoded_task_run_id}/events?after_seq={after_seq}");
+    let mut path = format!("/v2/worker/tasks/{encoded_task_run_id}/events?after_seq={after_seq}");
     if let Some(attempt) = attempt {
         path.push_str(&format!("&attempt={attempt}"));
     }

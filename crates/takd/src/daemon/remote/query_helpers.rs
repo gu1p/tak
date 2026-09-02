@@ -2,20 +2,6 @@ use super::*;
 use prost::Message;
 use tak_proto::ErrorResponse;
 
-pub(super) fn resolve_submit_idempotency_key_for_task_run(
-    store: &SubmitAttemptStore,
-    task_run_id: &str,
-    query: Option<&str>,
-) -> Result<Option<String>> {
-    if let Some(attempt) =
-        query_param_u64(query, "attempt").and_then(|value| u32::try_from(value).ok())
-    {
-        let key = build_submit_idempotency_key(task_run_id, Some(attempt))?;
-        return Ok(Some(key));
-    }
-    store.latest_submit_idempotency_key_for_task_run(task_run_id)
-}
-
 pub(super) fn split_path_and_query(path: &str) -> (&str, Option<&str>) {
     match path.split_once('?') {
         Some((path_only, query)) => (path_only, Some(query)),
@@ -46,21 +32,12 @@ pub(super) fn sanitize_submit_idempotency_key(idempotency_key: &str) -> String {
         .collect()
 }
 
-pub(super) fn remote_task_path_arg<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {
-    let path = path.strip_prefix("/v1/tasks/")?;
-    let task_run_id = path.strip_suffix(suffix)?;
-    if task_run_id.is_empty() || task_run_id.contains('/') {
-        return None;
-    }
-    Some(task_run_id)
-}
-
 pub(super) fn binary_response(
     status_code: u16,
     content_type: &str,
     body: impl Into<Vec<u8>>,
-) -> RemoteV1Response {
-    RemoteV1Response {
+) -> WorkerHttpResponse {
+    WorkerHttpResponse {
         status_code,
         content_type: content_type.to_string(),
         headers: Vec::new(),
@@ -68,21 +45,7 @@ pub(super) fn binary_response(
     }
 }
 
-pub(super) fn binary_response_with_headers(
-    status_code: u16,
-    content_type: &str,
-    headers: Vec<(String, String)>,
-    body: impl Into<Vec<u8>>,
-) -> RemoteV1Response {
-    RemoteV1Response {
-        status_code,
-        content_type: content_type.to_string(),
-        headers,
-        body: body.into(),
-    }
-}
-
-pub(super) fn text_response(status_code: u16, body: impl Into<String>) -> RemoteV1Response {
+pub(super) fn text_response(status_code: u16, body: impl Into<String>) -> WorkerHttpResponse {
     binary_response(
         status_code,
         "text/plain; charset=utf-8",
@@ -90,7 +53,7 @@ pub(super) fn text_response(status_code: u16, body: impl Into<String>) -> Remote
     )
 }
 
-pub(super) fn protobuf_response<M: Message>(status_code: u16, message: &M) -> RemoteV1Response {
+pub(super) fn protobuf_response<M: Message>(status_code: u16, message: &M) -> WorkerHttpResponse {
     binary_response(
         status_code,
         "application/x-protobuf",
@@ -98,7 +61,7 @@ pub(super) fn protobuf_response<M: Message>(status_code: u16, message: &M) -> Re
     )
 }
 
-pub(super) fn error_response(status_code: u16, message: &str) -> RemoteV1Response {
+pub(super) fn error_response(status_code: u16, message: &str) -> WorkerHttpResponse {
     protobuf_response(
         status_code,
         &ErrorResponse {

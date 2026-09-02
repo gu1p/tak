@@ -2,8 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use prost::Message;
-use tak_proto::NodeInfo;
+use tak_proto::worker_v2::{WorkerIdentity, encode_identity};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -47,9 +46,9 @@ fn spawn_accept_loop(listener: TcpListener, node_id: String, requests: Arc<Mutex
             };
             let request = read_request(&mut stream).await;
             requests.lock().expect("request lock").push(request);
-            let body = node_info(&node_id).encode_to_vec();
+            let body = encode_identity(&worker_identity(&node_id)).expect("encode identity");
             let head = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/x-protobuf\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 body.len()
             );
             stream.write_all(head.as_bytes()).await.expect("write head");
@@ -74,17 +73,15 @@ async fn read_request(stream: &mut tokio::net::TcpStream) -> String {
     String::from_utf8_lossy(&request).to_string()
 }
 
-fn node_info(node_id: &str) -> NodeInfo {
-    NodeInfo {
+fn worker_identity(node_id: &str) -> WorkerIdentity {
+    WorkerIdentity {
+        protocol_version: 2,
         node_id: node_id.to_string(),
         display_name: node_id.to_string(),
         base_url: format!("http://{node_id}.onion"),
-        healthy: true,
         pools: vec!["build".into()],
         tags: vec!["builder".into()],
         capabilities: vec!["linux".into()],
         transport: "tor".into(),
-        transport_state: "ready".into(),
-        transport_detail: String::new(),
     }
 }

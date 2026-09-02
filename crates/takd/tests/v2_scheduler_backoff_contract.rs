@@ -23,6 +23,7 @@ fn maximum_retry_backoff_does_not_strand_the_attempt_reservation() {
 
     let failed = AttemptCompletion::Failed {
         terminal_digest: "b".repeat(64),
+        exit_code: None,
     };
     assert_eq!(
         store.complete_attempt(&command, failed).unwrap(),

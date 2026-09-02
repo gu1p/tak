@@ -14,21 +14,24 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
     task(
       "unit_local",
       deps=["//:bootstrap_local"],
-      steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log")],
+      outputs=[path("//out/local-unit.log")],
+      steps=[cmd("sh", "-c", "mkdir -p out && echo unit-local-pass > out/local-unit.log", cwd="//")],
     ),
     task(
       "integration_remote",
       deps=[":unit_local"],
-      outputs=[path("//out")],
+      outputs=[path("//out/remote-integration.log"), path("//out/remote-junit.txt")],
       steps=[
         cmd(
           "sh",
           "-c",
           "mkdir -p out && echo integration-remote-pass > out/remote-integration.log && echo junit-remote-all-pass > out/remote-junit.txt",
+          cwd="//",
         )
       ],
       execution=REMOTE,
@@ -36,11 +39,13 @@ SPEC = module_spec(
     task(
       "suite_success",
       deps=[":integration_remote"],
+      outputs=[path("//out/hybrid-suite-summary.txt")],
       steps=[
         cmd(
           "sh",
           "-c",
           "cat out/local-bootstrap.log out/local-unit.log out/remote-integration.log out/remote-junit.txt > out/hybrid-suite-summary.txt",
+          cwd="//",
         )
       ],
     ),

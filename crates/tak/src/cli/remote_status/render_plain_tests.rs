@@ -24,7 +24,6 @@ fn remote() -> RemoteRecord {
         node_id: "builder-a".to_string(),
         display_name: "Builder A".to_string(),
         base_url: "http://builder-a.onion".to_string(),
-        bearer_token: String::new(),
         pools: vec!["build".to_string()],
         tags: vec!["linux".to_string()],
         capabilities: vec!["docker".to_string()],

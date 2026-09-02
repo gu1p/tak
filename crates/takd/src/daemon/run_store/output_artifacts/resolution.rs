@@ -51,8 +51,18 @@ pub(in crate::daemon::run_store) fn publish_final(
     let run: ResolvedRun = serde_json::from_str(&encoded)?;
     let merged = match resolve_final_outputs(&run, accepted(transaction, run_id, current_fence)?) {
         Ok(merged) => merged,
-        Err(error) => return Ok(FinalPublication::Conflict(error)),
+        Err(error) => {
+            transaction.execute(
+                "UPDATE runs SET output_error=?2 WHERE run_id=?1",
+                params![run_id, error.to_string()],
+            )?;
+            return Ok(FinalPublication::Conflict(error));
+        }
     };
+    transaction.execute(
+        "UPDATE runs SET output_error=NULL WHERE run_id=?1",
+        [run_id],
+    )?;
     transaction.execute("DELETE FROM run_final_outputs WHERE run_id=?1", [run_id])?;
     for output in merged.outputs {
         transaction.execute(

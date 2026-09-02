@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Definitively answer "is HTTP/2 carrying onion traffic?" by reading node A's
-# server-side per-stream protocol log ("serving remote v1 stream over HTTP/2"
-# vs "HTTP/1.1"). Rebuilds image, runs A+B, connects, runs the big repo task.
+# server-side per-stream protocol log for the /v2/worker surface
+# ("serving worker stream over HTTP/2" vs "HTTP/1.1").
+# Rebuilds image, runs A+B, connects, runs the big repo task.
 set -uo pipefail
 cd /media/gp/Projects1/gu1p/tak
 REP=/tmp/proto_report.txt; : > "$REP"
@@ -44,7 +45,7 @@ say "run_result: $(grep -m1 ': ok\|failed\|Error' /tmp/proto_run.txt | cut -c1-1
 docker cp takd-a:/root/.local/state/takd/service.log /tmp/proto_a.log 2>/dev/null
 say ""
 say "=== node A per-stream protocol (server side) ==="
-say "HTTP/2 streams served : $(grep -c 'serving remote v1 stream over HTTP/2' /tmp/proto_a.log)"
-say "HTTP/1.1 streams served: $(grep -c 'serving remote v1 stream over HTTP/1.1' /tmp/proto_a.log)"
+say "HTTP/2 streams served : $(grep -c 'serving worker stream over HTTP/2' /tmp/proto_a.log)"
+say "HTTP/1.1 streams served: $(grep -c 'serving worker stream over HTTP/1.1' /tmp/proto_a.log)"
 say "read-request-bytes errors: $(grep -c 'read request bytes' /tmp/proto_a.log)"
 say DONE

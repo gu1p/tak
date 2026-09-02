@@ -19,7 +19,8 @@ pub(super) fn pending_context(
         node_info_with_transport(&ready, base_url, TransportState::Pending.as_str(), None),
         config.bearer_token.clone(),
         RemoteRuntimeConfig::from_env(),
-    );
+    )
+    .with_state_root(state_root);
     if let Some(image_cache) = &config.image_cache {
         context = context.with_image_cache_config(image_cache.runtime_config(state_root)?);
     }

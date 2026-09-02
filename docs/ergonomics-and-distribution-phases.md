@@ -1,10 +1,13 @@
 # Ergonomics and Distribution Phases
 
-This guide keeps the current Tak authoring story separate from future distribution work. Use it as orientation before choosing examples or changing `TASKS.py`.
+This historical guide separates authoring concerns from distribution design. For the shipped v2
+contract, use [Daemon-Owned Runs and TASKS.py v2](daemon-runs-v2.md).
 
 ## Current Surface
 
-Tak already supports project-local `TASKS.py` workspaces, explicit `module_spec(includes=[...])` composition, label-aware graph inspection, local host execution, local container execution, remote container execution, retry/timeout policy, declared outputs, and daemon-backed coordination for needs, queues, locks, resources, rate limits, and process caps.
+Tak supports explicit `module_spec(spec_version=2, includes=[...])` workspaces, label-aware graph
+inspection, local/remote runtimes, declared outputs, and daemon-owned scheduling, retries,
+cancellation, artifacts, and persisted run events.
 
 For authoring details, prefer the source-derived bundle:
 
@@ -19,6 +22,9 @@ tak docs dump
 - Add focused docs contracts when a new command, DSL constructor, or example becomes part of the public authoring surface.
 - Keep examples executable and small enough to copy into a real project.
 
-## Distribution Direction
+## Distribution Contract
 
-Tak's distribution model should continue to treat the local workspace graph as the source of truth while letting execution move between local host, local container, and configured remote agents. Remote work should stay explicit about transport, pool/tags/capabilities, container runtime, state reuse, and declared outputs so users can reason about where work ran and what came back.
+The local workspace graph remains the source of authoring truth. Tak resolves policies and concrete
+candidates; local takd owns placement and execution across local host, local container, and
+configured direct/Tor workers. Transport, requirements, runtime, reuse, environment, and outputs
+stay explicit so a persisted run is reproducible and inspectable.

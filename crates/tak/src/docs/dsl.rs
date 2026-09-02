@@ -10,8 +10,8 @@ use self::dsl_ast::{
     SourceLines, class_start_range, expr_name, extract_python_docstrings, function_start_range,
 };
 
-const PRELUDE: &str = include_str!("../../../tak-loader/src/loader/prelude.py");
-const DSL_STUBS: &str = include_str!("../../../tak-loader/src/loader/dsl_stubs.pyi");
+const PRELUDE: &str = include_str!("../../../tak-loader/src/loader/prelude_v2.py");
+const DSL_STUBS: &str = include_str!("../../../tak-loader/src/loader/dsl_stubs_v2.pyi");
 
 #[derive(Debug, Default)]
 pub(super) struct DslDocs {

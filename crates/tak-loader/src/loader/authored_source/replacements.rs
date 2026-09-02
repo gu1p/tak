@@ -26,29 +26,11 @@ pub(super) fn transport_method_replacement(name: &str) -> Option<&'static str> {
     }
 }
 
-pub(super) fn remote_selection_method_replacement(name: &str) -> Option<&'static str> {
-    match name {
-        "Sequential" => Some("RemoteSelection_Sequential"),
-        "Shuffle" => Some("RemoteSelection_Shuffle"),
-        "RoundRobin" => Some("RemoteSelection_RoundRobin"),
-        _ => None,
-    }
-}
-
 pub(super) fn v2_remote_selection_method_replacement(name: &str) -> Option<&'static str> {
     match name {
         "Balanced" => Some("RemoteSelection_Balanced"),
         "Sequential" => Some("RemoteSelection_Sequential"),
         "RoundRobin" => Some("RemoteSelection_RoundRobin"),
-        _ => None,
-    }
-}
-
-pub(super) fn session_reuse_method_replacement(name: &str) -> Option<&'static str> {
-    match name {
-        "Workspace" => Some("SessionReuse_Workspace"),
-        "Paths" => Some("SessionReuse_Paths"),
-        "Container" => Some("SessionReuse_Container"),
         _ => None,
     }
 }

@@ -2,8 +2,18 @@ use crate::support;
 
 use std::process::Command as StdCommand;
 
+#[path = "daemon_surface_contract/docker_daemon_delegation.rs"]
+mod docker_daemon_delegation;
+#[path = "daemon_surface_contract/docker_pass_env.rs"]
+mod docker_pass_env;
+#[path = "daemon_surface_contract/make_daemon_delegation.rs"]
+mod make_daemon_delegation;
+#[path = "daemon_surface_contract/make_pass_env.rs"]
+mod make_pass_env;
+#[path = "daemon_surface_contract/make_submission.rs"]
+mod make_submission;
 #[path = "daemon_surface_contract/runs_cli_contract.rs"]
-mod runs_cli_contract;
+pub(crate) mod runs_cli_contract;
 #[path = "daemon_surface_contract/v2_authored_spec_contract.rs"]
 mod v2_authored_spec_contract;
 

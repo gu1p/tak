@@ -1,5 +1,3 @@
-use super::super::remote_inventory::RemoteRecord;
-
 #[derive(Clone, Copy)]
 pub(crate) enum StartMode {
     Menu,
@@ -39,5 +37,5 @@ pub(super) enum AppCommand {
     Continue,
     Cancel,
     Probe(String),
-    Save(RemoteRecord),
+    Save(String),
 }

@@ -5,12 +5,12 @@ mod prefixed_io;
 mod request;
 mod response;
 
-use http2::handle_remote_v1_http2_stream;
+use http2::handle_worker_http2_stream;
 use prefixed_io::{PrefixedIo, read_protocol_prefix};
 use request::{ReadHttpRequestError, read_http_request, request_is_authorized};
 use response::write_http_response;
 
-pub async fn run_remote_v1_http_server(
+pub async fn run_worker_http_server(
     listener: TcpListener,
     store: SubmitAttemptStore,
     context: RemoteNodeContext,
@@ -21,14 +21,14 @@ pub async fn run_remote_v1_http_server(
         let store = store.clone();
         let context = context.clone();
         tokio::spawn(async move {
-            if let Err(err) = handle_remote_v1_stream(stream, store, context).await {
-                tracing::error!("remote v1 http client handling error: {err}");
+            if let Err(err) = handle_worker_stream(stream, store, context).await {
+                tracing::error!("worker HTTP client handling error: {err}");
             }
         });
     }
 }
 
-pub(crate) async fn handle_remote_v1_stream<S>(
+pub(crate) async fn handle_worker_stream<S>(
     mut stream: S,
     store: SubmitAttemptStore,
     context: RemoteNodeContext,
@@ -39,15 +39,15 @@ where
     let prefix = read_protocol_prefix(&mut stream).await?;
     let prefixed = PrefixedIo::new(prefix.bytes, stream);
     if prefix.is_http2 {
-        tracing::debug!("serving remote v1 stream over HTTP/2");
-        return handle_remote_v1_http2_stream(prefixed, store, context).await;
+        tracing::debug!("serving worker stream over HTTP/2");
+        return handle_worker_http2_stream(prefixed, store, context).await;
     }
-    tracing::debug!("serving remote v1 stream over HTTP/1.1");
+    tracing::debug!("serving worker stream over HTTP/1.1");
     let mut prefixed = prefixed;
-    handle_remote_v1_http_stream(&mut prefixed, &store, &context).await
+    handle_worker_http_stream(&mut prefixed, &store, &context).await
 }
 
-pub(crate) async fn handle_remote_v1_http_stream<S>(
+pub(crate) async fn handle_worker_http_stream<S>(
     stream: &mut S,
     store: &SubmitAttemptStore,
     context: &RemoteNodeContext,
@@ -69,7 +69,7 @@ where
         write_http_response(stream, &error_response(401, "auth_failed")).await?;
         return Ok(());
     }
-    let response = handle_remote_v1_request(
+    let response = handle_worker_http_request(
         context,
         store,
         &request.method,

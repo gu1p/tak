@@ -8,7 +8,7 @@ use crate::agent::{
 };
 use crate::daemon::peer_manager::{LocalNodeIdentity, PeerManager};
 use crate::daemon::protocol::TorBroker;
-use crate::daemon::remote::{SubmitAttemptStore, run_remote_v1_http_server};
+use crate::daemon::remote::{SubmitAttemptStore, run_worker_http_server};
 use crate::daemon::runtime::{default_socket_path, run_local_daemon_with_broker_and_peers};
 
 mod control;
@@ -41,6 +41,9 @@ pub async fn serve_agent(config_root: &Path, state_root: &Path) -> Result<()> {
     }
     let store =
         SubmitAttemptStore::with_db_path(db_path).context("open takd agent sqlite store")?;
+    store
+        .recover_worker_v2_attempts_after_restart()
+        .context("recover protocol-v2 worker attempts")?;
     abandon_unfinished_submits(&store)?;
     let control_state = AgentControlState::default();
     spawn_agent_control_socket(state_root, store.clone(), control_state.clone())?;
@@ -102,6 +105,7 @@ fn spawn_local_daemon_socket(
     // Hold a permanently warm connection to every peer, and ping over it.
     peers.spawn_connection_keeper(broker.clone());
     peers.spawn_heartbeat_loop(broker.clone());
+    peers.spawn_worker_v2_probe_loop(broker.clone());
     tokio::spawn(async move {
         if let Err(err) =
             run_local_daemon_with_broker_and_peers(&socket_path, &db_path, broker, peers).await
@@ -146,11 +150,11 @@ async fn serve_direct_agent(
         parsed.canonical_base_url()
     };
     persist_ready_base_url(config_root, state_root, &advertised_base_url)?;
-    tracing::info!("takd remote v1 direct service ready at {advertised_base_url}");
+    tracing::info!("takd worker protocol-v2 direct service ready at {advertised_base_url}");
     let context =
         crate::agent::ready_context_with_state_root(&read_config(config_root)?, state_root)?;
     control_state.set_context(context.clone())?;
-    run_remote_v1_http_server(listener, store, context).await
+    run_worker_http_server(listener, store, context).await
 }
 
 #[cfg(test)]

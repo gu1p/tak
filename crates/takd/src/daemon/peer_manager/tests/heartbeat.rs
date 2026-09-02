@@ -35,17 +35,22 @@ fn heartbeat_rejects_ping_from_unexpected_node_id() {
 }
 
 #[test]
-fn heartbeat_rejects_ping_with_wrong_protocol_version() {
+fn heartbeat_rejects_legacy_v1_ping_with_upgrade_guidance() {
     let manager =
         super::fixtures::peer_manager(inventory(vec![record("builder-a", "tor", true, "secret")]));
     let mut ping = ping();
-    ping.protocol_version = "v0".to_string();
+    ping.protocol_version = "v1".to_string();
 
     manager.mark_ping_success("builder-a", ping, 12);
 
     let snapshot = manager.snapshots().pop().expect("snapshot");
     assert_eq!(snapshot.state, PeerState::ProtocolMismatch);
-    assert!(snapshot.last_error_summary.unwrap().contains("protocol"));
+    assert!(
+        snapshot
+            .last_error_summary
+            .unwrap()
+            .contains("upgrade tak, takd, and workers together")
+    );
 }
 
 #[test]

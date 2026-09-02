@@ -1,14 +1,25 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::env;
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
 
 use tak_core::model::{RemoteRuntimeSpec, StepDef, TaskLabel};
-use tak_exec::{RemoteWorkerExecutionSpec, TaskOutputChunk, TaskOutputObserver};
-use tokio::sync::Notify;
+use tak_exec::RemoteWorkerExecutionSpec;
 
 use super::{EnvGuard, install_fake_docker};
+
+mod observer;
+
+pub use observer::CollectingObserver;
+
+pub fn shell_step(script: &str) -> StepDef {
+    StepDef::Cmd {
+        argv: vec!["sh".into(), "-c".into(), script.into()],
+        cwd: None,
+        env: BTreeMap::new(),
+    }
+}
 
 pub fn configure_fake_docker_env(root: &Path, env_guard: &mut EnvGuard) {
     let bin_root = root.join("bin");
@@ -63,34 +74,5 @@ pub fn worker_spec(
         container_user: None,
         image_cache: None,
         container_identity: None,
-    }
-}
-
-#[derive(Default)]
-pub struct CollectingObserver {
-    chunks: Mutex<Vec<TaskOutputChunk>>,
-    notify: Notify,
-}
-
-impl CollectingObserver {
-    pub fn snapshot(&self) -> MutexGuard<'_, Vec<TaskOutputChunk>> {
-        self.chunks.lock().expect("observer lock")
-    }
-
-    pub async fn wait_for_chunks(&self, expected: usize) {
-        loop {
-            if self.chunks.lock().expect("observer lock").len() >= expected {
-                return;
-            }
-            self.notify.notified().await;
-        }
-    }
-}
-
-impl TaskOutputObserver for CollectingObserver {
-    fn observe_output(&self, chunk: TaskOutputChunk) -> anyhow::Result<()> {
-        self.chunks.lock().expect("observer lock").push(chunk);
-        self.notify.notify_waiters();
-        Ok(())
     }
 }

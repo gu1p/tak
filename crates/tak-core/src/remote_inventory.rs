@@ -39,6 +39,10 @@ impl Default for RemoteInventory {
 }
 
 impl RemoteInventory {
+    pub fn enabled_remotes(&self) -> impl Iterator<Item = &RemoteRecord> {
+        self.remotes.iter().filter(|remote| remote.enabled)
+    }
+
     pub fn enabled_tor_remotes(&self) -> impl Iterator<Item = &RemoteRecord> {
         self.remotes
             .iter()

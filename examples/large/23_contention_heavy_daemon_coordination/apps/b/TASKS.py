@@ -3,11 +3,13 @@
 # Scenario: contention heavy daemon coordination
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
     task(
       "ui",
       needs=[need("ui_lock", 1, scope=Scope.Machine)],
-      steps=[cmd("sh", "-c", "mkdir -p out && echo app-b-ui >> out/contention.log")]
+      outputs=[path("//out/app-b-ui.txt")],
+      steps=[cmd("sh", "-c", "mkdir -p out && echo app-b-ui > out/app-b-ui.txt", cwd="//")]
     )
   ]
 )

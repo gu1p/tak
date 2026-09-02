@@ -1,10 +1,9 @@
-use std::path::PathBuf;
 use std::time::Duration;
 
 use super::{
     DEFAULT_CONTAINER_CPU_CORES, DEFAULT_CONTAINER_MEMORY_MB, DEFAULT_REMOTE_CLEANUP_INTERVAL_MS,
-    DEFAULT_REMOTE_CLEANUP_TTL_MS, DEFAULT_REMOTE_CLIENT_STALE_TTL_MS,
-    DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS, MemoryPressureSettings, RemoteRuntimeConfig,
+    DEFAULT_REMOTE_CLEANUP_TTL_MS, DEFAULT_WORKER_CACHE_BUDGET_BYTES, MemoryPressureSettings,
+    RemoteRuntimeConfig,
 };
 
 impl RemoteRuntimeConfig {
@@ -13,17 +12,10 @@ impl RemoteRuntimeConfig {
             explicit_remote_exec_root: None,
             temp_dir: std::env::temp_dir(),
             docker_host: Some("unix:///nonexistent/takd-tests-isolated-docker.sock".to_string()),
-            podman_socket: None,
-            runtime_dir: None,
-            uid: None,
             use_temp_dir_default_exec_root: true,
-            skip_exec_root_probe: false,
             remote_cleanup_ttl: Duration::from_millis(DEFAULT_REMOTE_CLEANUP_TTL_MS),
             remote_cleanup_interval: Duration::from_millis(DEFAULT_REMOTE_CLEANUP_INTERVAL_MS),
-            remote_client_stale_ttl: Duration::from_millis(DEFAULT_REMOTE_CLIENT_STALE_TTL_MS),
-            remote_client_watchdog_interval: Duration::from_millis(
-                DEFAULT_REMOTE_CLIENT_WATCHDOG_INTERVAL_MS,
-            ),
+            worker_cache_budget_bytes: DEFAULT_WORKER_CACHE_BUDGET_BYTES,
             memory_pressure: MemoryPressureSettings::defaults(),
             admission_oversubscribe_x: 1,
             default_container_cpu_cores: DEFAULT_CONTAINER_CPU_CORES,
@@ -35,13 +27,6 @@ impl RemoteRuntimeConfig {
             host_baseline_sample_duration: Duration::ZERO,
             ignore_host_usage_for_tests: true,
             test_memory_signal_path: None,
-        }
-    }
-
-    pub(crate) fn isolated_with_temp_dir_for_test(temp_dir: impl Into<PathBuf>) -> Self {
-        Self {
-            temp_dir: temp_dir.into(),
-            ..Self::isolated_for_test()
         }
     }
 }

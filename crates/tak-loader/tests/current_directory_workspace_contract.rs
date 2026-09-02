@@ -33,13 +33,13 @@ fn workspace_load_requires_tasks_file_in_current_directory() {
 }
 
 fn root_tasks() -> &'static str {
-    r#"SPEC = module_spec(tasks=[task("root_task", steps=[cmd("echo", "root")])])
+    r#"SPEC = module_spec(spec_version=2, tasks=[task("root_task", steps=[cmd("echo", "root")])])
 SPEC
 "#
 }
 
 fn child_tasks() -> &'static str {
-    r#"SPEC = module_spec(tasks=[task("hello", steps=[cmd("echo", "hello")])])
+    r#"SPEC = module_spec(spec_version=2, tasks=[task("hello", steps=[cmd("echo", "hello")])])
 SPEC
 "#
 }

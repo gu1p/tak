@@ -1,39 +1,32 @@
 use std::io::{Write, stdout};
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use crossterm::cursor;
 use crossterm::execute;
 use crossterm::terminal::EnterAlternateScreen;
-use futures::StreamExt;
-use futures::stream::FuturesUnordered;
 use ratatui::Terminal;
 use ratatui::backend::{Backend, CrosstermBackend};
-use tokio::time::sleep;
 
 #[path = "live_interrupt.rs"]
 mod interrupt;
 #[path = "live_terminal.rs"]
 mod terminal_cleanup;
 
-use super::fetch::fetch_remote_status_result;
+use super::fetch::fetch_snapshot;
 use super::render::render_dashboard;
 use super::view::RemoteStatusView;
-use super::{RemoteRecord, RemoteStatusResult};
+use super::{RemoteStatusResult, fail_on_remote_errors};
 use interrupt::{InterruptListener, PollOutcome, interruptible, wait_for_next_poll};
 use terminal_cleanup::{TerminalCleanup, finish_terminal};
 
 pub(super) async fn run_remote_status_dashboard(
-    remotes: &[RemoteRecord],
+    node_filters: &[String],
     watch: bool,
     poll_interval: Duration,
     max_polls: Option<usize>,
 ) -> Result<()> {
-    let mut interrupt = if watch {
-        Some(InterruptListener::new()?)
-    } else {
-        None
-    };
+    let mut interrupt = watch.then(InterruptListener::new).transpose()?;
     let mut out = stdout();
     let mut cleanup = if watch {
         execute!(out, EnterAlternateScreen, cursor::Hide)?;
@@ -44,49 +37,32 @@ pub(super) async fn run_remote_status_dashboard(
     let backend = CrosstermBackend::new(out);
     let mut terminal = Terminal::new(backend).context("create remote status terminal")?;
     terminal.clear().context("clear remote status terminal")?;
-    let color_enabled = color_enabled();
+    let color_enabled = std::env::var_os("NO_COLOR").is_none();
     let mut polls = 0_usize;
 
     loop {
+        let poll = fetch_dashboard_poll(
+            node_filters,
+            polls.saturating_add(1),
+            watch,
+            &mut terminal,
+            color_enabled,
+        );
         let snapshot = if let Some(interrupt) = interrupt.as_mut() {
-            match interruptible(
-                interrupt,
-                fetch_dashboard_poll(
-                    remotes,
-                    polls.saturating_add(1),
-                    watch,
-                    &mut terminal,
-                    color_enabled,
-                ),
-            )
-            .await?
-            {
+            match interruptible(interrupt, poll).await? {
                 PollOutcome::Completed(snapshot) => snapshot,
                 PollOutcome::Interrupted => return finish_terminal(terminal, cleanup.take()),
             }
         } else {
-            fetch_dashboard_poll(
-                remotes,
-                polls.saturating_add(1),
-                watch,
-                &mut terminal,
-                color_enabled,
-            )
-            .await?
+            poll.await?
         };
 
         polls = polls.saturating_add(1);
         if !watch {
-            if snapshot.iter().any(|result| result.error.is_some()) {
-                // The one-shot dashboard leaves the cursor on its final frame
-                // line. Break to a fresh line before the top-level error report
-                // (written to stderr by `main`) so it no longer smushes onto the
-                // last cell — e.g. "...takd serve" + "Error:" => "serveError:".
-                let mut out = stdout();
-                let _ = out.write_all(b"\n");
-                let _ = out.flush();
-                bail!("failed to query one or more remote nodes");
+            if fail_on_remote_errors(&snapshot).is_err() {
+                let _ = stdout().write_all(b"\n");
             }
+            fail_on_remote_errors(&snapshot)?;
             return Ok(());
         }
         if max_polls.is_some_and(|limit| polls >= limit) {
@@ -106,7 +82,7 @@ pub(super) async fn run_remote_status_dashboard(
 }
 
 async fn fetch_dashboard_poll<B: Backend>(
-    remotes: &[RemoteRecord],
+    node_filters: &[String],
     poll_index: usize,
     watch: bool,
     terminal: &mut Terminal<B>,
@@ -115,29 +91,18 @@ async fn fetch_dashboard_poll<B: Backend>(
 where
     B::Error: std::error::Error + Send + Sync + 'static,
 {
-    let mut view = RemoteStatusView::checking(remotes, poll_index, watch);
+    let empty = RemoteStatusView::checking(&[], poll_index, watch);
+    draw_dashboard(terminal, &empty, color_enabled)?;
+    let snapshot = fetch_snapshot(node_filters).await?;
+    let remotes = snapshot
+        .iter()
+        .map(|result| result.remote.clone())
+        .collect::<Vec<_>>();
+    let mut view = RemoteStatusView::checking(&remotes, poll_index, watch);
+    for result in snapshot {
+        view.mark_complete(result);
+    }
     draw_dashboard(terminal, &view, color_enabled)?;
-
-    let mut pending = FuturesUnordered::new();
-    for remote in remotes.iter().cloned() {
-        pending.push(fetch_remote_status_result(remote));
-    }
-
-    while !pending.is_empty() {
-        tokio::select! {
-            maybe_result = pending.next() => {
-                if let Some(result) = maybe_result {
-                    view.mark_complete(result);
-                    draw_dashboard(terminal, &view, color_enabled)?;
-                }
-            }
-            _ = sleep(Duration::from_millis(120)) => {
-                view.advance();
-                draw_dashboard(terminal, &view, color_enabled)?;
-            }
-        }
-    }
-
     Ok(view.completed_results())
 }
 
@@ -154,11 +119,3 @@ where
         .context("draw remote status dashboard")?;
     Ok(())
 }
-
-fn color_enabled() -> bool {
-    std::env::var_os("NO_COLOR").is_none()
-}
-
-#[cfg(test)]
-#[path = "live_tests.rs"]
-mod live_tests;

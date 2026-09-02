@@ -1,69 +1,17 @@
 macro_rules! test_module {
     ($name:ident) => {
         mod $name {
-            include!(concat!(stringify!($name), ".rs"));
+            include!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/",
+                stringify!($name),
+                ".rs"
+            ));
         }
     };
 }
 
-test_module!(v2_attempt_cancellation_behavior);
-test_module!(v2_attempt_coordinator_behavior);
-test_module!(v2_attempt_coordinator_failure_contract);
-test_module!(v2_attempt_coordinator_missing_contract);
-test_module!(v2_attempt_outbox_recovery_behavior);
-test_module!(v2_local_attempt_restart_behavior);
-test_module!(v2_local_attempt_restart_cancellation_behavior);
-test_module!(v2_local_attempt_wrapper_cli_contract);
-test_module!(v2_local_declared_output_behavior);
-test_module!(v2_local_dependency_output_conflict_behavior);
-test_module!(v2_local_final_output_conflict_behavior);
-test_module!(v2_output_blob_integrity_behavior);
-test_module!(v2_output_committing_transition_contract);
-test_module!(v2_local_shared_workspace_behavior);
-test_module!(v2_run_store_active_migration_contract);
-test_module!(v2_run_store_archive_contract);
-test_module!(v2_run_store_blob_recovery_contract);
-test_module!(v2_run_store_cancel_migration_contract);
-test_module!(v2_run_store_cancellation_contract);
-test_module!(v2_run_store_contract);
-test_module!(v2_run_store_corrupt_resume_contract);
-test_module!(v2_run_store_event_paging_contract);
-test_module!(v2_run_store_idempotency_contract);
-test_module!(v2_run_store_output_event_contract);
-test_module!(v2_run_store_output_schema_contract);
-test_module!(v2_run_store_rate_bucket_migration_contract);
-test_module!(v2_run_store_resume_repair_contract);
-test_module!(v2_run_store_schema_migration_contract);
-test_module!(v2_scheduler_affinity_behavior);
-test_module!(v2_scheduler_affinity_group_behavior);
-test_module!(v2_scheduler_affinity_migration_conflict_contract);
-test_module!(v2_scheduler_affinity_migration_contract);
-test_module!(v2_scheduler_atomic_reservation_contract);
-test_module!(v2_scheduler_backoff_contract);
-test_module!(v2_scheduler_balanced_behavior);
-test_module!(v2_scheduler_cancellation_contract);
-test_module!(v2_scheduler_constraint_cancellation_behavior);
-test_module!(v2_scheduler_definition_conflict_behavior);
-test_module!(v2_scheduler_definition_scope_conflict_behavior);
-test_module!(v2_scheduler_fairness_behavior);
-test_module!(v2_scheduler_fencing_contract);
-test_module!(v2_scheduler_limiter_behavior);
-test_module!(v2_scheduler_limiter_kinds_behavior);
-test_module!(v2_scheduler_node_loss_behavior);
-test_module!(v2_scheduler_node_loss_retry_behavior);
-test_module!(v2_scheduler_queue_behavior);
-test_module!(v2_scheduler_rate_atomic_behavior);
-test_module!(v2_scheduler_rate_rollback_contract);
-test_module!(v2_scheduler_readiness_contract);
-test_module!(v2_scheduler_ready_age_contract);
-test_module!(v2_scheduler_retry_contract);
-test_module!(v2_scheduler_round_robin_behavior);
-test_module!(v2_scheduler_scope_behavior);
-test_module!(v2_scheduler_scope_key_behavior);
-test_module!(v2_scheduler_shared_workspace_behavior);
-test_module!(v2_scheduler_soft_affinity_behavior);
-test_module!(v2_scheduler_soft_node_loss_behavior);
-test_module!(v2_scheduler_worktree_queue_conflict_behavior);
-test_module!(v2_scheduler_worktree_scope_behavior);
-test_module!(v2_server_fused_output_attribution_behavior);
-test_module!(v2_server_local_execution_behavior);
+include!("v2_contracts/attempt_modules.rs");
+include!("v2_contracts/worker_modules.rs");
+include!("v2_contracts/run_store_modules.rs");
+include!("v2_contracts/scheduling.rs");

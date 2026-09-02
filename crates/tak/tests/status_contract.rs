@@ -1,86 +1,74 @@
+#![cfg(unix)]
+
+use std::process::Command;
+
 use crate::support;
-
-use std::process::Command as StdCommand;
-use support::remote_status::{spawn_status_server, write_inventory};
+use support::remote_daemon_v2::{FakeRemoteDaemon, remote};
 
 #[test]
-fn status_reports_local_and_remote_sections_without_configured_remotes() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
-
-    let output = StdCommand::new(support::tak_bin())
-        .arg("status")
-        .env("XDG_CONFIG_HOME", &config_root)
-        .env("XDG_STATE_HOME", &state_root)
-        .env("TAKD_SOCKET", temp.path().join("missing-takd.sock"))
-        .output()
-        .expect("run tak status");
-
-    assert!(
-        output.status.success(),
-        "tak status should succeed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+fn status_preserves_local_and_remote_sections_with_v2_remote_status() {
+    let root = tempfile::tempdir().expect("temp root");
+    let daemon = FakeRemoteDaemon::spawn(
+        root.path(),
+        vec![
+            serde_json::json!({
+                "type": "DaemonStatus",
+                "status": {"active_leases": 0, "pending_requests": 0, "limiter_count": 0}
+            }),
+            serde_json::json!({
+                "type": "RemoteStatus",
+                "remotes": [{
+                    "remote": remote("builder-a"),
+                    "snapshot": {"protocol_version": 2, "node_id": "builder-a", "healthy": true,
+                        "sampled_at_ms": 1, "capacity": {"cpu_millis": 8000, "memory_bytes": 16000,
+                        "execution_slots": 8}, "usage": {"cpu_millis": 1000, "memory_bytes": 4000,
+                        "execution_slots": 2}, "queue_depth": 1, "cached_content": [], "processes": []},
+                    "detail_base64": null, "error": null, "peer": null
+                }]
+            }),
+        ],
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Local"), "missing local section:\n{stdout}");
-    assert!(
-        stdout.contains("Remote Nodes"),
-        "missing remote section:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("daemon=unavailable"),
-        "missing local daemon warning:\n{stdout}"
-    );
-}
 
-#[test]
-fn status_prefixes_all_remote_sections_when_remotes_are_configured() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
-    let (base_url, server) = spawn_status_server(true);
-    write_inventory(&config_root, "builder-a", &base_url);
-
-    let output = StdCommand::new(support::tak_bin())
+    let output = Command::new(support::tak_bin())
         .args(["status", "--node", "builder-a"])
-        .env("XDG_CONFIG_HOME", &config_root)
-        .env("XDG_STATE_HOME", &state_root)
-        .env("TAKD_SOCKET", temp.path().join("missing-takd.sock"))
+        .env("TAKD_SOCKET", daemon.socket())
+        .env("XDG_STATE_HOME", root.path().join("state"))
         .output()
         .expect("run tak status");
 
     assert!(
         output.status.success(),
-        "tak status should succeed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
+        "{}",
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(line_count(&stdout, "Containers"), 1, "stdout:\n{stdout}");
-    assert_eq!(line_count(&stdout, "Active Jobs"), 1, "stdout:\n{stdout}");
-    assert_eq!(line_count(&stdout, "Remote Nodes"), 1, "stdout:\n{stdout}");
-    assert_eq!(
-        line_count(&stdout, "Remote Containers"),
-        1,
-        "stdout:\n{stdout}"
-    );
-    assert_eq!(
-        line_count(&stdout, "Remote Active Jobs"),
-        1,
-        "stdout:\n{stdout}"
+    assert!(
+        stdout.contains("Local") && stdout.contains("Remote Nodes"),
+        "{stdout}"
     );
     assert!(
-        stdout.contains("//apps/web:build"),
-        "missing remote active job:\n{stdout}"
+        stdout.contains("builder-a transport=tor state=ready"),
+        "{stdout}"
     );
-    server.join().expect("status server should exit");
+    let requests = daemon.finish();
+    assert_eq!(requests[0]["protocol_version"], 2);
+    assert_eq!(requests[0]["operation"]["type"], "GetDaemonStatus");
+    assert_eq!(requests[1]["operation"]["type"], "GetRemoteStatus");
+    assert_eq!(
+        requests[1]["operation"]["node_ids"],
+        serde_json::json!(["builder-a"])
+    );
 }
 
-fn line_count(output: &str, line: &str) -> usize {
-    output
-        .lines()
-        .filter(|candidate| *candidate == line)
-        .count()
+#[test]
+fn status_requires_local_daemon_for_remote_status_without_inventory_fallback() {
+    let root = tempfile::tempdir().expect("temp root");
+    let output = Command::new(support::tak_bin())
+        .arg("status")
+        .env("TAKD_SOCKET", root.path().join("missing.sock"))
+        .env("XDG_STATE_HOME", root.path().join("state"))
+        .output()
+        .expect("run tak status");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("start `takd serve`"));
 }

@@ -2,6 +2,7 @@
 
 #![cfg(unix)]
 
+use crate::support::make_runtime::start_local_daemon;
 use crate::support::run_tak_output;
 
 use std::collections::BTreeMap;
@@ -25,14 +26,19 @@ fast:
 	@exit 42
 survivor:
 	@sleep 0.20
+	@printf 'survivor-finished\n'
 	@touch survivor.done
 "#,
     )?;
 
-    let output = run_tak_output(workspace.path(), &["make", "all"], &BTreeMap::new())?;
+    let mut environment = BTreeMap::new();
+    let _daemon = start_local_daemon(workspace.path(), &mut environment);
+    let output = run_tak_output(workspace.path(), &["make", "all"], &environment)?;
 
     assert_eq!(output.status.code(), Some(23));
-    assert!(workspace.path().join("survivor.done").exists());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("[survivor] survivor-finished"), "{stdout}");
+    assert!(!workspace.path().join("survivor.done").exists());
     assert!(!workspace.path().join("parent-ran").exists());
     Ok(())
 }

@@ -70,11 +70,11 @@ fn render_preflight_title(
 
 fn render_preflight_summary(timed_out: bool, unhealthy_only: bool) -> &'static str {
     if timed_out {
-        "Tak could not get /v1/node/info from any candidate remote before the preflight timeout."
+        "Tak could not obtain protocol-v2 worker status from any candidate before the preflight timeout."
     } else if unhealthy_only {
         "Tak reached the remote node info endpoint, but every candidate reported a non-ready transport state."
     } else {
-        "Tak could not complete /v1/node/info preflight against any candidate remote."
+        "Tak could not complete protocol-v2 worker preflight against any candidate remote."
     }
 }
 
@@ -144,7 +144,9 @@ fn render_next_checks(timed_out: bool, unhealthy_only: bool) -> Vec<Line<'static
     } else {
         lines.extend([
             Line::from("  remote host: takd logs --lines 100"),
-            Line::from("  verify bearer_token, base_url, and remote node version compatibility"),
+            Line::from(
+                "  verify remote identity metadata and coordinated tak/takd/worker versions",
+            ),
         ]);
     }
     lines

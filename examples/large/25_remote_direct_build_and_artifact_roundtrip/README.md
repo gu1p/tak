@@ -19,9 +19,14 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
     tasks=[
         task(
             "build_remote",
+            outputs=[
+                path("//out/remote-build-artifact.txt"),
+                path("//out/remote-build.log"),
+            ],
             steps=[
                 cmd(
                     "sh",
@@ -29,6 +34,7 @@ SPEC = module_spec(
                     "mkdir -p out && "
                     "echo artifact-from-remote-build > out/remote-build-artifact.txt && "
                     "echo remote-build-ok > out/remote-build.log",
+                    cwd="//",
                 )
             ],
             execution=REMOTE,
@@ -36,12 +42,14 @@ SPEC = module_spec(
         task(
             "verify_artifact",
             deps=[":build_remote"],
+            outputs=[path("//out/local-verify.log")],
             steps=[
                 cmd(
                     "sh",
                     "-c",
                     "grep -q artifact-from-remote-build out/remote-build-artifact.txt && "
                     "echo verify-local-ok > out/local-verify.log",
+                    cwd="//",
                 )
             ],
         ),
@@ -55,7 +63,7 @@ SPEC
 | Parameter | Current value | Alternatives | Behavior impact |
 |---|---|---|---|
 | execution mode | `REMOTE` | `Execution.Local(...)`, `Execution.Decide(...)` | Force remote, force local, or pick dynamically with policy logic. |
-| remote transport | direct client-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
+| remote transport | direct daemon-managed agent | Tor onion transport configuration | Switches between standard TCP and onion-routed agents. |
 | remote container | `Container.Image("alpine:3.20", resources=Container.Resources(...))` | `Container.Dockerfile(..., resources=Container.Resources(...))` | Remote execution is always containerized; choose the image or Dockerfile and declare its resource reservations. |
 
 ## Runbook

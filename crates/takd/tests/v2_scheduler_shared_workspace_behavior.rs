@@ -3,6 +3,9 @@ use takd::{AttemptCompletion, RunStore, SchedulerNode};
 
 use crate::support::v2_run::scheduler::{commit, independent_jobs};
 
+#[path = "v2_scheduler_shared_workspace_behavior/context.rs"]
+mod context;
+
 #[test]
 fn shared_workspace_cap_and_home_survive_restart_until_release() {
     std::fs::create_dir_all(".tmp").unwrap();

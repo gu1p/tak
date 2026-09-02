@@ -20,6 +20,7 @@ CARGO_SESSION = session(
 )
 
 SPEC = module_spec(
+    spec_version=2,
     project_id="example_large_30",
     tasks=[
         task(

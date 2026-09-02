@@ -21,6 +21,18 @@ pub(super) fn non_tak_memory_bytes(host_used_bytes: u64, tak_memory_bytes: u64) 
     host_used_bytes.saturating_sub(tak_memory_bytes)
 }
 
+pub(super) fn effective_available_memory(
+    total_bytes: u64,
+    used_bytes: u64,
+    reported_available_bytes: u64,
+) -> u64 {
+    if reported_available_bytes == 0 {
+        total_bytes.saturating_sub(used_bytes)
+    } else {
+        reported_available_bytes
+    }
+}
+
 pub(super) fn memory_admission_available(
     total_bytes: u64,
     non_tak_used_bytes: u64,

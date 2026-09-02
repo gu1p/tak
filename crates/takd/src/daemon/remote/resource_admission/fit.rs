@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use super::super::resource_envelope::{ElasticAdmissionClaim, ElasticClaimPolicy};
@@ -11,19 +10,6 @@ use capacity::{effective_capacity, zero};
 use claims::claim_summary;
 
 const BYTES_PER_MB: u64 = 1024 * 1024;
-
-pub(super) fn promote_queued(state: &mut ResourceAdmissionState) -> bool {
-    let Some(next) = state.queue.front().cloned() else {
-        return false;
-    };
-    if can_fit(state, &next)
-        && let Some(next) = state.queue.pop_front()
-    {
-        reserve(state, next);
-        return true;
-    }
-    false
-}
 
 pub(super) fn reserve(state: &mut ResourceAdmissionState, request: ResourceRequest) {
     state
@@ -43,6 +29,7 @@ pub(super) fn can_fit(state: &ResourceAdmissionState, request: &ResourceRequest)
         return false;
     }
     let used = claim_summary(state).total;
+    let used_slots = execution_used(state);
     let requested = request_claim(
         request,
         state.capacity,
@@ -56,7 +43,9 @@ pub(super) fn can_fit(state: &ResourceAdmissionState, request: &ResourceRequest)
     let available_memory = memory_budget
         .saturating_sub(used.memory_mb)
         .min(host_usage.available_memory_mb);
-    requested.cpu_cores <= available_cpu && requested.memory_mb <= available_memory
+    requested.cpu_cores <= available_cpu
+        && requested.memory_mb <= available_memory
+        && used_slots.saturating_add(request.execution_slots.get()) <= state.execution_capacity
 }
 
 pub(super) fn admission_snapshot(state: &ResourceAdmissionState) -> ResourceAdmissionSnapshot {
@@ -83,8 +72,11 @@ pub(super) fn admission_snapshot(state: &ResourceAdmissionState) -> ResourceAdmi
         reserved: claims.reserved,
         pending_startup: claims.pending_startup,
         actual: claims.actual,
+        claimed: claims.total,
         admittable,
         host_usage,
+        execution_capacity: state.execution_capacity,
+        execution_used: execution_used(state),
     }
 }
 
@@ -106,29 +98,20 @@ pub(super) fn request_claim(
     }
 }
 
-pub(super) fn fits_total_capacity(capacity: &ResourceCapacity, request: &ResourceRequest) -> bool {
+pub(super) fn fits_total_capacity(
+    state: &ResourceAdmissionState,
+    request: &ResourceRequest,
+) -> bool {
     !authored(request)
-        || (request.resource_limits.cpu_cores.unwrap_or(0.0) <= capacity.cpu_cores
-            && request.resource_limits.memory_mb.unwrap_or(0) <= capacity.memory_mb)
+        || (request.resource_limits.cpu_cores.unwrap_or(0.0) <= state.capacity.cpu_cores
+            && request.resource_limits.memory_mb.unwrap_or(0) <= state.capacity.memory_mb
+            && request.execution_slots.get() <= state.execution_capacity)
 }
 
-pub(super) fn rejection_reason(capacity: &ResourceCapacity, request: &ResourceRequest) -> String {
-    let requested_cpu = request.resource_limits.cpu_cores.unwrap_or(0.0);
-    let requested_memory = request.resource_limits.memory_mb.unwrap_or(0);
-    format!(
-        "requested cpu={requested_cpu:.2}, memory={requested_memory} MB exceeds worker capacity cpu={:.2}, memory={} MB",
-        capacity.cpu_cores, capacity.memory_mb
-    )
-}
-
-pub(super) fn queue_position(
-    queue: &VecDeque<ResourceRequest>,
-    idempotency_key: &str,
-) -> Option<usize> {
-    queue
-        .iter()
-        .position(|request| request.idempotency_key == idempotency_key)
-        .map(|index| index + 1)
+fn execution_used(state: &ResourceAdmissionState) -> u32 {
+    state.reservations.values().fold(0, |used, request| {
+        used.saturating_add(request.execution_slots.get())
+    })
 }
 
 pub(super) fn authored(request: &ResourceRequest) -> bool {

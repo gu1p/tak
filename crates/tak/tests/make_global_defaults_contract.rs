@@ -3,10 +3,11 @@
 #![cfg(unix)]
 
 use crate::support::direct_remote_runtime::{client_env, start_direct_agent};
-use crate::support::make_runtime::install_fake_make;
+use crate::support::make_runtime::{install_fake_make, start_local_daemon};
 use crate::support::run_tak_output;
 
 use std::fs;
+use std::path::Path;
 
 use anyhow::Result;
 
@@ -16,7 +17,7 @@ fn global_defaults_apply_and_goal_annotations_override_them() -> Result<()> {
     let workspace = temp.path().join("workspace");
     fs::create_dir_all(&workspace)?;
     install_fake_make(
-        temp.path(),
+        &workspace,
         r#"#!/bin/sh
 printf 'goal=%s\nruntime=%s\nimage=%s\n' \
   "$1" "$TAK_REMOTE_RUNTIME" "$TAK_REMOTE_CONTAINER_IMAGE"
@@ -32,8 +33,24 @@ printf 'goal=%s\nruntime=%s\nimage=%s\n' \
          \t@exit 91\n",
     )?;
 
-    let _agent = start_direct_agent(temp.path(), &workspace, "make-global-defaults");
-    let output = run_tak_output(&workspace, &["make", "check"], &client_env(temp.path()))?;
+    let mut environment = client_env(temp.path());
+    environment.insert("PATH".into(), "bin:/usr/bin:/bin".into());
+    let _daemon = start_local_daemon(&workspace, &mut environment);
+    let daemon_socket = environment
+        .get("TAKD_SOCKET")
+        .expect("local daemon socket")
+        .clone();
+    let _agent = start_direct_agent(
+        temp.path(),
+        &workspace,
+        "make-global-defaults",
+        Path::new(&daemon_socket),
+    );
+    let output = run_tak_output(
+        &workspace,
+        &["make", "check", "--pass-env", "PATH"],
+        &environment,
+    )?;
 
     assert!(
         output.status.success(),

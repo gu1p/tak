@@ -18,8 +18,16 @@ pub(super) fn selected_tasks<'a>(
     let mut visited = BTreeSet::new();
     let mut visiting = BTreeSet::new();
     for label in labels {
+        let trimmed = label.trim();
+        if crate::cli::workspace_helpers::looks_like_path_input(trimmed) {
+            let available = known.keys().take(8).cloned().collect::<Vec<_>>();
+            bail!(
+                "`{trimmed}` is not a valid task label.\n\n{}",
+                crate::cli::workspace_helpers::label_guidance_for("run", &available)
+            );
+        }
         visit(
-            &canonical(label)?,
+            &canonical(trimmed)?,
             &known,
             &mut visiting,
             &mut visited,
@@ -55,12 +63,11 @@ fn visit<'a>(
 }
 
 pub(super) fn canonical(value: &str) -> Result<String> {
-    let name = value
-        .strip_prefix("//:")
-        .or_else(|| value.strip_prefix(':'))
-        .unwrap_or(value);
-    if name.is_empty() || name.contains('/') || name.contains(':') {
-        bail!("v2 root task label is invalid: {value}");
-    }
-    Ok(format!("//:{name}"))
+    let label = tak_core::label::parse_label(value, "//")
+        .map_err(|error| anyhow!("invalid v2 task label `{value}`: {error}"))?;
+    Ok(if label.package == "//" {
+        format!("//:{}", label.name)
+    } else {
+        format!("{}:{}", label.package, label.name)
+    })
 }

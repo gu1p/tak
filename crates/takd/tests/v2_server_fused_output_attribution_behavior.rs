@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use base64::Engine;
-use tak_core::v2::{RunSubmission, Step};
+use tak_core::v2::{RunSubmission, Session, SessionReuse, Step};
 use tak_proto::local_daemon::v2::{RunEventKind, RunLifecycleState};
 use takd::RunStore;
 
@@ -10,12 +10,9 @@ use crate::support::{protocol_server::spawn_protocol_server, v2_run};
 
 #[tokio::test]
 async fn fused_local_job_attributes_each_output_chunk_to_its_task() {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let db = temp.path().join("takd.sqlite");
-    let socket = std::path::PathBuf::from(".tmp")
-        .join(temp.path().file_name().unwrap())
-        .join("d.sock");
+    let socket = temp.path().join("d.sock");
     let server = spawn_protocol_server(db.clone(), socket.clone());
     wait_for(|| socket.exists()).await;
     let store = RunStore::with_db_path(db).unwrap();
@@ -30,6 +27,8 @@ async fn fused_local_job_attributes_each_output_chunk_to_its_task() {
     request.run.targets = vec![second.task_id.clone()];
     request.run.tasks = vec![first, second];
     request.run.jobs[0].task_ids = vec!["//:first".into(), "//:second".into()];
+    request.run.jobs[0].session =
+        Some(Session::new("fused", SessionReuse::Container, None).unwrap());
     let request = RunSubmission::new(
         request.idempotency_key,
         request.run,

@@ -3,6 +3,7 @@
 # Scenario: resource cpu ram pool
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_medium_12",
   limiters=[
     resource("cpu", 8, unit="slots", scope=Scope.Machine),
@@ -12,6 +13,7 @@ SPEC = module_spec(
     task(
       "heavy",
       needs=[need("cpu", 2, scope=Scope.Machine), need("ram_gib", 4, scope=Scope.Machine)],
+      outputs=[path("out/resources.txt")],
       steps=[cmd("sh", "-c", "mkdir -p out && echo heavy > out/resources.txt")]
     )
   ]

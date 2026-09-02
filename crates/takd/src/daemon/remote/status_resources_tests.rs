@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use super::{cpu_admission_available, host_cpu_cores_used, non_tak_cpu_cores};
+use super::{
+    cpu_admission_available, effective_available_memory, host_cpu_cores_used, non_tak_cpu_cores,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct MemoryAdmissionSnapshot {
@@ -71,4 +73,19 @@ fn actual_tak_usage_overrides_lower_reservation_totals() {
     });
 
     assert_eq!(available, 2 * 1024 * mib);
+}
+
+#[test]
+fn available_memory_falls_back_to_total_minus_used_when_sysinfo_reports_zero() {
+    assert_eq!(effective_available_memory(100, 40, 0), 60);
+}
+
+#[test]
+fn available_memory_preserves_a_nonzero_reported_value() {
+    assert_eq!(effective_available_memory(100, 40, 10), 10);
+}
+
+#[test]
+fn available_memory_fallback_saturates_when_used_exceeds_total() {
+    assert_eq!(effective_available_memory(40, 100, 0), 0);
 }

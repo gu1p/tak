@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 
 use crate::daemon::remote::runtime::RemoteRuntimeConfig;
+use crate::daemon::remote::status_resources::effective_available_memory;
 
 pub(super) trait MemorySignal: Send + Sync {
     fn read(&self) -> (u64, u64);
@@ -59,6 +60,9 @@ impl MemorySignal for SysinfoMemorySignal {
             return (0, 0);
         };
         system.refresh_memory();
-        (system.available_memory(), system.total_memory())
+        let total = system.total_memory();
+        let available =
+            effective_available_memory(total, system.used_memory(), system.available_memory());
+        (available, total)
     }
 }

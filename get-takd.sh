@@ -408,6 +408,7 @@ main() {
   download_asset "$archive_url" "$archive_path" || err "failed to download release artifact ${archive_name}"
   tar -xzf "$archive_path" -C "$temp_dir"
   [[ -f "$temp_dir/takd" ]] || err "archive missing takd binary"
+  "$temp_dir/takd" update --legacy-drain-check --state-root "$(agent_state_path)"
 
   mkdir -p "$TAKD_INSTALL_DIR"
   takd_bin="$TAKD_INSTALL_DIR/takd"

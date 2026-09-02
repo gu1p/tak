@@ -57,6 +57,7 @@ pub enum LimiterDefinition {
         scope: DefinitionScope,
         scope_key: Option<String>,
         max_processes: NonZeroU32,
+        match_pattern: Option<String>,
         hold: HoldMode,
     },
     Resource {
@@ -64,6 +65,7 @@ pub enum LimiterDefinition {
         scope: DefinitionScope,
         scope_key: Option<String>,
         capacity_millis: NonZeroU64,
+        unit: Option<String>,
         hold: HoldMode,
     },
 }

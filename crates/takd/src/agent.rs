@@ -144,7 +144,7 @@ pub fn persist_ready_base_url(
         encode_tor_invite_with_bearer(base_url, &config.bearer_token)?
     } else {
         encode_remote_token(&RemoteTokenPayload {
-            version: "v1".to_string(),
+            version: "v2".to_string(),
             node: Some(node_info(&config, base_url)),
             bearer_token: config.bearer_token.clone(),
         })?

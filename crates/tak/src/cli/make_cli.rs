@@ -7,6 +7,9 @@ use super::command_model::MakeArgs;
 
 mod executor;
 mod output;
+mod resolved;
+#[cfg(test)]
+mod resolved_tests;
 mod task;
 
 use executor::TakGoalExecutor;

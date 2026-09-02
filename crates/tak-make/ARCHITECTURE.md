@@ -16,7 +16,8 @@ The crate separates pure Make-domain decisions from effects:
    parallel execution plan.
 3. Ports (`MakefileReader` and `GoalExecutor`) own filesystem and process/runtime effects.
 4. The filesystem adapter implements default Makefile lookup.
-5. The `tak` CLI supplies the outer `GoalExecutor` adapter that lowers the request into `tak-exec`.
+5. The `tak` CLI supplies the outer adapter that lowers the plan into a protocol-v2 run submission
+   for local `takd`.
 
 Tests inject an in-memory reader and recording executor, so annotation behavior does not require a
 filesystem, Make binary, container engine, or remote agent.
@@ -71,5 +72,11 @@ Without `parallel`, the executor receives `argv = ["make", goal]` and preserves 
 behavior. With `parallel`, the parser emits a recursive DAG in stable left-to-right order. Leaf nodes
 run `make child`; join nodes run `make --assume-old=child ... aggregate` after their promoted children
 finish. Every promoted target must be literal, direct, unique, and phony. Dynamic prerequisites,
-cycles, and conflicting inherited settings fail before execution. The graph declares no Tak output
-paths; remote stdout/stderr and exit status return, but remote-generated files do not.
+cycles, and conflicting inherited settings fail before execution. The CLI lowers the plan into one
+hard-affined `SharedWorkspace`, so a dependent promoted goal observes files written by successful
+prerequisites. The selected root task declares the shared workspace with a `**` output. After the
+daemon commits that output, the client safely materializes it with the standard checkout-conflict
+preflight; the complete artifact remains retrievable if local files changed.
+
+The Make adapter never launches the resulting commands itself. `tak make` requires local `takd`
+for local and remote placement and has no client executor fallback.

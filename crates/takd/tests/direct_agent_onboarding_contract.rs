@@ -1,25 +1,22 @@
 use crate::support;
 
 use std::fs;
-use std::process::{Command as StdCommand, Stdio};
+use std::process::Stdio;
 
-use support::cli::{roots, takd_bin};
+use support::{
+    cli::{roots, takd_bin},
+    daemon_command_paths::DaemonCommandPaths,
+};
 
 #[test]
 fn direct_init_requires_base_url() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = roots(temp.path());
+    let paths = DaemonCommandPaths::new(&config_root, &state_root);
 
-    let init = StdCommand::new(takd_bin())
-        .args([
-            "init",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-            "--transport",
-            "direct",
-        ])
+    let init = paths
+        .rooted_command(&takd_bin(), "init")
+        .args(["--transport", "direct"])
         .output()
         .expect("run takd init");
 
@@ -31,14 +28,11 @@ fn direct_init_requires_base_url() {
 fn direct_serve_persists_token_for_remote_add_onboarding() {
     let temp = tempfile::tempdir().expect("tempdir");
     let (config_root, state_root) = roots(temp.path());
+    let paths = DaemonCommandPaths::new(&config_root, &state_root);
 
-    let init = StdCommand::new(takd_bin())
+    let init = paths
+        .rooted_command(&takd_bin(), "init")
         .args([
-            "init",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
             "--transport",
             "direct",
             "--base-url",
@@ -56,29 +50,18 @@ fn direct_serve_persists_token_for_remote_add_onboarding() {
         .expect("run takd init");
     assert!(init.status.success(), "takd init should succeed");
 
-    let mut child = StdCommand::new(takd_bin())
-        .args([
-            "serve",
-            "--config-root",
-            &config_root.display().to_string(),
-            "--state-root",
-            &state_root.display().to_string(),
-        ])
+    let mut child = paths
+        .rooted_command(&takd_bin(), "serve")
+        .env("XDG_RUNTIME_DIR", paths.runtime_root())
+        .env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn takd serve");
 
-    let show = StdCommand::new(takd_bin())
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "5",
-        ])
+    let show = paths
+        .state_command(&takd_bin(), &["token", "show"])
+        .args(["--wait", "--timeout-secs", "5"])
         .output()
         .expect("run token show");
     child.kill().expect("kill takd serve");
@@ -92,9 +75,8 @@ fn direct_serve_persists_token_for_remote_add_onboarding() {
         !config.contains("base_url = \"http://127.0.0.1:0\""),
         "expected serve to persist a usable direct base_url:\n{config}"
     );
-    assert!(
-        String::from_utf8_lossy(&show.stdout)
-            .trim()
-            .starts_with("takd:v1:")
-    );
+    let token = String::from_utf8_lossy(&show.stdout);
+    assert!(token.trim().starts_with("takd:v2:"), "{token}");
+    let payload = tak_proto::decode_remote_token(token.trim()).expect("decode direct v2 invite");
+    assert_eq!(payload.version, "v2");
 }

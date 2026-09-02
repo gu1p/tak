@@ -1,5 +1,7 @@
 use super::*;
 
+const REMOTE_NODE_HEADER: &str = "X-Tak-Remote-Node";
+
 pub(super) async fn remote_http_exchange(
     broker: &TorBroker,
     remote_request: BrokerRemoteHttpRequest<'_>,
@@ -90,14 +92,23 @@ fn remote_headers(
     bearer_token: &str,
     headers: &[(String, String)],
 ) -> Vec<(String, String)> {
+    let protocol = headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("X-Tak-Protocol-Version"))
+        .map_or("v2", |(_, value)| value.as_str());
     let mut request_headers = vec![
-        ("X-Tak-Protocol-Version".to_string(), "v1".to_string()),
+        ("X-Tak-Protocol-Version".to_string(), protocol.to_string()),
         (REMOTE_NODE_HEADER.to_string(), node_id.to_string()),
     ];
     if let Some(auth) = authorization_value(bearer_token) {
         request_headers.push((hyper::header::AUTHORIZATION.as_str().to_string(), auth));
     }
-    request_headers.extend(headers.iter().cloned());
+    request_headers.extend(
+        headers
+            .iter()
+            .filter(|(name, _)| !name.eq_ignore_ascii_case("X-Tak-Protocol-Version"))
+            .cloned(),
+    );
     request_headers
 }
 
@@ -158,10 +169,6 @@ fn keep_forward_header(name: &str) -> bool {
     !name.eq_ignore_ascii_case("host")
         && !name.eq_ignore_ascii_case("connection")
         && !name.eq_ignore_ascii_case("content-length")
-        && !name.eq_ignore_ascii_case(BROKER_VERSION_HEADER)
-        && !name.eq_ignore_ascii_case(REMOTE_ENDPOINT_HEADER)
-        && !name.eq_ignore_ascii_case(REMOTE_PROTOCOL_HEADER)
-        && !name.eq_ignore_ascii_case(REMOTE_TRANSPORT_HEADER)
 }
 
 fn parse_forward_response(response: Vec<u8>) -> Result<BrokerForwardResponse> {
@@ -177,17 +184,11 @@ fn parse_forward_response(response: Vec<u8>) -> Result<BrokerForwardResponse> {
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|value| value.parse::<u16>().ok())
         .ok_or_else(|| anyhow::anyhow!("remote response missing HTTP status"))?;
-    let headers = head
-        .lines()
-        .skip(1)
-        .filter_map(|line| {
-            let (name, value) = line.split_once(':')?;
-            Some((name.trim().to_string(), value.trim().to_string()))
-        })
-        .collect();
     Ok(BrokerForwardResponse {
         status,
-        headers,
         body: response[header_end..].to_vec(),
     })
 }
+
+#[cfg(test)]
+mod tests;

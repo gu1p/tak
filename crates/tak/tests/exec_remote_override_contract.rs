@@ -1,94 +1,70 @@
-//! Black-box contract for `tak exec` remote runtime overrides.
+//! Protocol-v2 submission contracts for `tak exec --remote` overrides.
 
-use crate::support;
+use serde_json::json;
 
-use std::fs;
-
-use anyhow::Result;
-
-use support::direct_remote_runtime::{client_env, start_direct_agent};
-use support::run_tak_output;
+#[path = "exec_remote_override_contract/support.rs"]
+mod support;
 
 #[test]
-fn exec_supports_remote_container_image_override_without_container_flag() -> Result<()> {
-    let temp = tempfile::tempdir()?;
-    let _agent = start_direct_agent(temp.path(), temp.path(), "exec-remote-image");
+fn exec_submits_remote_container_image_override() {
+    let captured = support::run(&[
+        "exec",
+        "--remote",
+        "--container-image",
+        "alpine:3.20",
+        "--",
+        "true",
+    ]);
 
-    let output = run_tak_output(
-        temp.path(),
-        &[
-            "exec",
-            "--remote",
-            "--container-image",
-            "alpine:3.20",
-            "--",
-            "sh",
-            "-c",
-            "printf '%s\\n' \"$TAK_RUNTIME_SOURCE\"",
-        ],
-        &client_env(temp.path()),
-    )?;
-
-    assert!(output.status.success(), "status: {:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "image");
-    Ok(())
+    assert!(captured.output.status.success(), "{}", captured.stderr());
+    assert_eq!(
+        captured.runtime(),
+        &json!({"kind": "container", "source": {
+            "kind": "image", "image": "alpine:3.20"
+        }})
+    );
+    assert_eq!(captured.candidate()["node_id"], "worker-a");
 }
 
 #[test]
-fn exec_supports_remote_dockerfile_override_without_container_flag() -> Result<()> {
-    let temp = tempfile::tempdir()?;
-    fs::create_dir_all(temp.path().join("docker"))?;
-    fs::write(temp.path().join("docker/Dockerfile"), "FROM alpine:3.20\n")?;
-    let _agent = start_direct_agent(temp.path(), temp.path(), "exec-remote-dockerfile");
+fn exec_submits_remote_dockerfile_override() {
+    let captured = support::run(&[
+        "exec",
+        "--remote",
+        "--container-dockerfile",
+        "docker/Dockerfile",
+        "--",
+        "true",
+    ]);
 
-    let output = run_tak_output(
-        temp.path(),
-        &[
-            "exec",
-            "--remote",
-            "--container-dockerfile",
-            "docker/Dockerfile",
-            "--",
-            "sh",
-            "-c",
-            "printf '%s\\n' \"$TAK_RUNTIME_SOURCE\"",
-        ],
-        &client_env(temp.path()),
-    )?;
-
-    assert!(output.status.success(), "status: {:?}", output.status);
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "dockerfile");
-    Ok(())
+    assert!(captured.output.status.success(), "{}", captured.stderr());
+    assert_eq!(
+        captured.runtime(),
+        &json!({"kind": "container", "source": {
+            "kind": "dockerfile", "dockerfile": "docker/Dockerfile",
+            "build_context": "docker"
+        }})
+    );
 }
 
 #[test]
-fn exec_warns_that_remote_container_flag_is_redundant() -> Result<()> {
-    let temp = tempfile::tempdir()?;
-    let _agent = start_direct_agent(temp.path(), temp.path(), "exec-remote-redundant");
+fn exec_warns_that_remote_container_flag_is_redundant() {
+    let captured = support::run(&[
+        "exec",
+        "--remote",
+        "--container",
+        "--container-image",
+        "alpine:3.20",
+        "--",
+        "true",
+    ]);
 
-    let output = run_tak_output(
-        temp.path(),
-        &[
-            "exec",
-            "--remote",
-            "--container",
-            "--container-image",
-            "alpine:3.20",
-            "--",
-            "sh",
-            "-c",
-            "printf '%s\\n' \"$TAK_RUNTIME_SOURCE\"",
-        ],
-        &client_env(temp.path()),
-    )?;
-
-    assert!(output.status.success(), "status: {:?}", output.status);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(captured.output.status.success(), "{}", captured.stderr());
     assert!(
-        stderr.contains(
+        captured.stderr().contains(
             "warning: --container is redundant with --remote; remote execution already implies a container"
         ),
-        "stderr:\n{stderr}"
+        "{}",
+        captured.stderr()
     );
-    Ok(())
 }

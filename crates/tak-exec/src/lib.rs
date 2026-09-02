@@ -1,55 +1,44 @@
-//! Task execution engine for resolved workspace tasks.
-//!
-//! This crate expands target dependencies, enforces execution ordering, applies retry and
-//! timeout policy, and optionally coordinates daemon leases around task execution.
+//! Worker-side step and container execution utilities shared by `tak-runner` and `takd`.
 
 extern crate self as tak_exec;
 
-mod client_observations;
-mod client_remotes;
-mod client_tor;
+mod cancellation;
 mod container_engine;
 mod container_runtime;
-mod engine;
-mod execution_graph;
+mod deadline;
+mod execution_types;
 mod image_cache;
-mod lease_client;
+mod remote_diagnostics;
 mod remote_endpoint;
-mod remote_protocol_codec;
-mod retry;
+mod remote_worker;
+mod runtime_metadata;
+mod sqlite_connection;
+mod step_execution;
 mod step_runner;
-mod task_run_metadata;
+mod worker_output;
+mod worker_runtime;
 
-pub use client_observations::{
-    RemoteObservation, load_remote_observation, load_remote_observation_at,
-    record_remote_observation, write_remote_observation, write_remote_observation_at,
-};
-pub use client_tor::default_client_tor_config;
-pub use engine::{
-    ContainerExecutionIdentity, ImageCacheOptions, NoMatchingRemoteError, OutputStream,
-    PlacementMode, RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteLogChunk,
-    RemotePreflightExhaustedError, RemotePreflightFailure, RemotePreflightFailureKind,
+pub use cancellation::{RunCancellation, RunCancelled, is_run_cancelled_error};
+pub use execution_types::{
+    ContainerExecutionIdentity, ImageCacheOptions, OutputStream, PlacementMode,
     RemoteWorkerExecutionOutcome, RemoteWorkerExecutionResult, RemoteWorkerExecutionSpec,
-    RequiredRemoteDiagnostic, RunCancellation, RunCancelled, RunOptions, RunSummary, SyncedOutput,
-    TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskRunResult, TaskStartedEvent,
-    TaskStatusEvent, TaskStatusEventKind, TaskStatusPhase, TaskStructuredStatusEvent,
+    TaskFinishedEvent, TaskOutputChunk, TaskOutputObserver, TaskStatusEvent, TaskStatusPhase,
+};
+pub use image_cache::{
+    cached_image_content_keys, image_cache_status, run_image_cache_janitor_once,
+};
+pub use remote_diagnostics::{
+    NoMatchingRemoteError, RemoteCandidateDiagnostic, RemoteCandidateRejection, RemoteObservation,
+    RemotePreflightExhaustedError, RemotePreflightFailure, RemotePreflightFailureKind,
+    RequiredRemoteDiagnostic,
+};
+pub use remote_worker::{
     execute_remote_worker_steps_with_cancellation,
-    execute_remote_worker_steps_with_output_and_cancellation, is_run_cancelled_error,
-    run_resolved_task, run_tasks,
+    execute_remote_worker_steps_with_output_and_cancellation,
 };
-pub(crate) use engine::{
-    ContainerExecutionPlan, LeaseContext, ParsedRemoteEvents, RemoteStatusUpdate,
-    RemoteTargetSelection, RemoteWorkspaceStage, StrictRemoteTarget, emit_task_output,
-};
-pub use image_cache::{image_cache_status, run_image_cache_janitor_once};
-#[path = "client_remotes_tests.rs"]
-mod client_remotes_tests;
-#[path = "engine/preflight_failure_classification_tests.rs"]
-mod preflight_failure_classification_tests;
-#[path = "engine/preflight_fallback_classification_tests.rs"]
-mod preflight_fallback_classification_tests;
-mod protocol_result_http_connection_cleanup_tests;
-mod protocol_result_http_tests;
-mod protocol_result_http_timeout_tests;
+#[doc(hidden)]
+pub use sqlite_connection::ProcessSqliteConnection;
+pub(crate) use worker_output::emit_task_output;
+pub(crate) use worker_runtime::{ContainerExecutionPlan, ImageCachePlan};
 
 pub use remote_endpoint::{endpoint_host_port, endpoint_socket_addr, socket_addr_from_host_port};

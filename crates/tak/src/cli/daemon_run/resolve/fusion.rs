@@ -46,6 +46,8 @@ fn require_compatible(first: &ResolvedJob, next: &ResolvedJob, session_id: &str)
         && first.resources == next.resources
         && first.retry == next.retry
         && first.queue == next.queue
+        && first.queue_slots == next.queue_slots
+        && first.queue_priority == next.queue_priority
         && first.limiter_claims == next.limiter_claims
         && first.affinity == next.affinity
         && first.session == next.session;

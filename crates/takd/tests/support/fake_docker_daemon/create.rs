@@ -47,6 +47,7 @@ pub(super) fn create_container(
     let (binds, nano_cpus) = payload.host_config.map_or((Vec::new(), None), |config| {
         (config.binds.unwrap_or_default(), config.nano_cpus)
     });
+    let bind_modes = bind_modes(&binds);
     let exit_code = exit_code_for_payload(state, &payload.cmd, &binds);
     Ok(CreatedContainer {
         record: CreateRecord {
@@ -56,6 +57,7 @@ pub(super) fn create_container(
             user: payload.user,
             working_dir: payload.working_dir,
             binds,
+            bind_modes,
             labels: payload.labels.unwrap_or_default(),
             env: payload.env,
             nano_cpus,
@@ -63,6 +65,26 @@ pub(super) fn create_container(
         },
         exit_code,
     })
+}
+
+#[cfg(unix)]
+fn bind_modes(binds: &[String]) -> BTreeMap<String, u32> {
+    use std::os::unix::fs::PermissionsExt;
+
+    binds
+        .iter()
+        .filter_map(|bind| {
+            let (mount, _) = bind.rsplit_once(':')?;
+            let (source, target) = mount.rsplit_once(':')?;
+            let mode = std::fs::metadata(source).ok()?.permissions().mode() & 0o777;
+            Some((target.to_string(), mode))
+        })
+        .collect()
+}
+
+#[cfg(not(unix))]
+fn bind_modes(_binds: &[String]) -> BTreeMap<String, u32> {
+    BTreeMap::new()
 }
 
 fn parse_create_payload(request: &FakeDockerRequest) -> io::Result<CreateContainerPayload> {

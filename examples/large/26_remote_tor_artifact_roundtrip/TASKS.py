@@ -14,11 +14,12 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
   project_id="example_large_26",
   tasks=[
     task(
       "collect_remote_report",
-      outputs=[path("out")],
+      outputs=[path("out/tor-remote-artifact.txt"), path("out/tor-remote.log")],
       steps=[
         cmd(
           "sh",
@@ -31,6 +32,7 @@ SPEC = module_spec(
     task(
       "consume_remote_report",
       deps=[":collect_remote_report"],
+      outputs=[path("out/tor-roundtrip.txt")],
       steps=[
         cmd(
           "sh",

@@ -57,7 +57,7 @@ impl LeaseManager {
     /// # }
     /// ```
     pub(super) fn restore_active_leases(&mut self) -> Result<()> {
-        let Some(conn) = self.open_connection()? else {
+        let Some(mut conn) = self.open_connection()? else {
             return Ok(());
         };
 
@@ -115,10 +115,8 @@ impl LeaseManager {
             );
         }
 
+        drop(stmt);
         if !expired_ids.is_empty() {
-            let mut conn = self
-                .open_connection()?
-                .ok_or_else(|| anyhow!("sqlite connection missing during cleanup"))?;
             let tx = conn.transaction()?;
             for lease_id in expired_ids {
                 tx.execute("DELETE FROM active_leases WHERE lease_id = ?1", [lease_id])?;

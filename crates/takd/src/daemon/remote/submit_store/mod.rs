@@ -14,6 +14,7 @@ mod persistence;
 mod queries;
 mod task_listing;
 mod types;
+mod worker_v2;
 
 pub use key::build_submit_idempotency_key;
 use key::validate_submit_attempt;

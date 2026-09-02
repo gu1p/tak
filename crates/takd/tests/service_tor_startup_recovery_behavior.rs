@@ -29,7 +29,9 @@ async fn serve_agent_simulated_tor_retries_initial_startup_failures_until_token_
 
     let empty = Vec::<String>::new();
     let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
+    let state_socket =
+        support::socket_path::bind_path(&temp.path().join("state").join("agent-control.sock"));
+    let state_root = state_socket.parent().expect("state root").to_path_buf();
     init_agent(
         &config_root,
         &state_root,

@@ -31,6 +31,9 @@ pub(in crate::daemon::run_store::scheduling) fn can_acquire_shared_workspace(
             .as_ref()
             .is_some_and(|active_session| active_session.id == session.id)
         {
+            if active_job.context_manifest != job.context_manifest {
+                return Ok(false);
+            }
             active = active
                 .checked_add(1)
                 .ok_or_else(|| anyhow::anyhow!("shared workspace usage overflow"))?;

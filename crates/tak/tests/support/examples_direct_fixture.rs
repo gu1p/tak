@@ -13,12 +13,14 @@ use super::live_direct::{
 };
 use super::live_direct_remote::add_remote as add_direct_remote;
 use super::live_direct_token::wait_for_token;
+use super::local_daemon::LocalDaemonGuard;
 use super::tor_smoke::takd_bin;
 
 pub fn direct_fixture(
     entry: &ExampleEntry,
     temp_root: &Path,
     workspace_root: &Path,
+    spec: &tak_core::model::WorkspaceSpec,
 ) -> Result<RemoteFixtureSetup> {
     let takd = takd_bin();
     let roots = LiveDirectRoots::new(temp_root);
@@ -40,11 +42,17 @@ pub fn direct_fixture(
         spawn_direct_agent_with_env(&takd, &roots, &serve_env)
     };
     let token = wait_for_token(&takd, &roots);
-    add_direct_remote(workspace_root, &roots, &token);
+    let socket = temp_root.join("takd.sock");
+    let daemon = LocalDaemonGuard::spawn(&socket, spec);
+    add_direct_remote(workspace_root, &roots, &token, &socket);
     Ok((
         Some(agent),
         None,
+        Some(daemon),
         Some(roots.client_config_root),
-        BTreeMap::new(),
+        BTreeMap::from([(
+            "TAKD_SOCKET".to_string(),
+            socket.to_string_lossy().into_owned(),
+        )]),
     ))
 }

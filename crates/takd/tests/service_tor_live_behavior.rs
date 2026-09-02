@@ -14,8 +14,11 @@ use takd::agent::read_config;
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_agent_real_tor_publishes_idle_remote_capacity() {
     let _env_lock = env_lock();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let roots = LiveTorRoots::new(temp.path());
+    fs::create_dir_all(".tmp").expect("create test temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
+    let relative_temp = std::path::Path::new(".tmp")
+        .join(temp.path().file_name().expect("temporary directory name"));
+    let roots = LiveTorRoots::new(&relative_temp);
 
     init_tor_agent(&roots, "builder-tor-live");
     let bearer_token = read_config(&roots.config_root)
@@ -25,7 +28,7 @@ async fn serve_agent_real_tor_publishes_idle_remote_capacity() {
 
     let token = wait_for_token(&roots);
     let base_url = decode_tor_invite(&token).expect("decode tor invite");
-    let status = wait_for_onion_node_status(temp.path(), &base_url, &bearer_token).await;
+    let status = wait_for_onion_node_status(&relative_temp, &base_url, &bearer_token).await;
     let fetched = status.node.expect("node status metadata");
 
     assert_eq!(fetched.node_id, "builder-tor-live");

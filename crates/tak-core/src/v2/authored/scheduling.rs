@@ -39,11 +39,13 @@ pub enum AuthoredLimiterDefinition {
         name: String,
         scope: DefinitionScope,
         max_processes: NonZeroU32,
+        match_pattern: Option<String>,
     },
     Resource {
         name: String,
         scope: DefinitionScope,
         capacity_millis: NonZeroU64,
+        unit: Option<String>,
     },
 }
 

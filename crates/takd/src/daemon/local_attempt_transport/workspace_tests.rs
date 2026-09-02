@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::workspace::{Preparation, prepare};
 use crate::daemon::run_store::execution::{LocalExecutionSnapshot, LocalWorkspace};
+use tak_core::v2::JobContextManifest;
 
 #[test]
 fn preparation_discards_a_partial_workspace_left_before_start() {
@@ -20,6 +21,9 @@ fn preparation_discards_a_partial_workspace_left_before_start() {
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Private,
         overlays: Vec::new(),
+        context_manifest: JobContextManifest {
+            paths: vec!["fresh".into()],
+        },
     };
 
     let Preparation::Execute { workspace_root, .. } = prepare(snapshot).unwrap() else {
@@ -68,6 +72,7 @@ fn snapshot(
         environment: BTreeMap::new(),
         workspace: LocalWorkspace::Shared(shared.to_owned()),
         overlays: Vec::new(),
+        context_manifest: JobContextManifest { paths: Vec::new() },
     }
 }
 

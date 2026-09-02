@@ -6,11 +6,15 @@ use support::run_tak_expect_success;
 
 const REQUIRED_TASKS_API_SUBSECTIONS: [&str; 4] =
     ["### Types", "### Constants", "### Functions", "### Methods"];
-const REQUIRED_TYPED_API_TOKENS: [&str; 10] = [
+const REQUIRED_TYPED_API_TOKENS: [&str; 14] = [
     "#### `ModuleSpec`",
     "class ModuleSpec(TypedDict):",
-    "- `spec_version`: `Literal[1]`",
+    "- `spec_version`: `Literal[2]`",
+    "#### `DefaultsSpec`",
     "#### `TaskSpec`",
+    "#### `RemoteSelection.Balanced`",
+    "#### `Affinity.RequireSameNode`",
+    "#### `SessionReuse.SharedWorkspace`",
     "#### `Scope.Machine`",
     "`Scope.Machine: Literal[\"machine\"]`",
     "-> ModuleSpec: ...",
@@ -18,9 +22,10 @@ const REQUIRED_TYPED_API_TOKENS: [&str; 10] = [
     "#### `Decision.local`",
     "#### `Decision.remote`",
 ];
-const REQUIRED_MULTILINE_FIELD_TOKENS: [&str; 2] = [
-    "- `execution`: `( LocalExecutionSpec | RemoteExecutionSpec | DecideExecutionSpec | ExecutionPolicySpec )`",
-    "- `execution`: `( LocalExecutionSpec | RemoteExecutionSpec | DecideExecutionSpec | ExecutionPolicySpec | None )`",
+const REQUIRED_V2_FIELD_TOKENS: [&str; 3] = [
+    "- `execution`: `ExecutionSpec | None`",
+    "- `reuse`: `ReuseSpec`",
+    "- `pass_env`: `list[str]`",
 ];
 
 fn run_docs_dump(cwd: &Path) -> Result<String> {
@@ -44,10 +49,10 @@ fn docs_dump_groups_typed_tasks_api_sections() -> Result<()> {
             "missing typed TASKS.py token `{token}`:\n{output}"
         );
     }
-    for token in REQUIRED_MULTILINE_FIELD_TOKENS {
+    for token in REQUIRED_V2_FIELD_TOKENS {
         assert!(
             output.contains(token),
-            "missing multiline TASKS.py field token `{token}`:\n{output}"
+            "missing v2 TASKS.py field token `{token}`:\n{output}"
         );
     }
     assert!(

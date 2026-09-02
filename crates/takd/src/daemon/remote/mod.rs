@@ -1,29 +1,12 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result, anyhow, bail};
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use sha2::{Digest, Sha256};
-use tak_core::label::parse_label;
-use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, StepDef, normalize_path_ref};
-use tak_runner::{
-    OutputStream, RemoteWorkerExecutionOutcome, RemoteWorkerExecutionSpec, TaskOutputChunk,
-    TaskOutputObserver, TaskStatusEvent, execute_remote_worker_steps_with_output_and_cancellation,
-};
+use anyhow::{Context, Result};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
-use zip::read::ZipArchive;
 
-mod active_executions;
 mod cleanup_janitor;
 mod container_ownership;
 mod execution_root;
-#[cfg(test)]
-mod http2_roundtrip_support;
-#[cfg(test)]
-mod http2_roundtrip_tests;
 mod http_server;
 #[cfg(test)]
 mod http_server_request_validation_unit_tests;
@@ -32,7 +15,6 @@ mod http_server_test_support;
 #[cfg(test)]
 mod http_server_unit_tests;
 mod memory_pressure_controller;
-mod orphan_watchdog;
 mod query_helpers;
 mod resource_admission;
 mod resource_baseline;
@@ -45,14 +27,7 @@ mod resource_policy;
 #[cfg(test)]
 mod resource_policy_tests;
 mod resource_pressure_controller;
-mod route_events;
-mod route_logs;
-mod route_node;
-mod route_outputs;
-mod route_result;
-mod route_submit;
-mod route_tasks;
-mod route_uploads;
+mod route_worker_v2;
 mod router;
 mod runtime;
 mod runtime_services;
@@ -61,69 +36,40 @@ mod runtime_services_tests;
 mod runtime_state;
 #[cfg(test)]
 mod runtime_tests;
-mod status_job_metadata;
 mod status_resources;
 mod status_state;
 mod status_state_helpers;
-mod submit_payload_parse;
 mod submit_store;
 mod tak_container_usage;
 mod types;
-mod worker_output_artifacts;
-mod worker_submit_execution;
-mod worker_workspace_outputs;
+mod worker_cache_gc;
+mod worker_v2_execution;
 
-pub use http_server::run_remote_v1_http_server;
-pub use router::handle_remote_v1_request;
+pub use http_server::run_worker_http_server;
+pub use router::handle_worker_http_request;
 pub use runtime::RemoteRuntimeConfig;
 pub use submit_store::{
     ActiveSubmitAttempt, SubmitAttemptStore, SubmitRegistration, build_submit_idempotency_key,
 };
 pub use types::{
-    RemoteImageCacheRuntimeConfig, RemoteNodeContext, RemoteV1Response, SubmitAttemptSummaryRecord,
+    RemoteImageCacheRuntimeConfig, RemoteNodeContext, SubmitAttemptSummaryRecord,
+    WorkerHttpResponse,
 };
+#[doc(hidden)]
+pub use worker_v2_execution::worker_v2_cancellation_poll_requests_cancel;
 
 pub(crate) use cleanup_janitor::spawn_remote_cleanup_janitor;
-use execution_root::{
-    artifact_root_base_for_execution_root_base, artifact_root_for_submit_key_at_base,
-    ensure_remote_execution_root_base, execution_root_for_submit_key_at_base,
-    remote_execution_root_base,
-};
-pub(crate) use http_server::{handle_remote_v1_http_stream, handle_remote_v1_stream};
+use execution_root::{artifact_root_base_for_execution_root_base, remote_execution_root_base};
+pub(crate) use http_server::{handle_worker_http_stream, handle_worker_stream};
 pub(crate) use memory_pressure_controller::spawn_memory_pressure_controller;
-pub(crate) use orphan_watchdog::spawn_remote_orphan_watchdog;
 use query_helpers::{
-    binary_response, binary_response_with_headers, error_response, protobuf_response,
-    query_param_string, query_param_u64, remote_task_path_arg,
-    resolve_submit_idempotency_key_for_task_run, sanitize_submit_idempotency_key,
-    split_path_and_query, text_response, unix_epoch_ms,
+    binary_response, error_response, protobuf_response, query_param_string, query_param_u64,
+    sanitize_submit_idempotency_key, split_path_and_query, text_response,
 };
-use route_events::handle_remote_events_route;
-use route_logs::handle_node_logs_route;
-use route_node::{handle_node_metadata_route, handle_remote_cancel_route};
-use route_outputs::handle_remote_outputs_route;
-use route_result::handle_remote_result_route;
-use route_submit::handle_remote_submit_route;
-use route_tasks::handle_remote_tasks_route;
-use route_uploads::{
-    WORKSPACE_UPLOADS_DIR_NAME, WorkspaceUploadMissing, handle_workspace_upload_route,
-    receive_workspace_wormhole_upload, resolve_workspace_upload_zip, stream_workspace_upload,
-};
+use route_worker_v2::handle_worker_v2_route;
 pub(crate) use runtime_services::spawn_remote_runtime_services;
-use submit_payload_parse::parse_remote_worker_submit_payload;
 pub(crate) use tak_container_usage::spawn_tak_container_usage_sampler;
-use types::{
-    RemoteWorkerFusedMember, RemoteWorkerOutputRecord, RemoteWorkerSession,
-    RemoteWorkerSessionReuse, RemoteWorkerSubmitPayload,
-};
-use worker_output_artifacts::stage_remote_worker_outputs;
-use worker_submit_execution::{
-    PreparedResourceAdmission, RemoteWorkerSubmitExecution, register_active_job,
-    spawn_remote_worker_submit_execution,
-};
-use worker_workspace_outputs::{
-    collect_declared_remote_worker_outputs, unpack_remote_worker_workspace,
-};
+use worker_v2_execution::{reserve_worker_v2_resources, spawn_worker_v2_execution};
 
-const SESSION_PATHS_DIR_NAME: &str = "session-paths";
-const SESSION_WORKSPACES_DIR_NAME: &str = "sessions";
+const PROTOCOL_V2_UPGRADE_MESSAGE: &str =
+    "Protocol v2 is required; upgrade tak, takd, and workers together.";

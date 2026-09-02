@@ -3,22 +3,6 @@ use crate::daemon::remote::resource_admission::HostUsageSample;
 use crate::daemon::remote::resource_envelope::ResourceEnvelope;
 
 impl SharedResourceAdmission {
-    pub(in crate::daemon::remote) fn new(
-        tak_container_usage: SharedTakContainerUsage,
-        capacity: ResourceCapacity,
-        oversubscribe_x: u64,
-    ) -> Self {
-        Self::new_with_elastic_startup(
-            tak_container_usage,
-            capacity,
-            oversubscribe_x,
-            ResourceCapacity {
-                cpu_cores: 4.0,
-                memory_mb: 8 * 1024,
-            },
-        )
-    }
-
     pub(in crate::daemon::remote) fn new_with_elastic_startup(
         tak_container_usage: SharedTakContainerUsage,
         capacity: ResourceCapacity,

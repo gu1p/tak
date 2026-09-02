@@ -8,12 +8,16 @@ use super::live_direct_remote::add_remote;
 use super::live_direct_token::wait_for_token;
 use super::tor_smoke::{ChildGuard, takd_bin};
 
-pub fn attach_direct_remote(workspace_root: &Path, roots: &LiveDirectRoots) -> ChildGuard {
+pub fn attach_direct_remote(
+    workspace_root: &Path,
+    roots: &LiveDirectRoots,
+    daemon_socket: &Path,
+) -> ChildGuard {
     let takd = takd_bin();
     init_direct_agent(&takd, roots, "declared-output-builder");
     let agent = spawn_direct_agent(&takd, roots);
     let token = wait_for_token(&takd, roots);
-    add_remote(workspace_root, roots, &token);
+    add_remote(workspace_root, roots, &token, daemon_socket);
     agent
 }
 

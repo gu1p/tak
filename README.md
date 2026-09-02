@@ -11,14 +11,14 @@ Tak is a task orchestrator for project-local `TASKS.py` workspaces and ordinary 
 
 ## Core Capabilities
 
-- Current-directory workspace loading with explicit `module_spec(includes=[...])` composition.
+- Current-directory workspace loading with explicit v2 `module_spec(includes=[...])` composition.
 - Makefile goal execution without requiring `TASKS.py`.
 - Strict label parsing for absolute and relative task references.
 - DAG validation (missing dependency and cycle detection) before execution.
-- Command and script step execution with explicit `cwd` and `env` control.
+- Command and script steps with explicit `cwd`, literal `env`, and allowlisted `pass_env` control.
 - Retry policies with fixed or exponential-jitter backoff.
 - Timeout controls per task.
-- Client-side lease coordination for `needs` (resource/lock/rate/process/queue semantics).
+- Daemon-owned scheduling for resources, locks, rates, process caps, queues, retries, and cancellation.
 - Remote containerized execution with direct or Tor transport plus artifact roundtrip.
 - Containerized runtimes from either a prebuilt image or a workspace `Dockerfile`.
 - Hybrid local+remote pipelines with stable run summaries.
@@ -43,6 +43,10 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - [`docs/ergonomics-and-distribution-phases.md`](docs/ergonomics-and-distribution-phases.md)
   - One document covering what Tak already ships today, what should come next, and the bigger distributed execution vision.
 
+For the current execution and migration contract, read [Daemon-Owned Runs and TASKS.py
+v2](docs/daemon-runs-v2.md). All execution commands require local `takd`; runs remain observable
+and recoverable after the submitting client disconnects.
+
 ## CLI Quick Reference
 
 - `tak list`
@@ -58,11 +62,15 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 - `tak web [label]`
   - Serve an interactive dependency graph UI locally. This is a graph viewer, not a remote-operations client.
 - `tak make <goal>`
-  - Run an ordinary Makefile goal through Tak; annotated phony prerequisites may fan out in parallel.
+  - Submit an ordinary Makefile goal to local `takd`; annotated phony prerequisites may fan out.
 - `tak make --remote <goal>`
   - Force the whole `make <goal>` invocation onto a remote container; the Makefile may also declare this with `# tak:` comments.
 - `tak run <label...>`
-  - Execute targets and dependencies.
+  - Resolve targets and dependencies, submit them to local `takd`, and attach to persisted events.
+- `tak exec -- <program> [args...]`
+  - Submit one command to local `takd`; no `TASKS.py` is required.
+- `tak docker run ...`
+  - Submit a Docker-shaped container command through the same daemon-owned run path.
 - `tak run hello`
   - At a workspace root, bare task names are shorthand for root-package labels such as `//:hello`.
 - `tak run <label...> -j <N> --keep-going`
@@ -79,12 +87,22 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
   - Invalid input. Use `tak list` first, then pass a real label such as `//:task` or `//pkg:task`.
 - `--keep-going`
   - Continue independent tasks even after one target fails.
+- `tak runs list`
+  - List daemon-owned graph runs.
+- `tak runs show <run-id>`
+  - Show persisted run, job, attempt, cache, and retention state.
+- `tak runs attach <run-id>`
+  - Replay persisted output/events and follow the run to its stored terminal exit status.
+- `tak runs cancel <run-id>`
+  - Persist cancellation and let the daemon settle active attempts.
+- `tak runs outputs <run-id> --to <dir>`
+  - Retrieve declared outputs into a fresh explicit directory without using the submitted checkout.
 - `tak status`
   - Show local task/container/resource status plus configured remote node status.
 - `tak update` / `tak update --check`
   - Update the installed `tak`/`takd` binaries from signed GitHub releases (or just report whether a newer version exists). `takd` agents can also auto-update themselves; see [Self-Update](docs/self-update.md).
 - `tak local status`
-  - Show local active tasks, containerized runs, CPU, RAM, storage, and optional local daemon lease status.
+  - Show daemon-owned local activity plus CPU, RAM, storage, and container status.
 - `tak remote add <token>`
   - Import a secret `takd` agent invite/token into local client config.
 - `tak remote add`
@@ -142,7 +160,10 @@ For the full matrix (including reference scenarios), see [`examples/README.md`](
 
 ## Run Output Signals
 
-`tak run` streams task `stdout` and `stderr` live as work executes, then prints one summary line per executed task. Remote and containerized runs use the same local-terminal contract so output stays visible while the task is still running.
+Execution output is a persisted takd event stream. The submitting command attaches immediately, and
+`tak runs attach <run-id>` can replay the same events after a disconnect. The first Ctrl-C persists
+cancellation; a second Ctrl-C may detach while takd continues cancellation. A disconnect alone does
+not cancel work.
 
 Example:
 
@@ -248,17 +269,26 @@ goal annotations, and CLI overrides that enable remote execution; Make's stdout 
 
 The annotation reader intentionally supports only literal single-target `target: prerequisites`
 headers. It does not interpret includes, expanded target names, generated rules, multi-target rules,
-pattern rules, target-specific variable assignments, or double-colon rules. Unsupported annotated declarations fail clearly instead of
-silently selecting the wrong runtime. Remote Make runs stream output and status back, but generated
-files are not materialized locally because `tak make` has no declared output paths yet. Consequently,
-parallel remote goals must be independent: one promoted goal cannot consume files generated by
-another promoted goal.
+pattern rules, target-specific variable assignments, or double-colon rules. Unsupported annotated
+declarations fail clearly instead of silently selecting the wrong runtime. Every Make submission
+runs through local `takd`. Tak lowers opaque and promoted goals into one hard-affined
+`SharedWorkspace`, so a dependent promoted goal observes files written by successful prerequisites.
+The selected target declares the final shared workspace as a daemon-owned output. The client safely
+materializes those files after foreground completion or `tak runs attach`, using the same all-or-none
+checkout conflict preflight as `tak run`; retained artifacts remain available through `tak runs
+outputs` when a checkout changed.
 
 ## Quickstart
 
 For the current ergonomics story and distributed execution roadmap, see [Ergonomics and Distributed Execution Phases](docs/ergonomics-and-distribution-phases.md).
 
-1. Optional but recommended for remote execution.
+1. Start the required local daemon. Every `run`, `make`, `exec`, and `docker run` submission uses it.
+
+```bash
+takd serve
+```
+
+For remote execution, initialize and start an agent too.
 
 On the agent machine:
 
@@ -330,7 +360,9 @@ Use `--local-no-container` when a task has a remote/container fallback policy bu
 
 `needs` are resource requests, not task dependencies. Dependencies decide which tasks must finish before another task can run. `needs` tell Tak what shared capacity a task wants before it starts, such as one exclusive UI lock, two CPU slots from a machine pool, or one token from a rate limiter.
 
-A lease is Tak's permission slip from the local daemon. If a lease socket is configured, Tak asks for the lease before local host work, local container work, remote work, or fused container work starts. Two tasks that both need the same exclusive lock wait their turn instead of running together.
+A lease is takd's persisted permission for admitted work. The daemon acquires it before local host,
+local container, remote, or fused-container execution. Two tasks that need the same exclusive lock
+wait their turn instead of running together.
 
 For example:
 
@@ -342,23 +374,25 @@ test_ui = task(
 )
 
 SPEC = module_spec(
+    spec_version=2,
     tasks=[test_ui],
     limiters=[lock("ui_lock", scope=Scope.Machine)],
 )
 SPEC
 ```
 
-Remote execution still reports submitted `needs` to the remote `takd` process so status views can show what a job asked for. The limit is enforced by the client-side lease acquired before the remote submit.
+The submitted run carries `needs`; local takd enforces them with the rest of scheduling and reports
+the requests in persisted run state.
 
 A cascaded container session can run a dependency chain inside one per-run container instead of launching one container per task. Shared dependencies are allowed when the roots use the same execution and session. If different cascades try to pull the same dependency into different executions, Tak rejects the run before starting work.
 
 When a fused container cascade has members with `needs`, Tak merges those requests and acquires one lease before launching the fused run. Local fused execution reuses that outer lease; it does not acquire duplicate per-member leases.
 
-For Tor onboarding, `takd token show --wait` now waits until the agent-side `takd` process has verified that its onion service answers `/v1/node/info` through Tor. `tak remote add` still performs its own probe from the client machine, and another machine can still need a short additional propagation window before the onion endpoint is reachable there.
+For Tor onboarding, `takd token show --wait` waits until the agent-side `takd` has verified that its onion service answers the worker protocol v2 identity and snapshot requests through Tor. `tak remote add` delegates validation and inventory persistence to the local daemon; the `tak` client never contacts the worker itself. Another machine can still need a short additional propagation window before the onion endpoint is reachable there.
 
-If you need to type the invite instead of scanning it, use `takd token show --words --wait`. The emitted 19-word phrase encodes the Tor v3 onion host directly and ends with a checksum word, so `tak remote add --words ...` can reject typos before any network probe.
+If you need to type the invite instead of scanning it, use `takd token show --words --wait`. The emitted 19-word phrase encodes the Tor v3 onion host directly and ends with a checksum word, so `tak remote add --words ...` can reject typos before asking the local daemon to validate the endpoint.
 
-If `tak remote add` still times out probing a new onion endpoint, inspect the server directly:
+If `tak remote add` still times out while the local daemon validates a new onion endpoint, inspect the server directly:
 
 ```bash
 takd status
@@ -407,6 +441,7 @@ test = task(
 )
 
 SPEC = module_spec(
+    spec_version=2,
     project_id="hello_project",
     tasks=[build, test],
     limiters=[lock("ci_lock", scope=Scope.Machine)],
@@ -416,12 +451,12 @@ SPEC
 
 ## Crate Map
 
-- `crates/tak-core`: canonical model types, labels, DAG planner.
+- `crates/tak-core`: canonical v2 authored/resolved-run types and validation.
 - `crates/tak-make`: injected Makefile reader, literal annotation resolver, and goal execution use case.
-- `crates/tak-loader`: `TASKS.py` discovery, evaluation, and merge.
-- `crates/tak-exec`: runtime executor, retry/timeout handling, and remote placement.
-- `crates/takd`: standalone execution agent and sqlite-backed remote submit store.
-- `crates/tak`: CLI contracts and interactive web graph serving.
+- `crates/tak-loader`: explicit v2 `TASKS.py` evaluation and include resolution.
+- `crates/tak-exec`: worker-side process/container execution primitives.
+- `crates/takd`: durable scheduler, execution coordinator, inventory, run store, and artifacts.
+- `crates/tak`: client-side resolution, submission, persisted-event UI, and graph serving.
 
 ## Installation
 
@@ -455,7 +490,8 @@ If you need to bootstrap a fresh machine from this checkout, run `./get-tak.sh` 
 
 For local source installs, `./install-locally.sh` builds with stable Rust. If `cargo +stable` is unavailable and your active Cargo toolchain is nightly-only, the script stops with an explicit stable-toolchain error instead of attempting a nightly build.
 
-This repo bootstraps from the latest released Tak, so root `TASKS.py` and contributor guidance must stay compatible with the released CLI surface.
+Root `TASKS.py` uses the coordinated v2 surface. Upgrade local `tak` and `takd` together before
+running repository tasks.
 
 ## Quality Gates
 
@@ -470,6 +506,7 @@ tak run //:coverage
 ## Documentation Map
 
 - Agent authoring bundle: `tak docs dump`
+- Daemon-owned runs and v2 migration: [`docs/daemon-runs-v2.md`](docs/daemon-runs-v2.md)
 - Phased ergonomics and distribution guide: [`docs/ergonomics-and-distribution-phases.md`](docs/ergonomics-and-distribution-phases.md)
 - System overview: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Core internals: [`crates/tak-core/ARCHITECTURE.md`](crates/tak-core/ARCHITECTURE.md)

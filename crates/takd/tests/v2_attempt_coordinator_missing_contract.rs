@@ -5,8 +5,8 @@ use anyhow::Result;
 use futures::future::{BoxFuture, FutureExt};
 use tak_proto::local_daemon::v2::RunLifecycleState;
 use takd::{
-    AttemptCoordinator, AttemptObservation, AttemptTransport, DispatchCommand, RunStore,
-    SchedulerNode,
+    AttemptCoordinator, AttemptDispatch, AttemptObservation, AttemptTransport, DispatchCommand,
+    RunStore, SchedulerNode,
 };
 
 use crate::support::v2_run::scheduler::{commit, independent_jobs};
@@ -48,8 +48,8 @@ async fn confirmed_missing_work_uses_the_unknown_outcome_retry_rule() {
 struct MissingTransport;
 
 impl AttemptTransport for MissingTransport {
-    fn dispatch<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {
-        async { Ok(()) }.boxed()
+    fn dispatch<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<AttemptDispatch>> {
+        async { Ok(AttemptDispatch::Accepted) }.boxed()
     }
 
     fn cancel_and_wait<'a>(&'a self, _: &'a DispatchCommand) -> BoxFuture<'a, Result<()>> {

@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::num::{NonZeroU32, NonZeroU64};
 
 use tak_core::v2::{
     Affinity, HoldMode, LimiterClaim, LimiterDefinition, QueueDefinition, QueueDiscipline,
@@ -58,16 +58,21 @@ fn a_hard_affinity_group_requires_a_common_candidate() {
 }
 
 #[test]
-fn priority_queues_are_rejected_until_job_priority_is_resolved() {
+fn priority_queues_accept_concrete_job_slots_and_priority() {
     let mut run = sample_run();
     run.queue_definitions = vec![QueueDefinition {
         name: "build".into(),
         scope: tak_core::v2::DefinitionScope::Project,
         scope_key: None,
-        max_parallel_tasks: std::num::NonZeroU32::MIN,
+        max_parallel_tasks: NonZeroU32::new(2).unwrap(),
         discipline: QueueDiscipline::Priority,
     }];
     run.jobs[0].queue = Some("build".into());
+    run.jobs[0].queue_slots = NonZeroU32::new(2).unwrap();
+    run.jobs[0].queue_priority = 100;
+    assert!(run.validate().is_ok());
+
+    run.jobs[0].queue_slots = NonZeroU32::new(3).unwrap();
     assert!(run.validate().is_err());
 }
 
@@ -78,6 +83,7 @@ fn limited_run() -> tak_core::v2::ResolvedRun {
         scope: tak_core::v2::DefinitionScope::Project,
         scope_key: None,
         capacity_millis: NonZeroU64::new(1_000).unwrap(),
+        unit: None,
         hold: HoldMode::During,
     });
     run.jobs[0].limiter_claims.push(LimiterClaim {

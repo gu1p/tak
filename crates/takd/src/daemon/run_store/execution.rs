@@ -12,6 +12,19 @@ use super::RunStore;
 use super::blob::verified_blob;
 use super::output_artifacts::{OutputOverlay, dependency_overlays};
 
+mod remote;
+
+pub(in crate::daemon) struct RemoteExecutionSnapshot {
+    pub(in crate::daemon) archive_path: PathBuf,
+    pub(in crate::daemon) descriptor: tak_core::v2::WorkspaceDescriptor,
+    pub(in crate::daemon) tasks: Vec<ResolvedTaskUnit>,
+    pub(in crate::daemon) environment_values: Vec<tak_core::v2::EnvironmentValue>,
+    pub(in crate::daemon) resources: tak_core::v2::ResourceRequest,
+    pub(in crate::daemon) context_manifest: tak_core::v2::JobContextManifest,
+    pub(in crate::daemon) workspace_reuse: tak_proto::worker_v2::WorkerWorkspaceReuse,
+    pub(in crate::daemon) overlays: Vec<OutputOverlay>,
+}
+
 pub(in crate::daemon) struct LocalExecutionSnapshot {
     pub(in crate::daemon) archive_path: PathBuf,
     pub(in crate::daemon) attempt_root: PathBuf,
@@ -19,10 +32,12 @@ pub(in crate::daemon) struct LocalExecutionSnapshot {
     pub(in crate::daemon) environment: BTreeMap<String, String>,
     pub(in crate::daemon) workspace: LocalWorkspace,
     pub(in crate::daemon) overlays: Vec<OutputOverlay>,
+    pub(in crate::daemon) context_manifest: tak_core::v2::JobContextManifest,
 }
 
 pub(in crate::daemon) enum LocalWorkspace {
     Private,
+    Paths(super::super::path_cache::PathCache),
     Shared(PathBuf),
 }
 
@@ -113,11 +128,8 @@ impl RunStore {
             .ok_or_else(|| anyhow::anyhow!("resolved local job has no tasks"))?;
         let overlays = dependency_overlays(self, &transaction, &command.run_id, &run, consumer)?;
         transaction.commit()?;
-        let workspace = job
-            .session
-            .as_ref()
-            .filter(|session| matches!(session.reuse, SessionReuse::SharedWorkspace { .. }))
-            .map_or(LocalWorkspace::Private, |session| {
+        let workspace = match job.session.as_ref() {
+            Some(session) if matches!(session.reuse, SessionReuse::SharedWorkspace { .. }) => {
                 let identity =
                     serde_json::to_vec(&(&command.run_id, &session.id, &command.node_id))
                         .expect("shared workspace identity serializes");
@@ -126,7 +138,24 @@ impl RunStore {
                         .join("shared-workspaces")
                         .join(format!("{:x}", Sha256::digest(identity))),
                 )
-            });
+            }
+            Some(session) if matches!(session.reuse, SessionReuse::Paths { .. }) => {
+                let SessionReuse::Paths { paths } = &session.reuse else {
+                    unreachable!();
+                };
+                let identity =
+                    serde_json::to_vec(&(&command.run_id, &session.id, &command.node_id))?;
+                let root = self
+                    .blob_root
+                    .join("path-caches")
+                    .join(format!("{:x}", Sha256::digest(identity)));
+                LocalWorkspace::Paths(super::super::path_cache::PathCache::new(
+                    root,
+                    paths.clone(),
+                )?)
+            }
+            _ => LocalWorkspace::Private,
+        };
         Ok(LocalExecutionSnapshot {
             archive_path,
             attempt_root: self.attempt_root(command),
@@ -134,6 +163,7 @@ impl RunStore {
             environment,
             workspace,
             overlays,
+            context_manifest: job.context_manifest.clone(),
         })
     }
 

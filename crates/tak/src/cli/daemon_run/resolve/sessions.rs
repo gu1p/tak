@@ -111,5 +111,8 @@ fn attached_session(execution: &Execution) -> Option<&Session> {
     match execution {
         Execution::LocalOnly { local } => local.session.as_deref(),
         Execution::RemoteOnly { remote } => remote.session.as_deref(),
+        Execution::FirstAvailable { placements, .. } => {
+            placements.iter().find_map(attached_session)
+        }
     }
 }

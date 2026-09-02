@@ -5,6 +5,15 @@ use crate::agent::{AgentConfig, AgentImageCacheConfig};
 use super::{pending_context, recovering_exit};
 
 #[test]
+fn pending_context_wires_worker_v2_state_root() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let context = pending_context(&valid_config(), "http://builder.onion", temp.path())
+        .expect("pending context");
+
+    assert_eq!(context.state_root().as_deref(), Some(temp.path()));
+}
+
+#[test]
 fn pending_context_rejects_invalid_configured_image_cache() {
     let temp = tempfile::tempdir().expect("tempdir");
     let mut config = valid_config();

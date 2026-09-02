@@ -101,14 +101,16 @@ fn test_bind_addr_helper_trims_and_ignores_empty_values() {
 
 #[tokio::test]
 async fn tor_test_bind_override_keeps_token_pending_until_listener_binds() {
-    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(".tmp").expect("create local temp root");
+    let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
+    let local_temp = std::path::Path::new(".tmp").join(temp.path().file_name().expect("temp name"));
     let occupied_listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind occupied");
     let bind_addr = occupied_listener
         .local_addr()
         .expect("occupied addr")
         .to_string();
-    let config_root = temp.path().join("config");
-    let state_root = temp.path().join("state");
+    let config_root = local_temp.join("config");
+    let state_root = local_temp.join("state");
 
     // env_lock is held only across env mutation + sync init; dropping it before
     // the long-running serve_agent().await avoids starving every other

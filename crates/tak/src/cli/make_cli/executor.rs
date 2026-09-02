@@ -1,19 +1,16 @@
-use std::sync::Arc;
-
-use anyhow::{Result, anyhow};
-use tak_exec::{RunOptions, run_resolved_task, run_tasks};
+use anyhow::{Context, Result};
 use tak_make::{
     GoalAnnotations, GoalExecutionFuture, GoalExecutionRequest, GoalExecutor, MakeExecutionPlan,
     MakeRunOutcome, ParallelOutputMode, RunMakeError,
 };
 
 use crate::cli::command_model::{MakeArgs, MakeParallelOutputArg};
-use crate::cli::run_output::StdStreamOutputObserver;
 use crate::cli::run_overrides::{
     RunExecutionOverrideArgs, apply_run_execution_overrides, warn_redundant_remote_container_flag,
 };
 
 use super::output::ParallelMakeOutputObserver;
+use super::resolved;
 use super::task::{make_workspace, parallel_make_workspace};
 
 pub(super) struct TakGoalExecutor<'a> {
@@ -54,26 +51,11 @@ async fn execute_make_goal(
     let (spec, label) = make_workspace(request)?;
     warn_redundant_container_flag(args);
     let spec = apply_run_execution_overrides(&spec, std::slice::from_ref(&label), override_args)?;
-    let task = spec
-        .tasks
-        .get(&label)
-        .ok_or_else(|| anyhow!("missing synthetic Make task"))?;
     if implicit_local_host {
         print_implicit_local_host_notice(&args.goal);
     }
-    let result = run_resolved_task(
-        task,
-        &spec.root,
-        &RunOptions {
-            output_observer: Some(Arc::new(StdStreamOutputObserver::default())),
-            ..RunOptions::default()
-        },
-    )
-    .await?;
-
-    Ok(MakeRunOutcome {
-        exit_code: task_exit_code(result.success, result.exit_code),
-    })
+    let exit_code = submit(&spec, &[label], 1, false, args, None).await?;
+    Ok(MakeRunOutcome { exit_code })
 }
 
 async fn execute_parallel_make(plan: MakeExecutionPlan, args: &MakeArgs) -> Result<MakeRunOutcome> {
@@ -94,30 +76,57 @@ async fn execute_parallel_make(plan: MakeExecutionPlan, args: &MakeArgs) -> Resu
     if implicit_local_host {
         print_implicit_local_host_notice(&root_goal);
     }
-    let observer = Arc::new(ParallelMakeOutputObserver::new(
-        &workspace.goals,
-        parallel_output_override(args),
-    ));
-    let result = run_tasks(
+    let observer =
+        ParallelMakeOutputObserver::new(&workspace.goals, parallel_output_override(args));
+    let exit_code = submit(
         &spec,
         std::slice::from_ref(&workspace.root),
-        &RunOptions {
-            jobs: workspace.goals.len(),
-            keep_going: true,
-            output_observer: Some(observer.clone()),
-            ..RunOptions::default()
-        },
+        workspace.goals.len(),
+        true,
+        args,
+        Some(&observer),
     )
-    .await;
-    match result {
-        Ok(_) => Ok(MakeRunOutcome { exit_code: 0 }),
-        Err(error) => match observer.first_failure(&workspace.goals)? {
-            Some(code) => Ok(MakeRunOutcome {
-                exit_code: task_exit_code(false, Some(code)),
-            }),
-            None => Err(error),
-        },
+    .await?;
+    let exit_code = observer
+        .first_failure(&workspace.goals)?
+        .unwrap_or(exit_code);
+    Ok(MakeRunOutcome { exit_code })
+}
+
+async fn submit(
+    spec: &tak_core::model::WorkspaceSpec,
+    targets: &[tak_core::model::TaskLabel],
+    max_parallel_jobs: usize,
+    keep_going: bool,
+    args: &MakeArgs,
+    renderer: Option<&dyn crate::cli::daemon_run::PersistedEventRenderer>,
+) -> Result<i32> {
+    let workspace = crate::cli::daemon_run::build_workspace(&spec.root)?;
+    let submission = resolved::submission(
+        spec,
+        targets,
+        max_parallel_jobs,
+        keep_going,
+        &args.pass_env,
+        workspace.descriptor.clone(),
+    )
+    .await?;
+    let status = match renderer {
+        Some(renderer) => {
+            crate::cli::daemon_run::submit_resolved_exit_code_with_renderer(
+                &spec.root, submission, workspace, renderer,
+            )
+            .await
+        }
+        None => {
+            crate::cli::daemon_run::submit_resolved_exit_code(&spec.root, submission, workspace)
+                .await
+        }
     }
+    .context("tak make execution requires local takd")?;
+    Ok((0..=u8::MAX)
+        .find(|code| status == std::process::ExitCode::from(*code))
+        .map_or(1, i32::from))
 }
 
 fn print_implicit_local_host_notice(goal: &str) {
@@ -154,11 +163,4 @@ fn parallel_output_override(args: &MakeArgs) -> Option<ParallelOutputMode> {
         MakeParallelOutputArg::Live => ParallelOutputMode::Live,
         MakeParallelOutputArg::Grouped => ParallelOutputMode::Grouped,
     })
-}
-
-fn task_exit_code(success: bool, code: Option<i32>) -> i32 {
-    if success {
-        return 0;
-    }
-    code.unwrap_or(1).clamp(1, u8::MAX as i32)
 }

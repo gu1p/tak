@@ -19,7 +19,7 @@ fn reattach_materializes_into_the_original_checkout_after_client_loss() {
     let socket = std::path::PathBuf::from(".tmp")
         .join(temp.path().file_name().unwrap())
         .join("d.sock");
-    let _daemon = LocalDaemonGuard::spawn(&socket, &empty_spec(&checkout));
+    let daemon = LocalDaemonGuard::spawn(&socket, &empty_spec(&checkout));
     let mut child = Command::new(tak_bin())
         .current_dir(&checkout)
         .args(["run", "//:produce"])
@@ -29,7 +29,7 @@ fn reattach_materializes_into_the_original_checkout_after_client_loss() {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    let store = RunStore::with_db_path(socket.with_extension("v2.sqlite")).unwrap();
+    let store = RunStore::with_db_path(daemon.db_path().to_path_buf()).unwrap();
     let run_id = wait_for_run(&store, |state| state == "running");
     child.kill().unwrap();
     child.wait().unwrap();

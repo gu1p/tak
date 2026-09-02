@@ -105,62 +105,6 @@ impl SubmitAttemptStore {
         }
     }
 
-    pub(in crate::daemon::remote) fn selected_node_id_for_submit(
-        &self,
-        idempotency_key: &str,
-    ) -> Result<Option<String>> {
-        let key = idempotency_key.trim();
-        if key.is_empty() {
-            bail!("idempotency_key is required");
-        }
-        let conn = self.open_connection()?;
-        let mut stmt = conn.prepare(
-            "
-            SELECT selected_node_id
-            FROM submit_attempts
-            WHERE idempotency_key = ?1
-            LIMIT 1
-            ",
-        )?;
-        let mut rows = stmt.query(params![key])?;
-        if let Some(row) = rows.next()? {
-            let node_id = row.get::<_, String>(0)?;
-            Ok(Some(node_id))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub(in crate::daemon::remote) fn execution_root_base_for_submit(
-        &self,
-        idempotency_key: &str,
-    ) -> Result<Option<PathBuf>> {
-        let key = idempotency_key.trim();
-        if key.is_empty() {
-            bail!("idempotency_key is required");
-        }
-        let conn = self.open_connection()?;
-        let mut stmt = conn.prepare(
-            "
-            SELECT execution_root_base
-            FROM submit_attempts
-            WHERE idempotency_key = ?1
-            LIMIT 1
-            ",
-        )?;
-        let mut rows = stmt.query(params![key])?;
-        if let Some(row) = rows.next()? {
-            let root = row.get::<_, String>(0)?;
-            let root = root.trim();
-            if root.is_empty() {
-                return Ok(None);
-            }
-            Ok(Some(PathBuf::from(root)))
-        } else {
-            Ok(None)
-        }
-    }
-
     pub(in crate::daemon::remote) fn known_execution_root_bases(&self) -> Result<Vec<PathBuf>> {
         let conn = self.open_connection()?;
         let mut stmt = conn.prepare(

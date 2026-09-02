@@ -1,54 +1,42 @@
+#![cfg(unix)]
+
+use std::process::Command;
+
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+
 use crate::support;
-
-use std::io::Write;
-use std::net::TcpListener;
-use std::process::Command as StdCommand;
-use std::thread;
-
-use support::remote_cli::read_request;
-use support::remote_status::write_inventory;
+use support::remote_daemon_v2::FakeRemoteDaemon;
 
 #[test]
-fn remote_logs_fetches_complete_service_log_for_selected_node() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let config_root = temp.path().join("config");
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind logs server");
-    let addr = listener.local_addr().expect("listener addr");
-    let base_url = format!("http://{addr}");
-    write_inventory(&config_root, "builder-a", &base_url);
+fn remote_logs_preserves_output_via_daemon_v2_read() {
+    let root = tempfile::tempdir().expect("temp root");
+    let daemon = FakeRemoteDaemon::spawn(
+        root.path(),
+        vec![serde_json::json!({
+            "type": "RemoteRead",
+            "node_id": "builder-a",
+            "http_status": 200,
+            "body_base64": STANDARD.encode(b"booting takd\nremote service ready\n")
+        })],
+    );
 
-    let server = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept logs request");
-        let request = read_request(&mut stream);
-        assert!(
-            request.starts_with("GET /v1/node/logs?all=true HTTP/1.1\r\n"),
-            "unexpected request: {request}"
-        );
-        let body = b"booting takd\nremote service ready\n";
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        )
-        .expect("write response head");
-        stream.write_all(body).expect("write response body");
-    });
-
-    let output = StdCommand::new(support::tak_bin())
+    let output = Command::new(support::tak_bin())
         .args(["remote", "logs", "--node", "builder-a", "--all"])
-        .env("XDG_CONFIG_HOME", &config_root)
+        .env("TAKD_SOCKET", daemon.socket())
         .output()
-        .expect("run tak remote logs");
+        .expect("run remote logs");
 
     assert!(
         output.status.success(),
-        "tak remote logs should succeed\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
+        "{}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "booting takd\nremote service ready\n"
     );
-    server.join().expect("logs server should exit");
+    let requests = daemon.finish();
+    assert_eq!(requests[0]["operation"]["type"], "ReadRemote");
+    assert_eq!(requests[0]["operation"]["node_id"], "builder-a");
+    assert_eq!(requests[0]["operation"]["path"], "/v2/worker/logs?all=true");
 }

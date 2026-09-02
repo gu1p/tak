@@ -9,6 +9,7 @@ pub(in crate::cli::docker_cli) struct DockerRunSpec {
     pub(in crate::cli::docker_cli) publishes: Vec<String>,
     pub(in crate::cli::docker_cli) volumes: Vec<String>,
     pub(in crate::cli::docker_cli) env: Vec<String>,
+    pub(in crate::cli::docker_cli) pass_env: Vec<String>,
     pub(in crate::cli::docker_cli) workdir: Option<String>,
     pub(in crate::cli::docker_cli) name: Option<String>,
     pub(in crate::cli::docker_cli) cpus: Option<String>,
@@ -64,6 +65,15 @@ pub(in crate::cli::docker_cli) fn parse_docker_run(args: &[String]) -> Result<Do
         if let Some(value) = long_value(arg, "--env") {
             spec.env.push(value.to_string());
             index += 1;
+            continue;
+        }
+        if let Some(value) = long_value(arg, "--pass-env") {
+            spec.pass_env.push(value.to_string());
+            index += 1;
+            continue;
+        }
+        if arg == "--pass-env" {
+            spec.pass_env.push(take_value(args, &mut index, arg)?);
             continue;
         }
         if arg == "-e" || arg == "--env" {

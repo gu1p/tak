@@ -1,7 +1,7 @@
 use std::fs;
 
 use tak_core::v2::SessionReuse;
-use tak_loader::{AuthoredRootModule, LoadOptions, inspect_authored_root_module};
+use tak_loader::{LoadOptions, inspect_authored_root_module};
 
 #[test]
 fn v2_loader_preserves_container_session_cascade() {
@@ -20,22 +20,18 @@ SPEC
     )
     .unwrap();
 
-    let AuthoredRootModule::V2(root) =
-        inspect_authored_root_module(temp.path(), &LoadOptions::default()).unwrap()
-    else {
-        panic!("expected v2 root")
-    };
+    let root = inspect_authored_root_module(temp.path(), &LoadOptions::default()).unwrap();
     let dependency = root
         .module
         .tasks
         .iter()
-        .find(|task| task.name == "dep")
+        .find(|task| task.name == "//:dep")
         .unwrap();
     let target = root
         .module
         .tasks
         .iter()
-        .find(|task| task.name == "target")
+        .find(|task| task.name == "//:target")
         .unwrap();
     assert!(dependency.session.is_none());
     assert!(target.cascade_session);

@@ -1,7 +1,12 @@
 use super::{
-    OutputArtifact, RunDetails, RunEvent, RunLifecycleState, RunSummary, WorkspaceDisposition,
+    DaemonStatusSnapshot, OutputArtifact, RemoteInventoryEntry, RemoteStatusEntry, RunDetails,
+    RunEvent, RunLifecycleState, RunSummary, WorkspaceDisposition,
 };
 use serde::{Deserialize, Serialize};
+use tak_core::v2::PlacementCandidate;
+
+#[path = "response/correlation.rs"]
+mod correlation;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", deny_unknown_fields)]
@@ -11,6 +16,49 @@ pub enum Response {
         protocol_version: u64,
         request_id: String,
         code: super::DaemonErrorCode,
+    },
+    DaemonStatus {
+        protocol_version: u64,
+        request_id: String,
+        status: DaemonStatusSnapshot,
+    },
+    RemotePreview {
+        protocol_version: u64,
+        request_id: String,
+        remote: RemoteInventoryEntry,
+    },
+    RemoteAdded {
+        protocol_version: u64,
+        request_id: String,
+        remote: RemoteInventoryEntry,
+    },
+    RemoteList {
+        protocol_version: u64,
+        request_id: String,
+        remotes: Vec<RemoteInventoryEntry>,
+    },
+    RemoteRemoved {
+        protocol_version: u64,
+        request_id: String,
+        node_id: String,
+        removed: bool,
+    },
+    RemoteStatus {
+        protocol_version: u64,
+        request_id: String,
+        remotes: Vec<RemoteStatusEntry>,
+    },
+    RemoteRead {
+        protocol_version: u64,
+        request_id: String,
+        node_id: String,
+        http_status: u16,
+        body_base64: String,
+    },
+    RemoteCandidates {
+        protocol_version: u64,
+        request_id: String,
+        candidates: Vec<PlacementCandidate>,
     },
     RunSubmitted {
         protocol_version: u64,
@@ -51,6 +99,10 @@ pub enum Response {
         next_event: u64,
         state: RunLifecycleState,
         terminal: bool,
+        #[serde(default)]
+        logs_expired: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        exit_code: Option<i32>,
     },
     CancellationAccepted {
         protocol_version: u64,
@@ -73,61 +125,4 @@ pub enum Response {
         chunk_base64: String,
         complete: bool,
     },
-}
-
-impl Response {
-    pub(super) fn correlation(&self) -> (&str, u64) {
-        match self {
-            Self::Error {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::RunSubmitted {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::WorkspaceUploadProgress {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::RunCommitted {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::RunList {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::RunDetails {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::RunEvents {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::CancellationAccepted {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::OutputManifest {
-                request_id,
-                protocol_version,
-                ..
-            }
-            | Self::OutputChunk {
-                request_id,
-                protocol_version,
-                ..
-            } => (request_id, *protocol_version),
-        }
-    }
 }

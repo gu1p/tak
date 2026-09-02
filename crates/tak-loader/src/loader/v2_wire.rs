@@ -1,7 +1,9 @@
 use serde::Deserialize;
 
+mod context;
 mod scheduling;
 
+pub(super) use context::{Context, Ignore};
 pub(super) use scheduling::{Backoff, Limiter, Need, QueueDefinition, QueueUse, Retry};
 
 #[derive(Deserialize)]
@@ -26,7 +28,7 @@ pub(super) struct Defaults {
     pub(super) kind: String,
     pub(super) queue: Option<QueueUse>,
     pub(super) retry: Option<Retry>,
-    pub(super) container: Option<Unsupported>,
+    pub(super) container: Option<Container>,
     pub(super) execution: Option<Execution>,
     pub(super) tags: Vec<String>,
     pub(super) pass_env: Vec<String>,
@@ -42,7 +44,7 @@ pub(super) struct Task {
     pub(super) queue: Option<QueueUse>,
     pub(super) retry: Option<Retry>,
     pub(super) timeout_s: Option<u64>,
-    pub(super) context: Option<Unsupported>,
+    pub(super) context: Option<Context>,
     pub(super) outputs: Vec<Output>,
     pub(super) execution: Option<Execution>,
     pub(super) session: Option<Box<Session>>,
@@ -81,25 +83,35 @@ pub(super) enum Output {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(super) enum Execution {
-    LocalOnly { local: Local },
-    RemoteOnly { remote: Remote },
+    LocalOnly {
+        local: Local,
+    },
+    RemoteOnly {
+        remote: Remote,
+    },
+    FirstAvailable {
+        policy_id: String,
+        placements: Vec<Execution>,
+    },
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Local {
-    pub(super) container: Option<Unsupported>,
+    pub(super) reason: String,
+    pub(super) container: Option<Container>,
     pub(super) session: Option<Box<Session>>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Remote {
+    pub(super) reason: String,
     pub(super) pool: Option<String>,
     pub(super) required_tags: Vec<String>,
     pub(super) required_capabilities: Vec<String>,
     pub(super) transport: Option<Transport>,
-    pub(super) container: Option<Unsupported>,
+    pub(super) container: Option<Container>,
     pub(super) selection: Selection,
     pub(super) session: Option<Box<Session>>,
 }
@@ -129,7 +141,7 @@ pub(super) struct Session {
     pub(super) name: Option<String>,
     pub(super) execution: Option<Box<Execution>>,
     pub(super) reuse: Reuse,
-    pub(super) context: Option<Unsupported>,
+    pub(super) context: Option<Context>,
     pub(super) affinity: Option<Affinity>,
 }
 
@@ -151,4 +163,29 @@ pub(super) enum Affinity {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Unsupported {}
+pub(super) struct Container {
+    pub(super) kind: String,
+    pub(super) image: Option<String>,
+    pub(super) dockerfile: Option<Output>,
+    pub(super) build_context: Option<Output>,
+    pub(super) command: Option<Vec<String>>,
+    pub(super) mounts: Vec<ContainerMount>,
+    pub(super) env: std::collections::BTreeMap<String, String>,
+    pub(super) resource_limits: Option<ContainerResources>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ContainerMount {
+    pub(super) source: String,
+    pub(super) target: String,
+    #[serde(default)]
+    pub(super) read_only: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ContainerResources {
+    pub(super) cpu_cores: Option<f64>,
+    pub(super) memory_mb: Option<u64>,
+}

@@ -1,50 +1,5 @@
 use std::path::PathBuf;
 
-use serde::Serialize;
-use tak_core::model::{OutputSelectorSpec, RemoteRuntimeSpec, RetryDef, StepDef};
-use tak_proto::SubmittedNeed;
-
-#[derive(Debug, Clone)]
-pub(in crate::daemon::remote) struct RemoteWorkerSubmitPayload {
-    pub(in crate::daemon::remote) workspace_zip: Vec<u8>,
-    pub(in crate::daemon::remote) task_run_id: String,
-    pub(in crate::daemon::remote) task_label: String,
-    pub(in crate::daemon::remote) attempt: u32,
-    pub(in crate::daemon::remote) steps: Vec<StepDef>,
-    pub(in crate::daemon::remote) timeout_s: Option<u64>,
-    pub(in crate::daemon::remote) runtime: Option<RemoteRuntimeSpec>,
-    pub(in crate::daemon::remote) needs: Vec<SubmittedNeed>,
-    pub(in crate::daemon::remote) outputs: Vec<OutputSelectorSpec>,
-    pub(in crate::daemon::remote) session: Option<RemoteWorkerSession>,
-    pub(in crate::daemon::remote) fused_members: Vec<RemoteWorkerFusedMember>,
-    pub(in crate::daemon::remote) origin: Option<String>,
-    pub(in crate::daemon::remote) runtime_source: Option<String>,
-    pub(in crate::daemon::remote) command: Option<String>,
-    pub(in crate::daemon::remote) execution_label: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub(in crate::daemon::remote) struct RemoteWorkerFusedMember {
-    pub(in crate::daemon::remote) task_label: String,
-    pub(in crate::daemon::remote) steps: Vec<StepDef>,
-    pub(in crate::daemon::remote) timeout_s: Option<u64>,
-    pub(in crate::daemon::remote) retry: RetryDef,
-    pub(in crate::daemon::remote) execution_label: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub(in crate::daemon::remote) struct RemoteWorkerSession {
-    pub(in crate::daemon::remote) key: String,
-    pub(in crate::daemon::remote) reuse: RemoteWorkerSessionReuse,
-}
-
-#[derive(Debug, Clone)]
-pub(in crate::daemon::remote) enum RemoteWorkerSessionReuse {
-    ShareWorkspace,
-    SharePaths { paths: Vec<OutputSelectorSpec> },
-    Container,
-}
-
 #[derive(Debug, Clone)]
 pub struct RemoteImageCacheRuntimeConfig {
     pub db_path: PathBuf,
@@ -55,9 +10,15 @@ pub struct RemoteImageCacheRuntimeConfig {
     pub low_disk_min_free_bytes: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub(in crate::daemon::remote) struct RemoteWorkerOutputRecord {
-    pub(in crate::daemon::remote) path: String,
-    pub(in crate::daemon::remote) digest: String,
-    pub(in crate::daemon::remote) size: u64,
+impl RemoteImageCacheRuntimeConfig {
+    pub(crate) fn runner_options(&self) -> tak_runner::ImageCacheOptions {
+        tak_runner::ImageCacheOptions {
+            db_path: self.db_path.clone(),
+            budget_bytes: self.budget_bytes,
+            mutable_tag_ttl_secs: self.mutable_tag_ttl_secs,
+            sweep_interval_secs: self.sweep_interval_secs,
+            low_disk_min_free_percent: self.low_disk_min_free_percent,
+            low_disk_min_free_bytes: self.low_disk_min_free_bytes,
+        }
+    }
 }

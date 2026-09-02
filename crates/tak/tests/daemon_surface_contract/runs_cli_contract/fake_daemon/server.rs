@@ -10,6 +10,9 @@ use super::read::read_request;
 use super::response::response_bytes;
 use super::write::{write_response, write_slow_prefix};
 
+#[path = "server/delay.rs"]
+mod delay;
+
 pub(super) fn serve(
     listener: UnixListener,
     reply: Reply,
@@ -55,20 +58,7 @@ fn handle(
         .to_string();
     let request_number = requests.lock().expect("request capture lock").len();
     let bytes = response_bytes(reply, &request_id, &request, request_number);
-    let delay = match reply {
-        Reply::DelayedSubmissionFlow(operation, delay)
-            if request["operation"]["type"].as_str() == Some(operation) =>
-        {
-            Some(*delay)
-        }
-        Reply::DelayedCancellationFlow(operation, delay, _)
-            if request["operation"]["type"].as_str() == Some(operation)
-                || request["operation"]["type"].as_str() == Some("CancelRun") =>
-        {
-            Some(*delay)
-        }
-        _ => None,
-    };
+    let delay = delay::response_delay(reply, &request, request_number);
     requests.lock().expect("request capture lock").push(request);
     if let Some(delay) = delay {
         let deadline = Instant::now() + delay;

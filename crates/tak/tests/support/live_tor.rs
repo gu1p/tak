@@ -1,19 +1,17 @@
 #![allow(dead_code)]
 
 use std::path::Path;
-use std::process::{Command as StdCommand, Stdio};
+use std::process::Stdio;
 
 pub use super::live_tor_roots::LiveTorRoots;
+use super::short_daemon_paths::DaemonCommandPaths;
 use super::tor_smoke::{ChildGuard, assert_success, assert_success_with_log, tak_command};
 
 pub fn init_tor_agent(takd: &Path, roots: &LiveTorRoots, node_id: &str) {
-    let output = StdCommand::new(takd)
+    let paths = DaemonCommandPaths::new(&roots.server_config_root, &roots.server_state_root);
+    let output = paths
+        .rooted_command(takd, "init")
         .args([
-            "init",
-            "--config-root",
-            &roots.server_config_root.display().to_string(),
-            "--state-root",
-            &roots.server_state_root.display().to_string(),
             "--node-id",
             node_id,
             "--pool",
@@ -37,28 +35,18 @@ pub fn spawn_tor_agent_with_env(
     roots: &LiveTorRoots,
     extra_env: &[(String, String)],
 ) -> ChildGuard {
-    let mut command = StdCommand::new(takd);
-    command
-        .args([
-            "serve",
-            "--config-root",
-            &roots.server_config_root.display().to_string(),
-            "--state-root",
-            &roots.server_state_root.display().to_string(),
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+    let paths = DaemonCommandPaths::new(&roots.server_config_root, &roots.server_state_root);
+    let mut command = paths.rooted_command(takd, "serve");
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command.env("XDG_CONFIG_HOME", paths.config_root());
+    command.env("XDG_RUNTIME_DIR", paths.runtime_root());
     command
         .env("TAKD_TOR_STARTUP_PROBE_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_SESSION_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_STARTUP_PROBE_BACKOFF_MS", "1000")
         .env("TAKD_TOR_RECOVERY_PROBE_TIMEOUT_MS", "300000")
         .env("TAKD_TOR_RECOVERY_PROBE_BACKOFF_MS", "1000");
-    let temp_root = roots
-        .server_state_root
-        .parent()
-        .expect("live Tor roots should share one temp root");
-    command.env("TAKD_REMOTE_EXEC_ROOT", temp_root.join("remote-exec"));
+    command.env("TAKD_REMOTE_EXEC_ROOT", paths.remote_exec_root());
     for (key, value) in extra_env {
         command.env(key, value);
     }
@@ -67,16 +55,10 @@ pub fn spawn_tor_agent_with_env(
 }
 
 pub fn wait_for_token(takd: &Path, roots: &LiveTorRoots) -> String {
-    let output = StdCommand::new(takd)
-        .args([
-            "token",
-            "show",
-            "--state-root",
-            &roots.server_state_root.display().to_string(),
-            "--wait",
-            "--timeout-secs",
-            "360",
-        ])
+    let paths = DaemonCommandPaths::new(&roots.server_config_root, &roots.server_state_root);
+    let output = paths
+        .state_command(takd, &["token", "show"])
+        .args(["--wait", "--timeout-secs", "360"])
         .output()
         .expect("run takd token show --wait");
     assert_success_with_log(&output, "takd token show --wait", &roots.service_log_path());

@@ -1,20 +1,29 @@
 #![allow(dead_code)]
 
 use super::local_daemon_manager::manager_for;
+use super::takd_binary::takd_bin;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
-use std::time::{Duration, Instant};
 use tak_core::model::WorkspaceSpec;
-use takd::{PeerManager, RunStore, TorBroker, run_server_with_local_attempt_executable};
+use takd::{PeerManager, TorBroker};
+
+mod custom_executable;
+mod inventory;
+mod runtime;
+mod socket_binding;
 
 pub struct LocalDaemonGuard {
-    runtime: tokio::runtime::Runtime,
-    task: tokio::task::JoinHandle<()>,
+    thread: Option<std::thread::JoinHandle<()>>,
+    stopped: mpsc::Receiver<Result<(), String>>,
+    shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     socket_path: PathBuf,
+    db_path: PathBuf,
+    _state_dir: tempfile::TempDir,
+    socket_binding: socket_binding::SocketBinding,
 }
 impl LocalDaemonGuard {
     pub fn spawn(socket_path: &Path, spec: &WorkspaceSpec) -> Self {
-        Self::spawn_with_broker(socket_path, spec, TorBroker::new())
+        Self::spawn_with_broker(socket_path, spec, non_tor_broker())
     }
     pub fn spawn_with_tor_dial_addr(
         socket_path: &Path,
@@ -23,78 +32,63 @@ impl LocalDaemonGuard {
     ) -> Self {
         Self::spawn_with_broker(socket_path, spec, TorBroker::for_direct_dial(dial_addr))
     }
-    pub fn spawn_with_tor_inventory(
-        socket_path: &Path,
-        spec: &WorkspaceSpec,
-        dial_addr: String,
-        inventory_path: PathBuf,
-    ) -> Self {
-        let broker = TorBroker::for_direct_dial(dial_addr);
-        let inventory = tak_core::remote_inventory::load_remote_inventory_at(&inventory_path)
-            .expect("load client remote inventory for local daemon");
-        let peers = PeerManager::default();
-        peers.apply_inventory(inventory);
-        Self::spawn_with_broker_and_peers(socket_path, spec, broker, peers)
-    }
     fn spawn_with_broker(socket_path: &Path, spec: &WorkspaceSpec, broker: TorBroker) -> Self {
-        Self::spawn_with_broker_and_peers(socket_path, spec, broker, PeerManager::default())
+        let peers = PeerManager::default();
+        Self::spawn_inner(socket_path, spec, broker, peers, takd_bin())
     }
-    fn spawn_with_broker_and_peers(
+    fn spawn_inner(
         socket_path: &Path,
         spec: &WorkspaceSpec,
         broker: TorBroker,
         peers: PeerManager,
+        attempt_executable: PathBuf,
     ) -> Self {
-        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
         let manager = Arc::clone(&manager_for(spec));
         let socket_path = socket_path.to_path_buf();
-        let serve_path = socket_path.clone();
-        let run_store = RunStore::with_db_path(socket_path.with_extension("v2.sqlite")).unwrap();
-        let attempt_executable = super::takd_binary::takd_bin();
-        let (startup_tx, startup_rx) = mpsc::channel();
-        let task = runtime.spawn(async move {
-            let exit = run_server_with_local_attempt_executable(
-                &serve_path,
-                manager,
-                broker,
-                peers,
-                run_store,
-                attempt_executable,
-            )
-            .await;
-            let message = match exit {
-                Ok(()) => "server exited before local daemon socket appeared".to_string(),
-                Err(err) => format!("{err:#}"),
-            };
-            let _ = startup_tx.send(message);
-        });
-        let deadline = Instant::now() + Duration::from_secs(30);
-        while !socket_path.exists() {
-            if let Ok(message) = startup_rx.try_recv() {
-                panic!(
-                    "local daemon exited before socket {} was ready: {message}",
-                    socket_path.display()
-                );
-            }
-            assert!(
-                Instant::now() < deadline,
-                "timed out waiting for local daemon socket {}",
-                socket_path.display()
-            );
-            std::thread::sleep(Duration::from_millis(20));
-        }
+        let socket_binding = socket_binding::SocketBinding::new(&socket_path);
+        let state_dir = native_state_dir();
+        let db_path = state_dir.path().join("run.sqlite");
+        let server = runtime::spawn_server(
+            socket_binding.server_path().to_path_buf(),
+            manager,
+            broker,
+            peers,
+            db_path.clone(),
+            attempt_executable,
+            state_dir.path().join("remotes.toml"),
+        )
+        .unwrap_or_else(|error| panic!("local daemon startup failed: {error}"));
         Self {
-            runtime,
-            task,
+            thread: Some(server.thread),
+            stopped: server.stopped,
+            shutdown: Some(server.shutdown),
             socket_path,
+            db_path,
+            _state_dir: state_dir,
+            socket_binding,
         }
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+
+    pub fn effective_socket_path(&self) -> &Path {
+        self.socket_binding.server_path()
     }
 }
-impl Drop for LocalDaemonGuard {
-    fn drop(&mut self) {
-        self.task.abort();
-        self.runtime
-            .block_on(async { tokio::time::sleep(Duration::from_millis(20)).await });
-        let _ = std::fs::remove_file(&self.socket_path);
-    }
+
+fn native_state_dir() -> tempfile::TempDir {
+    let root = std::env::var_os("TAK_TEST_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    std::fs::create_dir_all(&root).expect("create native test temporary directory");
+    tempfile::Builder::new()
+        .prefix("tak-local-daemon-")
+        .tempdir_in(root)
+        .expect("create native local daemon state directory")
+}
+
+fn non_tor_broker() -> TorBroker {
+    TorBroker::for_direct_dial("127.0.0.1:9")
 }

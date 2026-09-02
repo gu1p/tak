@@ -1,5 +1,4 @@
 use std::num::NonZeroU32;
-use std::sync::LazyLock;
 
 use sha2::{Digest, Sha256};
 use tak_core::v2::{
@@ -9,27 +8,18 @@ use tak_core::v2::{
     WorkspaceManifest,
 };
 
+mod archive;
 pub mod constraints;
+pub mod final_outputs;
 pub mod local_outputs;
+pub mod mixed_outputs;
 pub mod output_conflicts;
+pub mod path_cache;
 pub mod scheduler;
+mod variant;
 
-pub static ARCHIVE: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let mut archive = Vec::new();
-    let mut builder = tar::Builder::new(&mut archive);
-    builder.mode(tar::HeaderMode::Deterministic);
-    let mut header = tar::Header::new_gnu();
-    header.set_entry_type(tar::EntryType::Regular);
-    header.set_mode(0o644);
-    header.set_size(4);
-    header.set_cksum();
-    builder
-        .append_data(&mut header, "TASKS.py", &b"spec"[..])
-        .unwrap();
-    builder.finish().unwrap();
-    drop(builder);
-    archive
-});
+pub use archive::ARCHIVE;
+pub use variant::submission_with_spec;
 
 pub fn submission(key: &str, secret: &str) -> RunSubmission {
     let manifest = WorkspaceManifest::new(vec![
@@ -63,6 +53,8 @@ pub fn submission(key: &str, secret: &str) -> RunSubmission {
             pass_env_names: vec!["TOKEN".into()],
             idempotent: true,
             affinity: None,
+            timeout_s: None,
+            runtime: None,
         }],
         jobs: vec![ResolvedJob {
             job_id: "job-0".into(),
@@ -76,11 +68,15 @@ pub fn submission(key: &str, secret: &str) -> RunSubmission {
                 kind: PlacementKind::Local,
                 transport: None,
                 reason: "local".into(),
+                tier: 0,
+                requirements: None,
             }],
             resources: ResourceRequest::default(),
             retry: RetryPolicy::default(),
             idempotent: true,
             queue: None,
+            queue_slots: NonZeroU32::MIN,
+            queue_priority: 0,
             limiter_claims: vec![],
             affinity: None,
             session: None,

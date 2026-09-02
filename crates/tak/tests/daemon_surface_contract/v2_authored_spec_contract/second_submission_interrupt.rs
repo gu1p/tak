@@ -51,7 +51,7 @@ fn second_ctrl_c_detaches_while_persisted_cancellation_is_pending() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("persisted cancellation continues"));
 }
 
-pub(super) fn interrupt(child: &std::process::Child) {
+pub(crate) fn interrupt(child: &std::process::Child) {
     assert!(
         Command::new("kill")
             .args(["-INT", &child.id().to_string()])
@@ -61,7 +61,7 @@ pub(super) fn interrupt(child: &std::process::Child) {
     );
 }
 
-pub(super) fn wait_for_requests(daemon: &FakeRunDaemon, count: usize) {
+pub(crate) fn wait_for_requests(daemon: &FakeRunDaemon, count: usize) {
     let deadline = Instant::now() + Duration::from_secs(5);
     while daemon.request_count() < count {
         assert!(Instant::now() < deadline, "request was not observed");
@@ -69,7 +69,7 @@ pub(super) fn wait_for_requests(daemon: &FakeRunDaemon, count: usize) {
     }
 }
 
-pub(super) fn wait_for_exit(child: &mut std::process::Child) -> bool {
+pub(crate) fn wait_for_exit(child: &mut std::process::Child) -> bool {
     let deadline = Instant::now() + Duration::from_secs(3);
     while child.try_wait().unwrap().is_none() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(5));

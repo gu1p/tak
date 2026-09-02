@@ -6,7 +6,7 @@ use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::{Ranged, TextRange};
 
 use super::{
-    PreparedLegacyAuthoredSource,
+    PreparedAuthoredSource,
     expr_helpers::{is_tak_module, line_and_column},
 };
 
@@ -17,13 +17,6 @@ pub(super) struct AuthoredDslBoundary<'a> {
     allowed_namespace_attribute_ranges: Vec<TextRange>,
     allowed_namespace_name_ranges: Vec<TextRange>,
     error: Option<String>,
-    version: DslVersion,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum DslVersion {
-    Legacy,
-    V2,
 }
 
 struct Replacement {
@@ -40,22 +33,10 @@ impl<'a> AuthoredDslBoundary<'a> {
             allowed_namespace_attribute_ranges: Vec::new(),
             allowed_namespace_name_ranges: Vec::new(),
             error: None,
-            version: DslVersion::Legacy,
         }
     }
 
-    pub(super) fn new_v2(path: &'a Path, source: &'a str) -> Self {
-        Self {
-            version: DslVersion::V2,
-            ..Self::new(path, source)
-        }
-    }
-
-    pub(super) fn is_v2(&self) -> bool {
-        self.version == DslVersion::V2
-    }
-
-    pub(super) fn finish(mut self) -> Result<PreparedLegacyAuthoredSource> {
+    pub(super) fn finish(mut self) -> Result<PreparedAuthoredSource> {
         if let Some(message) = self.error.take() {
             return Err(anyhow!(message));
         }
@@ -71,7 +52,7 @@ impl<'a> AuthoredDslBoundary<'a> {
             );
         }
 
-        Ok(PreparedLegacyAuthoredSource {
+        Ok(PreparedAuthoredSource {
             authored_source: self.source.to_owned(),
             runtime_source,
         })
@@ -116,9 +97,7 @@ impl<'a> AuthoredDslBoundary<'a> {
     }
 
     fn should_reject_name(&self, name: &str, range: TextRange) -> bool {
-        is_namespace_name(name)
-            && (name != "Affinity" || self.is_v2())
-            && !self.is_allowed_namespace_name(range)
+        is_namespace_name(name) && !self.is_allowed_namespace_name(range)
     }
 
     fn name_rejection_message(&self, name: &str) -> String {
@@ -165,7 +144,9 @@ impl<'a> Visitor<'a> for AuthoredDslBoundary<'a> {
     fn visit_expr(&mut self, expr: &'a Expr) {
         if self.error.is_none() {
             match expr {
-                Expr::Call(call) => self.handle_call(call.func.as_ref()),
+                Expr::Call(call) if !self.reject_removed_call_surface(call) => {
+                    self.handle_call(call.func.as_ref());
+                }
                 Expr::Attribute(attribute) => self.handle_attribute(expr, attribute.range()),
                 Expr::Name(name) if self.should_reject_name(name.id.as_str(), name.range()) => {
                     self.reject(name.range(), self.name_rejection_message(name.id.as_str()));

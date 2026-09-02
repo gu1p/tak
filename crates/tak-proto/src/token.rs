@@ -4,7 +4,8 @@ use prost::Message;
 
 use crate::RemoteTokenPayload;
 
-const PREFIX: &str = "takd:v1:";
+const DIRECT_V2_PREFIX: &str = "takd:v2:";
+const LEGACY_DIRECT_V1_PREFIX: &str = "takd:v1:";
 const TOR_INVITE_PREFIX: &str = "takd:tor:";
 const TOR_INVITE_CHECKSUM_LEN: usize = 5;
 const CROCKFORD_BASE32: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -17,18 +18,44 @@ pub struct TorInvitePayload {
 }
 
 pub fn encode_remote_token(payload: &RemoteTokenPayload) -> Result<String> {
+    if payload.version != "v2" {
+        return Err(anyhow!(
+            "direct invite encoding requires payload version `v2`, got `{}`",
+            payload.version
+        ));
+    }
     let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.encode_to_vec());
-    Ok(format!("{PREFIX}{encoded}"))
+    Ok(format!("{DIRECT_V2_PREFIX}{encoded}"))
 }
 
 pub fn decode_remote_token(value: &str) -> Result<RemoteTokenPayload> {
-    let payload = value
-        .strip_prefix(PREFIX)
-        .ok_or_else(|| anyhow!("remote token must start with `{PREFIX}`"))?;
+    let payload = direct_token_payload(value)?;
     let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload)
         .context("decode remote token base64")?;
-    RemoteTokenPayload::decode(decoded.as_slice()).context("decode remote token protobuf")
+    let payload =
+        RemoteTokenPayload::decode(decoded.as_slice()).context("decode remote token protobuf")?;
+    if payload.version != "v2" {
+        return Err(anyhow!(
+            "direct invite prefix `{DIRECT_V2_PREFIX}` requires payload version `v2`, got `{}`",
+            payload.version
+        ));
+    }
+    Ok(payload)
+}
+
+fn direct_token_payload(value: &str) -> Result<&str> {
+    if let Some(payload) = value.strip_prefix(DIRECT_V2_PREFIX) {
+        return Ok(payload);
+    }
+    if value.starts_with(LEGACY_DIRECT_V1_PREFIX) {
+        return Err(anyhow!(
+            "direct v1 invite is unsupported; upgrade tak, takd, and workers together"
+        ));
+    }
+    Err(anyhow!(
+        "direct invite must start with `{DIRECT_V2_PREFIX}`; legacy `{LEGACY_DIRECT_V1_PREFIX}` invites require a coordinated upgrade"
+    ))
 }
 
 pub fn encode_tor_invite(base_url: &str) -> Result<String> {

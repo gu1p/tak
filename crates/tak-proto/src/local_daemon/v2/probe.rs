@@ -25,7 +25,6 @@ enum Version {
 }
 
 pub(super) enum Decision {
-    Legacy,
     StrictV2,
     Reject(RequestDecodeErrorCode),
 }
@@ -44,14 +43,14 @@ impl Probe {
             return if self.version_count > 0 || self.operation_seen {
                 Decision::Reject(RequestDecodeErrorCode::RequestInvalid)
             } else {
-                Decision::Legacy
+                Decision::Reject(RequestDecodeErrorCode::VersionUnsupported)
             };
         }
         if self.version_count == 0 {
             return if self.operation_seen {
                 Decision::Reject(RequestDecodeErrorCode::VersionInvalid)
             } else {
-                Decision::Legacy
+                Decision::Reject(RequestDecodeErrorCode::VersionUnsupported)
             };
         }
         if self.version_count > 1 || matches!(self.version, Version::Invalid) {

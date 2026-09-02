@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use takd::{RemoteImageCacheRuntimeConfig, SubmitAttemptStore, run_remote_v1_http_server};
+use takd::{RemoteImageCacheRuntimeConfig, SubmitAttemptStore, run_worker_http_server};
 use tokio::{net::TcpListener, time::sleep};
 
 use crate::support;
@@ -38,7 +38,7 @@ async fn image_cache_janitor_waits_for_configured_sweep_interval() {
         .expect("bind remote listener");
     let store =
         SubmitAttemptStore::with_db_path(temp.path().join("agent-store.sqlite")).expect("store");
-    let server = tokio::spawn(run_remote_v1_http_server(listener, store, context));
+    let server = tokio::spawn(run_worker_http_server(listener, store, context));
 
     sleep(Duration::from_millis(250)).await;
     let early = tak_runner::image_cache_status(&db_path, 1, 0.0, 0).expect("early status");

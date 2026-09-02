@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow};
-use rusqlite::{Connection, params};
+use rusqlite::params;
 use tak_core::model::Scope;
 use uuid::Uuid;
 

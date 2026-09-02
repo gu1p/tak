@@ -20,9 +20,11 @@ fn v6_store_upgrades_to_durable_attempt_and_final_output_tables() {
     RunStore::with_db_path(db.clone()).unwrap();
     let connection = Connection::open(db).unwrap();
     let version: i64 = connection
-        .query_row("SELECT version FROM run_schema_version", [], |row| row.get(0))
+        .query_row("SELECT version FROM run_schema_version", [], |row| {
+            row.get(0)
+        })
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 14);
     for table in ["run_attempt_outputs", "run_final_outputs"] {
         let exists: bool = connection
             .query_row(
@@ -33,4 +35,12 @@ fn v6_store_upgrades_to_durable_attempt_and_final_output_tables() {
             .unwrap();
         assert!(exists, "missing {table}");
     }
+    let output_error_exists: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('runs') WHERE name='output_error')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(output_error_exists, "missing runs.output_error");
 }

@@ -64,13 +64,17 @@ fn a_partial_run_adopts_a_concurrently_published_matching_blob() {
 
 fn upload_all(store: &RunStore, request: &tak_core::v2::RunSubmission, owner: &str) {
     let accepted = store.submit(request, owner).unwrap();
+    let next_offset = match accepted.workspace {
+        WorkspaceDisposition::Present => return,
+        WorkspaceDisposition::UploadRequired { next_offset } => next_offset,
+    };
     store
         .upload_workspace(
             &accepted.run_id,
             &request.run.workspace.manifest.fingerprint,
             ARCHIVE.len() as u64,
-            0,
-            ARCHIVE.as_slice(),
+            next_offset,
+            &ARCHIVE[next_offset as usize..],
         )
         .unwrap();
 }

@@ -50,6 +50,6 @@ fi
 
 say "=== B: broker onion-dial + heartbeat lines (the previously-silent failure) ==="
 docker exec takd-b sh -c 'grep -iE "onion dial|heartbeat ping|broker" /root/.local/state/takd/service.log 2>/dev/null | tail -25' >>"$REP" 2>&1
-say "=== A: incoming /v1 + worker/submit lines ==="
-docker exec takd-a sh -c 'grep -iE "/v1/node|worker|submit|mock-container|simulating|TAK_REMOTE_OK" /root/.local/state/takd/service.log 2>/dev/null | grep -ivE "self-probe|health_detail|live_readiness" | tail -15' >>"$REP" 2>&1
+say "=== A: incoming /v2/worker + dispatch lines ==="
+docker exec takd-a sh -c 'grep -iE "/v2/worker|worker|dispatch|mock-container|simulating|TAK_REMOTE_OK" /root/.local/state/takd/service.log 2>/dev/null | grep -ivE "self-probe|health_detail|live_readiness" | tail -15' >>"$REP" 2>&1
 say DONE

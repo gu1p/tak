@@ -9,18 +9,17 @@ use super::container_runtime::simulated_container_runtime_env;
 use super::examples_catalog::ExampleEntry;
 use super::examples_remote_fixture::{RemoteFixtureSetup, expected_remote_node};
 use super::live_tor::{
-    LiveTorRoots, init_tor_agent, spawn_tor_agent, spawn_tor_agent_with_env,
-    wait_for_token as wait_for_tor_token,
+    LiveTorRoots, init_tor_agent, spawn_tor_agent_with_env, wait_for_token as wait_for_tor_token,
 };
-use super::live_tor_remote::{
-    add_remote as add_tor_remote, add_remote_with_env as add_tor_remote_with_env,
-};
+use super::live_tor_remote::add_remote_with_env as add_tor_remote_with_env;
+use super::local_daemon::LocalDaemonGuard;
 use super::tor_smoke::takd_bin;
 
 pub fn tor_fixture(
     entry: &ExampleEntry,
     temp_root: &Path,
     workspace_root: &Path,
+    spec: &tak_core::model::WorkspaceSpec,
 ) -> Result<RemoteFixtureSetup> {
     let takd = takd_bin();
     let roots = LiveTorRoots::new(temp_root);
@@ -39,17 +38,16 @@ pub fn tor_fixture(
     };
     let bind_addr = reserve_local_bind_addr()?;
     serve_env.push(("TAKD_TEST_TOR_HS_BIND_ADDR".into(), bind_addr.clone()));
-    client_env.insert("TAK_TEST_TOR_ONION_DIAL_ADDR".into(), bind_addr);
     let agent = spawn_tor_agent_with_env(&takd, &roots, &serve_env);
     let token = wait_for_tor_token(&takd, &roots);
-    if client_env.is_empty() {
-        add_tor_remote(workspace_root, &roots, &token);
-    } else {
-        add_tor_remote_with_env(workspace_root, &roots, &token, &client_env);
-    }
+    let socket = temp_root.join("takd.sock");
+    let daemon = LocalDaemonGuard::spawn_with_tor_dial_addr(&socket, spec, bind_addr);
+    client_env.insert("TAKD_SOCKET".into(), socket.to_string_lossy().into_owned());
+    add_tor_remote_with_env(workspace_root, &roots, &token, &socket, &client_env);
     Ok((
         None,
         Some(agent),
+        Some(daemon),
         Some(roots.client_config_root),
         client_env,
     ))

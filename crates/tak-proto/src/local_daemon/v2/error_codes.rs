@@ -11,6 +11,7 @@ pub enum DaemonErrorCode {
     RunNotFound,
     WorkspaceInvalid,
     RunStateInvalid,
+    RemoteInviteUnsupported,
     Internal,
 }
 

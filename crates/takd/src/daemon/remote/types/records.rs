@@ -5,7 +5,7 @@ pub struct SubmitEventRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RemoteV1Response {
+pub struct WorkerHttpResponse {
     pub status_code: u16,
     pub content_type: String,
     pub headers: Vec<(String, String)>,

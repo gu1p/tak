@@ -22,7 +22,7 @@ pub fn node_info(node_id: &str, base_url: &str, transport: &str) -> NodeInfo {
 
 pub fn remote_token(node_id: &str, base_url: &str, transport: &str) -> String {
     encode_remote_token(&RemoteTokenPayload {
-        version: "v1".into(),
+        version: "v2".into(),
         node: Some(node_info(node_id, base_url, transport)),
         bearer_token: "secret".into(),
     })

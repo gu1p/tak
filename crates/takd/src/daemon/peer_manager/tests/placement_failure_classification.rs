@@ -1,4 +1,4 @@
-use super::super::{PeerEligibility, PeerManager, PeerPlacementRequest, PeerPlacementSelection};
+use super::super::{PeerEligibility, PeerManager};
 use super::support::{inventory, record};
 
 #[test]
@@ -70,13 +70,6 @@ fn select_failure(
     manager: &PeerManager,
     requirements: PeerEligibility,
 ) -> super::super::PlacementFailure {
-    manager
-        .select_placeable(PeerPlacementRequest {
-            requirements: &requirements,
-            selection: PeerPlacementSelection::Sequential,
-            task_run_id: "task-run-1",
-            attempt: 1,
-            excluded_node_ids: &[],
-        })
+    super::super::first_placeable_or_error(&manager.snapshots(), &requirements)
         .expect_err("placement should fail")
 }

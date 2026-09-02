@@ -14,6 +14,7 @@ pub mod fs_installer;
 pub mod http;
 pub mod install_target;
 pub mod installer;
+pub mod legacy_drain;
 pub mod plan;
 pub mod release_client;
 pub mod runner;

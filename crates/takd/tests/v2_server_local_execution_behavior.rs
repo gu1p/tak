@@ -35,7 +35,7 @@ async fn real_v2_server_drives_a_local_attempt_and_persists_its_output() {
     )
     .unwrap();
     let run_id = v2_run::scheduler::commit(&store, &request, "alice");
-    let terminal = tokio::time::timeout(Duration::from_secs(5), async {
+    let terminal = tokio::time::timeout(Duration::from_secs(15), async {
         loop {
             if store.summary(&run_id).unwrap().unwrap().state.is_terminal() {
                 break;

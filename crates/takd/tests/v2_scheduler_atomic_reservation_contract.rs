@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 use std::sync::{Arc, Barrier};
 
+use tak_core::v2::{ContainerSource, RuntimeResources, TaskRuntime};
 use takd::{RunStore, SchedulerNode};
 
 use crate::support::v2_run::{ARCHIVE, scheduler::independent_jobs};
@@ -55,8 +56,23 @@ fn aggregate_reservations_do_not_overflow_sqlite_integer_sums() {
     let store = RunStore::with_db_path(temp.path().join("takd.sqlite")).unwrap();
     let mut request = independent_jobs("large-reservations", 3);
     let amount = i64::MAX as u64 / 2 + 1;
-    for job in &mut request.run.jobs {
+    for (job, task) in request.run.jobs.iter_mut().zip(&mut request.run.tasks) {
         job.resources.cpu_millis = amount;
+        job.resources.memory_bytes = 1;
+        task.runtime = Some(
+            TaskRuntime::configured_container(
+                ContainerSource::Image {
+                    image: "alpine:3.20".into(),
+                },
+                vec![],
+                Default::default(),
+                Some(RuntimeResources {
+                    cpu_millis: amount,
+                    memory_bytes: 1,
+                }),
+            )
+            .unwrap(),
+        );
     }
     let run = store.submit(&request, "uid:1").unwrap();
     store

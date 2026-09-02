@@ -37,8 +37,16 @@ pub(super) async fn run_docker_ps(
         }
     }
     if !selectors.local {
-        let remotes = matching_remotes(&selectors)?;
-        let snapshot = fetch_remote_status_snapshot(&remotes).await;
+        let remotes = matching_remotes(&selectors).await?;
+        let node_ids = remotes
+            .iter()
+            .map(|remote| remote.node_id.clone())
+            .collect::<Vec<_>>();
+        let snapshot = if node_ids.is_empty() {
+            Vec::new()
+        } else {
+            fetch_remote_status_snapshot(&node_ids).await?
+        };
         rows.extend(remote_ps_rows(&snapshot));
         for result in snapshot.iter().filter(|result| result.error.is_some()) {
             eprintln!(
@@ -171,13 +179,11 @@ fn should_include_local_ps(selectors: &DockerCliSelectors) -> bool {
 
 fn age_since(started_at_ms: i64) -> String {
     let delta_s = unix_epoch_ms().saturating_sub(started_at_ms).max(0) / 1000;
-    if delta_s >= 3600 {
-        return format!("{}h{}m", delta_s / 3600, (delta_s % 3600) / 60);
+    match delta_s {
+        3600.. => format!("{}h{}m", delta_s / 3600, (delta_s % 3600) / 60),
+        60.. => format!("{}m{}s", delta_s / 60, delta_s % 60),
+        _ => format!("{delta_s}s"),
     }
-    if delta_s >= 60 {
-        return format!("{}m{}s", delta_s / 60, delta_s % 60);
-    }
-    format!("{delta_s}s")
 }
 
 fn single_line(value: &str) -> String {

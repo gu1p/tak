@@ -2,12 +2,12 @@ use anyhow::{Result, bail};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use tak_core::v2::ResolvedRun;
 
-use crate::daemon::scheduler::DispatchCommand;
-
+mod active;
 mod affinity;
 mod cancellation;
+mod transport;
 
-const CURRENT_VERSION: i64 = 7;
+const CURRENT_VERSION: i64 = 14;
 
 pub(super) fn reject_newer_schema(connection: &Connection) -> Result<()> {
     let has_version_table = connection.query_row(
@@ -49,6 +49,20 @@ pub(super) fn apply(transaction: &Transaction<'_>) -> Result<()> {
         "dispatch_stopped",
         "dispatch_stopped INTEGER NOT NULL DEFAULT 0",
     )?;
+    ensure_column(transaction, "runs", "exit_code", "exit_code INTEGER")?;
+    ensure_column(
+        transaction,
+        "runs",
+        "logs_expired",
+        "logs_expired INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column(
+        transaction,
+        "runs",
+        "outputs_expired",
+        "outputs_expired INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column(transaction, "runs", "output_error", "output_error TEXT")?;
     ensure_column(
         transaction,
         "runs",
@@ -66,6 +80,7 @@ pub(super) fn apply(transaction: &Transaction<'_>) -> Result<()> {
         "current_fencing_token",
         "current_fencing_token TEXT",
     )?;
+    ensure_column(transaction, "run_jobs", "cache", "cache TEXT")?;
     let ready_age = ensure_column(
         transaction,
         "run_jobs",
@@ -83,14 +98,38 @@ pub(super) fn apply(transaction: &Transaction<'_>) -> Result<()> {
         ("finished_at_ms", "finished_at_ms INTEGER"),
         ("outcome", "outcome TEXT"),
         ("terminal_digest", "terminal_digest TEXT"),
+        ("exit_code", "exit_code INTEGER"),
     ] {
         ensure_column(transaction, "run_attempts", column, declaration)?;
     }
+    let dispatch_started = ensure_column(
+        transaction,
+        "run_attempts",
+        "dispatch_started_at_ms",
+        "dispatch_started_at_ms INTEGER",
+    )?;
+    let attempt_transport =
+        ensure_column(transaction, "run_attempts", "transport", "transport TEXT")?;
+    ensure_column(
+        transaction,
+        "run_attempts",
+        "worker_event_cursor",
+        "worker_event_cursor INTEGER NOT NULL DEFAULT 0",
+    )?;
     if run_options {
         backfill_run_options(transaction)?;
     }
     if active_pointers {
-        backfill_active_pointers(transaction)?;
+        active::backfill(transaction)?;
+    }
+    if attempt_transport {
+        transport::backfill(transaction)?;
+    }
+    if dispatch_started {
+        transaction.execute(
+            "UPDATE run_attempts SET dispatch_started_at_ms = COALESCE(accepted_at_ms, reserved_at_ms) WHERE released_at_ms IS NULL",
+            [],
+        )?;
     }
     if ready_age {
         transaction.execute(
@@ -127,54 +166,6 @@ fn backfill_run_options(transaction: &Transaction<'_>) -> Result<()> {
                 i64::from(run.options.max_parallel_jobs.get()),
                 run.options.keep_going
             ],
-        )?;
-    }
-    Ok(())
-}
-
-fn backfill_active_pointers(transaction: &Transaction<'_>) -> Result<()> {
-    transaction.execute(
-        "UPDATE run_jobs SET \
-         attempt = (SELECT authored_attempt FROM run_attempts a WHERE a.run_id = run_jobs.run_id AND a.job_id = run_jobs.job_id AND a.released_at_ms IS NULL ORDER BY authored_attempt DESC, dispatch_generation DESC LIMIT 1), \
-         dispatch_generation = (SELECT dispatch_generation FROM run_attempts a WHERE a.run_id = run_jobs.run_id AND a.job_id = run_jobs.job_id AND a.released_at_ms IS NULL ORDER BY authored_attempt DESC, dispatch_generation DESC LIMIT 1), \
-         current_fencing_token = (SELECT fencing_token FROM run_attempts a WHERE a.run_id = run_jobs.run_id AND a.job_id = run_jobs.job_id AND a.released_at_ms IS NULL ORDER BY authored_attempt DESC, dispatch_generation DESC LIMIT 1) \
-         WHERE EXISTS (SELECT 1 FROM run_attempts a WHERE a.run_id = run_jobs.run_id AND a.job_id = run_jobs.job_id AND a.released_at_ms IS NULL)",
-        [],
-    )?;
-    let attempts = {
-        let mut statement = transaction.prepare(
-            "SELECT run_id, job_id, authored_attempt, dispatch_generation, fencing_token, node_id, state, reserved_at_ms FROM run_attempts WHERE released_at_ms IS NULL",
-        )?;
-        statement
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, i64>(7)?,
-                ))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?
-    };
-    for (run_id, job_id, attempt, generation, token, node_id, state, reserved_at) in attempts {
-        let command = DispatchCommand {
-            run_id,
-            job_id,
-            node_id,
-            authored_attempt: u32::try_from(attempt)?,
-            dispatch_generation: u32::try_from(generation)?,
-            fencing_token: token,
-        };
-        let delivered_at = (state != "transferring").then_some(reserved_at);
-        transaction.execute(
-            "INSERT OR IGNORE INTO run_dispatch_outbox (run_id, job_id, authored_attempt, dispatch_generation, fencing_token, payload_json, delivered_at_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![command.run_id, command.job_id, command.authored_attempt,
-                command.dispatch_generation, command.fencing_token,
-                serde_json::to_string(&command)?, delivered_at],
         )?;
     }
     Ok(())

@@ -12,6 +12,7 @@ mod install_target_contract;
 mod installer_apply_contract;
 mod installer_rollback_contract;
 mod latest_tag_parse_contract;
+mod legacy_drain_contract;
 mod sha256_verify_contract;
 mod signature_verify_contract;
 mod swap_contract;

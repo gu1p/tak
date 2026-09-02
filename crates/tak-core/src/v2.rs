@@ -4,15 +4,19 @@ mod authored;
 mod environment;
 mod placement;
 mod resolved_run;
+mod runtime;
 mod session;
 
 pub use authored::{
     AuthoredDefaults, AuthoredLimiterClaim, AuthoredLimiterDefinition, AuthoredModule,
-    AuthoredQueueDefinition, AuthoredQueueUse, AuthoredTask, OutputSelector, Step,
+    AuthoredQueueDefinition, AuthoredQueueUse, AuthoredTask, OutputSelector, Step, TaskContext,
 };
 pub use environment::PassEnv;
-pub use placement::{Execution, LocalExecution, RemoteExecution, RemoteSelection};
+pub use placement::{
+    Execution, LocalExecution, RemoteExecution, RemoteRequirements, RemoteSelection,
+};
 pub use resolved_run::*;
+pub use runtime::{ContainerMount, ContainerSource, RuntimeResources, TaskRuntime};
 pub use session::{Affinity, Session, SessionReuse};
 
 use thiserror::Error;
@@ -25,6 +29,10 @@ pub enum ValidationError {
     EmptyAffinityGroup,
     #[error("SharedWorkspace max_parallel_tasks must be positive")]
     InvalidSharedParallelism,
+    #[error("SessionReuse.Paths requires at least one path")]
+    EmptySessionPaths,
+    #[error("SessionReuse.Paths selectors must stay inside the workspace")]
+    InvalidSessionPath,
     #[error("SharedWorkspace requires matching Affinity.RequireSameNode")]
     SharedWorkspaceRequiresHardAffinity,
     #[error("a SharedWorkspace task cannot weaken or change its session affinity")]

@@ -3,9 +3,20 @@
 # Scenario: recursive enterprise monorepo
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
-    task("build", deps=["//:bootstrap"], steps=[cmd("sh", "-c", "mkdir -p out && echo auth-build >> out/enterprise.log")]),
-    task("test", deps=[":build"], steps=[cmd("sh", "-c", "mkdir -p out && echo auth-test >> out/enterprise.log")]),
+    task(
+      "build",
+      deps=["//:bootstrap"],
+      outputs=[path("//out/auth-build.txt")],
+      steps=[cmd("sh", "-c", "mkdir -p out && echo auth-build > out/auth-build.txt", cwd="//")],
+    ),
+    task(
+      "test",
+      deps=[":build"],
+      outputs=[path("//out/auth-test.txt")],
+      steps=[cmd("sh", "-c", "mkdir -p out && echo auth-test > out/auth-test.txt", cwd="//")],
+    ),
   ]
 )
 SPEC

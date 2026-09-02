@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use serde::Deserialize;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
+use tak_proto::local_daemon::v2::{DaemonStatusSnapshot, Operation, Request, Response};
 use tokio::time::timeout;
+
+use crate::cli::runs_cli::client::send_response;
 
 const DAEMON_STATUS_TIMEOUT: Duration = Duration::from_millis(500);
 
@@ -14,26 +14,7 @@ pub(super) enum LocalDaemonStatus {
     Unavailable { detail: String },
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub(super) struct LocalDaemonSnapshot {
-    pub(super) active_leases: usize,
-    pub(super) pending_requests: usize,
-    #[serde(default)]
-    pub(super) usage: Vec<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-enum DaemonResponse {
-    StatusSnapshot {
-        status: LocalDaemonSnapshot,
-    },
-    Error {
-        message: String,
-    },
-    #[serde(other)]
-    Other,
-}
+pub(super) type LocalDaemonSnapshot = DaemonStatusSnapshot;
 
 pub(super) async fn local_daemon_status() -> LocalDaemonStatus {
     let socket_path = daemon_socket_path();
@@ -65,22 +46,16 @@ async fn fetch_daemon_status(socket_path: &Path) -> anyhow::Result<LocalDaemonSn
 }
 
 async fn fetch_daemon_status_inner(socket_path: &Path) -> anyhow::Result<LocalDaemonSnapshot> {
-    let stream = UnixStream::connect(socket_path).await?;
-    let (reader_half, mut writer_half) = stream.into_split();
-    writer_half
-        .write_all(br#"{"type":"Status","request_id":"tak-status"}"#)
-        .await?;
-    writer_half.write_all(b"\n").await?;
-    writer_half.flush().await?;
-
-    let mut reader = BufReader::new(reader_half);
-    let mut line = String::new();
-    if reader.read_line(&mut line).await? == 0 {
-        anyhow::bail!("daemon closed connection before response");
-    }
-    match serde_json::from_str::<DaemonResponse>(line.trim_end())? {
-        DaemonResponse::StatusSnapshot { status } => Ok(status),
-        DaemonResponse::Error { message } => anyhow::bail!("{message}"),
-        DaemonResponse::Other => anyhow::bail!("unexpected daemon status response"),
+    let request = Request {
+        request_id: "tak-status".to_string(),
+        operation: Operation::GetDaemonStatus {},
+    };
+    match send_response(socket_path, &request).await {
+        Ok(Response::DaemonStatus { status, .. }) => Ok(status),
+        Ok(Response::Error { .. }) => {
+            anyhow::bail!("daemon rejected the protocol v2 status request")
+        }
+        Ok(_) => anyhow::bail!("unexpected protocol v2 daemon status response"),
+        Err(error) => anyhow::bail!("protocol v2 daemon status request failed: {error:?}"),
     }
 }

@@ -12,6 +12,7 @@ REMOTE = Execution.Remote(
 )
 
 SPEC = module_spec(
+    spec_version=2,
   tasks=[
     task(
       "container_log_storm",
@@ -49,6 +50,7 @@ printf 'runtime=%s\nengine=%s\nimage=%s\nstdout_lines=%s\nstderr_lines=%s\nburst
   "$((stderr_index - 1))" \
   "3" \
   > out/container-log-storm-summary.txt""",
+          cwd="//",
         )
       ],
       execution=REMOTE,
@@ -56,11 +58,13 @@ printf 'runtime=%s\nengine=%s\nimage=%s\nstdout_lines=%s\nstderr_lines=%s\nburst
     task(
       "observe_container_log_storm",
       deps=[":container_log_storm"],
+      outputs=[path("//out/container-log-storm-verified.txt"), path("//out/container-log-storm-report.txt")],
       steps=[
         cmd(
           "sh",
           "-c",
           "grep -q '^runtime=containerized$' out/container-log-storm-summary.txt && grep -q '^engine=docker$' out/container-log-storm-summary.txt && grep -q '^image=alpine:3.20$' out/container-log-storm-summary.txt && grep -q '^stdout_lines=240$' out/container-log-storm-summary.txt && grep -q '^stderr_lines=60$' out/container-log-storm-summary.txt && grep -q '^bursts=3$' out/container-log-storm-summary.txt && printf 'container-log-storm-verified\n' > out/container-log-storm-verified.txt && cat out/local-input.txt out/container-log-storm-summary.txt out/container-log-storm-verified.txt > out/container-log-storm-report.txt",
+          cwd="//",
         )
       ],
     ),

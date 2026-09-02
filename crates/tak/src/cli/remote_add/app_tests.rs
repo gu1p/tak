@@ -1,12 +1,18 @@
 use tak_proto::{decode_tor_invite, encode_tor_invite, encode_tor_invite_words};
 
-use super::app::{RemoteAddApp, token_from_location_input};
+use super::app::RemoteAddApp;
+use super::location_input::token_from_location_input;
 use super::types::{AddAction, AppCommand, Screen, StartMode};
 
 const V3_BASE_URL: &str = "http://pg6mmjiyjmcrsslvykfwnntlaru7p5svn6y2ymmju6nubxndf4pscryd.onion";
 
 #[test]
 fn location_input_accepts_existing_tokens_and_onion_locations() {
+    let direct = "takd:v2:opaque-direct-invite";
+    assert_eq!(
+        token_from_location_input(direct).expect("direct v2 invite"),
+        direct
+    );
     let invite = encode_tor_invite(V3_BASE_URL).expect("encode invite");
     assert_eq!(
         token_from_location_input(&invite).expect("existing invite"),

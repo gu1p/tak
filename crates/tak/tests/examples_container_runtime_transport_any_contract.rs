@@ -11,7 +11,7 @@ fn example_entry(remote_fixture: &str, transport: &str, remote_node: &str) -> Ex
         run_target: "//apps/logstorm:observe_container_log_storm".into(),
         explain_target: "//apps/logstorm:observe_container_log_storm".into(),
         expect_success: true,
-        requires_daemon: false,
+        requires_daemon: true,
         remote_fixture: Some(remote_fixture.into()),
         simulate_container_runtime: true,
         expect_stdout_contains: vec![
