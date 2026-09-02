@@ -52,6 +52,7 @@ mod make_parallel_nested_contract;
 mod make_parallel_output_contract;
 mod make_remote_annotation_contract;
 mod make_remote_cli_override_contract;
+mod process_cap_example_match_contract;
 mod release_package_contract;
 mod release_version_script_contract;
 mod remote_cli_contracts;

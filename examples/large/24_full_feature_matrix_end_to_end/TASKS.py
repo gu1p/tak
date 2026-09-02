@@ -18,7 +18,12 @@ SPEC = module_spec(
     resource("ram_gib", 32, unit="gib", scope=Scope.Machine),
     lock("ui_lock", scope=Scope.Machine),
     rate_limit("start_rl", burst=5, refill_per_second=10, scope=Scope.Machine),
-    process_cap("simulator", max_running=2, match="sim", scope=Scope.Machine),
+    process_cap(
+      "simulator",
+      max_running=2,
+      match="tak-example-large-24-simulator",
+      scope=Scope.Machine,
+    ),
     lock("project_gate", scope=Scope.Project),
     lock("user_gate", scope=Scope.User),
     lock("worktree_gate", scope=Scope.Worktree),

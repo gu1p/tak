@@ -5,7 +5,7 @@
 SPEC = module_spec(
     spec_version=2,
   project_id="example_medium_16",
-  limiters=[process_cap("simulator", max_running=2, match="sim", scope=Scope.Machine)],
+  limiters=[process_cap("simulator", max_running=2, match="tak-example-medium-16-simulator", scope=Scope.Machine)],
   tasks=[
     task(
       "process_guarded",
