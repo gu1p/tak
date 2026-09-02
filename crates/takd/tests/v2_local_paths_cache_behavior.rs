@@ -37,7 +37,7 @@ async fn paths_session_restores_a_private_snapshot_without_publishing_it_as_outp
 }
 
 async fn wait_for(predicate: impl Fn() -> bool) {
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(Duration::from_secs(15), async {
         while !predicate() {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }

@@ -33,3 +33,4 @@ require_ignored() {
 
 require_ignored "dist-manual/" "manual release artifacts"
 require_ignored ".tmp/release-target/" "release target cache"
+require_ignored ".zig-cache/" "Zig build cache"

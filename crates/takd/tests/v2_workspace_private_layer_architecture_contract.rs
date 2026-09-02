@@ -26,3 +26,13 @@ fn local_and_worker_private_workspaces_share_the_reflink_copy_layer() {
     assert!(buffered.contains("destination.write_all"), "{buffered}");
     assert!(!buffered.contains("fs::copy"), "{buffered}");
 }
+
+#[test]
+fn linux_reflink_uses_libc_target_specific_ioctl_request() {
+    let reflink = std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/daemon/workspace_layer/reflink.rs"),
+    )
+    .unwrap();
+
+    assert!(reflink.contains("libc::FICLONE"), "{reflink}");
+}

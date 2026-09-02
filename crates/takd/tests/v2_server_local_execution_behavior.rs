@@ -15,8 +15,17 @@ async fn real_v2_server_drives_a_local_attempt_and_persists_its_output() {
     let socket = std::path::PathBuf::from(".tmp")
         .join(temp.path().file_name().unwrap())
         .join("d.sock");
-    let server = spawn_protocol_server(db.clone(), socket.clone());
-    wait_for(|| socket.exists()).await;
+    let mut server = spawn_protocol_server(db.clone(), socket.clone());
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !socket.exists() {
+            if server.is_finished() {
+                panic!("local protocol server exited: {:?}", (&mut server).await);
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
     let store = RunStore::with_db_path(db).unwrap();
     let mut request = v2_run::submission("server-local", "secret");
     request.run.tasks[0].steps = vec![Step::Cmd {
@@ -65,14 +74,4 @@ async fn real_v2_server_drives_a_local_attempt_and_persists_its_output() {
             && event.chunk_base64.as_deref() == Some("c2VydmVyLWxvY2FsLW91dHB1dAo=")
     }));
     server.abort();
-}
-
-async fn wait_for(predicate: impl Fn() -> bool) {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while !predicate() {
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    })
-    .await
-    .unwrap();
 }

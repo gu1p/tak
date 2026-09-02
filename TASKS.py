@@ -67,10 +67,12 @@ CHECK_ISOLATED_SESSION = session(
 
 
 def release_build_task(name, target, build_mode):
+    release_dir = ".tmp/release-target/" + target + "/" + target + "/release/"
     return task(
         name,
         doc="Build tak and takd release binaries for " + target + ".",
         execution=Execution.Local(),
+        outputs=[path(release_dir + "tak"), path(release_dir + "takd")],
         steps=[
             script(
                 "scripts/build_release_target.sh",

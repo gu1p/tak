@@ -3,11 +3,16 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 
 use super::examples_catalog::ExampleEntry;
-use super::{run_tak_expect_failure, run_tak_expect_success};
+use super::run_timeout::{
+    run_tak_expect_failure_with_timeout, run_tak_expect_success_with_timeout,
+};
+
+const EXAMPLE_CLIENT_TIMEOUT: Duration = Duration::from_secs(180);
 
 pub fn assert_example_run(
     entry: &ExampleEntry,
@@ -15,12 +20,21 @@ pub fn assert_example_run(
     env: &BTreeMap<String, String>,
 ) -> Result<()> {
     if entry.expect_success {
-        let stdout = run_tak_expect_success(workspace_root, &["run", &entry.run_target], env)?;
+        let stdout = run_tak_expect_success_with_timeout(
+            workspace_root,
+            &["run", &entry.run_target],
+            env,
+            EXAMPLE_CLIENT_TIMEOUT,
+        )?;
         return assert_needles("stdout", &stdout, &entry.expect_stdout_contains);
     }
 
-    let (stdout, stderr) =
-        run_tak_expect_failure(workspace_root, &["run", &entry.run_target], env)?;
+    let (stdout, stderr) = run_tak_expect_failure_with_timeout(
+        workspace_root,
+        &["run", &entry.run_target],
+        env,
+        EXAMPLE_CLIENT_TIMEOUT,
+    )?;
     assert_needles("stdout", &stdout, &entry.expect_stdout_contains)?;
     assert_needles("stderr", &stderr, &entry.expect_stderr_contains)
 }

@@ -3,10 +3,37 @@
 mod support;
 
 use anyhow::Result;
+#[cfg(unix)]
+use std::process::Command;
+#[cfg(unix)]
+use std::time::{Duration, Instant};
 
 use support::examples_catalog::{assert_no_failures, load_catalog};
 use support::examples_run::run_example;
 use support::examples_surface::verify_cli_surface;
+#[cfg(unix)]
+use support::run_timeout::output_with_timeout;
+
+#[cfg(unix)]
+#[test]
+fn stalled_example_clients_are_terminated_at_their_deadline() -> Result<()> {
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "while :; do :; done"]);
+    let started = Instant::now();
+
+    let error = output_with_timeout(command, Duration::from_millis(50))
+        .expect_err("the stalled command must time out");
+
+    assert!(
+        error.to_string().contains("timed out after 50ms"),
+        "unexpected timeout error: {error:#}"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the command deadline must bound the wait"
+    );
+    Ok(())
+}
 
 #[test]
 fn catalog_examples_support_list_explain_and_graph_from_real_directories() -> Result<()> {

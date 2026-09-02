@@ -34,6 +34,7 @@ pub mod remote_inventory;
 pub mod remote_scan;
 pub mod root_task_contracts;
 pub mod run;
+pub mod run_timeout;
 pub mod short_daemon_paths;
 pub mod takd_binary;
 pub mod task_history;

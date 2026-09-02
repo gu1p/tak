@@ -2,16 +2,19 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow, bail};
-use tak_proto::local_daemon::v2::{DaemonErrorCode, Request, Response};
+use tak_proto::local_daemon::v2::{DaemonErrorCode, Operation, Request, Response};
 
 use crate::cli::runs_cli::client::{RunDaemonClientError, send_response_with_timeout};
 
 const FOREGROUND_TIMEOUT: Duration = Duration::from_secs(30);
+const WORKSPACE_UPLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_ATTEMPTS: usize = 3;
 
 pub(super) async fn response(socket_path: &Path, request: &Request) -> Result<Response> {
     for attempt in 0..MAX_ATTEMPTS {
-        match send_response_with_timeout(socket_path, request, FOREGROUND_TIMEOUT).await {
+        match send_response_with_timeout(socket_path, request, request_timeout(&request.operation))
+            .await
+        {
             Ok(Response::Error { code, .. }) => bail!(daemon_error(code)),
             Ok(response) => return Ok(response),
             Err(RunDaemonClientError::TimedOut | RunDaemonClientError::Disconnected)
@@ -23,6 +26,13 @@ pub(super) async fn response(socket_path: &Path, request: &Request) -> Result<Re
         }
     }
     unreachable!("bounded exchange attempts always return")
+}
+
+pub(super) fn request_timeout(operation: &Operation) -> Duration {
+    match operation {
+        Operation::UploadWorkspace { .. } => WORKSPACE_UPLOAD_TIMEOUT,
+        _ => FOREGROUND_TIMEOUT,
+    }
 }
 
 fn daemon_error(code: DaemonErrorCode) -> &'static str {

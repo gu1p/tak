@@ -7,7 +7,7 @@ fn generated_artifact_ignore_check_handles_staged_workspace_without_git_dir() {
     let temp = script_workspace("check_generated_artifacts_ignore.sh");
     fs::write(
         temp.path().join(".gitignore"),
-        "/dist-manual/\n/.tmp/release-target/\n",
+        "/dist-manual/\n/.tmp/release-target/\n/.zig-cache/\n",
     )
     .expect("write gitignore");
     write_invalid_git_file(temp.path());

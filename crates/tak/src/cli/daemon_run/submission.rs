@@ -7,6 +7,8 @@ use tak_proto::local_daemon::v2::{Operation, Request, Response, WorkspaceDisposi
 
 mod attach;
 mod exchange;
+#[cfg(test)]
+mod exchange_tests;
 mod render;
 mod upload;
 

@@ -37,10 +37,14 @@ pub(super) fn try_reflink(source: &Path, destination: &Path) -> io::Result<bool>
         .write(true)
         .create_new(true)
         .open(destination)?;
-    const FICLONE: libc::c_ulong = 0x4004_9409;
     // SAFETY: both descriptors remain open and valid for the duration of this ioctl call.
-    let cloned =
-        unsafe { libc::ioctl(destination_file.as_raw_fd(), FICLONE, source.as_raw_fd()) } == 0;
+    let cloned = unsafe {
+        libc::ioctl(
+            destination_file.as_raw_fd(),
+            libc::FICLONE,
+            source.as_raw_fd(),
+        )
+    } == 0;
     drop(destination_file);
     if !cloned {
         std::fs::remove_file(destination)?;

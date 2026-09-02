@@ -31,7 +31,7 @@ fn spawn_protocol_server_with_manager(
         takd::run_server_with_local_attempt_executable_and_remote_inventory_until_shutdown(
             &bind_path,
             manager,
-            takd::TorBroker::new(),
+            takd::TorBroker::for_direct_dial("127.0.0.1:9"),
             takd::PeerManager::default(),
             run_store,
             super::takd_bin(),

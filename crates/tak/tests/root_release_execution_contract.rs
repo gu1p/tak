@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tak_core::v2::Execution;
+use tak_core::v2::{Execution, OutputSelector};
 
 use crate::support::root_task_contracts::{load_root_module, task};
 
@@ -26,6 +26,44 @@ fn release_tasks_run_natively_inside_the_daemon_owned_local_worker() -> Result<(
         assert!(
             local.runtime.is_none(),
             "{label} must not require Docker or Podman on release runners"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn release_builds_publish_the_binaries_consumed_by_package_jobs() -> Result<()> {
+    let module = load_root_module()?;
+    for (label, target) in [
+        (
+            "//:build-release-x86_64-unknown-linux-musl",
+            "x86_64-unknown-linux-musl",
+        ),
+        (
+            "//:build-release-aarch64-unknown-linux-musl",
+            "aarch64-unknown-linux-musl",
+        ),
+        (
+            "//:build-release-x86_64-apple-darwin",
+            "x86_64-apple-darwin",
+        ),
+        (
+            "//:build-release-aarch64-apple-darwin",
+            "aarch64-apple-darwin",
+        ),
+    ] {
+        let release_dir = format!(".tmp/release-target/{target}/{target}/release");
+        assert_eq!(
+            task(&module, label).outputs,
+            [
+                OutputSelector::Path {
+                    value: format!("{release_dir}/tak"),
+                },
+                OutputSelector::Path {
+                    value: format!("{release_dir}/takd"),
+                },
+            ],
+            "{label} must publish only the package inputs"
         );
     }
     Ok(())
