@@ -460,7 +460,7 @@ SPEC
 
 ## Installation
 
-Install `curl`, `tar`, and [Minisign](https://jedisct1.github.io/minisign/) with your package manager, then install the latest release for your platform:
+Install the latest release for your platform with `curl` and `tar`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-tak.sh | bash
@@ -470,7 +470,6 @@ curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-takd.sh | bash
 Install behavior:
 
 - Downloads latest public release asset for macOS/Linux (`x86_64` + `aarch64`).
-- Verifies its release signature with the same pinned key as `tak update` before extracting the archive.
 - Installs `tak` and `takd` to `~/.local/bin` by default.
 - Adds the install directory to your shell startup file when it is not already on `PATH`.
 - `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.

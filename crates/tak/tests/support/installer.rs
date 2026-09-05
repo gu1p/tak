@@ -21,11 +21,9 @@ pub fn run_installer(
     fs::write(bin.join("uname"), fake_uname()).expect("write uname");
     fs::write(bin.join("curl"), fake_curl()).expect("write curl");
     fs::write(bin.join("systemctl"), systemctl).expect("write systemctl");
-    fs::write(bin.join("minisign"), include_str!("installer_minisign.sh")).unwrap();
     chmod_exec(&bin.join("uname"));
     chmod_exec(&bin.join("curl"));
     chmod_exec(&bin.join("systemctl"));
-    chmod_exec(&bin.join("minisign"));
 
     let mut command = StdCommand::new("/bin/bash");
     command

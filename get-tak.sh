@@ -4,7 +4,6 @@ set -euo pipefail
 TAK_REPO="${TAK_REPO:-gu1p/tak}"
 TAK_INSTALL_DIR="${TAK_INSTALL_DIR:-$HOME/.local/bin}"
 TAK_VERSION_INPUT="${TAK_VERSION:-}"
-readonly TAK_RELEASE_PUBLIC_KEY='RWSY18jY3y+XyYd/an3925eopVaQygDVs62PhxOmj4L3AUwwj2QUZsgR'
 
 err() {
   printf 'error: %s\n' "$1" >&2
@@ -15,12 +14,6 @@ download_asset() {
   local url="$1"
   local out_file="$2"
   curl -fsSL -o "$out_file" "$url"
-}
-
-verify_release_archive() {
-  local archive="$1"
-  minisign -V -H -q -m "$archive" -x "$archive.minisig" -P "$TAK_RELEASE_PUBLIC_KEY" \
-    || err "release signature verification failed"
 }
 
 resolve_latest_release_url() {
@@ -131,8 +124,6 @@ ensure_path() {
 main() {
   local target tag archive_name archive_url temp_dir archive_path
 
-  command -v minisign >/dev/null 2>&1 || err "minisign is required to verify release signatures"
-
   target="$(detect_target)"
   tag="$(resolve_tag)"
 
@@ -148,9 +139,6 @@ main() {
     err "failed to download release artifact ${archive_name}; verify the tag exists"
   }
 
-  download_asset "$archive_url.minisig" "$archive_path.minisig" \
-    || err "failed to download release signature"
-  verify_release_archive "$archive_path"
   tar -xzf "$archive_path" -C "$temp_dir"
   [[ -f "$temp_dir/tak" ]] || err "archive missing tak binary"
   [[ -f "$temp_dir/takd" ]] || err "archive missing takd binary"
