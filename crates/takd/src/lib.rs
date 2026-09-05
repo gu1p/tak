@@ -7,9 +7,6 @@
 
 extern crate self as takd;
 
-#[allow(dead_code)]
-const _TOR_HIDDEN_SERVICE_CONTRACT_MARKER: &str = "arti_client::TorClient launch_onion_service(";
-
 pub mod agent;
 mod auto_update;
 pub mod daemon;

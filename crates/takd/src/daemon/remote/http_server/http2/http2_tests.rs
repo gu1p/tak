@@ -1,5 +1,6 @@
+use super::MAX_REQUEST_BODY_BYTES;
 use super::handler_error::{MAX_HANDLER_DETAIL_BYTES, sanitize_handler_detail};
-use super::request_body::{MAX_REQUEST_BODY_BYTES, declared_length_exceeds_cap};
+use super::request_body::declared_length_exceeds_cap;
 use hyper::HeaderMap;
 use hyper::header::{CONTENT_LENGTH, HeaderValue};
 

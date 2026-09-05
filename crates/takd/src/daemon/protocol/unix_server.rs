@@ -1,6 +1,9 @@
 use super::*;
 
 mod lifecycle;
+mod socket_binding;
+#[cfg(test)]
+mod socket_binding_tests;
 mod socket_permissions;
 #[cfg(test)]
 mod socket_permissions_tests;
@@ -145,14 +148,7 @@ async fn run_server(
         }
     }
 
-    if socket_path.exists() {
-        tokio::fs::remove_file(socket_path).await.with_context(|| {
-            format!("failed to remove existing socket {}", socket_path.display())
-        })?;
-    }
-
-    let listener = UnixListener::bind(socket_path)
-        .with_context(|| format!("failed to bind socket {}", socket_path.display()))?;
+    let (listener, _socket_lock) = socket_binding::bind(socket_path).await?;
     socket_permissions::set_owner_only(socket_path).await?;
     let remote_access =
         crate::daemon::RemoteAccess::new(remote_inventory_path, broker.clone(), peers.clone())?;

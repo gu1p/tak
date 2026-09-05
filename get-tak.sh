@@ -4,6 +4,7 @@ set -euo pipefail
 TAK_REPO="${TAK_REPO:-gu1p/tak}"
 TAK_INSTALL_DIR="${TAK_INSTALL_DIR:-$HOME/.local/bin}"
 TAK_VERSION_INPUT="${TAK_VERSION:-}"
+readonly TAK_RELEASE_PUBLIC_KEY='RWSY18jY3y+XyYd/an3925eopVaQygDVs62PhxOmj4L3AUwwj2QUZsgR'
 
 err() {
   printf 'error: %s\n' "$1" >&2
@@ -14,6 +15,12 @@ download_asset() {
   local url="$1"
   local out_file="$2"
   curl -fsSL -o "$out_file" "$url"
+}
+
+verify_release_archive() {
+  local archive="$1"
+  minisign -V -H -q -m "$archive" -x "$archive.minisig" -P "$TAK_RELEASE_PUBLIC_KEY" \
+    || err "release signature verification failed"
 }
 
 resolve_latest_release_url() {
@@ -97,7 +104,7 @@ active_shell_rc() {
 
 ensure_path() {
   local dir="$1"
-  local rc_file line
+  local rc_file line quoted_dir existing="" quote_escape="'\\''"
 
   case ":$PATH:" in
     *":$dir:"*)
@@ -106,11 +113,13 @@ ensure_path() {
   esac
 
   rc_file="$(active_shell_rc)"
-  line="export PATH=\"$dir:\$PATH\""
+  quoted_dir="${dir//\'/$quote_escape}"
+  line="export PATH='$quoted_dir':\"\$PATH\""
 
-  if [[ -f "$rc_file" ]] && grep -Fqx "$line" "$rc_file"; then
-    :
-  else
+  if [[ -f "$rc_file" ]]; then
+    existing="$(cat "$rc_file")"
+  fi
+  if [[ $'\n'"$existing"$'\n' != *$'\n'"$line"$'\n'* ]]; then
     printf '\n%s\n' "$line" >> "$rc_file"
   fi
 
@@ -121,6 +130,8 @@ ensure_path() {
 
 main() {
   local target tag archive_name archive_url temp_dir archive_path
+
+  command -v minisign >/dev/null 2>&1 || err "minisign is required to verify release signatures"
 
   target="$(detect_target)"
   tag="$(resolve_tag)"
@@ -137,6 +148,9 @@ main() {
     err "failed to download release artifact ${archive_name}; verify the tag exists"
   }
 
+  download_asset "$archive_url.minisig" "$archive_path.minisig" \
+    || err "failed to download release signature"
+  verify_release_archive "$archive_path"
   tar -xzf "$archive_path" -C "$temp_dir"
   [[ -f "$temp_dir/tak" ]] || err "archive missing tak binary"
   [[ -f "$temp_dir/takd" ]] || err "archive missing takd binary"

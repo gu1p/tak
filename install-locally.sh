@@ -106,7 +106,7 @@ cargo_target_dir() {
 
 ensure_path() {
   local dir="$1"
-  local rc_file line
+  local rc_file line quoted_dir existing="" quote_escape="'\\''"
 
   case ":$PATH:" in
     *":$dir:"*)
@@ -115,11 +115,13 @@ ensure_path() {
   esac
 
   rc_file="$(active_shell_rc)"
-  line="export PATH=\"$dir:\$PATH\""
+  quoted_dir="${dir//\'/$quote_escape}"
+  line="export PATH='$quoted_dir':\"\$PATH\""
 
-  if [[ -f "$rc_file" ]] && grep -Fqx "$line" "$rc_file"; then
-    :
-  else
+  if [[ -f "$rc_file" ]]; then
+    existing="$(cat "$rc_file")"
+  fi
+  if [[ $'\n'"$existing"$'\n' != *$'\n'"$line"$'\n'* ]]; then
     printf '\n%s\n' "$line" >> "$rc_file"
   fi
 

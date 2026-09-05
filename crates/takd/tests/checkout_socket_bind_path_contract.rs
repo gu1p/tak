@@ -7,7 +7,11 @@ use std::path::Path;
 fn long_checkout_socket_uses_a_short_relative_bind_path() {
     std::fs::create_dir_all(".tmp").expect("create test temp root");
     let temp = tempfile::tempdir_in(".tmp").expect("tempdir");
-    let socket = temp.path().join("docker.sock");
+    let mut parent = temp.path().to_path_buf();
+    while parent.join("docker.sock").as_os_str().as_bytes().len() <= 103 {
+        parent.push("nested");
+    }
+    let socket = parent.join("docker.sock");
     assert!(socket.as_os_str().as_bytes().len() > 103);
 
     let bind_path = crate::support::socket_path::bind_path(&socket);

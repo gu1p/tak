@@ -32,6 +32,8 @@ mod get_takd_installer_tor_timeout_contract;
 mod get_takd_installer_verbose_contract;
 mod included_root_cwd_contract;
 mod installer_drain_contracts;
+mod installer_path_shell_contract;
+mod installer_signature_contract;
 mod invalid_input_guidance_contract;
 mod list_docs_contract;
 mod live_remote_short_paths_contract;
@@ -80,6 +82,8 @@ mod run_remote_declared_output_globs_contract;
 mod run_remote_gitignore_context_contract;
 mod run_session;
 mod shipped_v2_tasks_contract;
+#[cfg(unix)]
+mod staged_source_separation_behavior;
 mod staged_workspace_script_contract;
 mod status_contract;
 mod status_failure_contract;

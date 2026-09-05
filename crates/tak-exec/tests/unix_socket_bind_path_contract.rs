@@ -6,16 +6,24 @@ fn checkout_local_absolute_socket_gets_a_short_equivalent_bind_path() {
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     assert_eq!(current, manifest);
     let checkout = manifest.ancestors().nth(2).expect("workspace root");
-    let absolute = checkout.join(".tmp/test-tmp/docker.sock");
+    let mut relative = std::path::PathBuf::from(".tmp/test-tmp");
+    while checkout
+        .join(&relative)
+        .join("docker.sock")
+        .as_os_str()
+        .len()
+        <= 103
+    {
+        relative.push("nested");
+    }
+    relative.push("docker.sock");
+    let absolute = checkout.join(&relative);
     assert!(absolute.as_os_str().len() > 103);
 
     let bind_path = short_socket_bind_path(&absolute);
 
     assert!(bind_path.is_relative());
-    assert_eq!(
-        bind_path,
-        std::path::Path::new("../../.tmp/test-tmp/docker.sock")
-    );
+    assert_eq!(bind_path, std::path::Path::new("../..").join(relative));
     assert!(bind_path.as_os_str().len() <= 103);
 }
 

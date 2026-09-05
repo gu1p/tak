@@ -1,4 +1,5 @@
 use std::fs;
+use std::process::Command;
 
 use super::{InstallerFixture, PathMode};
 
@@ -11,13 +12,22 @@ fn appends_path_to_active_shell_rc_once() {
     fixture.run("v1", "/bin/zsh", PathMode::WithoutInstallDirInPath);
     fixture.run("v2", "/bin/zsh", PathMode::WithoutInstallDirInPath);
 
-    let rc_content = fs::read_to_string(&rc).expect("zshrc should exist");
+    let loaded = Command::new("/bin/sh")
+        .args(["-c", ". \"$TEST_RC\"; printf '%s' \"$PATH\""])
+        .env("TEST_RC", &rc)
+        .env("PATH", "/usr/bin:/bin")
+        .output()
+        .expect("load generated shell profile");
+    assert!(loaded.status.success(), "{loaded:?}");
     let expected = format!(
-        "export PATH=\"{}:$PATH\"",
+        "{}:/usr/bin:/bin",
         fixture.home_dir().join(".local/bin").display()
     );
-    let occurrences = rc_content.lines().filter(|line| *line == expected).count();
-    assert_eq!(occurrences, 1, "path export should be appended once");
+    assert_eq!(
+        String::from_utf8(loaded.stdout).unwrap(),
+        expected,
+        "install directory should be prepended exactly once"
+    );
 }
 
 /// Verifies installer does not touch rc file when install directory is already in current PATH.

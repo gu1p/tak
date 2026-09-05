@@ -3,14 +3,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use rusqlite::{Transaction, TransactionBehavior};
-use sha2::{Digest, Sha256};
-use tak_core::v2::{ResolvedRun, SessionReuse};
+use rusqlite::{Connection, Transaction, TransactionBehavior};
+
+use crate::daemon::path_cache::lock::CacheLock;
 
 use super::RunStore;
 mod files;
+mod protection;
 use files::{accessed, children, evict_path, tree_size};
+use protection::{protected_paths, protected_workspaces};
 
+#[derive(Default)]
 pub(super) struct Reclaimed {
     pub(super) evicted: u64,
     pub(super) bytes: u64,
@@ -35,12 +38,14 @@ struct Candidate {
 
 pub(super) fn enforce_budget(store: &RunStore, budget: u64) -> Result<Reclaimed> {
     let mut connection = store.open_connection()?;
-    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let protected_workspaces = protected_workspaces(&transaction)?;
-    let protected_paths = protected_paths(&transaction)?;
+    let Some(_sweep) = CacheLock::try_acquire(&store.blob_root.join("gc.lock"))? else {
+        return Ok(Reclaimed::default());
+    };
+    let workspace_protection = protected_workspaces(&connection)?;
+    let path_protection = protected_paths(&connection)?;
     let (mut total, mut candidates) =
-        workspace_candidates(store, &transaction, &protected_workspaces)?;
-    let (path_total, mut paths) = path_candidates(store, &protected_paths)?;
+        workspace_candidates(store, &connection, &workspace_protection)?;
+    let (path_total, mut paths) = path_candidates(store, &path_protection)?;
     total = total.saturating_add(path_total);
     candidates.append(&mut paths);
     candidates.sort_by(|left, right| {
@@ -50,9 +55,25 @@ pub(super) fn enforce_budget(store: &RunStore, budget: u64) -> Result<Reclaimed>
         evicted: 0,
         bytes: 0,
     };
+    if total <= budget {
+        return Ok(reclaimed);
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let workspace_protection = protected_workspaces(&transaction)?;
+    let path_protection = protected_paths(&transaction)?;
     for candidate in candidates {
         if total <= budget {
             break;
+        }
+        let protected = match &candidate.entry {
+            Entry::Workspace { key, .. } => workspace_protection.contains(key),
+            Entry::Paths { path } => path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| path_protection.contains(name)),
+        };
+        if protected {
+            continue;
         }
         evict(&transaction, candidate.entry)?;
         total = total.saturating_sub(candidate.size);
@@ -63,58 +84,12 @@ pub(super) fn enforce_budget(store: &RunStore, budget: u64) -> Result<Reclaimed>
     Ok(reclaimed)
 }
 
-fn protected_workspaces(transaction: &Transaction<'_>) -> Result<BTreeSet<String>> {
-    let mut statement = transaction.prepare(
-        "SELECT DISTINCT run.workspace_fingerprint FROM runs run WHERE \
-         run.state NOT IN ('succeeded','failed','cancelled') OR EXISTS (SELECT 1 FROM \
-         run_attempts attempt WHERE attempt.run_id=run.run_id AND attempt.released_at_ms IS NULL)",
-    )?;
-    Ok(statement
-        .query_map([], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<_>>()?)
-}
-
-fn protected_paths(transaction: &Transaction<'_>) -> Result<BTreeSet<String>> {
-    let mut statement = transaction.prepare(
-        "SELECT run.run_id,run.resolved_json,attempt.job_id,attempt.node_id FROM runs run \
-         JOIN run_attempts attempt ON attempt.run_id=run.run_id WHERE \
-         run.state NOT IN ('succeeded','failed','cancelled') OR attempt.released_at_ms IS NULL",
-    )?;
-    let rows = statement
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    let mut protected = BTreeSet::new();
-    for (run_id, encoded, job_id, node_id) in rows {
-        let run: ResolvedRun = serde_json::from_str(&encoded)?;
-        let Some(session) = run
-            .jobs
-            .iter()
-            .find(|job| job.job_id == job_id)
-            .and_then(|job| job.session.as_ref())
-        else {
-            continue;
-        };
-        if matches!(session.reuse, SessionReuse::Paths { .. }) {
-            let identity = serde_json::to_vec(&(&run_id, &session.id, &node_id))?;
-            protected.insert(format!("{:x}", Sha256::digest(identity)));
-        }
-    }
-    Ok(protected)
-}
-
 fn workspace_candidates(
     store: &RunStore,
-    transaction: &Transaction<'_>,
+    connection: &Connection,
     protected: &BTreeSet<String>,
 ) -> Result<(u64, Vec<Candidate>)> {
-    let mut statement = transaction.prepare(
+    let mut statement = connection.prepare(
         "SELECT fingerprint,path,last_accessed_ms FROM workspace_blobs ORDER BY fingerprint",
     )?;
     let rows = statement

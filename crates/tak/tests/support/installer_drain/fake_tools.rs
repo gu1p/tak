@@ -10,6 +10,10 @@ pub(super) fn install(bin: &Path) {
     write_executable(&bin.join("curl"), curl());
     write_executable(&bin.join("systemctl"), "#!/bin/sh\nexit 1\n");
     write_executable(&bin.join("cargo"), cargo());
+    write_executable(
+        &bin.join("minisign"),
+        include_str!("../installer_minisign.sh"),
+    );
 }
 
 fn curl() -> &'static str {

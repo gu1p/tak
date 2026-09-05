@@ -1,11 +1,6 @@
 use http_body_util::BodyExt;
 
-use super::{WorkerHttpResponse, error_response};
-
-// Hard ceiling on a buffered request body, matching the broker's response cap.
-// With the larger receive windows, this bounds how much an authenticated peer
-// can make the server allocate for one request.
-pub(super) const MAX_REQUEST_BODY_BYTES: usize = 512 * 1024 * 1024;
+use super::{MAX_REQUEST_BODY_BYTES, WorkerHttpResponse, error_response};
 
 pub(super) fn declared_length_exceeds_cap(headers: &hyper::HeaderMap) -> bool {
     headers

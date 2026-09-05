@@ -1,4 +1,4 @@
-use super::run_override_runtime::resolve_container_runtime_for_task;
+use super::run_overrides_support::{RunPlacementSelector, resolved_runtime_for_execution_override};
 use tak_core::model::{
     ContainerRuntimeSourceSpec, CurrentStateSpec, LocalSpec, PathAnchor, PathRef,
     RemoteRuntimeSpec, ResolvedTask, RetryDef, TaskExecutionSpec, TaskLabel,
@@ -70,7 +70,15 @@ fn resolve_container_runtime_prefers_declared_task_runtime_over_workspace_defaul
         Some(image_runtime("alpine:3.20")),
     );
 
-    let runtime = resolve_container_runtime_for_task(&task, None).expect("declared runtime wins");
+    let runtime = resolved_runtime_for_execution_override(
+        &task,
+        &task.execution,
+        RunPlacementSelector::Local,
+        true,
+        None,
+    )
+    .expect("declared runtime wins")
+    .expect("container runtime");
 
     match runtime {
         RemoteRuntimeSpec::Containerized {

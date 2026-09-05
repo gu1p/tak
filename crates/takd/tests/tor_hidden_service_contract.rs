@@ -2,13 +2,13 @@
 
 #[test]
 fn takd_embeds_arti_hidden_service_launch_path() {
-    let source = include_str!("../src/lib.rs");
+    let source = include_str!("../src/service/tor/live_startup.rs");
     assert!(
-        source.contains("arti_client::TorClient"),
+        source.contains("arti_client::TorClient::create_bootstrapped(client_config).await"),
         "takd hidden-service mode must embed Arti in-process"
     );
     assert!(
-        source.contains("launch_onion_service("),
+        source.contains("tor_client.launch_onion_service(onion_config)"),
         "takd hidden-service mode must launch onion service via Arti APIs"
     );
 }

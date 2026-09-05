@@ -24,7 +24,15 @@ fn resolve_container_runtime_uses_workspace_default_when_task_has_no_declared_ru
         Some(image_runtime("alpine:3.20")),
     );
 
-    let runtime = resolve_container_runtime_for_task(&task, None).expect("default runtime");
+    let runtime = resolved_runtime_for_execution_override(
+        &task,
+        &task.execution,
+        RunPlacementSelector::Local,
+        true,
+        None,
+    )
+    .expect("default runtime")
+    .expect("container runtime");
 
     match runtime {
         RemoteRuntimeSpec::Containerized {

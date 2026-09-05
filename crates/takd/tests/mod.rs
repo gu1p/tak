@@ -16,6 +16,8 @@ mod container_behavior;
 mod daemon_cli_contract;
 mod daemon_protocol_lifecycle_behavior;
 mod daemon_protocol_request_behavior;
+#[cfg(unix)]
+mod daemon_socket_collision_behavior;
 mod daemon_socket_permissions_contract;
 mod direct_agent_base_url_contract;
 mod direct_agent_base_url_normalization_contract;
@@ -39,6 +41,10 @@ mod local_protocol_v2_remote_status_integration;
 mod local_protocol_v2_retention_expiry_integration;
 mod local_protocol_v2_run_persistence_integration;
 mod local_tor_broker_contract;
+#[cfg(unix)]
+mod maintenance_concurrent_scan_behavior;
+#[cfg(unix)]
+mod maintenance_scan_behavior;
 mod no_runtime_expect_contract;
 mod remote_image_cache_janitor_behavior;
 mod runtime_paths_contract;
@@ -79,4 +85,7 @@ mod v2_removed_adapter_files_architecture_contract;
 mod v2_removed_legacy_test_files_contract;
 mod v2_run_store_exit_code_contract;
 mod v2_run_store_resource_projection_contract;
+mod worker_http_auth_before_body_behavior;
+mod worker_http_body_limit_behavior;
+mod worker_http_framing_behavior;
 mod worker_v2_http_surface_architecture_contract;

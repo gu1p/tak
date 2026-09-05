@@ -13,6 +13,8 @@ pub mod live_tor_http;
 pub mod local_broker_http;
 pub mod local_daemon_service;
 pub mod local_runtime;
+#[cfg(unix)]
+pub mod maintenance_scan;
 pub mod protocol;
 pub mod protocol_server;
 pub mod raw_local_protocol;

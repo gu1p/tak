@@ -14,7 +14,7 @@ has_git_worktree() {
 
 list_src_files_without_git() {
   [[ -d crates ]] || return 0
-  find crates -type f -name '*.rs' | rg '/src/' || true
+  find crates -type f -name '*.rs' | awk '/\/src\//'
 }
 
 list_all_src_files() {
@@ -22,7 +22,7 @@ list_all_src_files() {
     list_src_files_without_git
     return
   fi
-  git ls-files 'crates/**/*.rs' | rg '/src/'
+  git ls-files 'crates/**/*.rs' | awk '/\/src\//'
 }
 
 list_base_ref_src_files() {
@@ -32,9 +32,9 @@ list_base_ref_src_files() {
   if git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
     local merge_base
     merge_base="$(git merge-base HEAD "$base_ref")"
-    git diff --name-only --diff-filter=ACMR "$merge_base"...HEAD -- 'crates/**/*.rs' | rg '/src/' || true
+    git diff --name-only --diff-filter=ACMR "$merge_base"...HEAD -- 'crates/**/*.rs' | awk '/\/src\//'
   else
-    git diff --name-only --diff-filter=ACMR HEAD -- 'crates/**/*.rs' | rg '/src/' || true
+    git diff --name-only --diff-filter=ACMR HEAD -- 'crates/**/*.rs' | awk '/\/src\//'
   fi
 }
 
@@ -42,8 +42,8 @@ list_working_tree_src_files() {
   if ! has_git_worktree; then
     return
   fi
-  git diff --name-only --diff-filter=ACMR HEAD -- 'crates/**/*.rs' | rg '/src/' || true
-  git ls-files --others --exclude-standard -- 'crates/**/*.rs' | rg '/src/' || true
+  git diff --name-only --diff-filter=ACMR HEAD -- 'crates/**/*.rs' | awk '/\/src\//'
+  git ls-files --others --exclude-standard -- 'crates/**/*.rs' | awk '/\/src\//'
 }
 
 is_test_source_file() {
@@ -87,7 +87,6 @@ disallowed_test_markers() {
   awk '
     /#\[test\]/ {
       print NR ":" $0
-      bad = 1
       next
     }
 
@@ -108,20 +107,15 @@ disallowed_test_markers() {
       }
 
       print cfg_nr ":" cfg_line
-      bad = 1
       pending_cfg = 0
     }
 
     END {
       if (pending_cfg) {
         print cfg_nr ":" cfg_line
-        bad = 1
-      }
-      if (!bad) {
-        exit 1
       }
     }
-  ' "$file" || true
+  ' "$file"
 }
 
 case "$mode" in

@@ -460,7 +460,7 @@ SPEC
 
 ## Installation
 
-Install the latest release for your platform:
+Install `curl`, `tar`, and [Minisign](https://jedisct1.github.io/minisign/) with your package manager, then install the latest release for your platform:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-tak.sh | bash
@@ -470,6 +470,7 @@ curl -fsSL https://raw.githubusercontent.com/gu1p/tak/main/get-takd.sh | bash
 Install behavior:
 
 - Downloads latest public release asset for macOS/Linux (`x86_64` + `aarch64`).
+- Verifies its release signature with the same pinned key as `tak update` before extracting the archive.
 - Installs `tak` and `takd` to `~/.local/bin` by default.
 - Adds the install directory to your shell startup file when it is not already on `PATH`.
 - `get-takd.sh` installs and bootstraps the standalone `takd` Tor agent service.
@@ -478,7 +479,7 @@ Install behavior:
 - Supports overrides:
   - `TAK_VERSION` to pin a release tag.
   - `TAK_INSTALL_DIR` to change install destination.
-  - `TAK_REPO` to install from a different repository.
+  - `TAK_REPO` to use a repository that mirrors releases signed with the Tak release key.
   - `TAKD_INSTALLER_VERBOSE=1` to stream deep readiness diagnostics during installation.
   - `TAKD_TRANSPORT`, `TAKD_BASE_URL`, `TAKD_POOLS`, `TAKD_TAGS`, and `TAKD_CAPABILITIES` to customize the initial agent config.
 
@@ -486,7 +487,7 @@ Install behavior:
 
 Inside this repo, use the system `tak` already on `PATH`.
 
-If you need to bootstrap a fresh machine from this checkout, run `./get-tak.sh` once and then use `tak run ...` from the installed binary. GitHub Actions in this repo follow the same bootstrap path.
+If you need to bootstrap a fresh machine from this checkout, install the prerequisites above, run `./get-tak.sh` once, and then use `tak run ...` from the installed binary. GitHub Actions build the checkout's binaries before running the checks.
 
 For local source installs, `./install-locally.sh` builds with stable Rust. If `cargo +stable` is unavailable and your active Cargo toolchain is nightly-only, the script stops with an explicit stable-toolchain error instead of attempting a nightly build.
 

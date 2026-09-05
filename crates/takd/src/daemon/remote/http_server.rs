@@ -7,8 +7,10 @@ mod response;
 
 use http2::handle_worker_http2_stream;
 use prefixed_io::{PrefixedIo, read_protocol_prefix};
-use request::{ReadHttpRequestError, read_http_request, request_is_authorized};
+use request::{ReadHttpRequestError, read_http_request};
 use response::write_http_response;
+
+const MAX_REQUEST_BODY_BYTES: usize = 512 * 1024 * 1024;
 
 pub async fn run_worker_http_server(
     listener: TcpListener,
@@ -55,7 +57,7 @@ pub(crate) async fn handle_worker_http_stream<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let request = match read_http_request(stream).await {
+    let request = match read_http_request(stream, context).await {
         Ok(Some(request)) => request,
         Ok(None) => return Ok(()),
         Err(ReadHttpRequestError::Parse(err)) => {
@@ -64,11 +66,11 @@ where
             return Ok(());
         }
         Err(ReadHttpRequestError::Io(err)) => return Err(err),
+        Err(ReadHttpRequestError::Rejected { status, reason }) => {
+            write_http_response(stream, &error_response(status, reason)).await?;
+            return Ok(());
+        }
     };
-    if !request_is_authorized(&request, context) {
-        write_http_response(stream, &error_response(401, "auth_failed")).await?;
-        return Ok(());
-    }
     let response = handle_worker_http_request(
         context,
         store,

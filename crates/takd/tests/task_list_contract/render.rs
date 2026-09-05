@@ -72,7 +72,10 @@ fn run_tasks_with_status(
         status,
     );
     let output = support::takd_tasks::run_takd_tasks(config_root, state_root);
-    assert!(output.status.success(), "takd tasks should succeed");
+    assert!(
+        output.status.success(),
+        "takd tasks should succeed: {output:?}"
+    );
     socket.join().expect("fake control socket exits");
     String::from_utf8(output.stdout).expect("takd tasks stdout should be utf8")
 }

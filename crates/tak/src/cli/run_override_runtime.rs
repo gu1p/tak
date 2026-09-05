@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tak_core::model::{
     ContainerRuntimeSourceSpec, ExecutionPlacementSpec, PolicyDecisionSpec, RemoteRuntimeSpec,
-    ResolvedTask, TaskExecutionSpec, normalize_container_image_reference, normalize_path_ref,
+    TaskExecutionSpec, normalize_container_image_reference, normalize_path_ref,
 };
 
 use super::*;
@@ -44,27 +44,6 @@ pub(super) fn explicit_container_runtime_override(
         },
         resource_limits: None,
     }))
-}
-
-#[allow(dead_code)]
-pub(super) fn resolve_container_runtime_for_task(
-    task: &ResolvedTask,
-    explicit_runtime: Option<&RemoteRuntimeSpec>,
-) -> Result<RemoteRuntimeSpec> {
-    if let Some(runtime) = explicit_runtime {
-        return Ok(runtime.clone());
-    }
-    if let Some(runtime) = declared_container_runtime(&task.execution) {
-        return Ok(runtime);
-    }
-    if let Some(runtime) = task.container_runtime.clone() {
-        return Ok(runtime);
-    }
-
-    bail!(
-        "task {} requires --container-image, --container-dockerfile, or TASKS.py defaults.container when using --container",
-        canonical_label(&task.label)
-    )
 }
 
 pub(super) fn declared_container_runtime(

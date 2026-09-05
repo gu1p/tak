@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+readonly TAK_RELEASE_PUBLIC_KEY='RWSY18jY3y+XyYd/an3925eopVaQygDVs62PhxOmj4L3AUwwj2QUZsgR'
 
 TAK_REPO="${TAK_REPO:-gu1p/tak}"
 TAKD_INSTALL_DIR="${TAKD_INSTALL_DIR:-$HOME/.local/bin}"
@@ -51,6 +52,12 @@ download_asset() {
 
 resolve_latest_release_url() {
   curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${TAK_REPO}/releases/latest"
+}
+
+verify_release_archive() {
+  local archive="$1"
+  minisign -V -H -q -m "$archive" -x "$archive.minisig" -P "$TAK_RELEASE_PUBLIC_KEY" \
+    || err "release signature verification failed"
 }
 
 detect_target() {
@@ -109,7 +116,7 @@ active_shell_rc() {
 
 ensure_path() {
   local dir="$1"
-  local rc_file line
+  local rc_file line quoted_dir existing="" quote_escape="'\\''"
 
   case ":$PATH:" in
     *":$dir:"*)
@@ -118,11 +125,13 @@ ensure_path() {
   esac
 
   rc_file="$(active_shell_rc)"
-  line="export PATH=\"$dir:\$PATH\""
+  quoted_dir="${dir//\'/$quote_escape}"
+  line="export PATH='$quoted_dir':\"\$PATH\""
 
-  if [[ -f "$rc_file" ]] && grep -Fqx "$line" "$rc_file"; then
-    :
-  else
+  if [[ -f "$rc_file" ]]; then
+    existing="$(cat "$rc_file")"
+  fi
+  if [[ $'\n'"$existing"$'\n' != *$'\n'"$line"$'\n'* ]]; then
     printf '\n%s\n' "$line" >> "$rc_file"
   fi
 
@@ -396,6 +405,7 @@ wait_for_token_with_progress() {
 main() {
   local target tag archive_name archive_url temp_dir archive_path takd_bin base_url token_output token_status
   local -a init_args
+  command -v minisign >/dev/null 2>&1 || err "minisign is required to verify release signatures"
   target="$(detect_target)"
   tag="$(resolve_tag)"
   archive_name="tak-${tag}-${target}.tar.gz"
@@ -406,6 +416,9 @@ main() {
 
   highlight download "Fetching takd release ${archive_name}"
   download_asset "$archive_url" "$archive_path" || err "failed to download release artifact ${archive_name}"
+  download_asset "$archive_url.minisig" "$archive_path.minisig" \
+    || err "failed to download release signature"
+  verify_release_archive "$archive_path"
   tar -xzf "$archive_path" -C "$temp_dir"
   [[ -f "$temp_dir/takd" ]] || err "archive missing takd binary"
   "$temp_dir/takd" update --legacy-drain-check --state-root "$(agent_state_path)"
