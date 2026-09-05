@@ -61,6 +61,7 @@ mod task_list_contract;
 mod task_logs_contract;
 mod task_logs_failure_contract;
 mod task_logs_follow_contract;
+mod task_status_peer_disconnect_contract;
 mod task_store_contract;
 mod task_store_migration_contract;
 mod token_show_qr_contract;

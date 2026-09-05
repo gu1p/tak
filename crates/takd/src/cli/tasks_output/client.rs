@@ -22,7 +22,10 @@ pub(super) fn fetch_live_status(
         "GET /v2/worker/status HTTP/1.1\r\nHost: takd-control\r\nX-Tak-Protocol-Version: v2\r\nAuthorization: Bearer {}\r\nConnection: close\r\n\r\n",
         bearer_token.trim()
     )?;
-    stream.shutdown(std::net::Shutdown::Write)?;
+    read_live_status(stream)
+}
+
+pub(super) fn read_live_status(mut stream: UnixStream) -> Result<NodeStatusResponse> {
     let mut response = Vec::new();
     stream.read_to_end(&mut response)?;
     let (status_code, body) = split_http_response(&response)?;
