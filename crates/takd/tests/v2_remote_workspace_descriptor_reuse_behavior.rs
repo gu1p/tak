@@ -37,8 +37,10 @@ async fn cache_hit_dispatch_uses_the_canonical_stored_archive_descriptor() {
         TorBroker::new(),
         peers,
     ));
-    let mut coordinator = AttemptCoordinator::new(store, transport);
-    assert_eq!(coordinator.drive_once().await.unwrap().dispatched, 1);
+    let mut coordinator = AttemptCoordinator::new(store.clone(), transport);
+    crate::support::coordinator_wait::until(&mut coordinator, || {
+        store.pending_dispatches().unwrap().is_empty()
+    }).await;
 }
 
 fn seed_workspace_cache(store: &RunStore) {

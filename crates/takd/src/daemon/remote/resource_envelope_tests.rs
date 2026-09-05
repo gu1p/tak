@@ -18,15 +18,15 @@ fn percentage_reserve_dominates_on_an_idle_large_worker() {
 }
 
 #[test]
-fn baseline_plus_margin_dominates_on_a_busy_worker() {
+fn startup_load_preserves_memory_reserve_without_capping_future_cpu() {
     let envelope = calculate_resource_envelope(HostResourceBaseline {
         total: capacity(20.0, 40 * 1024),
         baseline_p95: capacity(8.0, 15 * 1024),
     });
 
     assert_capacity(envelope.margin, 1.0, 2 * 1024);
-    assert_capacity(envelope.host_reserve, 9.0, 17 * 1024);
-    assert_capacity(envelope.workload, 11.0, 23 * 1024);
+    assert_capacity(envelope.host_reserve, 4.0, 17 * 1024);
+    assert_capacity(envelope.workload, 16.0, 23 * 1024);
 }
 
 #[test]

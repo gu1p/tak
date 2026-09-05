@@ -40,7 +40,9 @@ async fn remote_run_stays_cancelling_until_the_worker_attempt_is_terminal() {
         peers,
     ));
     let mut coordinator = AttemptCoordinator::new(store.clone(), transport);
-    assert_eq!(coordinator.drive_once().await.unwrap().dispatched, 1);
+    crate::support::coordinator_wait::until(&mut coordinator, || {
+        store.pending_dispatches().unwrap().is_empty()
+    }).await;
     store.cancel(&run_id).unwrap();
 
     coordinator.drive_once().await.unwrap();

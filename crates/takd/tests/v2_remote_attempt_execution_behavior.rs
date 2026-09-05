@@ -32,7 +32,9 @@ async fn origin_restart_resumes_remote_v2_logs_outputs_and_terminal_acknowledgem
         store.clone(), broker.clone(), peers.clone(),
     ));
     let mut coordinator = AttemptCoordinator::new(store.clone(), transport);
-    assert_eq!(coordinator.drive_once().await.unwrap().dispatched, 1);
+    crate::support::coordinator_wait::until(&mut coordinator, || {
+        store.pending_dispatches().unwrap().is_empty()
+    }).await;
     assert_eq!(
         store.get_run(&run_id).unwrap().unwrap().jobs[0]
             .cache
@@ -57,7 +59,9 @@ async fn origin_restart_resumes_remote_v2_logs_outputs_and_terminal_acknowledgem
             coordinator.drive_once().await.unwrap();
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
-        coordinator.drive_once().await.unwrap();
+        crate::support::coordinator_wait::until(&mut coordinator, || {
+            worker.store.worker_v2_terminal_is_acknowledged(&identity).unwrap()
+        }).await;
     }).await.unwrap();
     assert_eq!(store.summary(&run_id).unwrap().unwrap().state, RunLifecycleState::Succeeded);
     let chunks = store.events_after(&run_id, 0).unwrap().into_iter()

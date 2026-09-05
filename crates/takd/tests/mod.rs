@@ -23,6 +23,8 @@ mod direct_agent_base_url_contract;
 mod direct_agent_base_url_normalization_contract;
 mod direct_agent_onboarding_contract;
 mod direct_agent_uppercase_base_url_recovery_contract;
+#[path = "e2e/distributed_startup_progress.rs"]
+mod distributed_startup_progress;
 mod idempotency_behavior;
 mod lease_behavior;
 mod lease_persistence_failure_behavior;

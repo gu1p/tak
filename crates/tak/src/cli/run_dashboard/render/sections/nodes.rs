@@ -63,7 +63,7 @@ fn push_details(lines: &mut Vec<Line<'static>>, lane: &NodeLane, color: bool, wi
             &format!(
                 "{} · queue={}",
                 entry.task,
-                entry.queue.as_deref().unwrap_or("default")
+                entry.queue.as_deref().unwrap_or("none")
             ),
             width,
             enabled(Style::new().fg(Color::Yellow), color),

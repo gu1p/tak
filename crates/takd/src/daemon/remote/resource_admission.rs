@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+#[path = "resource_admission_cpu_recovery_tests.rs"]
+mod cpu_recovery_tests;
 mod fit;
 mod operations;
 mod request;

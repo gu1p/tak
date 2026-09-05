@@ -1,5 +1,9 @@
 test_module!(v2_attempt_cancellation_behavior);
 test_module!(v2_attempt_coordinator_behavior);
+test_module!(v2_attempt_dispatch_progress_behavior);
+test_module!(v2_attempt_observation_progress_behavior);
+test_module!(v2_attempt_ack_progress_behavior);
+test_module!(v2_attempt_inflight_fencing_behavior);
 test_module!(v2_attempt_coordinator_cancellation_progress_contract);
 test_module!(v2_attempt_coordinator_failure_contract);
 test_module!(v2_attempt_coordinator_missing_contract);

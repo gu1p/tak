@@ -31,7 +31,7 @@ pub(super) fn scheduler_queue(
                 &format!(
                     "{} · queue: {} · candidates: {candidates}",
                     task_name(job),
-                    job.queue.as_deref().unwrap_or("unavailable")
+                    job.queue.as_deref().unwrap_or("none")
                 ),
                 available,
                 enabled(activity_style(job.activity), color),

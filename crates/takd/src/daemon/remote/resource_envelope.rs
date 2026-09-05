@@ -30,7 +30,6 @@ pub(super) fn calculate_resource_envelope(baseline: HostResourceBaseline) -> Res
     let host_reserve = ResourceCapacity {
         cpu_cores: (baseline.total.cpu_cores * 0.20)
             .max(CPU_RESERVE_FLOOR)
-            .max(baseline.baseline_p95.cpu_cores + margin.cpu_cores)
             .min(baseline.total.cpu_cores),
         memory_mb: percent_ceil(baseline.total.memory_mb, 20)
             .max(MEMORY_RESERVE_FLOOR_MB)

@@ -1,10 +1,13 @@
 #[cfg(unix)]
 pub mod bounded_log;
 pub mod cli;
+pub mod coordinator_progress;
+pub mod coordinator_wait;
 pub mod daemon_command_paths;
 pub mod env;
 pub mod fake_docker;
 pub mod fake_docker_daemon;
+pub mod gated_worker;
 pub mod http;
 pub mod http2_remote;
 pub mod legacy_output;

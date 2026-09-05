@@ -4,12 +4,13 @@ use anyhow::Result;
 use futures::future::BoxFuture;
 
 use super::run_store::RunStore;
-use super::run_store::remote_attempts::WorkerTerminalAck;
-use super::scheduler::{AttemptCompletion, DispatchCommand, ResultAcceptance};
+use super::scheduler::{AttemptCompletion, DispatchCommand};
 
 mod cancellations;
+mod progress;
 
 use cancellations::InFlightCancellations;
+use progress::InFlightProgress;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttemptObservation {
@@ -57,6 +58,7 @@ pub struct AttemptCoordinator<T> {
     store: RunStore,
     transport: Arc<T>,
     cancellations: InFlightCancellations,
+    progress: InFlightProgress,
 }
 
 impl<T: AttemptTransport + 'static> AttemptCoordinator<T> {
@@ -66,6 +68,7 @@ impl<T: AttemptTransport + 'static> AttemptCoordinator<T> {
             store,
             transport,
             cancellations: InFlightCancellations::default(),
+            progress: InFlightProgress::default(),
         }
     }
 
@@ -77,60 +80,11 @@ impl<T: AttemptTransport + 'static> AttemptCoordinator<T> {
         tokio::task::yield_now().await;
         self.cancellations.collect(&self.store, &mut report)?;
         report.deferred += self.cancellations.len();
-        let acknowledgements: Vec<WorkerTerminalAck> = self.store.pending_worker_terminal_acks()?;
-        for ack in acknowledgements {
-            match self
-                .transport
-                .acknowledge_terminal(&ack.command, &ack.terminal_digest, ack.run_terminal)
-                .await
-            {
-                Ok(()) => {
-                    self.store.mark_worker_terminal_acknowledged(&ack)?;
-                    report.acknowledged += 1;
-                }
-                Err(error) => {
-                    tracing::debug!("attempt terminal acknowledgement deferred: {error:#}");
-                    report.deferred += 1;
-                }
-            }
-        }
-        let running = self.store.running_attempts_for_reconciliation()?;
-        for command in self.store.pending_dispatches()? {
-            if self.store.mark_dispatch_started(&command)? == ResultAcceptance::Stale {
-                continue;
-            }
-            match self.transport.dispatch(&command).await {
-                Ok(AttemptDispatch::Accepted) => {
-                    self.store.ack_dispatch(&command)?;
-                    report.dispatched += 1;
-                }
-                Ok(AttemptDispatch::Stale) => {
-                    self.store.resolve_unknown_attempt(&command)?;
-                    report.reconciled += 1;
-                }
-                Err(error) => {
-                    tracing::debug!("attempt dispatch deferred: {error:#}");
-                    report.deferred += 1;
-                }
-            }
-        }
-        for command in running {
-            match self.transport.reconcile(&command).await {
-                Ok(AttemptObservation::Running) => report.reconciled += 1,
-                Ok(AttemptObservation::Completed(completion)) => {
-                    self.store.complete_attempt(&command, completion)?;
-                    report.reconciled += 1;
-                }
-                Ok(AttemptObservation::Missing) => {
-                    self.store.resolve_unknown_attempt(&command)?;
-                    report.reconciled += 1;
-                }
-                Err(error) => {
-                    tracing::debug!("attempt reconciliation deferred: {error:#}");
-                    report.deferred += 1;
-                }
-            }
-        }
+        self.progress.start(self.transport.clone(), &self.store)?;
+        self.progress.collect(&self.store, &mut report)?;
+        tokio::task::yield_now().await;
+        self.progress.collect(&self.store, &mut report)?;
+        report.deferred += self.progress.len();
         Ok(report)
     }
 }
