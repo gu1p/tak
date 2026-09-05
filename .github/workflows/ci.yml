@@ -62,7 +62,8 @@ jobs:
         with:
           name: coverage-lcov
           path: .tmp/coverage/lcov.info
-          if-no-files-found: ignore
+          include-hidden-files: true
+          if-no-files-found: error
 
   build_binaries:
     name: Build binaries (${{ matrix.target }})

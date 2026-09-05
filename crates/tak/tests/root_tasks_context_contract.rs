@@ -7,6 +7,21 @@ use anyhow::Result;
 use crate::support::root_task_contracts::{load_root_module, task};
 
 #[test]
+fn repo_root_ci_materializes_the_coverage_report_for_upload() -> Result<()> {
+    use tak_core::v2::OutputSelector;
+
+    let module = load_root_module()?;
+    assert_eq!(
+        task(&module, "//:ci").outputs,
+        vec![OutputSelector::Path {
+            value: ".tmp/coverage/lcov.info".into(),
+        }],
+        "CI must return its report from the daemon workspace"
+    );
+    Ok(())
+}
+
+#[test]
 fn repo_root_check_task_opts_into_gitignore_context() -> Result<()> {
     let module = load_root_module()?;
     let context = task(&module, "//:check")

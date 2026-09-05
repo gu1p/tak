@@ -259,7 +259,7 @@ SPEC = module_spec(
         task(
             "ci",
             context=CHECK_CONTEXT,
-            outputs=[],
+            outputs=[path(".tmp/coverage/lcov.info")],
             deps=[
                 ":fmt-check",
                 ":line-limits-check",
