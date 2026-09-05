@@ -38,7 +38,7 @@ rusqlite = { version = "0.38", features = ["bundled"] }
 ratatui = { version = "0.30", default-features = false }
 qrcode = { version = "0.14", default-features = false }
 tui-qrcode = "0.2.4"
-crossterm = "0.28"
+crossterm = { version = "0.28", features = ["event-stream"] }
 quircs = "0.10"
 nokhwa = { version = "0.10.10", default-features = false }
 serde = { version = "1.0", features = ["derive"] }

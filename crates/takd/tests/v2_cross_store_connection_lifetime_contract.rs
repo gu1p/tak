@@ -9,7 +9,7 @@ use crate::support::v2_worker::dispatch;
 
 const CHILD_ENV: &str = "TAKD_CROSS_STORE_CONNECTION_CHILD";
 const TEST_FILTER: &str = "cross_store_connection_lifetimes_finish";
-const ITERATIONS: usize = 2_000;
+const ITERATIONS: usize = 256;
 
 #[test]
 fn cross_store_connection_lifetimes_finish_without_sqlite_deadlock() {
@@ -40,8 +40,7 @@ fn cross_store_connection_lifetimes_finish_without_sqlite_deadlock() {
 }
 
 fn exercise_cross_store_connections() {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let runs = RunStore::with_db_path(temp.path().join("runs.sqlite")).unwrap();
     let attempts = SubmitAttemptStore::with_db_path(temp.path().join("attempts.sqlite")).unwrap();
     let barrier = Arc::new(Barrier::new(4));

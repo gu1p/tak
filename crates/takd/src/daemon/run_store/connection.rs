@@ -18,12 +18,24 @@ impl RunStore {
         set_owner_only_dir(&self.blob_root)?;
         let connection = ProcessSqliteConnection::open(&self.db_path)
             .with_context(|| format!("open run store {}", self.db_path.display()))?;
-        connection.busy_timeout(Duration::from_secs(5))?;
-        connection.execute_batch(
-            "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;",
-        )?;
+        connection
+            .busy_timeout(Duration::from_secs(5))
+            .context("configure run-store busy timeout")?;
+        connection
+            .execute_batch("PRAGMA foreign_keys=ON;")
+            .context("enable run-store foreign keys")?;
+        connection
+            .execute_batch("PRAGMA synchronous=FULL;")
+            .context("configure run-store synchronous writes")?;
         set_owner_only_file(&self.db_path)?;
         Ok(connection)
+    }
+
+    pub(super) fn initialize_database(&self) -> Result<()> {
+        self.open_connection()?
+            .execute_batch("PRAGMA journal_mode=WAL;")
+            .context("configure run-store WAL mode")?;
+        Ok(())
     }
 
     pub(super) fn upload_path(&self, run_id: &str) -> std::path::PathBuf {

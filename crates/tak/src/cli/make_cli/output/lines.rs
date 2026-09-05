@@ -5,7 +5,7 @@ use tak_core::model::TaskLabel;
 use tak_exec::OutputStream;
 use tak_make::ParallelOutputMode;
 
-use super::{BufferedLine, GoalOutput, OutputState, StreamKey};
+use super::{BufferedLine, GoalOutput, OutputState, OutputVisibility, StreamKey};
 
 pub(super) fn complete_lines(pending: &mut Vec<u8>, bytes: &[u8]) -> Vec<Vec<u8>> {
     pending.extend_from_slice(bytes);
@@ -20,6 +20,7 @@ pub(super) fn flush_partials(
     state: &mut OutputState,
     label: &TaskLabel,
     goal: &GoalOutput,
+    visibility: &OutputVisibility,
 ) -> Result<()> {
     for stream in [OutputStream::Stdout, OutputStream::Stderr] {
         let bytes = state
@@ -30,6 +31,9 @@ pub(super) fn flush_partials(
             continue;
         }
         record_make_exit_code(state, label, stream, &bytes);
+        if !visibility.writes(stream) {
+            continue;
+        }
         match goal.mode {
             ParallelOutputMode::Live => write_prefixed(stream, &goal.name, &bytes)?,
             ParallelOutputMode::Grouped => state

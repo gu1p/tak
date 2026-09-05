@@ -27,6 +27,7 @@ mod remote_tasks;
 mod run_checkout_store;
 mod run_cli;
 mod run_command;
+mod run_dashboard;
 mod run_override_runtime;
 #[cfg(test)]
 mod run_override_runtime_tests;

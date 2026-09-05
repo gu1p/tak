@@ -3,7 +3,7 @@ use rusqlite::{Transaction, params};
 use tak_core::v2::{Affinity, ResolvedJob, ResolvedRun};
 use tak_proto::local_daemon::v2::RunEventKind;
 
-use crate::daemon::run_store::events::{append_job_event, now_ms, sqlite_i64};
+use crate::daemon::run_store::events::{JobEventDetails, append_job_event, now_ms, sqlite_i64};
 
 pub(in crate::daemon::run_store::attempts) fn fail_affinity_group(
     transaction: &Transaction<'_>,
@@ -34,7 +34,7 @@ pub(in crate::daemon::run_store::attempts) fn fail_affinity_group(
             &job.job_id,
             &job.task_ids,
             node_id,
-            "hard-affinity home was lost",
+            JobEventDetails::new("hard-affinity home was lost"),
         )?;
     }
     for job in &failed {

@@ -1,5 +1,5 @@
 use super::super::{SubmitAttemptStore, current_state, unix_epoch_ms};
-use super::require_active;
+use super::{require_active, retry_transient_lock};
 use anyhow::{Result, bail};
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use tak_proto::worker_v2::{WorkerAttemptIdentity, WorkerTerminal, WorkerTerminalOutcome};
@@ -44,39 +44,54 @@ impl SubmitAttemptStore {
         runtime_kind: Option<String>,
         runtime_engine: Option<String>,
     ) -> Result<WorkerTerminal> {
+        retry_transient_lock(|| {
+            self.complete_worker_v2_attempt_with_runtime_once(
+                identity,
+                outcome,
+                terminal_digest,
+                exit_code,
+                runtime_kind.clone(),
+                runtime_engine.clone(),
+            )
+        })
+    }
+
+    fn complete_worker_v2_attempt_with_runtime_once(
+        &self,
+        identity: &WorkerAttemptIdentity,
+        outcome: WorkerTerminalOutcome,
+        terminal_digest: &str,
+        exit_code: Option<i32>,
+        runtime_kind: Option<String>,
+        runtime_engine: Option<String>,
+    ) -> Result<WorkerTerminal> {
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let state = current_state(&transaction, identity)?;
-        let effective_outcome = if matches!(state.as_str(), "cancelling" | "cancelled") {
+        let outcome = if matches!(state.as_str(), "cancelling" | "cancelled") {
             WorkerTerminalOutcome::Cancelled
         } else {
             outcome
         };
-        let exit_code = (effective_outcome != WorkerTerminalOutcome::Cancelled)
+        let exit_code = (outcome != WorkerTerminalOutcome::Cancelled)
             .then_some(exit_code)
             .flatten();
         if matches!(state.as_str(), "succeeded" | "failed" | "cancelled") {
-            return existing_terminal(
-                &transaction,
-                identity,
-                effective_outcome,
-                terminal_digest,
-                exit_code,
-            );
+            return existing_terminal(&transaction, identity, outcome, terminal_digest, exit_code);
         }
         require_active(state)?;
-        if effective_outcome == WorkerTerminalOutcome::Cancelled {
+        if outcome == WorkerTerminalOutcome::Cancelled {
             transaction.execute(
                 "DELETE FROM worker_v2_outputs WHERE fencing_token=?1",
                 [&identity.fencing_token],
             )?;
         }
         let outputs = terminal_outputs(&transaction, &identity.fencing_token)?;
-        if effective_outcome != WorkerTerminalOutcome::Succeeded && !outputs.is_empty() {
+        if outcome != WorkerTerminalOutcome::Succeeded && !outputs.is_empty() {
             bail!("only a successful worker attempt may publish outputs");
         }
         let terminal = WorkerTerminal {
-            outcome: effective_outcome,
+            outcome,
             terminal_digest: terminal_digest.to_owned(),
             event_watermark: event_watermark(&transaction, &identity.fencing_token)?,
             outputs,
@@ -90,7 +105,7 @@ impl SubmitAttemptStore {
              WHERE fencing_token=?1",
             params![
                 identity.fencing_token,
-                terminal_state(effective_outcome),
+                terminal_state(outcome),
                 serde_json::to_string(&terminal)?,
                 unix_epoch_ms()
             ],

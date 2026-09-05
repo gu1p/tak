@@ -32,11 +32,15 @@ impl State {
             .recv()
             .await
             .context("wait for run attachment interrupt")?;
+        Ok(self.record())
+    }
+
+    pub(super) fn record(&mut self) -> Action {
         if self.cancellation_requested {
-            return Ok(Action::Detach);
+            return Action::Detach;
         }
         self.cancellation_requested = true;
-        Ok(Action::RequestCancellation)
+        Action::RequestCancellation
     }
 }
 

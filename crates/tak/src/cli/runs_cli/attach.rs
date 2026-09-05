@@ -6,15 +6,21 @@ use tak_proto::local_daemon::v2::{Operation, Response, RunLifecycleState};
 
 use super::{MISMATCH_DIAGNOSTIC, render, request};
 
+#[path = "attach/dashboard.rs"]
+mod dashboard;
+#[path = "attach/interrupt.rs"]
+mod interrupt;
 #[path = "attach/validation.rs"]
 mod validation;
 
+use interrupt::handle_interrupt;
 pub(crate) use validation::{EventPage, validate_event_page};
 
 pub(super) async fn run(socket: &Path, run_id: &str) -> Result<ExitCode> {
     let mut after_event = 0;
     let mut reported_expired_logs = false;
     let mut interrupts = crate::cli::attachment_interrupt::State::new()?;
+    let mut dashboard = dashboard::load(socket, run_id).await?;
     loop {
         let attached = request(
             socket,
@@ -28,7 +34,20 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<ExitCode> {
         let response = tokio::select! {
             response = attached => response?,
             action = interrupts.next() => {
-                if handle_interrupt(socket, run_id, action?, &mut interrupts).await? {
+                if handle_interrupt(
+                    socket, run_id, action?, &mut interrupts, &mut dashboard,
+                ).await? {
+                    bail!("detached from run {run_id}; persisted cancellation continues")
+                }
+                continue;
+            }
+            input = dashboard::next_interrupt(dashboard.as_mut()) => {
+                if !dashboard::input(&mut dashboard, input, "during run attachment input") {
+                    continue;
+                }
+                if handle_interrupt(
+                    socket, run_id, interrupts.record(), &mut interrupts, &mut dashboard,
+                ).await? {
                     bail!("detached from run {run_id}; persisted cancellation continues")
                 }
                 continue;
@@ -58,10 +77,37 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<ExitCode> {
             logs_expired,
         })?;
         if logs_expired && !reported_expired_logs {
-            eprintln!("Run logs have expired.");
+            let displayed = dashboard::attempt(
+                &mut dashboard,
+                |dashboard| dashboard.note_logs_expired(),
+                "while reporting expired logs",
+            );
+            if displayed.is_none() {
+                eprintln!("Run logs have expired.");
+            }
             reported_expired_logs = true;
         }
-        render::events(&events)?;
+        for event in &events {
+            let handled = dashboard::attempt(
+                &mut dashboard,
+                |dashboard| dashboard.render_event(event),
+                "while rendering a run event",
+            )
+            .unwrap_or(false);
+            if !handled {
+                render::events(std::slice::from_ref(event))?;
+                dashboard::attempt(
+                    &mut dashboard,
+                    |dashboard| dashboard.refresh(),
+                    "while refreshing redirected output",
+                );
+            }
+        }
+        dashboard::attempt(
+            &mut dashboard,
+            |dashboard| dashboard.render_page_state(state),
+            "while updating run state",
+        );
         after_event = next_event;
         if terminal {
             if !matches!(
@@ -72,6 +118,11 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<ExitCode> {
             ) {
                 bail!(MISMATCH_DIAGNOSTIC)
             }
+            dashboard::attempt(
+                &mut dashboard,
+                |dashboard| dashboard.finish(state, None),
+                "while finishing the run dashboard",
+            );
             if let Err(error) = materialize(socket, run_id).await {
                 if state == RunLifecycleState::Succeeded {
                     return Err(error);
@@ -94,7 +145,19 @@ pub(super) async fn run(socket: &Path, run_id: &str) -> Result<ExitCode> {
         tokio::select! {
             _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
             action = interrupts.next() => {
-                if handle_interrupt(socket, run_id, action?, &mut interrupts).await? {
+                if handle_interrupt(
+                    socket, run_id, action?, &mut interrupts, &mut dashboard,
+                ).await? {
+                    bail!("detached from run {run_id}; persisted cancellation continues")
+                }
+            }
+            input = dashboard::next_interrupt(dashboard.as_mut()) => {
+                if !dashboard::input(&mut dashboard, input, "during run attachment input") {
+                    continue;
+                }
+                if handle_interrupt(
+                    socket, run_id, interrupts.record(), &mut interrupts, &mut dashboard,
+                ).await? {
                     bail!("detached from run {run_id}; persisted cancellation continues")
                 }
             }
@@ -114,45 +177,4 @@ async fn materialize(socket: &Path, run_id: &str) -> Result<()> {
     bail!(
         "original checkout association for run {run_id} is unavailable; outputs remain in takd. Use `tak runs outputs {run_id} --to DIR`."
     )
-}
-
-async fn handle_interrupt(
-    socket: &Path,
-    run_id: &str,
-    action: crate::cli::attachment_interrupt::Action,
-    interrupts: &mut crate::cli::attachment_interrupt::State,
-) -> Result<bool> {
-    use crate::cli::attachment_interrupt::Action;
-    if matches!(action, Action::Detach) {
-        return Ok(true);
-    }
-    let cancellation = request(
-        socket,
-        "tak-runs-attach-cancel",
-        Operation::CancelRun {
-            run_id: run_id.to_owned(),
-        },
-        true,
-    );
-    tokio::pin!(cancellation);
-    let mut detach_requested = false;
-    let response = loop {
-        tokio::select! {
-            response = &mut cancellation => break response?,
-            action = interrupts.next(), if !detach_requested => {
-                detach_requested = matches!(action?, Action::Detach);
-            }
-        }
-    };
-    use crate::cli::attachment_interrupt::CancellationOutcome;
-    match crate::cli::attachment_interrupt::validate_cancellation(run_id, &response)? {
-        CancellationOutcome::Persisted => {
-            eprintln!("Cancellation persisted for {run_id}; waiting for takd to stop active work.");
-            Ok(detach_requested)
-        }
-        CancellationOutcome::AlreadyTerminal => {
-            eprintln!("Run {run_id} was already terminal; loading its final state.");
-            Ok(false)
-        }
-    }
 }

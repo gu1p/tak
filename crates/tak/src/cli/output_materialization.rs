@@ -45,6 +45,16 @@ pub(super) async fn materialize(
     })?;
     let staging = Staging::new(&context.root);
     super::runs_cli::outputs::write_fresh_foreground(socket, staging.path(), &bundle).await?;
+    preflight(
+        &context.root,
+        &context.submitted_manifest,
+        &bundle.manifest,
+    )
+    .with_context(|| {
+        format!(
+            "run {run_id} outputs remain in takd; retrieve them with `tak runs outputs {run_id} --to DIR`"
+        )
+    })?;
     apply::all(&context.root, staging.path(), &bundle.manifest)
 }
 

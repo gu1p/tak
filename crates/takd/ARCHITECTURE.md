@@ -75,9 +75,10 @@ uses a private CAS rooted beside the database.
 Startup migration/recovery runs before the server accepts requests. Active attempts without valid
 transport evidence are reconciled through the same idempotency and fencing rules as live node loss.
 
-Default maintenance keeps terminal logs, outputs, and workspace/path blobs for 7 days, keeps
-terminal metadata for 30 days, and limits the workspace/path blob cache to 20 GiB. Expiry is
-reported explicitly by get/attach/output APIs.
+Default maintenance keeps terminal logs and outputs for 7 days, keeps terminal metadata for 30
+days, and applies a configurable 20 GiB LRU budget to workspace/path blobs. Active, leased,
+shared-workspace, and in-transfer data is never evicted. Payload expiry is reported explicitly by
+get/attach/output APIs.
 
 ## Inventory and security
 

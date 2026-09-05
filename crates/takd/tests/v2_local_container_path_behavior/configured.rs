@@ -24,6 +24,12 @@ async fn runtime_env_safe_mounts_and_private_home_follow_precedence() {
 
     let creates = docker.create_records();
     let create = creates.first().expect("one container");
+    #[cfg(unix)]
+    assert_eq!(
+        create.user.as_deref(),
+        Some(effective_daemon_user().as_str()),
+        "container must preserve daemon ownership of local attempt workspace entries"
+    );
     for expected in ["ORDER=step", "RUNTIME_WINS=runtime", "RUNTIME_ONLY=set"] {
         assert!(create.env.contains(&expected.to_string()), "{create:?}");
     }

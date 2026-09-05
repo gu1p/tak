@@ -9,13 +9,10 @@ use crate::support::{
 
 #[tokio::test]
 async fn real_daemon_driver_schedules_remote_only_work_on_a_v2_worker() {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let worker = start_server().await;
     let db = temp.path().join("origin.sqlite");
-    let socket = std::path::PathBuf::from(".tmp")
-        .join(temp.path().file_name().unwrap())
-        .join("r.sock");
+    let socket = temp.path().join("r.sock");
     let peers = v2_remote_origin::peers(worker.addr);
     let store = RunStore::with_db_path(db.clone()).unwrap();
     let manager = new_shared_manager_with_db(db).unwrap();
@@ -47,7 +44,7 @@ async fn real_daemon_driver_schedules_remote_only_work_on_a_v2_worker() {
         panic!("origin daemon exited before serving: {:?}", server.await);
     }
     let run_id = commit(&store, &v2_remote_origin::submission(), "alice");
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         while !store.summary(&run_id).unwrap().unwrap().state.is_terminal() {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }

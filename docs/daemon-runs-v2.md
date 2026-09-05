@@ -51,13 +51,25 @@ and keeps waiting for takd to settle active work. A second Ctrl-C may detach; ca
 continues in the daemon. Losing the terminal or network connection is only a detach: disconnect
 does not cancel the run.
 
+In a terminal, the dashboard keeps progress, nodes, tasks, the scheduler queue, and live logs
+on one screen. Progress appears once at the top, including failures while other tasks continue.
+Node summaries stay compact to leave room for output; focus NODES to see its active tasks and
+candidate queues. This replaces the repeated per-node task lists in the default view.
+Long task metadata switches to stacked rows, and log lines wrap to the terminal width.
+
+Tab and Shift-Tab change the focused panel. Arrow keys, PgUp/PgDn, and Home/End scroll it;
+the panel heading shows the visible line range when content overflows. Logs follow their tail
+until scrolled back; End returns to the latest output. Short terminals show the focused panel
+with tabs for the other panels. Redirected output stays plain and append-only.
+
 After success, attach safely materializes declared outputs into the original checkout only if its
 submitted paths have not changed. On a conflict, Tak copies nothing and leaves the artifacts in
 takd for explicit retrieval with `tak runs outputs`.
 
-By default, terminal logs, outputs, and workspace/path blobs are retained for 7 days; terminal run
-metadata is retained for 30 days. The workspace/path blob cache defaults to a 20 GiB budget.
-`tak runs show` reports when logs or outputs have expired.
+By default, terminal logs and outputs are retained for 7 days, and terminal run metadata is retained
+for 30 days. Workspace/path blobs instead use a configurable 20 GiB LRU budget; active, leased,
+shared-workspace, and in-transfer data is never evicted. `tak runs show` reports when logs or outputs
+have expired.
 
 ## Migrate every TASKS.py module
 

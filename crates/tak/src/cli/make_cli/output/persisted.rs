@@ -7,6 +7,10 @@ use tak_proto::local_daemon::v2::{RunEvent, RunEventKind};
 use super::ParallelMakeOutputObserver;
 
 impl crate::cli::daemon_run::PersistedEventRenderer for ParallelMakeOutputObserver {
+    fn set_dashboard_active(&self, active: bool) {
+        self.visibility.set_dashboard_active(active);
+    }
+
     fn render(&self, event: &RunEvent) -> Result<bool> {
         if let Some(chunk) = &event.chunk_base64 {
             let task_id = event

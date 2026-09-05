@@ -5,6 +5,9 @@ use base64::Engine as _;
 use rusqlite::{Transaction, params};
 use tak_proto::local_daemon::v2::{RunEvent, RunEventKind};
 
+mod details;
+pub(super) use details::{JobEventDetails, TerminalDetails};
+
 pub(super) fn append_event(
     transaction: &Transaction<'_>,
     run_id: &str,
@@ -19,6 +22,7 @@ pub(super) fn append_event(
         &[],
         None,
         message,
+        None,
         None,
         None,
     )
@@ -40,6 +44,7 @@ pub(super) fn append_terminal_event(
         None,
         message,
         None,
+        None,
         exit_code,
     )
 }
@@ -51,7 +56,7 @@ pub(super) fn append_job_event(
     job_id: &str,
     task_ids: &[String],
     node_id: &str,
-    message: &str,
+    details: JobEventDetails<'_>,
 ) -> Result<u64> {
     append_context_event(
         transaction,
@@ -60,15 +65,11 @@ pub(super) fn append_job_event(
         Some(job_id),
         task_ids,
         Some(node_id),
-        message,
+        details.message,
+        details.authored_attempt,
         None,
         None,
     )
-}
-
-pub(super) struct TerminalDetails<'a> {
-    pub message: &'a str,
-    pub exit_code: Option<i32>,
 }
 
 pub(super) fn append_job_terminal_event(
@@ -88,6 +89,7 @@ pub(super) fn append_job_terminal_event(
         task_ids,
         Some(node_id),
         terminal.message,
+        None,
         None,
         terminal.exit_code,
     )
@@ -110,25 +112,29 @@ pub(super) fn append_output_event(
         task_ids,
         Some(node_id),
         "",
+        None,
         Some(base64::engine::general_purpose::STANDARD.encode(bytes)),
         None,
     )
 }
 
-pub(super) fn append_skipped_event(
+pub(super) fn append_unassigned_job_event(
     transaction: &Transaction<'_>,
     run_id: &str,
+    kind: RunEventKind,
     job_id: &str,
     task_ids: &[String],
+    message: &str,
 ) -> Result<u64> {
     append_context_event(
         transaction,
         run_id,
-        RunEventKind::Skipped,
+        kind,
         Some(job_id),
         task_ids,
         None,
-        "job skipped after dependency failure",
+        message,
+        None,
         None,
         None,
     )
@@ -143,6 +149,7 @@ fn append_context_event(
     task_ids: &[String],
     node_id: Option<&str>,
     message: &str,
+    authored_attempt: Option<u32>,
     chunk_base64: Option<String>,
     exit_code: Option<i32>,
 ) -> Result<u64> {
@@ -157,6 +164,7 @@ fn append_context_event(
         job_id: job_id.map(str::to_owned),
         task_ids: task_ids.to_vec(),
         node_id: node_id.map(str::to_owned),
+        authored_attempt,
         message: message.to_owned(),
         chunk_base64,
         exit_code,

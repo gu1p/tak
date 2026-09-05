@@ -63,3 +63,10 @@ fn request(id: &str, passed_path: Option<&str>, step_path: Option<&str>) -> Disp
     request.payload_digest = payload_digest(&request.payload).unwrap();
     request
 }
+
+#[cfg(unix)]
+fn effective_daemon_user() -> String {
+    // SAFETY: these calls have no preconditions and only read process credentials.
+    let (uid, gid) = unsafe { (libc::geteuid(), libc::getegid()) };
+    format!("{uid}:{gid}")
+}

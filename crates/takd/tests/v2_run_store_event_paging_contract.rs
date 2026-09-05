@@ -26,6 +26,7 @@ fn attachment_pages_are_bounded_and_terminal_only_after_the_last_event() {
             job_id: None,
             task_ids: vec![],
             node_id: None,
+            authored_attempt: None,
             message: "event".into(),
             chunk_base64: None,
             exit_code: None,

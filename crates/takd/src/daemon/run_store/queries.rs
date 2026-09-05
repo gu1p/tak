@@ -32,6 +32,11 @@ impl RunStore {
         let Some(summary) = summary(&connection, run_id)? else {
             return Ok(None);
         };
+        let max_parallel_jobs = connection.query_row(
+            "SELECT max_parallel_jobs FROM runs WHERE run_id = ?1",
+            [run_id],
+            |row| row.get::<_, i64>(0),
+        )?;
         let mut statement = connection.prepare(
             "SELECT job_id, state, node_id, attempt, definition_json, cache FROM run_jobs \
              WHERE run_id = ?1 ORDER BY ordinal, job_id",
@@ -44,6 +49,7 @@ impl RunStore {
         Ok(Some(RunDetails {
             summary,
             jobs,
+            max_parallel_jobs: unsigned(max_parallel_jobs, "run parallelism")?,
             logs_expired,
             outputs_expired,
         }))
@@ -94,6 +100,11 @@ fn job_summary(row: &Row<'_>) -> rusqlite::Result<RunJobSummary> {
     let definition: ResolvedJob = serde_json::from_str(&definition_json).map_err(|error| {
         rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(error))
     })?;
+    let placement_candidate_node_ids = definition
+        .placement_candidates
+        .iter()
+        .map(|candidate| candidate.node_id.clone())
+        .collect();
     Ok(RunJobSummary {
         job_id: row.get(0)?,
         task_ids: definition.task_ids,
@@ -101,6 +112,8 @@ fn job_summary(row: &Row<'_>) -> rusqlite::Result<RunJobSummary> {
         node_id: row.get(2)?,
         attempt: row.get(3)?,
         cache: row.get(5)?,
+        queue: definition.queue,
+        placement_candidate_node_ids,
     })
 }
 

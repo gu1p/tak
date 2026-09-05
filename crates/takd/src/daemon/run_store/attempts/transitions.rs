@@ -5,7 +5,7 @@ use tak_proto::local_daemon::v2::RunEventKind;
 
 use crate::daemon::scheduler::DispatchCommand;
 
-use super::super::events::{append_job_event, now_ms, sqlite_i64};
+use super::super::events::{JobEventDetails, append_job_event, now_ms, sqlite_i64};
 
 mod group_failure;
 mod retry;
@@ -30,7 +30,7 @@ pub(super) fn schedule_retry(
         ))
         .min(i64::MAX as u64);
     let updated = transaction.execute(
-        "UPDATE run_jobs SET state = 'retrying', node_id = NULL, current_fencing_token = NULL, next_eligible_at_ms = ?4, ready_order = (SELECT COALESCE(MAX(other.ready_order), 0) + 1 FROM run_jobs other WHERE other.run_id = ?1) WHERE run_id = ?1 AND job_id = ?2 AND current_fencing_token = ?3",
+        "UPDATE run_jobs SET state = 'retrying', node_id = NULL, cache = NULL, current_fencing_token = NULL, next_eligible_at_ms = ?4, ready_order = (SELECT COALESCE(MAX(other.ready_order), 0) + 1 FROM run_jobs other WHERE other.run_id = ?1) WHERE run_id = ?1 AND job_id = ?2 AND current_fencing_token = ?3",
         params![command.run_id, command.job_id, command.fencing_token,
             sqlite_i64(eligible, "retry timestamp")?],
     )?;
@@ -44,7 +44,7 @@ pub(super) fn schedule_retry(
         &command.job_id,
         &job.task_ids,
         &command.node_id,
-        message,
+        JobEventDetails::new(message),
     )?;
     rearm_scheduler(transaction, &command.run_id)?;
     settlement::refresh_run_state(transaction, &command.run_id)

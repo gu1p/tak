@@ -9,6 +9,9 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+#[path = "v2_docs_contract/retention.rs"]
+mod retention;
+
 #[test]
 fn user_docs_explain_daemon_owned_runs_and_v2_migration() {
     let root = repo_root();

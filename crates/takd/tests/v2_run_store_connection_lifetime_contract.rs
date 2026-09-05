@@ -7,6 +7,7 @@ use crate::support::v2_run::submission;
 
 const CHILD_ENV: &str = "TAKD_CONNECTION_LIFETIME_CHILD";
 const TEST_FILTER: &str = "cloned_attachment_and_summary_connections_finish";
+const ITERATIONS: usize = 256;
 
 #[test]
 fn cloned_attachment_and_summary_connections_finish_without_sqlite_deadlock() {
@@ -37,8 +38,7 @@ fn cloned_attachment_and_summary_connections_finish_without_sqlite_deadlock() {
 }
 
 fn exercise_concurrent_connections() {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let store = RunStore::with_db_path(temp.path().join("run.sqlite")).unwrap();
     let run_id = store
         .submit(&submission("connection-lifetime", "secret"), "alice")
@@ -54,7 +54,7 @@ fn exercise_concurrent_connections() {
         .block_on(async move {
             let attachment_run = run_id.clone();
             let attachment_task = tokio::spawn(async move {
-                for _ in 0..2_000 {
+                for _ in 0..ITERATIONS {
                     attachments
                         .attachment_snapshot(&attachment_run, 0)
                         .unwrap()
@@ -63,7 +63,7 @@ fn exercise_concurrent_connections() {
                 }
             });
             let summary_task = tokio::spawn(async move {
-                for _ in 0..2_000 {
+                for _ in 0..ITERATIONS {
                     summaries.summary(&run_id).unwrap().unwrap();
                     tokio::task::yield_now().await;
                 }

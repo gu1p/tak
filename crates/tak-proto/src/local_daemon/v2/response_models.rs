@@ -121,6 +121,8 @@ pub struct RunEvent {
     pub job_id: Option<String>,
     pub task_ids: Vec<String>,
     pub node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authored_attempt: Option<u32>,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunk_base64: Option<String>,
@@ -151,6 +153,10 @@ pub struct RunJobSummary {
     pub node_id: Option<String>,
     pub attempt: u32,
     pub cache: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub placement_candidate_node_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -158,10 +164,16 @@ pub struct RunJobSummary {
 pub struct RunDetails {
     pub summary: RunSummary,
     pub jobs: Vec<RunJobSummary>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub max_parallel_jobs: u32,
     #[serde(default)]
     pub logs_expired: bool,
     #[serde(default)]
     pub outputs_expired: bool,
+}
+
+fn is_zero(value: &u32) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

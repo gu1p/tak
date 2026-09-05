@@ -32,6 +32,7 @@ base64.workspace = true
 axum.workspace = true
 clap.workspace = true
 crossterm.workspace = true
+futures.workspace = true
 ignore.workspace = true
 prost.workspace = true
 pulldown-cmark.workspace = true

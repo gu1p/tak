@@ -48,6 +48,7 @@ impl RunStore {
             blob_root,
             maintenance,
         };
+        store.initialize_database()?;
         store.ensure_schema()?;
         store.run_maintenance_at(startup_now_ms)?;
         Ok(store)

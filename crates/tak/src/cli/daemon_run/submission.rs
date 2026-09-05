@@ -6,6 +6,10 @@ use tak_core::v2::{PlacementCandidate, RemoteRequirements, RunSubmission};
 use tak_proto::local_daemon::v2::{Operation, Request, Response, WorkspaceDisposition};
 
 mod attach;
+#[cfg(test)]
+mod dashboard_fallback_bdd_tests;
+#[cfg(test)]
+mod dashboard_fallback_tests;
 mod exchange;
 #[cfg(test)]
 mod exchange_tests;
@@ -64,6 +68,13 @@ pub(super) async fn submit_and_attach(
         bail!("local takd returned an unexpected SubmitRun response")
     };
     println!("run_id={run_id}");
+    let mut dashboard = crate::cli::run_dashboard::start_or_disable(
+        crate::cli::run_dashboard::RunDashboard::detect(
+            crate::cli::run_dashboard::DashboardSeed::from((&*run_id, &submission.run)),
+        ),
+        "before workspace upload",
+    );
+    set_renderer_dashboard(renderer, dashboard.is_some());
     crate::cli::run_checkout_store::RunCheckoutStore::open_default()?.record(
         &socket_path,
         &run_id,
@@ -77,15 +88,36 @@ pub(super) async fn submit_and_attach(
             &archive,
             next_offset,
         );
-        tokio::select! {
-            result = upload => result?,
-            action = interrupts.next() => {
-                handle_pre_attach_interrupt(
-                    &socket_path, &run_id, action?, &mut interrupts,
-                ).await?;
-                return attach::run_with_interrupts(
-                    &socket_path, &run_id, interrupts, &checkout, renderer,
-                ).await;
+        tokio::pin!(upload);
+        loop {
+            tokio::select! {
+                result = &mut upload => { result?; break; }
+                action = interrupts.next() => {
+                    handle_pre_attach_interrupt(
+                        &socket_path, &run_id, action?, &mut interrupts, &mut dashboard, renderer,
+                    ).await?;
+                    return attach::run_with_interrupts(
+                        &socket_path, &run_id, interrupts, &checkout, renderer,
+                        &mut dashboard,
+                    ).await;
+                }
+                input = attach::next_dashboard_interrupt(dashboard.as_mut()) => {
+                    if let Err(error) = input {
+                        crate::cli::run_dashboard::disable_after_error(
+                            &mut dashboard, error, "during workspace upload",
+                        );
+                        set_renderer_dashboard(renderer, false);
+                        continue;
+                    }
+                    handle_pre_attach_interrupt(
+                        &socket_path, &run_id, interrupts.record(), &mut interrupts,
+                        &mut dashboard, renderer,
+                    ).await?;
+                    return attach::run_with_interrupts(
+                        &socket_path, &run_id, interrupts, &checkout, renderer,
+                        &mut dashboard,
+                    ).await;
+                }
             }
         }
     }
@@ -96,21 +128,56 @@ pub(super) async fn submit_and_attach(
         },
     };
     let commit = exchange::response(&socket_path, &commit_request);
-    let response = tokio::select! {
-        response = commit => response?,
-        action = interrupts.next() => {
-            handle_pre_attach_interrupt(
-                &socket_path, &run_id, action?, &mut interrupts,
-            ).await?;
-            return attach::run_with_interrupts(
-                &socket_path, &run_id, interrupts, &checkout, renderer,
-            ).await;
+    tokio::pin!(commit);
+    let response = loop {
+        tokio::select! {
+            response = &mut commit => break response?,
+            action = interrupts.next() => {
+                handle_pre_attach_interrupt(
+                    &socket_path, &run_id, action?, &mut interrupts, &mut dashboard, renderer,
+                ).await?;
+                return attach::run_with_interrupts(
+                    &socket_path, &run_id, interrupts, &checkout, renderer,
+                    &mut dashboard,
+                ).await;
+            }
+            input = attach::next_dashboard_interrupt(dashboard.as_mut()) => {
+                if let Err(error) = input {
+                    crate::cli::run_dashboard::disable_after_error(
+                        &mut dashboard, error, "during run commit",
+                    );
+                    set_renderer_dashboard(renderer, false);
+                    continue;
+                }
+                handle_pre_attach_interrupt(
+                    &socket_path, &run_id, interrupts.record(), &mut interrupts,
+                    &mut dashboard, renderer,
+                ).await?;
+                return attach::run_with_interrupts(
+                    &socket_path, &run_id, interrupts, &checkout, renderer,
+                    &mut dashboard,
+                ).await;
+            }
         }
     };
     if !matches!(response, Response::RunCommitted { run_id: ref id, .. } if id == &run_id) {
         bail!("local takd returned an unexpected CommitRun response");
     }
-    attach::run_with_interrupts(&socket_path, &run_id, interrupts, &checkout, renderer).await
+    attach::run_with_interrupts(
+        &socket_path,
+        &run_id,
+        interrupts,
+        &checkout,
+        renderer,
+        &mut dashboard,
+    )
+    .await
+}
+
+fn set_renderer_dashboard(renderer: Option<&dyn super::PersistedEventRenderer>, active: bool) {
+    if let Some(renderer) = renderer {
+        renderer.set_dashboard_active(active);
+    }
 }
 
 async fn handle_pre_attach_interrupt(
@@ -118,8 +185,12 @@ async fn handle_pre_attach_interrupt(
     run_id: &str,
     action: crate::cli::attachment_interrupt::Action,
     interrupts: &mut crate::cli::attachment_interrupt::State,
+    dashboard: &mut Option<crate::cli::run_dashboard::RunDashboard>,
+    renderer: Option<&dyn super::PersistedEventRenderer>,
 ) -> Result<()> {
-    if attach::handle_interrupt(socket_path, run_id, action, interrupts).await? {
+    if attach::handle_interrupt(socket_path, run_id, action, interrupts, dashboard, renderer)
+        .await?
+    {
         bail!("detached from run {run_id}; persisted cancellation continues")
     }
     Ok(())

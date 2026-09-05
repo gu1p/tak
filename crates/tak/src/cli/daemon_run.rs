@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use tak_core::v2::{PlacementCandidate, RemoteRequirements, RunSubmission};
 use tak_loader::V2AuthoredRoot;
 use tak_proto::local_daemon::v2::{Request, Response, RunEvent};
@@ -20,6 +20,8 @@ pub(super) use workspace::WorkspaceBundle;
 
 pub(super) trait PersistedEventRenderer: Send + Sync {
     fn render(&self, event: &RunEvent) -> Result<bool>;
+
+    fn set_dashboard_active(&self, _active: bool) {}
 }
 
 pub(super) async fn foreground_response(socket_path: &Path, request: &Request) -> Result<Response> {
@@ -61,18 +63,6 @@ pub(super) async fn remote_candidates(
     requirements: RemoteRequirements,
 ) -> Result<Vec<PlacementCandidate>> {
     submission::remote_candidates(&socket_path(), requirements).await
-}
-
-pub(super) async fn submit_resolved(
-    root: &Path,
-    submission: RunSubmission,
-    workspace: WorkspaceBundle,
-) -> Result<()> {
-    let status = submit_resolved_exit_code(root, submission, workspace).await?;
-    if status != ExitCode::SUCCESS {
-        bail!("daemon-owned run did not succeed")
-    }
-    Ok(())
 }
 
 pub(super) async fn submit_resolved_exit_code(

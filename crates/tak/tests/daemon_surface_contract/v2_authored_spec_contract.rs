@@ -14,6 +14,8 @@ mod failed_submission;
 mod first_available_overlap;
 #[path = "v2_authored_spec_contract/first_available_submission.rs"]
 mod first_available_submission;
+#[path = "v2_authored_spec_contract/foreground_dashboard.rs"]
+mod foreground_dashboard;
 #[path = "v2_authored_spec_contract/includes_inactive.rs"]
 mod includes_inactive;
 #[path = "v2_authored_spec_contract/live_output.rs"]
@@ -56,6 +58,8 @@ mod shared_workspace;
 mod submission;
 #[path = "v2_authored_spec_contract/submission_interrupt.rs"]
 mod submission_interrupt;
+#[path = "v2_authored_spec_contract/submission_raw_interrupt_terminal.rs"]
+mod submission_raw_interrupt_terminal;
 #[path = "v2_authored_spec_contract/submission_support.rs"]
 mod submission_support;
 #[path = "v2_authored_spec_contract/terminal_cancellation_race.rs"]

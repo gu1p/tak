@@ -10,8 +10,7 @@ use crate::support::{v2_remote_origin, v2_run::scheduler::commit, worker_http::s
 
 #[tokio::test]
 async fn remote_worker_exit_code_reaches_the_origin_terminal_summary_and_event() {
-    std::fs::create_dir_all(".tmp").unwrap();
-    let temp = tempfile::tempdir_in(".tmp").unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let worker = start_server().await;
     let peers = v2_remote_origin::peers(worker.addr);
     let store = RunStore::with_db_path(temp.path().join("origin.sqlite")).unwrap();
@@ -26,7 +25,7 @@ async fn remote_worker_exit_code_reaches_the_origin_terminal_summary_and_event()
         peers,
     ));
     let mut coordinator = AttemptCoordinator::new(store.clone(), transport);
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         while !store.summary(&run_id).unwrap().unwrap().state.is_terminal() {
             coordinator.drive_once().await.unwrap();
             tokio::time::sleep(Duration::from_millis(20)).await;

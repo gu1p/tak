@@ -20,6 +20,19 @@ pub(super) fn insert_host_path_for_native_runtime(
     }
 }
 
+pub(super) fn daemon_container_user() -> Option<String> {
+    #[cfg(unix)]
+    {
+        // SAFETY: these calls have no preconditions and only read process credentials.
+        let (uid, gid) = unsafe { (libc::geteuid(), libc::getegid()) };
+        Some(format!("{uid}:{gid}"))
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
 pub(super) fn runner_runtime(
     runtime: Option<&TaskRuntime>,
     private_root: &Path,

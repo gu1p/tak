@@ -28,6 +28,8 @@ test_module!(v2_worker_attempt_cleanup_success_contract);
 test_module!(v2_worker_attempt_fencing_contract);
 test_module!(v2_worker_http_dispatch_observe_contract);
 test_module!(v2_worker_http_execution_behavior);
+test_module!(v2_worker_output_lock_recovery_behavior);
+test_module!(v2_worker_terminal_lock_recovery_behavior);
 test_module!(v2_worker_image_cache_behavior);
 test_module!(v2_worker_container_path_behavior);
 test_module!(v2_worker_node_identity_behavior);

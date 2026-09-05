@@ -66,3 +66,10 @@ async fn wait_for(predicate: impl Fn() -> bool) -> bool {
     .await
     .is_ok()
 }
+
+#[cfg(unix)]
+fn effective_daemon_user() -> String {
+    // SAFETY: these calls have no preconditions and only read process credentials.
+    let (uid, gid) = unsafe { (libc::geteuid(), libc::getegid()) };
+    format!("{uid}:{gid}")
+}

@@ -4,7 +4,7 @@ use tak_core::v2::ResolvedJob;
 use tak_proto::local_daemon::v2::RunEventKind;
 
 use super::RunStore;
-use super::events::append_job_event;
+use super::events::{JobEventDetails, append_job_event};
 use crate::daemon::scheduler::DispatchCommand;
 
 impl RunStore {
@@ -44,7 +44,7 @@ impl RunStore {
             &command.job_id,
             &job.task_ids,
             &command.node_id,
-            &format!("workspace cache {cache}"),
+            JobEventDetails::new(&format!("workspace cache {cache}")),
         )?;
         transaction.commit()?;
         Ok(())

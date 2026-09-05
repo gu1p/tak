@@ -4,12 +4,26 @@
 mod attach_interrupt;
 #[path = "runs_cli_contract/correlated_rejection.rs"]
 mod correlated_rejection;
+#[path = "runs_cli_contract/dashboard_attach.rs"]
+mod dashboard_attach;
+#[path = "runs_cli_contract/dashboard_attach_terminal.rs"]
+mod dashboard_attach_terminal;
+#[path = "runs_cli_contract/dashboard_expired_logs_terminal.rs"]
+mod dashboard_expired_logs_terminal;
+#[path = "runs_cli_contract/dashboard_first_interrupt_terminal.rs"]
+mod dashboard_first_interrupt_terminal;
+#[path = "runs_cli_contract/dashboard_navigation_terminal.rs"]
+mod dashboard_navigation_terminal;
+#[path = "runs_cli_contract/dashboard_second_interrupt_terminal.rs"]
+mod dashboard_second_interrupt_terminal;
 #[path = "runs_cli_contract/disconnect.rs"]
 mod disconnect;
 #[path = "runs_cli_contract/docker_delegation.rs"]
 mod docker_delegation;
 #[path = "runs_cli_contract/docker_dockerfile_delegation.rs"]
 mod docker_dockerfile_delegation;
+#[path = "runs_cli_contract/docker_exit_code.rs"]
+mod docker_exit_code;
 #[path = "runs_cli_contract/docker_remote_delegation.rs"]
 mod docker_remote_delegation;
 #[path = "runs_cli_contract/exec_delegation.rs"]
@@ -28,6 +42,8 @@ mod failed_attachment;
 pub(crate) mod fake_daemon;
 #[path = "runs_cli_contract/foreground_output_delay.rs"]
 mod foreground_output_delay;
+#[path = "runs_cli_contract/foreground_output_recheck.rs"]
+mod foreground_output_recheck;
 #[path = "runs_cli_contract/gapped_attachment.rs"]
 mod gapped_attachment;
 #[path = "runs_cli_contract/help.rs"]

@@ -16,6 +16,8 @@ mod response_duplicates;
 mod response_rejection;
 #[path = "local_daemon_v2_client_contract/retention_expiry.rs"]
 mod retention_expiry;
+#[path = "local_daemon_v2_client_contract/run_dashboard.rs"]
+mod run_dashboard;
 #[path = "local_daemon_v2_client_contract/submission.rs"]
 mod submission;
 #[path = "local_daemon_v2_client_contract/success_decoding.rs"]

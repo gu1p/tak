@@ -6,7 +6,7 @@ use tak_proto::local_daemon::v2::RunEventKind;
 use crate::daemon::scheduler::{DispatchCommand, ResultAcceptance};
 
 use super::super::RunStore;
-use super::super::events::{append_event, append_job_event, now_ms, sqlite_i64};
+use super::super::events::{JobEventDetails, append_event, append_job_event, now_ms, sqlite_i64};
 use super::publish_cancelled_outputs;
 
 impl RunStore {
@@ -89,7 +89,7 @@ pub(in crate::daemon::run_store) fn settle_cancellation(
         &command.job_id,
         &job.task_ids,
         &command.node_id,
-        "job cancelled",
+        JobEventDetails::new("job cancelled"),
     )?;
     finish_run_if_settled(transaction, &command.run_id, now)
 }

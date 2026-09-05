@@ -1,8 +1,8 @@
 use std::fs;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use super::super::runs_cli_contract::fake_daemon::{FakeRunDaemon, Reply};
-use super::second_submission_interrupt::wait_for_requests;
 use super::submission_support::{TASKS, environment};
 use crate::support::{run_tak_output, tak_bin, write_tasks};
 
@@ -33,7 +33,7 @@ fn exercise(state: &'static str) {
         .stderr(Stdio::null())
         .spawn()
         .unwrap();
-    wait_for_requests(&daemon, 4);
+    wait_for_startup_requests(&daemon, 4);
     child.kill().unwrap();
     child.wait().unwrap();
 
@@ -54,5 +54,13 @@ fn exercise(state: &'static str) {
         assert_eq!(output.status.code(), Some(7));
     } else {
         assert!(String::from_utf8_lossy(&output.stderr).contains("cancelled"));
+    }
+}
+
+fn wait_for_startup_requests(daemon: &FakeRunDaemon, count: usize) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while daemon.request_count() < count {
+        assert!(Instant::now() < deadline, "request was not observed");
+        std::thread::sleep(Duration::from_millis(5));
     }
 }

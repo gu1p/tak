@@ -39,6 +39,8 @@ pub mod short_daemon_paths;
 pub mod takd_binary;
 pub mod task_history;
 pub mod tasks;
+#[cfg(unix)]
+pub mod terminal;
 pub mod tor_probe_env;
 pub mod tor_smoke;
 #[cfg(unix)]

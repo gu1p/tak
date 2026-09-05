@@ -17,6 +17,5 @@ pub(super) async fn run_docker_run(
     let root = std::env::current_dir().context("failed to resolve current directory")?;
     let workspace = super::super::daemon_run::build_workspace(&root)?;
     let submission = resolved::submission(&selectors, &spec, workspace.descriptor.clone()).await?;
-    super::super::daemon_run::submit_resolved(&root, submission, workspace).await?;
-    Ok(ExitCode::SUCCESS)
+    super::super::daemon_run::submit_resolved_exit_code(&root, submission, workspace).await
 }

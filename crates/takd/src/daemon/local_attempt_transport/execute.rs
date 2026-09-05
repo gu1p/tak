@@ -100,7 +100,7 @@ fn worker_spec(
             &snapshot.attempt_root,
         )?,
         node_id: command.node_id.clone(),
-        container_user: None,
+        container_user: super::super::task_runtime::daemon_container_user(),
         image_cache: None,
         container_identity: None,
     })

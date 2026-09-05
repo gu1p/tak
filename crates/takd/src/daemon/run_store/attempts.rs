@@ -7,7 +7,7 @@ use crate::daemon::scheduler::{
 };
 
 use super::RunStore;
-use super::events::{append_job_event, now_ms, sqlite_i64};
+use super::events::{JobEventDetails, append_job_event, now_ms, sqlite_i64};
 
 mod dispatch;
 mod node_loss;
@@ -62,7 +62,7 @@ impl RunStore {
             &command.job_id,
             &job.task_ids,
             &command.node_id,
-            "worker accepted job",
+            JobEventDetails::new("worker accepted job"),
         )?;
         transaction.commit()?;
         Ok(ResultAcceptance::Applied)

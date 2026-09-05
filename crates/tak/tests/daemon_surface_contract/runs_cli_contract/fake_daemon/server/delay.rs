@@ -29,6 +29,19 @@ pub(super) fn response_delay(
         }
         Reply::AttachCancellationFlow(_) if request_number == 0 => Some(Duration::from_secs(30)),
         Reply::AttachCancellationFlow(delay) if operation == Some("CancelRun") => Some(*delay),
+        Reply::InteractiveDashboardFlow(delay)
+            if operation == Some("AttachRun") && request_number == 1 =>
+        {
+            Some(*delay)
+        }
+        Reply::InteractiveDashboardCancellationFlow(_)
+            if operation == Some("AttachRun") && request_number == 1 =>
+        {
+            Some(Duration::from_secs(30))
+        }
+        Reply::InteractiveDashboardCancellationFlow(delay) if operation == Some("CancelRun") => {
+            Some(*delay)
+        }
         Reply::TerminalOutputFlow(_, true)
             if operation == Some("AttachRun") && request_number == 3 =>
         {

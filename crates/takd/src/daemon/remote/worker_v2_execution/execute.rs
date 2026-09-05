@@ -90,7 +90,7 @@ fn spec(
                 .ok_or_else(|| anyhow::anyhow!("worker attempt HOME has no private root"))?,
         )?,
         node_id: request.identity.node_id.clone(),
-        container_user: None,
+        container_user: crate::daemon::task_runtime::daemon_container_user(),
         image_cache: context
             .image_cache_config()
             .map(|config| config.runner_options()),

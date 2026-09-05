@@ -49,5 +49,6 @@ fn explicit_v2_submits_uploads_commits_and_attaches_without_client_execution() {
     for secret in ["default-secret", "task-secret", "cli-secret"] {
         assert!(!stdout.contains(secret) && !stderr.contains(secret));
     }
+    assert!(!stdout.contains('\u{1b}') && !stderr.contains('\u{1b}'));
     assert!(!workspace.join("client-executor-ran").exists());
 }

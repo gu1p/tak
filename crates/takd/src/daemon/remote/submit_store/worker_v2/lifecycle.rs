@@ -42,6 +42,16 @@ impl SubmitAttemptStore {
         stream: WorkerOutputStream,
         chunk: &[u8],
     ) -> Result<WorkerAttemptEvent> {
+        retry_transient_lock(|| self.append_worker_v2_event_once(identity, task_id, stream, chunk))
+    }
+
+    fn append_worker_v2_event_once(
+        &self,
+        identity: &WorkerAttemptIdentity,
+        task_id: &str,
+        stream: WorkerOutputStream,
+        chunk: &[u8],
+    ) -> Result<WorkerAttemptEvent> {
         let mut connection = self.open_connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         require_active(current_state(&transaction, identity)?)?;
@@ -70,6 +80,28 @@ impl SubmitAttemptStore {
         transaction.commit()?;
         Ok(event)
     }
+}
+
+pub(super) fn retry_transient_lock<T>(mut operation: impl FnMut() -> Result<T>) -> Result<T> {
+    match operation() {
+        Err(error) if is_transient_lock(&error) => operation(),
+        result => result,
+    }
+}
+
+fn is_transient_lock(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<rusqlite::Error>()
+            .and_then(rusqlite::Error::sqlite_error_code)
+            .is_some_and(|code| {
+                matches!(
+                    code,
+                    rusqlite::ffi::ErrorCode::DatabaseBusy
+                        | rusqlite::ffi::ErrorCode::DatabaseLocked
+                )
+            })
+    })
 }
 
 pub(super) fn require_active(state: String) -> Result<()> {

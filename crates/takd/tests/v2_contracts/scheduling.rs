@@ -13,6 +13,7 @@ sibling_test_module!(v2_scheduler_affinity_migration_contract);
 sibling_test_module!(v2_scheduler_atomic_reservation_contract);
 sibling_test_module!(v2_scheduler_backoff_contract);
 sibling_test_module!(v2_scheduler_balanced_behavior);
+sibling_test_module!(v2_scheduler_cache_reset_contract);
 sibling_test_module!(v2_scheduler_worker_snapshot_accounting_behavior);
 sibling_test_module!(v2_scheduler_cancellation_contract);
 sibling_test_module!(v2_scheduler_constraint_cancellation_behavior);

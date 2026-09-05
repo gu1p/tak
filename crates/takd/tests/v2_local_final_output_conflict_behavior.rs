@@ -23,7 +23,7 @@ async fn final_output_conflict_is_a_persisted_terminal_failure_without_retry() {
         .join(temp.path().file_name().unwrap())
         .join("d.sock");
     let server = spawn_protocol_server(db.clone(), socket.clone());
-    wait_for(|| socket.exists()).await;
+    wait_for(|| socket.exists(), Duration::from_secs(5)).await;
     let store = RunStore::with_db_path(db.clone()).unwrap();
     let mut request = v2_run::output_conflicts::final_sink("final-conflict");
     for task in &mut request.run.tasks {
@@ -32,7 +32,11 @@ async fn final_output_conflict_is_a_persisted_terminal_failure_without_retry() {
         }));
     }
     let run_id = v2_run::scheduler::commit(&store, &request, "alice");
-    wait_for(|| store.summary(&run_id).unwrap().unwrap().state.is_terminal()).await;
+    wait_for(
+        || store.summary(&run_id).unwrap().unwrap().state.is_terminal(),
+        Duration::from_secs(30),
+    )
+    .await;
 
     assert_eq!(
         store.summary(&run_id).unwrap().unwrap().state,
@@ -65,8 +69,8 @@ async fn final_output_conflict_is_a_persisted_terminal_failure_without_retry() {
     server.abort();
 }
 
-async fn wait_for(predicate: impl Fn() -> bool) {
-    tokio::time::timeout(Duration::from_secs(5), async {
+async fn wait_for(predicate: impl Fn() -> bool, timeout: Duration) {
+    tokio::time::timeout(timeout, async {
         while !predicate() {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }

@@ -136,6 +136,7 @@ fn valid_sequences(events: &[super::RunEvent], next_event: u64, logs_expired: bo
 fn valid_event(event: &super::RunEvent) -> bool {
     let is_output = matches!(event.kind, RunEventKind::Stdout | RunEventKind::Stderr);
     is_output == event.chunk_base64.is_some()
+        && event.authored_attempt.is_none_or(|attempt| attempt > 0)
         && event_exit_code_is_valid(event.kind, event.exit_code)
         && event.chunk_base64.as_ref().is_none_or(|chunk| {
             base64::engine::general_purpose::STANDARD

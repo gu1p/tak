@@ -1,7 +1,7 @@
-use serde_json::json;
+use {super::Reply, serde_json::json};
 
-use super::Reply;
-
+#[path = "response/dashboard_attach.rs"]
+mod dashboard_attach;
 #[path = "response/empty_remote.rs"]
 mod empty_remote;
 #[path = "response/foreground_output.rs"]
@@ -74,6 +74,13 @@ pub(super) fn response_bytes(
         Reply::RetrySubmissionFlow if request_number == 0 => return None,
         Reply::RetrySubmissionFlow => submission_response(request_id, request, false, None),
         Reply::ManagementFlow => management_response(request_id, request),
+        Reply::DashboardAttachFlow => dashboard_attach::response(request_id, request),
+        Reply::ExpiredDashboardAttachFlow => {
+            dashboard_attach::expired_response(request_id, request)
+        }
+        Reply::InteractiveDashboardFlow(_) | Reply::InteractiveDashboardCancellationFlow(_) => {
+            dashboard_attach::interactive_response(request_id, request, request_number)
+        }
         Reply::FailedAttachFlow => failed_attach_response(request_id, request),
         Reply::TerminalOutputFlow(state, _) => {
             terminal_output::response(request_id, request, state)

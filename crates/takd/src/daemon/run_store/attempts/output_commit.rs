@@ -5,7 +5,7 @@ use tak_proto::local_daemon::v2::RunEventKind;
 use crate::daemon::scheduler::{DispatchCommand, ResultAcceptance};
 
 use super::super::RunStore;
-use super::super::events::{append_job_event, now_ms, sqlite_i64};
+use super::super::events::{JobEventDetails, append_job_event, now_ms, sqlite_i64};
 use super::{load_attempt, load_job};
 
 impl RunStore {
@@ -34,7 +34,7 @@ impl RunStore {
                 &command.job_id,
                 &job.task_ids,
                 &command.node_id,
-                "worker accepted job",
+                JobEventDetails::new("worker accepted job"),
             )?;
         }
         transaction.execute(
@@ -56,7 +56,7 @@ impl RunStore {
             &command.job_id,
             &job.task_ids,
             &command.node_id,
-            "worker is committing declared outputs",
+            JobEventDetails::new("worker is committing declared outputs"),
         )?;
         transaction.commit()?;
         Ok(ResultAcceptance::Applied)

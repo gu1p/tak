@@ -1,4 +1,5 @@
 use takd::{AttemptCompletion, ResultAcceptance, RunStore, SchedulerNode};
+use tak_proto::local_daemon::v2::RunEventKind;
 
 use crate::support::v2_run::{ARCHIVE, scheduler::dependent_jobs};
 
@@ -16,6 +17,9 @@ fn success_releases_the_slot_and_promotes_dependencies_across_restart() {
     drop(store);
 
     let restored = RunStore::with_db_path(db).unwrap();
+    assert!(restored.events_after(&run_id, 0).unwrap().iter().any(|event| {
+        event.kind == RunEventKind::Queued && event.job_id.as_deref() == Some("job-1")
+    }));
     let older_ready = restored.reserve_next(&nodes).unwrap().unwrap();
     assert_eq!(older_ready.job_id, "job-2");
     restored.complete_attempt(&older_ready, success()).unwrap();

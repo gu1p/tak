@@ -6,7 +6,7 @@ use tak_proto::local_daemon::v2::RunEventKind;
 use crate::daemon::scheduler::{AttemptRuntimeMetadata, DispatchCommand};
 
 use super::super::super::events::{
-    TerminalDetails, append_job_terminal_event, append_skipped_event, now_ms, sqlite_i64,
+    TerminalDetails, append_job_terminal_event, append_unassigned_job_event, now_ms, sqlite_i64,
 };
 
 mod run_state;
@@ -94,7 +94,24 @@ fn settle_job(
 
 fn promote_dependencies(transaction: &Transaction<'_>, run_id: &str) -> Result<()> {
     let now = sqlite_i64(now_ms()?, "timestamp")?;
-    transaction.execute(
+    let promoted = {
+        let mut statement = transaction.prepare(
+            "SELECT job.job_id, job.definition_json FROM run_jobs AS job \
+             WHERE job.run_id = ?1 AND job.state = 'blocked' \
+             AND NOT EXISTS (SELECT 1 FROM run_dependencies dependency \
+                 JOIN run_jobs prerequisite ON prerequisite.run_id = dependency.run_id \
+                 AND prerequisite.job_id = dependency.dependency_job_id \
+                 WHERE dependency.run_id = job.run_id \
+                 AND dependency.dependent_job_id = job.job_id \
+                 AND prerequisite.state != 'succeeded') ORDER BY job.ordinal",
+        )?;
+        statement
+            .query_map([run_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    let updated = transaction.execute(
         "UPDATE run_jobs AS job SET state = 'ready', next_eligible_at_ms = ?2, \
          ready_order = (SELECT COALESCE(MAX(other.ready_order), 0) + 1 + job.ordinal FROM run_jobs other WHERE other.run_id = ?1) \
          WHERE job.run_id = ?1 AND job.state = 'blocked' \
@@ -106,6 +123,20 @@ fn promote_dependencies(transaction: &Transaction<'_>, run_id: &str) -> Result<(
              AND prerequisite.state != 'succeeded')",
         params![run_id, now],
     )?;
+    if updated != promoted.len() {
+        bail!("dependency promotion changed during settlement");
+    }
+    for (job_id, definition) in promoted {
+        let job: ResolvedJob = serde_json::from_str(&definition)?;
+        append_unassigned_job_event(
+            transaction,
+            run_id,
+            RunEventKind::Queued,
+            &job_id,
+            &job.task_ids,
+            "dependencies satisfied; job queued",
+        )?;
+    }
     Ok(())
 }
 
@@ -144,7 +175,14 @@ pub(in crate::daemon::run_store::attempts) fn skip_after_failure(
             "UPDATE run_jobs SET state = 'skipped' WHERE run_id = ?1 AND job_id = ?2",
             params![run_id, skipped_id],
         )?;
-        append_skipped_event(transaction, run_id, &skipped_id, &job.task_ids)?;
+        append_unassigned_job_event(
+            transaction,
+            run_id,
+            RunEventKind::Skipped,
+            &skipped_id,
+            &job.task_ids,
+            "job skipped after dependency failure",
+        )?;
     }
     Ok(())
 }

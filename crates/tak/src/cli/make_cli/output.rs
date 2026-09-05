@@ -11,9 +11,15 @@ use tak_make::ParallelOutputMode;
 
 use super::task::ParallelMakeGoal;
 use lines::{complete_lines, flush_partials, record_make_exit_code, stream_key, write_prefixed};
+use visibility::OutputVisibility;
 
 mod lines;
 mod persisted;
+#[cfg(test)]
+mod tests;
+mod visibility;
+#[cfg(test)]
+mod visibility_bdd_tests;
 
 struct GoalOutput {
     name: String,
@@ -42,12 +48,21 @@ struct OutputState {
 pub(super) struct ParallelMakeOutputObserver {
     goals: BTreeMap<TaskLabel, GoalOutput>,
     state: Mutex<OutputState>,
+    visibility: OutputVisibility,
 }
 
 impl ParallelMakeOutputObserver {
     pub(super) fn new(
         goals: &[ParallelMakeGoal],
         override_mode: Option<ParallelOutputMode>,
+    ) -> Self {
+        Self::with_visibility(goals, override_mode, OutputVisibility::current())
+    }
+
+    fn with_visibility(
+        goals: &[ParallelMakeGoal],
+        override_mode: Option<ParallelOutputMode>,
+        visibility: OutputVisibility,
     ) -> Self {
         let goals = goals
             .iter()
@@ -64,6 +79,7 @@ impl ParallelMakeOutputObserver {
         Self {
             goals,
             state: Mutex::new(OutputState::default()),
+            visibility,
         }
     }
 
@@ -89,6 +105,9 @@ impl ParallelMakeOutputObserver {
         let lines = complete_lines(state.pending.entry(key).or_default(), &chunk.bytes);
         for line in lines {
             record_make_exit_code(&mut state, &chunk.task_label, chunk.stream, &line);
+            if !self.visibility.writes(chunk.stream) {
+                continue;
+            }
             match goal.mode {
                 ParallelOutputMode::Live => write_prefixed(chunk.stream, &goal.name, &line)?,
                 ParallelOutputMode::Grouped => state
@@ -112,7 +131,7 @@ impl ParallelMakeOutputObserver {
             .state
             .lock()
             .map_err(|_| anyhow!("parallel Make output lock poisoned"))?;
-        flush_partials(&mut state, &event.task_label, goal)?;
+        flush_partials(&mut state, &event.task_label, goal, &self.visibility)?;
         if goal.mode == ParallelOutputMode::Grouped {
             for line in state.grouped.remove(&event.task_label).unwrap_or_default() {
                 write_prefixed(line.stream, &goal.name, &line.bytes)?;

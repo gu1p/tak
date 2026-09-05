@@ -47,6 +47,7 @@ mod make_global_defaults_contract;
 mod make_local_container_contract;
 mod make_local_override_contract;
 mod make_parallel_contract;
+mod make_parallel_dashboard_contract;
 mod make_parallel_failure_contract;
 mod make_parallel_nested_contract;
 mod make_parallel_output_contract;

@@ -24,6 +24,8 @@ pub(crate) use remote_access::{RemoteAccess, RemoteAccessError};
 
 #[cfg(test)]
 mod path_cache_generation_tests;
+#[cfg(test)]
+mod task_runtime_tests;
 
 pub(crate) use daemon_attempt_transport::DaemonAttemptTransport;
 pub(crate) use local_attempt_transport::LocalAttemptTransport;

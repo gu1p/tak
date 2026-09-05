@@ -5,7 +5,7 @@ use tak_proto::local_daemon::v2::RunEventKind;
 
 use crate::daemon::scheduler::{DispatchCommand, SchedulerNode};
 
-use super::super::events::{append_job_event, now_ms, sqlite_i64};
+use super::super::events::{JobEventDetails, append_job_event, now_ms, sqlite_i64};
 
 pub(super) fn reserve(
     transaction: &Transaction<'_>,
@@ -43,7 +43,7 @@ pub(super) fn reserve(
     )?;
     super::constraints::bind_affinity_home(transaction, run_id, job, &node.node_id, now)?;
     let updated = transaction.execute(
-        "UPDATE run_jobs SET state = 'transferring', node_id = ?3, attempt = ?4, dispatch_generation = ?5, current_fencing_token = ?6, next_eligible_at_ms = 0 WHERE run_id = ?1 AND job_id = ?2 AND state IN ('ready', 'retrying')",
+        "UPDATE run_jobs SET state = 'transferring', node_id = ?3, attempt = ?4, cache = NULL, dispatch_generation = ?5, current_fencing_token = ?6, next_eligible_at_ms = 0 WHERE run_id = ?1 AND job_id = ?2 AND state IN ('ready', 'retrying')",
         params![run_id, job_id, node.node_id, authored_attempt, dispatch_generation,
             command.fencing_token],
     )?;
@@ -61,7 +61,7 @@ pub(super) fn reserve(
         job_id,
         &job.task_ids,
         &node.node_id,
-        "job reserved and transferring",
+        JobEventDetails::for_attempt("job reserved and transferring", authored_attempt),
     )?;
     transaction.execute(
         "INSERT INTO run_dispatch_outbox (run_id, job_id, authored_attempt, dispatch_generation, fencing_token, payload_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
