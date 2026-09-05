@@ -17,7 +17,7 @@ async fn real_daemon_driver_schedules_remote_only_work_on_a_v2_worker() {
     let store = RunStore::with_db_path(db.clone()).unwrap();
     let manager = new_shared_manager_with_db(db).unwrap();
     let server_store = store.clone();
-    let server_socket = socket.clone();
+    let server_socket = crate::support::socket_path::bind_path(&socket);
     let remote_inventory = temp.path().join("remotes.toml");
     let server = tokio::spawn(async move {
         let (_shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();

@@ -3,24 +3,15 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::{Command, Output};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 
 use super::run::tak_bin;
 
-pub fn output_with_timeout(command: Command, timeout: Duration) -> Result<Output> {
-    let started = Instant::now();
-    let mut command = assert_cmd::Command::from_std(command);
-    let output = command
-        .timeout(timeout)
-        .output()
-        .context("failed running bounded command")?;
-    if !output.status.success() && started.elapsed() >= timeout {
-        bail!("command timed out after {timeout:?}");
-    }
-    Ok(output)
-}
+#[path = "bounded_process.rs"]
+mod bounded_process;
+pub use bounded_process::output_with_timeout;
 
 fn run_tak_output(
     workspace_root: &Path,

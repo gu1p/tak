@@ -1,18 +1,14 @@
 #![recursion_limit = "256"]
 
+#[cfg(unix)]
+mod process_timeout_contract;
 mod support;
 
 use anyhow::Result;
-#[cfg(unix)]
-use std::process::Command;
-#[cfg(unix)]
-use std::time::{Duration, Instant};
 
 use support::examples_catalog::{assert_no_failures, load_catalog, repo_root};
 use support::examples_run::run_example;
 use support::examples_surface::verify_cli_surface;
-#[cfg(unix)]
-use support::run_timeout::output_with_timeout;
 
 #[test]
 fn full_matrix_process_cap_uses_a_fixture_specific_match() -> Result<()> {
@@ -24,27 +20,6 @@ fn full_matrix_process_cap_uses_a_fixture_specific_match() -> Result<()> {
         tasks.contains("match=\"tak-example-large-24-simulator\""),
         "the full-matrix process cap must not match common coverage build processes such as \
          simd-adler32, similar, or strsim"
-    );
-    Ok(())
-}
-
-#[cfg(unix)]
-#[test]
-fn stalled_example_clients_are_terminated_at_their_deadline() -> Result<()> {
-    let mut command = Command::new("/bin/sh");
-    command.args(["-c", "while :; do :; done"]);
-    let started = Instant::now();
-
-    let error = output_with_timeout(command, Duration::from_millis(50))
-        .expect_err("the stalled command must time out");
-
-    assert!(
-        error.to_string().contains("timed out after 50ms"),
-        "unexpected timeout error: {error:#}"
-    );
-    assert!(
-        started.elapsed() < Duration::from_secs(5),
-        "the command deadline must bound the wait"
     );
     Ok(())
 }

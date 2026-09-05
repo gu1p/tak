@@ -6,7 +6,7 @@ use tokio::net::UnixListener;
 
 #[tokio::test]
 async fn daemon_start_preserves_regular_file_at_socket_path() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
     let socket = temp.path().join("takd.sock");
     fs::write(&socket, b"user data").unwrap();
 
@@ -16,7 +16,7 @@ async fn daemon_start_preserves_regular_file_at_socket_path() {
 
 #[tokio::test]
 async fn daemon_start_preserves_symlink_at_socket_path() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
     let socket = temp.path().join("takd.sock");
     let target = temp.path().join("missing-target");
     symlink(&target, &socket).unwrap();
@@ -27,7 +27,7 @@ async fn daemon_start_preserves_symlink_at_socket_path() {
 
 #[tokio::test]
 async fn daemon_start_preserves_live_socket_from_another_state_root() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
     let socket = temp.path().join("takd.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     let inode = fs::symlink_metadata(&socket).unwrap().ino();
@@ -40,7 +40,7 @@ async fn daemon_start_preserves_live_socket_from_another_state_root() {
 
 #[tokio::test]
 async fn daemon_start_recovers_stale_socket() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir_in("/tmp").unwrap();
     let socket = temp.path().join("takd.sock");
     drop(UnixListener::bind(&socket).unwrap());
 
